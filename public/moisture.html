@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIM — การลงเวลาลดความชื้น</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-950:#0c1420; --navy-900:#111d2e; --navy-800:#182a40; --navy-850:#0f1a29;
+    --steel-700:#25405c; --steel-500:#4a6b8a;
+    --concrete-200:#e7e4da; --concrete-400:#b9b4a5;
+    --amber-500:#f2a91c; --amber-600:#d8930c;
+    --safety-red:#e5533d; --ok-green:#3ecf8e; --sky-blue:#4ea7e0;
+    --radius:10px; --sidebar-w:270px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif; background:var(--navy-950); color:var(--concrete-200); min-height:100vh; overflow-x:hidden;}
+
+  .app-shell{display:flex; min-height:100vh;}
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:var(--sidebar-w); flex-shrink:0;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border-right:1px solid rgba(255,255,255,.07);
+    display:flex; flex-direction:column;
+    position:fixed; top:0; left:0; bottom:0; z-index:20;
+    transition:transform .25s ease;
+  }
+  .sidebar-head{display:flex; align-items:center; gap:12px; padding:22px 20px; border-bottom:1px solid rgba(255,255,255,.07);}
+  .brand-mark{
+    width:38px; height:38px; border:2px solid var(--amber-500); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    font-family:'Oswald',sans-serif; font-weight:700; color:var(--amber-500); font-size:15px;
+    transform:rotate(-3deg);
+  }
+  .brand-text{font-family:'Oswald',sans-serif; letter-spacing:.05em; font-size:16.5px; font-weight:600; color:var(--concrete-200); line-height:1.2;}
+  .brand-text small{display:block; font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.08em; color:var(--steel-500); font-weight:400; margin-top:2px;}
+
+  .side-nav{flex:1; padding:16px 12px; overflow-y:auto;}
+  .nav-section-label{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em; color:var(--steel-500); text-transform:uppercase; padding:6px 12px 8px;}
+  .nav-item{
+    width:100%; display:flex; align-items:center; gap:12px;
+    padding:11px 12px; border-radius:8px; margin-bottom:2px;
+    color:var(--concrete-200); text-decoration:none;
+    font-size:14px; font-family:'Inter',sans-serif; font-weight:500;
+    background:none; border:none; cursor:pointer; text-align:left;
+    transition:background .15s, color .15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-item.active{background:rgba(242,169,28,.12); color:var(--amber-500);}
+  .nav-icon{width:19px; height:19px; flex-shrink:0; color:var(--amber-500); opacity:.9;}
+  .nav-icon svg{width:100%; height:100%; stroke-width:1.8;}
+  .nav-label{flex:1;}
+  .nav-chevron{width:14px; height:14px; flex-shrink:0; color:var(--steel-500); transition:transform .2s ease;}
+  .nav-group.open .nav-chevron{transform:rotate(180deg);}
+  .nav-group.open > .nav-parent{background:rgba(255,255,255,.04);}
+  .nav-submenu{display:grid; grid-template-rows:0fr; overflow:hidden; transition:grid-template-rows .22s ease;}
+  .nav-group.open .nav-submenu{grid-template-rows:1fr;}
+  .nav-submenu-inner{overflow:hidden; padding-left:14px; margin:2px 0 6px;}
+  .nav-subitem{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 12px 9px 20px; border-radius:7px; margin-bottom:1px;
+    color:var(--concrete-400); text-decoration:none; font-size:13px;
+    position:relative; transition:background .15s, color .15s;
+    border-left:1px solid rgba(255,255,255,.09);
+  }
+  .nav-subitem::before{content:""; position:absolute; left:-1px; top:50%; width:12px; height:1px; background:rgba(255,255,255,.09);}
+  .nav-subitem:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-subitem.active{color:var(--amber-500); border-left-color:var(--amber-500); background:rgba(242,169,28,.08);}
+
+  .sidebar-foot{padding:16px; border-top:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:10px;}
+  .user-chip{
+    display:flex; align-items:center; gap:9px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-200);
+    border:1px solid rgba(255,255,255,.1); padding:9px 12px; border-radius:9px;
+    background:rgba(255,255,255,.02);
+  }
+  .user-chip .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-green); box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  #userLabel{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .logout-btn{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.05em;
+    color:var(--concrete-400); background:transparent; border:1px solid rgba(255,255,255,.15);
+    border-radius:8px; padding:9px 14px; cursor:pointer; text-transform:uppercase;
+    transition:border-color .15s, color .15s; width:100%;
+  }
+  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75;}
+
+  /* ---------- MAIN AREA ---------- */
+  .main-wrap{flex:1; margin-left:var(--sidebar-w); min-width:0;}
+  .topbar-mobile{
+    display:none; align-items:center; gap:14px; padding:16px 20px;
+    border-bottom:1px solid rgba(255,255,255,.07); position:sticky; top:0; background:var(--navy-950); z-index:15;
+  }
+  .hamburger{
+    width:38px; height:38px; border-radius:8px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.03); color:var(--concrete-200); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .hamburger svg{width:18px; height:18px;}
+
+  main{max-width:1440px; margin:0 auto; padding:clamp(28px,4vw,48px) clamp(20px,4vw,48px) 70px;}
+
+  .eyebrow{font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em; color:var(--amber-500); text-transform:uppercase; margin:0 0 10px;}
+  h1{font-family:'Oswald',sans-serif; font-weight:700; text-transform:uppercase; font-size:clamp(24px,3.4vw,32px); line-height:1.15; margin:0 0 8px; color:#fff;}
+  .sub{font-size:14px; color:var(--concrete-400); margin:0 0 24px;}
+
+  .toolbar{
+    display:flex; align-items:end; gap:16px; flex-wrap:wrap;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:18px 22px; margin-bottom:26px;
+  }
+  .field{display:flex; flex-direction:column; gap:7px;}
+  .field label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em; color:var(--concrete-400); text-transform:uppercase;}
+  .input-shell{
+    display:flex; align-items:center; gap:8px;
+    background:var(--navy-950); border:1px solid rgba(255,255,255,.1); border-radius:7px; padding:0 12px;
+    transition:border-color .18s, box-shadow .18s;
+  }
+  .input-shell:focus-within{border-color:var(--amber-500); box-shadow:0 0 0 3px rgba(242,169,28,.15);}
+  .input-shell select, .input-shell input{
+    flex:1; background:transparent; border:0; outline:0; color:#fff;
+    font-family:'Inter',sans-serif; font-size:14px; padding:11px 0; min-width:180px;
+  }
+  .input-shell select{cursor:pointer;}
+  .input-shell select option{background:var(--navy-900); color:#fff;}
+  .input-shell input[type="date"]{color-scheme:dark; min-width:150px;}
+
+  .refresh-btn{
+    display:flex; align-items:center; gap:7px; height:44px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.04em;
+    color:var(--concrete-200); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14);
+    border-radius:7px; padding:0 16px; cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .refresh-btn:hover{border-color:var(--amber-500); background:rgba(242,169,28,.08); color:var(--amber-500);}
+  .refresh-btn svg{width:15px; height:15px;}
+
+  /* ---------- KANBAN ---------- */
+  .kanban-top{display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; margin-bottom:20px;}
+  @media (max-width:900px){ .kanban-top{grid-template-columns:1fr;} }
+
+  .kanban-done-wrap{width:100%;}
+  .kb-col.done .kb-list{max-height:none; display:block; padding:0;}
+  .kb-col.done .table-scroll{overflow-x:auto;}
+  .done-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  .done-table thead tr.group-row th{
+    text-align:center; padding:9px 12px; font-family:'Oswald',sans-serif;
+    font-size:12px; letter-spacing:.04em; text-transform:uppercase; font-weight:600;
+    color:var(--navy-950); background:var(--amber-500);
+    border-bottom:1px solid rgba(0,0,0,.15); border-right:1px solid rgba(0,0,0,.12);
+  }
+  .done-table thead tr.group-row th:last-child{border-right:none;}
+  .done-table thead th{
+    text-align:center; padding:10px 12px; font-family:'JetBrains Mono',monospace;
+    font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--amber-500);
+    background:rgba(242,169,28,.06); border-bottom:1px solid rgba(255,255,255,.08); white-space:nowrap;
+  }
+  .done-table tbody td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.05); color:var(--concrete-200); white-space:nowrap; text-align:center;}
+  .done-table tbody td.wrap{white-space:normal; min-width:160px;}
+  .done-table tbody tr:hover{background:rgba(255,255,255,.03);}
+  .done-table tbody tr:last-child td{border-bottom:none;}
+  .done-table td.num{text-align:right;}
+  .done-table td.note-cell{text-align:left;}
+  .done-table td.duration{color:var(--amber-500); font-weight:700; text-align:center;}
+  .done-table .seed-cell{font-family:'Oswald',sans-serif; font-size:13.5px; color:#fff;}
+  .done-table .doc-cell{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500);}
+  .kb-col.done .kb-col-head{flex-wrap:wrap;}
+
+  .kb-col{background:linear-gradient(180deg, var(--navy-900), var(--navy-850)); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); overflow:hidden; border-top:3px solid transparent;}
+  .kb-col.waiting{border-top-color:var(--sky-blue);}
+  .kb-col.inprogress{border-top-color:var(--amber-500);}
+  .kb-col.done{border-top-color:var(--ok-green);}
+  .kb-col-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:16px 18px; border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .kb-col.waiting .kb-col-head{background:rgba(78,167,224,.09);}
+  .kb-col.inprogress .kb-col-head{background:rgba(242,169,28,.09);}
+  .kb-col.done .kb-col-head{background:rgba(62,207,142,.09);}
+  .kb-col-head .name{font-family:'Oswald',sans-serif; font-size:17.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:#fff; display:flex; align-items:center; gap:10px;}
+  .kb-col-head .dot{width:11px; height:11px; border-radius:50%; flex-shrink:0;}
+  .kb-col.waiting .dot{background:var(--sky-blue); box-shadow:0 0 8px var(--sky-blue);}
+  .kb-col.inprogress .dot{background:var(--amber-500); box-shadow:0 0 8px var(--amber-500);}
+  .kb-col.done .dot{background:var(--ok-green); box-shadow:0 0 8px var(--ok-green);}
+  .kb-count{
+    font-family:'JetBrains Mono',monospace; font-size:18px; color:var(--navy-950); font-weight:800;
+    background:var(--concrete-200); border-radius:999px; padding:4px 16px; min-width:38px; text-align:center;
+    box-shadow:0 4px 12px -2px rgba(0,0,0,.35);
+  }
+  .kb-col-sub{padding:0 18px 12px; margin-top:-4px;}
+  .kb-col-sub .input-shell{padding:0 10px;}
+  .kb-col-sub input{padding:8px 0; font-size:13px; min-width:0;}
+  .done-mode-toggle{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
+  .mode-radio{
+    display:flex; align-items:center; gap:6px; font-size:13px; color:var(--concrete-400);
+    cursor:pointer; user-select:none;
+  }
+  .mode-radio input{accent-color:var(--amber-500); cursor:pointer;}
+  .mode-radio:has(input:checked){color:#fff; font-weight:600;}
+  #doneDateShell{transition:opacity .15s;}
+  .date-overlay-wrap{position:relative;}
+  .date-overlay-wrap input[type="date"]{color:transparent; caret-color:transparent;}
+  .date-overlay-wrap input[type="date"]::-webkit-calendar-picker-indicator{opacity:1;}
+  .date-overlay-text{
+    position:absolute; left:12px; top:50%; transform:translateY(-50%);
+    pointer-events:none; font-family:'Inter',sans-serif; font-size:14px; color:#fff; white-space:nowrap;
+  }
+
+  .kb-list{padding:12px; display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 340px); overflow-y:auto; min-height:120px;}
+
+  .kb-card{
+    background:var(--navy-800); border:1px solid rgba(255,255,255,.07); border-radius:9px; padding:14px 16px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .kb-card .card-top-row{display:flex; align-items:baseline; justify-content:space-between; gap:10px;}
+  .kb-card .doc-code{font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; color:var(--amber-500); letter-spacing:.03em;}
+  .kb-card .start-time-inline{
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--concrete-400);
+    white-space:nowrap; text-align:right; flex-shrink:0;
+  }
+  .kb-card .start-time-inline .lbl{color:var(--steel-500);}
+  .kb-card .seed-name{font-family:'Oswald',sans-serif; font-size:15.5px; color:#fff; line-height:1.3;}
+  .kb-card .meta-row{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12px; color:var(--concrete-400);}
+  .kb-card .meta-row b{color:var(--concrete-200); font-weight:600;}
+  .kb-card .note{font-size:12.5px; color:var(--concrete-200); font-weight:500; font-style:italic;}
+  .kb-card .time-row{
+    display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:11.5px;
+    color:var(--concrete-400); background:rgba(255,255,255,.03); border-radius:6px; padding:6px 10px;
+  }
+  .kb-card .time-row .lbl{color:var(--steel-500);}
+
+  .kb-action-btn{
+    align-self:flex-start; margin-top:2px;
+    border:0; border-radius:7px; padding:9px 18px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    display:flex; align-items:center; gap:7px; transition:transform .15s, filter .15s;
+  }
+  .kb-action-btn:hover{transform:translateY(-1px); filter:brightness(1.1);}
+  .kb-action-btn:disabled{opacity:.5; cursor:not-allowed; transform:none;}
+  .kb-action-btn.start-btn{background:var(--sky-blue); color:var(--navy-950);}
+  .kb-action-btn.end-btn{background:var(--amber-500); color:var(--navy-950);}
+  .kb-action-btn svg{width:14px; height:14px;}
+
+  .kb-empty{padding:40px 16px; text-align:center; color:var(--concrete-400); font-size:13px;}
+  .kb-empty svg{width:30px; height:30px; margin-bottom:8px; opacity:.5;}
+  .kb-error{padding:20px 16px; text-align:center; color:#ff8a75; font-size:13px;}
+  .kb-loading{padding:40px 16px; text-align:center; color:var(--concrete-400); font-size:13px;}
+  .spinner{width:16px; height:16px; border:2px solid rgba(255,255,255,.15); border-top-color:var(--amber-500); border-radius:50%; animation:spin .7s linear infinite; display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  footer{text-align:center; padding:20px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500);}
+
+  /* ---------- MODAL: ยืนยันเริ่มลดความชื้น ---------- */
+  .start-modal-overlay{
+    display:none; position:fixed; inset:0; z-index:60;
+    background:rgba(6,10,16,.75); backdrop-filter:blur(3px);
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .start-modal-overlay.show{display:flex;}
+  .start-modal{
+    width:100%; max-width:380px;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border:1px solid rgba(78,167,224,.35); border-radius:16px;
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.7), 0 0 40px -10px rgba(78,167,224,.25);
+    padding:34px 30px 28px; text-align:center;
+  }
+  .start-modal-label{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.1em;
+    color:var(--steel-500); text-transform:uppercase; margin-bottom:10px;
+  }
+  .start-modal-clock{
+    font-family:'JetBrains Mono',monospace; font-size:48px; font-weight:700;
+    color:var(--sky-blue); letter-spacing:.03em; line-height:1; margin-bottom:8px;
+    text-shadow:0 0 24px rgba(78,167,224,.5);
+  }
+  .start-modal-date{font-size:14px; color:var(--concrete-400); margin-bottom:26px;}
+
+  .start-modal-fields{display:none; text-align:left; margin-bottom:18px;}
+  .start-modal-fields.show{display:block;}
+  .start-modal-fields .field{display:flex; flex-direction:column; gap:6px; margin-bottom:14px;}
+  .start-modal-fields .field label{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.06em;
+    color:var(--concrete-400); text-transform:uppercase;
+  }
+  .start-modal-fields .field label .req{color:var(--safety-red);}
+  .start-modal-fields .field-row{display:flex; gap:12px;}
+  .start-modal-fields .field-row .field{flex:1; min-width:0; margin-bottom:14px;}
+  .start-modal-fields .input-shell{
+    display:flex; align-items:center; min-width:0;
+    background:var(--navy-950); border:1px solid rgba(255,255,255,.12); border-radius:7px; padding:0 12px;
+    transition:border-color .18s;
+  }
+  .start-modal-fields .input-shell:focus-within{border-color:var(--sky-blue);}
+  .start-modal-fields select, .start-modal-fields input{
+    flex:1; min-width:0; background:transparent; border:0; outline:0; color:#fff;
+    font-family:'Inter',sans-serif; font-size:14px; padding:10px 0;
+  }
+  .start-modal-fields select{cursor:pointer;}
+  .start-modal-fields select option{background:var(--navy-900); color:#fff;}
+  .modal-field-error{color:#ff8a75; font-size:12.5px; margin:2px 0 14px; text-align:left; display:none;}
+  .modal-field-error.show{display:block;}
+  .start-modal-confirm{
+    width:100%; border:0; border-radius:9px; padding:15px 18px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    background:var(--sky-blue); color:var(--navy-950);
+    display:flex; align-items:center; justify-content:center; gap:9px;
+    transition:transform .15s, filter .15s; margin-bottom:12px;
+  }
+  .start-modal-confirm:hover{transform:translateY(-1px); filter:brightness(1.1);}
+  .start-modal-confirm:disabled{opacity:.5; cursor:not-allowed; transform:none;}
+  .start-modal-confirm svg{width:16px; height:16px;}
+  .start-modal-cancel{
+    background:none; border:0; color:var(--steel-500); font-size:13px; cursor:pointer;
+    padding:6px; transition:color .15s;
+  }
+  .start-modal-cancel:hover{color:var(--concrete-200);}
+
+  .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:19;}
+  @media (max-width:900px){
+    .sidebar{transform:translateX(-100%);}
+    body.sidebar-open .sidebar{transform:translateX(0);}
+    body.sidebar-open .sidebar-overlay{display:block;}
+    .main-wrap{margin-left:0;}
+    .topbar-mobile{display:flex;}
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ---------- SIDEBAR ---------- -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <div class="brand-mark">W</div>
+      <div class="brand-text">WIM<small>WAREHOUSE &amp; INVENTORY MANAGEMENT</small></div>
+    </div>
+
+    <nav class="side-nav">
+      <div class="nav-section-label">เมนูหลัก</div>
+
+      <div class="nav-group open" id="seedGroup">
+        <button class="nav-item nav-parent" id="seedToggle" type="button" aria-expanded="true" aria-controls="seedSubmenu">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path><path d="M12 22v-9"></path>
+            </svg>
+          </span>
+          <span class="nav-label">การจัดการเมล็ดพันธุ์วัตถุดิบ</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="nav-submenu" id="seedSubmenu">
+          <div class="nav-submenu-inner">
+            <a class="nav-subitem" href="/coating.html">การลงเวลาเคลือบเมล็ด</a>
+            <a class="nav-subitem active" href="/moisture.html">การลงเวลาลดความชื้น</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-group" id="reportGroup">
+        <button class="nav-item nav-parent" id="reportToggle" type="button" aria-expanded="false" aria-controls="reportSubmenu">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"></path><path d="M7 15l4-5 3 3 5-7"></path>
+            </svg>
+          </span>
+          <span class="nav-label">รายงานสต๊อก</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="nav-submenu" id="reportSubmenu">
+          <div class="nav-submenu-inner">
+            <a class="nav-subitem" href="#">รายงานสต๊อกคงคลัง</a>
+            <a class="nav-subitem" href="/stockcard.html">Stock Card (รายล็อต)</a>
+            <a class="nav-subitem" href="/stockcard-item.html">Stock Card (รายสินค้า)</a>
+            <a class="nav-subitem" href="#">รายงานความเคลื่อนไหวสต๊อก</a>
+            <a class="nav-subitem" href="#">รายงานสินค้ารับคืน</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="user-chip"><span class="dot"></span><span id="userLabel">กำลังโหลด…</span></div>
+      <button class="logout-btn" id="logoutBtn">ออกจากระบบ</button>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ---------- MAIN ---------- -->
+  <div class="main-wrap">
+
+    <div class="topbar-mobile">
+      <button class="hamburger" id="sidebarToggle" type="button" aria-label="เปิดเมนู">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <div class="brand-text">WIM</div>
+    </div>
+
+    <main>
+      <div class="eyebrow">การจัดการเมล็ดพันธุ์วัตถุดิบ</div>
+      <h1>การลงเวลาลดความชื้น</h1>
+      <p class="sub">ติดตามสถานะงานลดความชื้นตั้งแต่รอเริ่ม จนถึงลดความชื้นเสร็จสิ้น</p>
+
+      <div class="toolbar">
+        <div class="field">
+          <label for="companySelect">บริษัท</label>
+          <div class="input-shell">
+            <select id="companySelect">
+              <option value="">— เลือกบริษัท —</option>
+            </select>
+          </div>
+        </div>
+        <button type="button" class="refresh-btn" id="refreshBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          รีเฟรชข้อมูล
+        </button>
+      </div>
+
+      <div class="kanban-top">
+        <!-- ---------- คอลัมน์ 1: รอเริ่ม ---------- -->
+        <div class="kb-col waiting">
+          <div class="kb-col-head">
+            <div class="name"><span class="dot"></span>รอเริ่มลดความชื้น</div>
+            <div class="kb-count" id="waitingCount">-</div>
+          </div>
+          <div class="kb-list" id="waitingList">
+            <div class="kb-loading">เลือกบริษัทเพื่อโหลดข้อมูล</div>
+          </div>
+        </div>
+
+        <!-- ---------- คอลัมน์ 2: กำลังลดความชื้น ---------- -->
+        <div class="kb-col inprogress">
+          <div class="kb-col-head">
+            <div class="name"><span class="dot"></span>กำลังลดความชื้น (รอลงเวลาสิ้นสุด)</div>
+            <div class="kb-count" id="inprogressCount">-</div>
+          </div>
+          <div class="kb-list" id="inprogressList">
+            <div class="kb-loading">เลือกบริษัทเพื่อโหลดข้อมูล</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- แถวล่าง: เสร็จแล้ว (เต็มความกว้าง เพราะบางวันอาจไม่มีข้อมูล) ---------- -->
+      <div class="kanban-done-wrap">
+        <div class="kb-col done">
+          <div class="kb-col-head">
+            <div class="name"><span class="dot"></span>ลดความชื้นเสร็จแล้ว</div>
+            <div class="kb-count" id="doneCount">-</div>
+          </div>
+          <div class="kb-col-sub">
+            <div class="done-mode-toggle">
+              <label class="mode-radio"><input type="radio" name="doneMode" value="recent" checked> รายการที่ลดความชื้นเสร็จ ล่าสุด 5 รายการ</label>
+              <label class="mode-radio"><input type="radio" name="doneMode" value="date"> ค้นหาตามวันที่</label>
+              <div class="input-shell date-overlay-wrap" id="doneDateShell" style="opacity:.4; pointer-events:none;">
+                <input type="date" id="doneDate" lang="en-GB">
+                <span class="date-overlay-text" id="doneDateOverlay"></span>
+              </div>
+            </div>
+          </div>
+          <div class="kb-list" id="doneList">
+            <div class="kb-loading">เลือกบริษัทเพื่อโหลดข้อมูล</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <footer>©2026 WIM ⋅ WAREHOUSE AND INVENTORY MANAGEMENT</footer>
+  </div>
+
+</div>
+
+<!-- ---------- POPUP: ยืนยันเริ่มลดความชื้น พร้อมนาฬิกาเรียลไทม์ ---------- -->
+<div class="start-modal-overlay" id="startModalOverlay">
+  <div class="start-modal">
+    <div class="start-modal-label">เวลา ณ ขณะนี้</div>
+    <div class="start-modal-clock" id="startModalClock">00:00:00</div>
+    <div class="start-modal-date" id="startModalDate"></div>
+
+    <div class="start-modal-fields" id="startModalFields">
+      <div class="field">
+        <label for="modalRoomSelect">ห้อง <span class="req">*</span></label>
+        <div class="input-shell">
+          <select id="modalRoomSelect">
+            <option value="">— เลือกห้อง —</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="modalTempInput">อุณหภูมิ (°C) <span class="req">*</span></label>
+          <div class="input-shell">
+            <input type="number" step="0.1" id="modalTempInput" placeholder="เช่น 32.5">
+          </div>
+        </div>
+        <div class="field">
+          <label for="modalHumidInput">ความชื้น (%) <span class="req">*</span></label>
+          <div class="input-shell">
+            <input type="number" step="0.1" id="modalHumidInput" placeholder="เช่น 6.5">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="start-modal-fields" id="endModalFields">
+      <div class="field">
+        <label for="modalHumidAfterInput">ความชื้นหลังจัดการ (%) <span class="req">*</span></label>
+        <div class="input-shell">
+          <input type="number" step="0.1" id="modalHumidAfterInput" placeholder="เช่น 6.5">
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-field-error" id="modalFieldError"></div>
+
+    <button type="button" class="start-modal-confirm" id="confirmStartBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+      เริ่มลดความชื้น
+    </button>
+    <button type="button" class="start-modal-cancel" id="cancelStartBtn">ยกเลิก</button>
+  </div>
+</div>
+
+<script>
+  // ---------- ตรวจสอบว่า login มาแล้วหรือยัง ----------
+  const raw = sessionStorage.getItem('wim_user');
+  if (!raw) {
+    window.location.href = '/index.html';
+  } else {
+    const user = JSON.parse(raw);
+    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
+    const displayName = fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
+    const userLabelEl = document.getElementById('userLabel');
+    if (userLabelEl) userLabelEl.textContent = displayName;
+  }
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.removeItem('wim_user');
+    window.location.href = '/index.html';
+  });
+
+  // ---------- accordion เมนู ----------
+  function setupAccordion(toggleId, groupId){
+    const toggle = document.getElementById(toggleId);
+    const group = document.getElementById(groupId);
+    toggle.addEventListener('click', () => {
+      const isOpen = group.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+  }
+  setupAccordion('seedToggle', 'seedGroup');
+  setupAccordion('reportToggle', 'reportGroup');
+
+  // ---------- sidebar drawer บนมือถือ ----------
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+  sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
+  sidebarOverlay.addEventListener('click', () => document.body.classList.remove('sidebar-open'));
+
+  // ==================================================================
+  // ---------- โหลดรายชื่อบริษัท ----------
+  // ==================================================================
+  const companySelect = document.getElementById('companySelect');
+
+  async function loadCompanies(){
+    try {
+      const res = await fetch('/api/companies');
+      const data = await res.json();
+      if (!data.success) {
+        const opt = document.createElement('option');
+        opt.value = ''; opt.textContent = '⚠ โหลดข้อมูลบริษัทไม่สำเร็จ (ดู console)';
+        companySelect.appendChild(opt);
+        console.error('โหลดบริษัทไม่สำเร็จ:', data.message, data.detail);
+        return;
+      }
+      if (!Array.isArray(data.data) || data.data.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = ''; opt.textContent = 'ไม่พบข้อมูลบริษัทในระบบ';
+        companySelect.appendChild(opt);
+        return;
+      }
+      data.data.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id; opt.textContent = c.name;
+        companySelect.appendChild(opt);
+      });
+
+      // ตั้งค่า default ให้ตรงกับบริษัทของผู้ใช้ที่ login อยู่ (ถ้ามี) แล้ว trigger โหลดข้อมูลอัตโนมัติ
+      try {
+        const userRaw = sessionStorage.getItem('wim_user');
+        if (userRaw) {
+          const defaultCompId = JSON.parse(userRaw).idComp;
+          if (defaultCompId !== undefined && defaultCompId !== null) {
+            const defaultCompIdStr = String(defaultCompId);
+            const matched = Array.from(companySelect.options).some(o => o.value === defaultCompIdStr);
+            if (matched) {
+              companySelect.value = defaultCompIdStr;
+              companySelect.dispatchEvent(new Event('change'));
+            }
+          }
+        }
+      } catch (e) { /* เงียบไว้ ถ้า parse ไม่ได้ก็แค่ไม่ default ให้ */ }
+    } catch (err) {
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = '⚠ เชื่อมต่อ server ไม่ได้';
+      companySelect.appendChild(opt);
+      console.error('โหลดบริษัทไม่สำเร็จ (network):', err);
+    }
+  }
+
+  companySelect.addEventListener('change', loadAllColumns);
+  document.getElementById('refreshBtn').addEventListener('click', loadAllColumns);
+
+  // ---------- ตั้งค่าวันที่เริ่มต้นของคอลัมน์ "เสร็จแล้ว" เป็นวันนี้ ----------
+  const doneDateInput = document.getElementById('doneDate');
+  const doneDateShell = document.getElementById('doneDateShell');
+  const doneDateOverlay = document.getElementById('doneDateOverlay');
+  const doneModeRadios = document.querySelectorAll('input[name="doneMode"]');
+
+  function todayStr(){
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  function updateDoneDateLabel(){
+    doneDateOverlay.textContent = fmtDateOnly(doneDateInput.value);
+  }
+  doneDateInput.value = todayStr();
+  updateDoneDateLabel();
+  doneDateInput.addEventListener('change', () => {
+    updateDoneDateLabel();
+    loadColumn('done');
+  });
+
+  function currentDoneMode(){
+    return document.querySelector('input[name="doneMode"]:checked').value;
+  }
+
+  doneModeRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      const isDateMode = currentDoneMode() === 'date';
+      doneDateShell.style.opacity = isDateMode ? '1' : '.4';
+      doneDateShell.style.pointerEvents = isDateMode ? 'auto' : 'none';
+      loadColumn('done');
+    });
+  });
+
+  // ==================================================================
+  // ---------- helper แสดงผล ----------
+  // ==================================================================
+  function fmtDate(val){
+    if (!val) return '';
+    if (typeof val === 'string') {
+      const m = val.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+      if (m) { const [, yyyy, mm, dd, hh, mi] = m; return `${dd}/${mm}/${yyyy} ${hh}:${mi}`; }
+      const m2 = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m2) { const [, yyyy, mm, dd] = m2; return `${dd}/${mm}/${yyyy}`; }
+    }
+    return String(val);
+  }
+  // แสดงเฉพาะวันที่ ไม่เอาเวลา (ตัดเวลาออกแม้ค่าดิบจะมีเวลาติดมาด้วย)
+  function fmtDateOnly(val){
+    if (!val) return '';
+    if (typeof val === 'string') {
+      const m = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) { const [, yyyy, mm, dd] = m; return `${dd}/${mm}/${yyyy}`; }
+    }
+    return String(val);
+  }
+  // format น้ำหนัก: คอมม่าคั่นหลักพัน + ทศนิยม 2 ตำแหน่งเสมอ
+  function fmtWeight(n){
+    if (n === null || n === undefined || n === '' || isNaN(n)) return '-';
+    return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  // คำนวณระยะเวลาจาก start ถึง end แสดงเป็น "ชม.นาที hr." เช่น 1.06 hr. = 1 ชม. 6 นาที
+  function fmtDuration(startVal, endVal){
+    if (!startVal || !endVal) return '-';
+    const start = new Date(startVal);
+    const end = new Date(endVal);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
+    let diffMin = Math.round((end - start) / 60000);
+    if (diffMin < 0) diffMin = 0;
+    const hours = Math.floor(diffMin / 60);
+    const minutes = diffMin % 60;
+    return `${hours}.${String(minutes).padStart(2, '0')} hr.`;
+  }
+  function esc(s){
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function cardHtml(row, status){
+    // เวลาเริ่มลดความชื้น ย้ายมาแสดงมุมขวาบนสุด บรรทัดเดียวกับเลขที่เอกสาร (เฉพาะการ์ดที่กำลังลดความชื้น)
+    const startTimeInline = status === 'inprogress'
+      ? `<div class="start-time-inline"><span class="lbl">เริ่มเมื่อ</span> ${fmtDate(row.DateRdHmS)}</div>`
+      : '';
+
+    // ห้อง/อุณหภูมิ/ความชื้น มีค่าตั้งแต่ตอนกดเริ่ม จึงแสดงเฉพาะสถานะกำลังลดความชื้นเท่านั้น (แยกไว้บรรทัดของตัวเอง)
+    const hmRow = status === 'inprogress'
+      ? `<div class="meta-row">
+           <span>ห้อง: <b>${esc(row.RoomName) || '-'}</b></span>
+           <span>อุณหภูมิ: <b>${row.Temp ?? '-'}</b></span>
+           <span>ความชื้น: <b>${row.Humidity ?? '-'}</b></span>
+         </div>`
+      : '';
+
+    let actionBtn = '';
+    if (status === 'waiting') {
+      actionBtn = `<button type="button" class="kb-action-btn start-btn" data-idrm="${row.idRm}" data-action="start">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        เริ่มต้น</button>`;
+    } else if (status === 'inprogress') {
+      actionBtn = `<button type="button" class="kb-action-btn end-btn" data-idrm="${row.idRm}" data-action="end">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12"></rect></svg>
+        สิ้นสุด</button>`;
+    }
+
+    return `
+      <div class="kb-card">
+        <div class="card-top-row">
+          <div class="doc-code">${esc(row.DocCode)}</div>
+          ${startTimeInline}
+        </div>
+        <div class="seed-name">${esc(row.SeedName)}</div>
+        <div class="meta-row">
+          <span>วันที่ต้องการ: <b>${fmtDateOnly(row.DateReq) || '-'}</b></span>
+          <span>น้ำหนักก่อนจัดการ: <b>${fmtWeight(row.WBefore)} ${esc(row.UnitName) || ''}</b></span>
+        </div>
+        ${hmRow}
+        ${row.Note ? `<div class="note">หมายเหตุ: ${esc(row.Note)}</div>` : ''}
+        ${actionBtn}
+      </div>`;
+  }
+
+  // การ์ดสำหรับคอลัมน์ "ลดความชื้นเสร็จแล้ว" โดยเฉพาะ แสดงข้อมูลครบทุกฟิลด์ตามที่ต้องการ
+  function doneRowHtml(row){
+    return `
+      <tr>
+        <td class="doc-cell">${esc(row.DocCode)}</td>
+        <td>${fmtDateOnly(row.DateDoc) || '-'}</td>
+        <td>${fmtDateOnly(row.DateReq) || '-'}</td>
+        <td class="seed-cell wrap">${esc(row.SeedName)}</td>
+        <td class="note-cell wrap">${row.Note ? esc(row.Note) : '-'}</td>
+        <td>${esc(row.StrMC) || '-'}</td>
+        <td class="num">${fmtWeight(row.WBefore)}</td>
+        <td class="num">${fmtWeight(row.WAfter)}</td>
+        <td>${esc(row.UnitName) || '-'}</td>
+        <td>${esc(row.RoomName) || '-'}</td>
+        <td>${row.Temp ?? '-'}</td>
+        <td>${row.Humidity ?? '-'}</td>
+        <td>${fmtDateOnly(row.DateRdHmS) || '-'}</td>
+        <td>${fmtDateOnly(row.DateRdHmE) || '-'}</td>
+        <td class="duration">${fmtDuration(row.DateRdHmS, row.DateRdHmE)}</td>
+        <td>${row.MCAfter ?? '-'}</td>
+      </tr>`;
+  }
+
+  function doneTableHtml(rows){
+    return `
+      <div class="table-scroll">
+        <table class="done-table">
+          <thead>
+            <tr class="group-row">
+              <th colspan="5">รายละเอียด</th>
+              <th colspan="4">ข้อมูลการจัดการเมล็ด</th>
+              <th colspan="7">การลดความชื้น</th>
+            </tr>
+            <tr>
+              <th>เลขที่เอกสาร</th><th>วันที่เอกสาร</th><th>วันที่ต้องการ</th>
+              <th>ประเภทพืช</th><th>หมายเหตุ</th>
+              <th>การจัดการ</th><th>นน.ก่อนจัดการ</th><th>นน.หลังจัดการ</th><th>หน่วย</th>
+              <th>ห้อง</th><th>อุณหภูมิ</th><th>ความชื้น</th><th>เวลาเริ่มต้น</th><th>เวลาสิ้นสุด</th><th>รวมระยะเวลา</th><th>ความชื้นหลังจัดการ</th>
+            </tr>
+          </thead>
+          <tbody>${rows.map(doneRowHtml).join('')}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function renderColumn(status, rows){
+    const listEl = document.getElementById(status + 'List');
+    const countEl = document.getElementById(status + 'Count');
+    countEl.textContent = rows.length;
+
+    if (rows.length === 0) {
+      listEl.innerHTML = `
+        <div class="kb-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+          <div>ไม่มีรายการ</div>
+        </div>`;
+      return;
+    }
+    if (status === 'done') {
+      listEl.innerHTML = doneTableHtml(rows);
+      return;
+    }
+    listEl.innerHTML = rows.map(row => cardHtml(row, status)).join('');
+  }
+
+  // ใช้ event delegation ตัวเดียวจับปุ่มเริ่ม/สิ้นสุดของทุกคอลัมน์
+  // ==================================================================
+  // ---------- POPUP: ยืนยันเริ่ม/สิ้นสุดลดความชื้น พร้อมนาฬิกาเรียลไทม์ ----------
+  // ==================================================================
+  const startModalOverlay = document.getElementById('startModalOverlay');
+  const startModalClock = document.getElementById('startModalClock');
+  const startModalDate = document.getElementById('startModalDate');
+  const confirmStartBtn = document.getElementById('confirmStartBtn');
+  const cancelStartBtn = document.getElementById('cancelStartBtn');
+  const startModalFields = document.getElementById('startModalFields');
+  const endModalFields = document.getElementById('endModalFields');
+  const modalRoomSelect = document.getElementById('modalRoomSelect');
+  const modalTempInput = document.getElementById('modalTempInput');
+  const modalHumidInput = document.getElementById('modalHumidInput');
+  const modalHumidAfterInput = document.getElementById('modalHumidAfterInput');
+  const modalFieldError = document.getElementById('modalFieldError');
+
+  let startModalTimer = null;
+  let pendingIdRm = null;
+  let pendingAction = null; // 'start' หรือ 'end'
+  let roomsLoadedForCompany = null; // เก็บ companyId ที่โหลดห้องไปแล้ว กันโหลดซ้ำ
+
+  const THAI_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+  // ข้อความ/สี/ไอคอนของปุ่มยืนยัน ปรับตามว่าเป็นเริ่มต้นหรือสิ้นสุด
+  const ACTION_CONFIG = {
+    start: {
+      label: 'เริ่มลดความชื้น',
+      color: 'var(--sky-blue)',
+      icon: '<polygon points="5 3 19 12 5 21 5 3"></polygon>'
+    },
+    end: {
+      label: 'สิ้นสุดลดความชื้น',
+      color: 'var(--amber-500)',
+      icon: '<rect x="6" y="6" width="12" height="12"></rect>'
+    }
+  };
+
+  function confirmBtnHtml(action){
+    const cfg = ACTION_CONFIG[action];
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${cfg.icon}</svg> ${cfg.label}`;
+  }
+
+  function tickStartModalClock(){
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    startModalClock.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    startModalDate.textContent = `${now.getDate()} ${THAI_MONTHS_SHORT[now.getMonth()]} ${now.getFullYear()}`;
+  }
+
+  // โหลดรายการห้องของบริษัทที่เลือกอยู่ (โหลดใหม่ทุกครั้งที่เปลี่ยนบริษัท)
+  async function loadRoomsIfNeeded(){
+    const companyId = companySelect.value;
+    if (roomsLoadedForCompany === companyId) return; // โหลดไปแล้วสำหรับบริษัทนี้ ไม่ต้องโหลดซ้ำ
+
+    modalRoomSelect.innerHTML = '<option value="">กำลังโหลด...</option>';
+    try {
+      const res = await fetch('/api/moisture/rooms?' + new URLSearchParams({ companyId }));
+      const data = await res.json();
+
+      modalRoomSelect.innerHTML = '<option value="">— เลือกห้อง —</option>';
+      if (!data.success) {
+        modalRoomSelect.innerHTML = '<option value="">⚠ โหลดห้องไม่สำเร็จ</option>';
+        console.error('โหลดห้องไม่สำเร็จ:', data.message, data.detail);
+        return;
+      }
+      if (!Array.isArray(data.data) || data.data.length === 0) {
+        modalRoomSelect.innerHTML = '<option value="">ไม่พบห้องของบริษัทนี้</option>';
+        return;
+      }
+      data.data.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id; opt.textContent = r.name;
+        modalRoomSelect.appendChild(opt);
+      });
+      roomsLoadedForCompany = companyId;
+    } catch (err) {
+      modalRoomSelect.innerHTML = '<option value="">⚠ เชื่อมต่อ server ไม่ได้</option>';
+    }
+  }
+
+  async function openActionModal(idRm, action){
+    pendingIdRm = idRm;
+    pendingAction = action;
+
+    const cfg = ACTION_CONFIG[action];
+    confirmStartBtn.style.background = cfg.color;
+    confirmStartBtn.innerHTML = confirmBtnHtml(action);
+    startModalClock.style.color = cfg.color;
+    modalFieldError.classList.remove('show');
+
+    // ฟิลด์ห้อง/อุณหภูมิ/ความชื้น แสดงเฉพาะตอนกดเริ่มต้น (บังคับกรอกครบก่อนกดยืนยันได้)
+    if (action === 'start') {
+      startModalFields.classList.add('show');
+      endModalFields.classList.remove('show');
+      modalTempInput.value = '';
+      modalHumidInput.value = '';
+      modalRoomSelect.value = '';
+      await loadRoomsIfNeeded();
+    } else {
+      // ฟิลด์ความชื้นหลังจัดการ แสดงเฉพาะตอนกดสิ้นสุด (บังคับกรอกก่อนกดยืนยันได้เช่นกัน)
+      startModalFields.classList.remove('show');
+      endModalFields.classList.add('show');
+      modalHumidAfterInput.value = '';
+    }
+
+    tickStartModalClock();
+    startModalTimer = setInterval(tickStartModalClock, 1000);
+    startModalOverlay.classList.add('show');
+  }
+
+  function closeActionModal(){
+    startModalOverlay.classList.remove('show');
+    clearInterval(startModalTimer);
+    startModalTimer = null;
+    confirmStartBtn.disabled = false;
+    if (pendingAction) confirmStartBtn.innerHTML = confirmBtnHtml(pendingAction);
+    modalFieldError.classList.remove('show');
+    pendingIdRm = null;
+    pendingAction = null;
+  }
+
+  cancelStartBtn.addEventListener('click', closeActionModal);
+  startModalOverlay.addEventListener('click', (e) => { if (e.target === startModalOverlay) closeActionModal(); });
+
+  confirmStartBtn.addEventListener('click', async () => {
+    if (!pendingIdRm || !pendingAction) return;
+    const action = pendingAction;
+
+    // บังคับกรอกห้อง/อุณหภูมิ/ความชื้นให้ครบก่อน เฉพาะตอนกดเริ่มต้น
+    let roomId = null, temp = null, humidity = null, humidAfter = null;
+    if (action === 'start') {
+      roomId = modalRoomSelect.value;
+      temp = modalTempInput.value;
+      humidity = modalHumidInput.value;
+
+      if (!roomId || temp === '' || humidity === '') {
+        modalFieldError.textContent = 'กรุณาเลือกห้อง และระบุอุณหภูมิ/ความชื้นให้ครบทุกช่อง';
+        modalFieldError.classList.add('show');
+        return;
+      }
+    } else {
+      // บังคับกรอกความชื้นหลังจัดการ เฉพาะตอนกดสิ้นสุด
+      humidAfter = modalHumidAfterInput.value;
+      if (humidAfter === '') {
+        modalFieldError.textContent = 'กรุณาระบุความชื้นหลังจัดการ';
+        modalFieldError.classList.add('show');
+        return;
+      }
+    }
+
+    // ดึง idPs ของผู้ใช้ที่ login อยู่ เพื่อบันทึกลง idPsDateRdHmS / idPsDateRdHmE
+    let idPs = null;
+    try {
+      const userRaw = sessionStorage.getItem('wim_user');
+      if (userRaw) idPs = JSON.parse(userRaw).idPs || null;
+    } catch (e) { /* เงียบไว้ ถ้าไม่มี idPs ก็ยังบันทึกเวลาได้ปกติ */ }
+
+    confirmStartBtn.disabled = true;
+    confirmStartBtn.innerHTML = '<span class="spinner"></span>';
+
+    const payload = { idRm: Number(pendingIdRm), idPs };
+    if (action === 'start') {
+      payload.roomId = roomId;
+      payload.temp = Number(temp);
+      payload.humidity = Number(humidity);
+    } else {
+      payload.humidAfter = Number(humidAfter);
+    }
+
+    try {
+      const res = await fetch(`/api/moisture/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      closeActionModal();
+
+      if (!data.success) {
+        alert(data.message || 'บันทึกไม่สำเร็จ');
+        loadAllColumns();
+        return;
+      }
+      loadAllColumns(); // สำเร็จ การ์ดจะย้ายไปคอลัมน์ถัดไปทันที
+    } catch (err) {
+      closeActionModal();
+      alert('เชื่อมต่อ server ไม่ได้ กรุณาลองใหม่');
+    }
+  });
+
+  // ใช้ event delegation ตัวเดียวจับปุ่มเริ่ม/สิ้นสุดของทุกคอลัมน์ ทั้งคู่เปิด pop-up เดียวกัน
+  document.querySelector('main').addEventListener('click', (e) => {
+    const btn = e.target.closest('.kb-action-btn');
+    if (!btn) return;
+    const idRm = btn.dataset.idrm;
+    const action = btn.dataset.action; // 'start' หรือ 'end'
+    openActionModal(idRm, action);
+  });
+
+  // ==================================================================
+  // ---------- โหลดข้อมูลแต่ละคอลัมน์ ----------
+  // ==================================================================
+  async function loadColumn(status){
+    const companyId = companySelect.value;
+    const listEl = document.getElementById(status + 'List');
+    if (!companyId) {
+      listEl.innerHTML = '<div class="kb-loading">เลือกบริษัทเพื่อโหลดข้อมูล</div>';
+      document.getElementById(status + 'Count').textContent = '-';
+      return;
+    }
+
+    listEl.innerHTML = '<div class="kb-loading"><span class="spinner"></span> กำลังโหลด…</div>';
+
+    try {
+      const params = new URLSearchParams({ companyId, status });
+      if (status === 'done' && currentDoneMode() === 'date') params.set('date', doneDateInput.value);
+
+      const res = await fetch('/api/moisture/list?' + params.toString());
+      const data = await res.json();
+      if (!data.success) {
+        listEl.innerHTML = `<div class="kb-error">${data.message || 'โหลดข้อมูลไม่สำเร็จ'}</div>`;
+        document.getElementById(status + 'Count').textContent = '!';
+        return;
+      }
+      renderColumn(status, data.data || []);
+    } catch (err) {
+      listEl.innerHTML = '<div class="kb-error">เชื่อมต่อ server ไม่ได้</div>';
+      document.getElementById(status + 'Count').textContent = '!';
+    }
+  }
+
+  function loadAllColumns(){
+    loadColumn('waiting');
+    loadColumn('inprogress');
+    loadColumn('done');
+  }
+
+  loadCompanies();
+</script>
+
+</body>
+</html>

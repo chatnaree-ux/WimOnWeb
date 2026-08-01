@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIM — Stock Card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy-950:#0c1420;
+    --navy-900:#111d2e;
+    --navy-800:#182a40;
+    --navy-850:#0f1a29;
+    --steel-700:#25405c;
+    --steel-500:#4a6b8a;
+    --concrete-200:#e7e4da;
+    --concrete-400:#b9b4a5;
+    --amber-500:#f2a91c;
+    --amber-600:#d8930c;
+    --safety-red:#e5533d;
+    --ok-green:#3ecf8e;
+    --radius:10px;
+    --sidebar-w:270px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+
+  body{
+    font-family:'Inter',sans-serif;
+    background:var(--navy-950);
+    color:var(--concrete-200);
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+
+  /* ---------- APP SHELL ---------- */
+  .app-shell{display:flex; min-height:100vh;}
+
+  /* ---------- SIDEBAR (เหมือนหน้า main-menu) ---------- */
+  .sidebar{
+    width:var(--sidebar-w); flex-shrink:0;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border-right:1px solid rgba(255,255,255,.07);
+    display:flex; flex-direction:column;
+    position:fixed; top:0; left:0; bottom:0; z-index:20;
+    transition:transform .25s ease;
+  }
+  .sidebar-head{
+    display:flex; align-items:center; gap:12px;
+    padding:22px 20px; border-bottom:1px solid rgba(255,255,255,.07);
+  }
+  .brand-mark{
+    width:38px; height:38px; border:2px solid var(--amber-500); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    font-family:'Oswald',sans-serif; font-weight:700; color:var(--amber-500); font-size:15px;
+    transform:rotate(-3deg);
+  }
+  .brand-text{font-family:'Oswald',sans-serif; letter-spacing:.05em; font-size:16.5px; font-weight:600; color:var(--concrete-200); line-height:1.2;}
+  .brand-text small{display:block; font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.08em; color:var(--steel-500); font-weight:400; margin-top:2px;}
+
+  .side-nav{flex:1; padding:16px 12px; overflow-y:auto;}
+  .nav-section-label{
+    font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em;
+    color:var(--steel-500); text-transform:uppercase; padding:6px 12px 8px;
+  }
+  .nav-item{
+    width:100%; display:flex; align-items:center; gap:12px;
+    padding:11px 12px; border-radius:8px; margin-bottom:2px;
+    color:var(--concrete-200); text-decoration:none;
+    font-size:14px; font-family:'Inter',sans-serif; font-weight:500;
+    background:none; border:none; cursor:pointer; text-align:left;
+    transition:background .15s, color .15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-item.active{background:rgba(242,169,28,.12); color:var(--amber-500);}
+  .nav-icon{width:19px; height:19px; flex-shrink:0; color:var(--amber-500); opacity:.9;}
+  .nav-icon svg{width:100%; height:100%; stroke-width:1.8;}
+  .nav-label{flex:1;}
+  .nav-chevron{width:14px; height:14px; flex-shrink:0; color:var(--steel-500); transition:transform .2s ease;}
+  .nav-group.open .nav-chevron{transform:rotate(180deg);}
+  .nav-group.open > .nav-parent{background:rgba(255,255,255,.04);}
+  .nav-submenu{display:grid; grid-template-rows:0fr; overflow:hidden; transition:grid-template-rows .22s ease;}
+  .nav-group.open .nav-submenu{grid-template-rows:1fr;}
+  .nav-submenu-inner{overflow:hidden; padding-left:14px; margin:2px 0 6px;}
+  .nav-subitem{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 12px 9px 20px; border-radius:7px; margin-bottom:1px;
+    color:var(--concrete-400); text-decoration:none; font-size:13px;
+    position:relative; transition:background .15s, color .15s;
+    border-left:1px solid rgba(255,255,255,.09);
+  }
+  .nav-subitem::before{content:""; position:absolute; left:-1px; top:50%; width:12px; height:1px; background:rgba(255,255,255,.09);}
+  .nav-subitem:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-subitem.active{color:var(--amber-500); border-left-color:var(--amber-500); background:rgba(242,169,28,.08);}
+
+  .sidebar-foot{padding:16px; border-top:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:10px;}
+  .user-chip{
+    display:flex; align-items:center; gap:9px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-200);
+    border:1px solid rgba(255,255,255,.1); padding:9px 12px; border-radius:9px;
+    background:rgba(255,255,255,.02);
+  }
+  .user-chip .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-green); box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  #userLabel{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .logout-btn{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.05em;
+    color:var(--concrete-400); background:transparent; border:1px solid rgba(255,255,255,.15);
+    border-radius:8px; padding:9px 14px; cursor:pointer; text-transform:uppercase;
+    transition:border-color .15s, color .15s; width:100%;
+  }
+  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75;}
+
+  /* ---------- MAIN AREA ---------- */
+  .main-wrap{flex:1; margin-left:var(--sidebar-w); min-width:0;}
+  .topbar-mobile{
+    display:none; align-items:center; gap:14px;
+    padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.07);
+    position:sticky; top:0; background:var(--navy-950); z-index:15;
+  }
+  .hamburger{
+    width:38px; height:38px; border-radius:8px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.03); color:var(--concrete-200); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .hamburger svg{width:18px; height:18px;}
+
+  main{max-width:1180px; margin:0 auto; padding:clamp(28px,4vw,48px) clamp(20px,4vw,48px) 70px;}
+
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em;
+    color:var(--amber-500); text-transform:uppercase; margin:0 0 10px;
+  }
+  h1{
+    font-family:'Oswald',sans-serif; font-weight:700; text-transform:uppercase;
+    font-size:clamp(24px,3.4vw,32px); line-height:1.15; margin:0 0 8px; color:#fff;
+  }
+  .sub{font-size:14px; color:var(--concrete-400); margin:0 0 30px;}
+
+  /* ---------- FILTER PANEL ---------- */
+  .filter-panel{
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
+    padding:22px; margin-bottom:26px;
+  }
+  .filter-grid{display:grid; grid-template-columns:1fr 1fr auto auto; gap:16px; align-items:end;}
+  @media (max-width:900px){ .filter-grid{grid-template-columns:1fr 1fr;} }
+  @media (max-width:520px){ .filter-grid{grid-template-columns:1fr;} }
+
+  .field{display:flex; flex-direction:column; gap:7px;}
+  .field label{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em;
+    color:var(--concrete-400); text-transform:uppercase;
+  }
+  .input-shell{
+    display:flex; align-items:center; gap:8px;
+    background:var(--navy-950); border:1px solid rgba(255,255,255,.1); border-radius:7px;
+    padding:0 12px; transition:border-color .18s, box-shadow .18s;
+  }
+  .input-shell:focus-within{border-color:var(--amber-500); box-shadow:0 0 0 3px rgba(242,169,28,.15);}
+  .input-shell select, .input-shell input{
+    flex:1; background:transparent; border:0; outline:0; color:#fff;
+    font-family:'Inter',sans-serif; font-size:14px; padding:11px 0;
+  }
+  .input-shell select{cursor:pointer;}
+  .input-shell select option{background:var(--navy-900); color:#fff;}
+  .input-shell input::placeholder{color:#5b6b7d;}
+
+  .lot-field-wrap{position:relative;}
+  .search-btn-inline{
+    background:none; border:0; cursor:pointer; color:var(--amber-500);
+    display:flex; align-items:center; padding:4px;
+  }
+  .search-btn-inline svg{width:16px; height:16px;}
+
+  .lot-dropdown{
+    position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30;
+    background:var(--navy-900); border:1px solid rgba(255,255,255,.12); border-radius:8px;
+    box-shadow:0 18px 40px -14px rgba(0,0,0,.6);
+    max-height:300px; overflow-y:auto; display:none;
+  }
+  .lot-dropdown.show{display:block;}
+  .lot-option{
+    padding:10px 14px; cursor:pointer;
+    border-bottom:1px solid rgba(255,255,255,.06);
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .lot-option:last-child{border-bottom:none;}
+  .lot-option:hover{background:rgba(242,169,28,.1);}
+  .lot-option .lot-no{color:#fff; font-family:'JetBrains Mono',monospace; font-weight:600; font-size:14px;}
+  .lot-option .lot-product{color:var(--concrete-400); font-size:12px;}
+  .lot-empty{padding:14px; text-align:center; color:var(--concrete-400); font-size:13px;}
+
+  .browse-all-btn{
+    display:flex; align-items:center; gap:6px; white-space:nowrap;
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.03em;
+    color:var(--amber-500); background:rgba(242,169,28,.08); border:1px solid rgba(242,169,28,.3);
+    border-radius:7px; padding:0 14px; cursor:pointer; height:44px;
+    transition:background .15s, border-color .15s;
+  }
+  .browse-all-btn:hover{background:rgba(242,169,28,.16); border-color:rgba(242,169,28,.5);}
+  .browse-all-btn svg{width:14px; height:14px; flex-shrink:0;}
+
+  .lot-confirm{
+    display:none; align-items:center; gap:22px; flex-wrap:wrap;
+    background:linear-gradient(135deg, rgba(242,169,28,.14), rgba(242,169,28,.04));
+    border:1px solid rgba(242,169,28,.4); border-left:5px solid var(--amber-500);
+    border-radius:11px; padding:18px 24px; margin-bottom:20px;
+    box-shadow:0 14px 34px -18px rgba(242,169,28,.35);
+  }
+  .lot-confirm.show{display:flex;}
+  .lot-confirm .badge-icon{
+    width:44px; height:44px; flex-shrink:0; border-radius:9px;
+    background:rgba(242,169,28,.16); border:1px solid rgba(242,169,28,.4);
+    display:flex; align-items:center; justify-content:center; color:var(--amber-500);
+  }
+  .lot-confirm .badge-icon svg{width:24px; height:24px;}
+  .lot-confirm .item{display:flex; flex-direction:column; gap:2px;}
+  .lot-confirm .item .k{font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--amber-600); text-transform:uppercase;}
+  .lot-confirm .item .v{color:#fff; font-weight:700;}
+  .lot-confirm .item.lot-item .v{font-family:'JetBrains Mono',monospace; font-size:22px; letter-spacing:.02em;}
+  .lot-confirm .item.product-item .v{font-family:'Oswald',sans-serif; font-size:17px; text-transform:uppercase; letter-spacing:.01em;}
+  .lot-confirm .divider-v{width:1px; align-self:stretch; background:rgba(242,169,28,.25);}
+
+  .btn-primary{
+    border:0; border-radius:7px; padding:12.5px 22px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    background:var(--amber-500); color:var(--navy-950);
+    display:flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;
+    transition:transform .15s, background .15s;
+  }
+  .btn-primary:hover{background:var(--amber-600); transform:translateY(-1px);}
+  .btn-primary:disabled{opacity:.5; cursor:not-allowed; transform:none;}
+
+  /* ---------- RESULT AREA ---------- */
+  .result-panel{
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .result-head{
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
+    padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .result-head .title{font-family:'Oswald',sans-serif; font-size:15px; letter-spacing:.03em; text-transform:uppercase; color:#fff;}
+  .result-head .count{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-400);}
+
+  .tool-btn{
+    display:flex; align-items:center; gap:7px;
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.03em;
+    color:var(--concrete-200); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14);
+    border-radius:7px; padding:8px 13px; cursor:pointer;
+    transition:border-color .15s, background .15s, opacity .15s;
+  }
+  .tool-btn svg{width:14px; height:14px; flex-shrink:0;}
+  .tool-btn:hover:not(:disabled){border-color:var(--amber-500); background:rgba(242,169,28,.08); color:var(--amber-500);}
+  .tool-btn:disabled{opacity:.35; cursor:not-allowed;}
+
+  /* ---------- ตาราง Stock Card แบบคอลัมน์ตายตัว ---------- */
+  .sc-table{width:100%; border-collapse:collapse; font-size:12.8px;}
+  .sc-table thead th{
+    text-align:center; padding:10px 12px; font-family:'JetBrains Mono',monospace;
+    font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--amber-500);
+    background:rgba(242,169,28,.06); border-bottom:1px solid rgba(255,255,255,.08);
+    white-space:nowrap;
+  }
+  .sc-table tbody td.num{text-align:right;}
+  .sc-table tbody td{padding:9px 12px; border-bottom:1px solid rgba(255,255,255,.05); color:var(--concrete-200); white-space:nowrap;}
+  .sc-table tbody td.detail{white-space:normal; min-width:220px;}
+  .sc-table tbody tr:hover{background:rgba(255,255,255,.03);}
+  .sc-table tbody tr:last-child td{border-bottom:none;}
+  .sc-table td.in-qty{color:#7ee7ac; font-weight:600;}
+  .sc-table td.out-qty{color:#ff9d8a; font-weight:600;}
+  .sc-table td.balance{color:var(--amber-500); font-weight:700; background:rgba(242,169,28,.05);}
+
+  /* ---------- แถบสรุปรายการ (สำหรับพิมพ์/ดูบนจอ) ---------- */
+  .sc-print-head{display:none;}
+
+  @media print{
+    @page{ size: A4 landscape; margin: 12mm; }
+
+    body *{visibility:hidden;}
+    #resultPanel, #resultPanel *{visibility:visible;}
+    #resultPanel{position:absolute; top:0; left:0; width:100%; border:none; background:#fff !important;}
+    .result-head{display:none;}
+    .sc-print-head{
+      display:block; padding:12px 8px 16px; color:#000; font-family:'Inter',sans-serif;
+    }
+    .sc-print-head .company{font-family:'Oswald',sans-serif; font-size:18px; font-weight:700; margin-bottom:4px;}
+    .sc-print-head .line{font-size:12.5px; margin:2px 0;}
+
+    /* บังคับตารางให้อยู่ในความกว้างหน้ากระดาษเสมอ ไม่ล้นขอบ */
+    .table-scroll{overflow:visible; width:100%;}
+    .sc-table{width:100% !important; table-layout:fixed; font-size:10.5px;}
+    .sc-table th:nth-child(1), .sc-table td:nth-child(1){width:11%;}  /* วันที่ */
+    .sc-table th:nth-child(2), .sc-table td:nth-child(2){width:27%;}  /* รายละเอียด */
+    .sc-table th:nth-child(3), .sc-table td:nth-child(3){width:11%;}  /* คลัง */
+    .sc-table th:nth-child(4), .sc-table td:nth-child(4){width:9%;}   /* เข้า */
+    .sc-table th:nth-child(5), .sc-table td:nth-child(5){width:9%;}   /* ออก */
+    .sc-table th:nth-child(6), .sc-table td:nth-child(6){width:10%;}  /* คงเหลือ */
+    .sc-table th:nth-child(7), .sc-table td:nth-child(7){width:8%;}   /* หน่วย */
+    .sc-table th:nth-child(8), .sc-table td:nth-child(8){width:15%;}  /* ผู้ทำรายการ */
+
+    /* จัด center คอลัมน์ข้อความ ให้ตรงกับ header ที่ center อยู่แล้ว (ตัวเลขยังชิดขวา, รายละเอียดยังชิดซ้ายเหมือนเดิม) */
+    .sc-table td:nth-child(3),  /* คลัง */
+    .sc-table td:nth-child(7),  /* หน่วย */
+    .sc-table td:nth-child(8){  /* ผู้ทำรายการ */
+      text-align:center;
+    }
+    .sc-table th, .sc-table td{
+      white-space:normal !important; word-break:break-word;
+      padding:6px 8px !important;
+    }
+    .sc-table thead th{background:#eee !important; color:#000 !important; border-bottom:1px solid #999;}
+    .sc-table tbody td{color:#000 !important; border-bottom:1px solid #ddd;}
+    .sc-table td.in-qty{color:#0a7a3d !important;}
+    .sc-table td.out-qty{color:#b23a2a !important;}
+    .sc-table td.balance{color:#000 !important; background:#f4e3ba !important; font-weight:700;}
+    .sc-table tbody tr:hover{background:none !important;}
+    .sc-table tbody tr{page-break-inside:avoid;}
+  }
+
+  .table-scroll{overflow-x:auto;}
+  table{width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap;}
+  thead th{
+    text-align:left; padding:11px 16px; font-family:'JetBrains Mono',monospace;
+    font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--amber-500);
+    background:rgba(242,169,28,.06); border-bottom:1px solid rgba(255,255,255,.08);
+    position:sticky; top:0;
+  }
+  tbody td{padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.05); color:var(--concrete-200);}
+  tbody tr:hover{background:rgba(255,255,255,.03);}
+  tbody tr:last-child td{border-bottom:none;}
+
+  .state-box{padding:50px 20px; text-align:center; color:var(--concrete-400); font-size:13.5px;}
+  .state-box.error{color:#ff8a75;}
+  .state-box svg{width:34px; height:34px; margin-bottom:10px; opacity:.6;}
+
+  .spinner{
+    width:16px; height:16px; border:2px solid rgba(12,20,32,.3); border-top-color:var(--navy-950);
+    border-radius:50%; animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  footer{text-align:center; padding:20px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500);}
+
+  /* ---------- MODAL: เลือกจาก Lot No. ทั้งหมด ---------- */
+  .lot-modal-overlay{
+    display:none; position:fixed; inset:0; z-index:50;
+    background:rgba(6,10,16,.7); backdrop-filter:blur(2px);
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .lot-modal-overlay.show{display:flex;}
+
+  .lot-modal{
+    width:100%; max-width:560px; max-height:80vh;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border:1px solid rgba(255,255,255,.1); border-radius:var(--radius);
+    box-shadow:0 30px 70px -20px rgba(0,0,0,.7);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .lot-modal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;
+  }
+  .lot-modal-title{font-family:'Oswald',sans-serif; font-size:16px; letter-spacing:.03em; text-transform:uppercase; color:#fff;}
+  .lot-modal-close{
+    width:32px; height:32px; border-radius:7px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.03); color:var(--concrete-200); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    transition:border-color .15s, color .15s;
+  }
+  .lot-modal-close:hover{border-color:var(--safety-red); color:#ff8a75;}
+  .lot-modal-close svg{width:15px; height:15px;}
+
+  .lot-modal-search{padding:14px 20px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0;}
+
+  .lot-modal-body{overflow-y:auto; flex:1;}
+  .lot-modal-row{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.05);
+    transition:background .15s;
+  }
+  .lot-modal-row:hover{background:rgba(255,255,255,.03);}
+  .lot-modal-row .info{min-width:0;}
+  .lot-modal-row .info .lot-no{
+    font-family:'JetBrains Mono',monospace; font-weight:600; font-size:14.5px; color:#fff;
+  }
+  .lot-modal-row .info .product{
+    font-size:12.5px; color:var(--concrete-400); margin-top:2px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .lot-modal-row .choose-btn{
+    flex-shrink:0; border:1px solid rgba(242,169,28,.4); background:rgba(242,169,28,.08);
+    color:var(--amber-500); font-family:'JetBrains Mono',monospace; font-size:11.5px;
+    letter-spacing:.04em; text-transform:uppercase; padding:8px 14px; border-radius:7px;
+    cursor:pointer; transition:background .15s, color .15s;
+  }
+  .lot-modal-row .choose-btn:hover{background:var(--amber-500); color:var(--navy-950);}
+
+  .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:19;}
+  @media (max-width:900px){
+    .sidebar{transform:translateX(-100%);}
+    body.sidebar-open .sidebar{transform:translateX(0);}
+    body.sidebar-open .sidebar-overlay{display:block;}
+    .main-wrap{margin-left:0;}
+    .topbar-mobile{display:flex;}
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ---------- SIDEBAR ---------- -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <div class="brand-mark">W</div>
+      <div class="brand-text">WIM<small>WAREHOUSE &amp; INVENTORY MANAGEMENT</small></div>
+    </div>
+
+    <nav class="side-nav">
+      <div class="nav-section-label">เมนูหลัก</div>
+
+      <div class="nav-group" id="seedGroup">
+        <button class="nav-item nav-parent" id="seedToggle" type="button" aria-expanded="false" aria-controls="seedSubmenu">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path>
+              <path d="M12 22v-9"></path>
+            </svg>
+          </span>
+          <span class="nav-label">การจัดการเมล็ดพันธุ์วัตถุดิบ</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="nav-submenu" id="seedSubmenu">
+          <div class="nav-submenu-inner">
+            <a class="nav-subitem" href="/coating.html">การลงเวลาเคลือบเมล็ด</a>
+            <a class="nav-subitem" href="/moisture.html">การลงเวลาลดความชื้น</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-group open" id="reportGroup">
+        <button class="nav-item nav-parent" id="reportToggle" type="button" aria-expanded="true" aria-controls="reportSubmenu">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"></path>
+              <path d="M7 15l4-5 3 3 5-7"></path>
+            </svg>
+          </span>
+          <span class="nav-label">รายงานสต๊อก</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+
+        <div class="nav-submenu" id="reportSubmenu">
+          <div class="nav-submenu-inner">
+            <a class="nav-subitem" href="#">รายงานสต๊อกคงคลัง</a>
+            <a class="nav-subitem active" href="/stockcard.html">Stock Card (รายล็อต)</a>
+            <a class="nav-subitem" href="/stockcard-item.html">Stock Card (รายสินค้า)</a>
+            <a class="nav-subitem" href="#">รายงานความเคลื่อนไหวสต๊อก</a>
+            <a class="nav-subitem" href="#">รายงานสินค้ารับคืน</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="user-chip"><span class="dot"></span><span id="userLabel">กำลังโหลด…</span></div>
+      <button class="logout-btn" id="logoutBtn">ออกจากระบบ</button>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ---------- MAIN ---------- -->
+  <div class="main-wrap">
+
+    <div class="topbar-mobile">
+      <button class="hamburger" id="sidebarToggle" type="button" aria-label="เปิดเมนู">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <div class="brand-text">WIM</div>
+    </div>
+
+    <main>
+      <div class="eyebrow">รายงานสต๊อก</div>
+      <h1>Stock Card (รายล็อต)</h1>
+      <p class="sub">เลือกบริษัท และระบุ Lot No. เพื่อดูข้อมูล Stock Card</p>
+
+      <!-- ---------- FILTER PANEL ---------- -->
+      <div class="filter-panel">
+        <div class="filter-grid">
+
+          <div class="field">
+            <label for="companySelect">บริษัท</label>
+            <div class="input-shell">
+              <select id="companySelect">
+                <option value="">— เลือกบริษัท —</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field lot-field-wrap">
+            <label for="lotInput">Lot No.</label>
+            <div class="input-shell">
+              <input type="text" id="lotInput" placeholder="เลือกบริษัทก่อน แล้วกรอกหรือค้นหา Lot No." autocomplete="off">
+              <button type="button" class="search-btn-inline" id="lotSearchBtn" title="ค้นหา Lot ในระบบ">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </button>
+            </div>
+            <div class="lot-dropdown" id="lotDropdown"></div>
+          </div>
+
+          <div class="field">
+            <label>&nbsp;</label>
+            <button type="button" class="browse-all-btn" id="browseAllBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h18"></path><path d="M3 12h18"></path><path d="M3 20h18"></path></svg>
+              เลือกจาก Lot No. ทั้งหมด
+            </button>
+          </div>
+
+          <button class="btn-primary" id="viewBtn" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            ดูข้อมูล
+          </button>
+
+        </div>
+      </div>
+
+      <!-- ---------- แถบยืนยัน Lot ที่กำลังดูอยู่ ---------- -->
+      <div class="lot-confirm" id="lotConfirm">
+        <div class="badge-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3a1 1 0 0 0-1 1l.24 5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.82z"></path><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"></circle></svg>
+        </div>
+        <div class="item lot-item"><span class="k">กำลังดู Stock Card ของ Lot No.</span><span class="v" id="confirmLotNo">-</span></div>
+        <div class="divider-v"></div>
+        <div class="item product-item"><span class="k">สินค้า</span><span class="v" id="confirmProduct">-</span></div>
+      </div>
+
+      <!-- ---------- RESULT PANEL ---------- -->
+      <div class="result-panel" id="resultPanel">
+        <div class="result-head">
+          <div class="title">รายการ STOCK CARD</div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div class="count" id="resultCount"></div>
+            <button type="button" class="tool-btn" id="printBtn" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              พิมพ์เอกสาร
+            </button>
+            <button type="button" class="tool-btn" id="exportBtn" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Export Excel
+            </button>
+          </div>
+        </div>
+        <div id="resultArea">
+          <div class="state-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M8 4v16"></path></svg>
+            <div>เลือกบริษัทและระบุ Lot No. แล้วกด "ดูข้อมูล" เพื่อแสดงผล</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <footer>©2026 WIM ⋅ WAREHOUSE AND INVENTORY MANAGEMENT</footer>
+  </div>
+
+</div>
+
+<!-- ---------- POPUP: เลือกจาก Lot No. ทั้งหมด ---------- -->
+<div class="lot-modal-overlay" id="lotModalOverlay">
+  <div class="lot-modal">
+    <div class="lot-modal-head">
+      <div class="lot-modal-title">เลือกจาก Lot No. ทั้งหมด</div>
+      <button type="button" class="lot-modal-close" id="lotModalClose" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="lot-modal-search">
+      <div class="input-shell">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" id="lotModalFilter" placeholder="พิมพ์เพื่อกรองรายการในหน้าต่างนี้..." autocomplete="off">
+      </div>
+    </div>
+    <div class="lot-modal-body" id="lotModalBody">
+      <div class="state-box">กำลังโหลดรายการ…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---------- ตรวจสอบว่า login มาแล้วหรือยัง ----------
+  const raw = sessionStorage.getItem('wim_user');
+  if (!raw) {
+    window.location.href = '/index.html';
+  } else {
+    const user = JSON.parse(raw);
+    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
+    const displayName = fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
+    const userLabelEl = document.getElementById('userLabel');
+    if (userLabelEl) userLabelEl.textContent = displayName;
+  }
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.removeItem('wim_user');
+    window.location.href = '/index.html';
+  });
+
+  // ---------- accordion เมนูย่อย ----------
+  const seedToggle = document.getElementById('seedToggle');
+  const seedGroup = document.getElementById('seedGroup');
+  seedToggle.addEventListener('click', () => {
+    const isOpen = seedGroup.classList.toggle('open');
+    seedToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+
+  const reportToggle = document.getElementById('reportToggle');
+  const reportGroup = document.getElementById('reportGroup');
+  reportToggle.addEventListener('click', () => {
+    const isOpen = reportGroup.classList.toggle('open');
+    reportToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+
+  // ---------- sidebar drawer บนมือถือ ----------
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+  sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
+  sidebarOverlay.addEventListener('click', () => document.body.classList.remove('sidebar-open'));
+
+  // ==================================================================
+  // ---------- โหลดรายชื่อบริษัทลง combobox ----------
+  // ==================================================================
+  const companySelect = document.getElementById('companySelect');
+
+  async function loadCompanies(){
+    try {
+      const res = await fetch('/api/companies');
+      const data = await res.json();
+
+      if (!data.success) {
+        console.error('โหลดบริษัทไม่สำเร็จ:', data.message, data.detail);
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '⚠ โหลดข้อมูลบริษัทไม่สำเร็จ (ดู console)';
+        companySelect.appendChild(opt);
+        return;
+      }
+
+      if (!Array.isArray(data.data) || data.data.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'ไม่พบข้อมูลบริษัทในระบบ';
+        companySelect.appendChild(opt);
+        return;
+      }
+
+      data.data.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        companySelect.appendChild(opt);
+      });
+
+      // ตั้งค่า default ให้ตรงกับบริษัทของผู้ใช้ที่ login อยู่ (ถ้ามี) แล้ว trigger การเปลี่ยนแปลง
+      try {
+        const userRaw = sessionStorage.getItem('wim_user');
+        if (userRaw) {
+          const defaultCompId = JSON.parse(userRaw).idComp;
+          if (defaultCompId !== undefined && defaultCompId !== null) {
+            const defaultCompIdStr = String(defaultCompId);
+            const matched = Array.from(companySelect.options).some(o => o.value === defaultCompIdStr);
+            if (matched) {
+              companySelect.value = defaultCompIdStr;
+              companySelect.dispatchEvent(new Event('change'));
+            }
+          }
+        }
+      } catch (e) { /* เงียบไว้ ถ้า parse ไม่ได้ก็แค่ไม่ default ให้ */ }
+    } catch (err) {
+      console.error('โหลดบริษัทไม่สำเร็จ (network):', err);
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '⚠ เชื่อมต่อ server ไม่ได้';
+      companySelect.appendChild(opt);
+    }
+  }
+  loadCompanies().then(applyUrlParams);
+
+  // ---------- รองรับลิงก์ drill-down จากหน้า Stock Card (รายสินค้า): /stockcard.html?companyId=..&lotNo=.. ----------
+  function applyUrlParams(){
+    const params = new URLSearchParams(window.location.search);
+    const urlCompanyId = params.get('companyId');
+    const urlLotNo = params.get('lotNo');
+    if (!urlCompanyId || !urlLotNo) return;
+
+    companySelect.value = urlCompanyId;
+    lotInput.value = urlLotNo;
+    loadStockCard(); // ฟังก์ชันนี้ถูกประกาศด้านล่างของไฟล์ แต่เรียกได้เพราะ function declaration ถูก hoist ไว้แล้ว
+  }
+
+  // ==================================================================
+  // ---------- ค้นหา Lot No. ----------
+  // ==================================================================
+  const lotInput = document.getElementById('lotInput');
+  const lotSearchBtn = document.getElementById('lotSearchBtn');
+  const lotDropdown = document.getElementById('lotDropdown');
+  const browseAllBtn = document.getElementById('browseAllBtn');
+  const lotConfirm = document.getElementById('lotConfirm');
+  const confirmLotNo = document.getElementById('confirmLotNo');
+  const confirmProduct = document.getElementById('confirmProduct');
+
+  // เก็บ idLot ที่ได้จากการเลือกจาก dropdown ค้นหา (ใช้เรียก stored procedure ได้ทันทีโดยไม่ต้อง resolve ซ้ำ)
+  let selectedIdLot = null;
+  let selectedLotNoText = null;
+  let selectedProductName = null;
+
+  companySelect.addEventListener('change', () => {
+    // เปลี่ยนบริษัทแล้ว ค่า lot เดิมอาจไม่ตรงบริษัทใหม่ ล้างค่าทิ้งเพื่อความถูกต้อง
+    lotInput.value = '';
+    selectedIdLot = null;
+    selectedLotNoText = null;
+    selectedProductName = null;
+    lotDropdown.classList.remove('show');
+    lotConfirm.classList.remove('show');
+  });
+
+  let searchDebounceTimer = null;
+  lotInput.addEventListener('input', () => {
+    // ถ้าพิมพ์แก้ข้อความหลังจากเคยเลือกจาก dropdown แล้ว ให้ยกเลิก idLot ที่แคชไว้
+    if (lotInput.value.trim() !== selectedLotNoText) {
+      selectedIdLot = null;
+    }
+
+    // live-search: พิมพ์ปุ๊บ filter รายการ Lot No ให้ทันที (หน่วงเวลาเล็กน้อยกันยิง request รัวเกินไป)
+    clearTimeout(searchDebounceTimer);
+    const keyword = lotInput.value.trim();
+
+    if (!keyword) {
+      lotDropdown.classList.remove('show');
+      return;
+    }
+    if (!companySelect.value) {
+      lotDropdown.innerHTML = '<div class="lot-empty">กรุณาเลือกบริษัทก่อนค้นหา</div>';
+      lotDropdown.classList.add('show');
+      return;
+    }
+    searchDebounceTimer = setTimeout(searchLots, 250);
+  });
+
+  function showLotConfirm(lotNo, productName){
+    confirmLotNo.textContent = lotNo || '-';
+    confirmProduct.textContent = productName || '-';
+    lotConfirm.classList.add('show');
+  }
+
+  function selectLot(item){
+    lotInput.value = item.lotNo ?? '';
+    selectedIdLot = item.idLot;
+    selectedLotNoText = item.lotNo ?? '';
+    selectedProductName = item.productName ?? '';
+    lotDropdown.classList.remove('show');
+    showLotConfirm(item.lotNo, item.productName);
+    // เลือก lot แล้ว โหลด stock card ให้ทันที ไม่ต้องกด "ดูข้อมูล" ซ้ำ
+    loadStockCard();
+  }
+
+  function renderLotOptions(rows){
+    lotDropdown.innerHTML = '';
+    rows.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'lot-option';
+      row.innerHTML = `<span class="lot-no">${item.lotNo ?? ''}</span>`;
+      row.addEventListener('click', () => selectLot(item));
+      lotDropdown.appendChild(row);
+    });
+  }
+
+  // โหมด 1: พิมพ์ Lot No. เอง (บางส่วนหรือทั้งหมด) แล้วค้นหา
+  async function searchLots(){
+    const keyword = lotInput.value.trim();
+    const companyId = companySelect.value;
+
+    if (!companyId) {
+      lotDropdown.innerHTML = '<div class="lot-empty">กรุณาเลือกบริษัทก่อนค้นหา</div>';
+      lotDropdown.classList.add('show');
+      return;
+    }
+    lotDropdown.innerHTML = '<div class="lot-empty">กำลังค้นหา…</div>';
+    lotDropdown.classList.add('show');
+
+    try {
+      const params = new URLSearchParams({ keyword, companyId });
+      const res = await fetch('/api/lots/search?' + params.toString());
+      const data = await res.json();
+
+      if (!data.success) {
+        lotDropdown.innerHTML = `<div class="lot-empty">${data.message || 'ค้นหาไม่สำเร็จ'}</div>`;
+        return;
+      }
+      if (!data.data || data.data.length === 0) {
+        lotDropdown.innerHTML = '<div class="lot-empty">ไม่พบ Lot ที่ตรงกับคำค้น</div>';
+        return;
+      }
+      renderLotOptions(data.data);
+    } catch (err) {
+      lotDropdown.innerHTML = '<div class="lot-empty">เชื่อมต่อ server ไม่ได้</div>';
+    }
+  }
+
+  // ==================================================================
+  // ---------- MODAL: เลือกจาก Lot No. ทั้งหมด ----------
+  // ==================================================================
+  const lotModalOverlay = document.getElementById('lotModalOverlay');
+  const lotModalBody = document.getElementById('lotModalBody');
+  const lotModalClose = document.getElementById('lotModalClose');
+  const lotModalFilter = document.getElementById('lotModalFilter');
+
+  let allLotsCache = []; // เก็บรายการทั้งหมดที่โหลดมา ไว้ filter ในเครื่องโดยไม่ต้องยิง API ซ้ำ
+
+  const MAX_RENDER = 200; // จำกัดจำนวนแถวที่ render พร้อมกัน กันหน้าค้างตอนมีข้อมูลเป็นพันแถว
+
+  function renderLotModalRows(rows){
+    if (!rows || rows.length === 0) {
+      lotModalBody.innerHTML = '<div class="state-box">ไม่พบ Lot No. ที่ตรงกับคำค้น</div>';
+      lotModalBody._currentRows = [];
+      return;
+    }
+
+    const shown = rows.slice(0, MAX_RENDER);
+
+    // สร้าง HTML string เดียวแล้วเซ็ตทีเดียว (เร็วกว่า appendChild ทีละแถวมาก)
+    let html = '';
+    shown.forEach((item, idx) => {
+      html += `
+        <div class="lot-modal-row" data-idx="${idx}">
+          <div class="info">
+            <div class="lot-no">${item.lotNo ?? ''}</div>
+            <div class="product">${item.productName ?? '- ไม่มีชื่อสินค้า -'}</div>
+          </div>
+          <button type="button" class="choose-btn">เลือก</button>
+        </div>`;
+    });
+
+    if (rows.length > MAX_RENDER) {
+      html += `<div class="state-box">แสดง ${MAX_RENDER} จากทั้งหมด ${rows.length} รายการ — พิมพ์เพื่อกรองให้แคบลง</div>`;
+    }
+
+    lotModalBody.innerHTML = html;
+    lotModalBody._currentRows = shown; // เก็บไว้ใช้ตอนคลิกเลือก (อ้างอิงด้วย data-idx)
+  }
+
+  // ใช้ event delegation ตัวเดียว แทนการผูก listener ทีละแถว (เร็วกว่ามากเมื่อมีหลายร้อยแถว)
+  lotModalBody.addEventListener('click', (e) => {
+    const btn = e.target.closest('.choose-btn');
+    if (!btn) return;
+    const row = btn.closest('.lot-modal-row');
+    const idx = parseInt(row.dataset.idx, 10);
+    const item = lotModalBody._currentRows[idx];
+    if (!item) return;
+    closeLotModal();
+    selectLot(item);
+  });
+
+  function openLotModal(){
+    lotModalOverlay.classList.add('show');
+  }
+  function closeLotModal(){
+    lotModalOverlay.classList.remove('show');
+    lotModalFilter.value = '';
+  }
+
+  lotModalClose.addEventListener('click', closeLotModal);
+  lotModalOverlay.addEventListener('click', (e) => {
+    if (e.target === lotModalOverlay) closeLotModal();
+  });
+
+  // กรองรายการที่โหลดมาแล้ว (client-side) ตามคำที่พิมพ์ในหน้าต่าง ไม่ต้องยิง API ซ้ำ
+  let modalFilterDebounce = null;
+  lotModalFilter.addEventListener('input', () => {
+    clearTimeout(modalFilterDebounce);
+    modalFilterDebounce = setTimeout(() => {
+      const kw = lotModalFilter.value.trim().toLowerCase();
+      const filtered = kw
+        ? allLotsCache.filter(item =>
+            (item.lotNo || '').toLowerCase().includes(kw) ||
+            (item.productName || '').toLowerCase().includes(kw))
+        : allLotsCache;
+      renderLotModalRows(filtered);
+    }, 200);
+  });
+
+  // เปิด pop-up แสดง Lot No. ทั้งหมดของบริษัทที่เลือก (เฉพาะ Lot ที่ยังไม่ยกเลิก ตาม query ฝั่ง server)
+  async function browseAllLots(){
+    const companyId = companySelect.value;
+    if (!companyId) {
+      renderState('กรุณาเลือกบริษัทก่อน');
+      return;
+    }
+
+    openLotModal();
+    lotModalBody.innerHTML = '<div class="state-box">กำลังโหลดรายการ…</div>';
+
+    try {
+      const params = new URLSearchParams({ keyword: '', companyId });
+      const res = await fetch('/api/lots/search?' + params.toString());
+      const data = await res.json();
+
+      if (!data.success) {
+        lotModalBody.innerHTML = `<div class="state-box error">${data.message || 'โหลดรายการไม่สำเร็จ'}</div>`;
+        return;
+      }
+      allLotsCache = data.data || [];
+      renderLotModalRows(allLotsCache);
+    } catch (err) {
+      lotModalBody.innerHTML = '<div class="state-box error">เชื่อมต่อ server ไม่ได้</div>';
+    }
+  }
+
+  lotSearchBtn.addEventListener('click', searchLots);
+  browseAllBtn.addEventListener('click', browseAllLots);
+  lotInput.addEventListener('focus', () => { if (lotDropdown.innerHTML) lotDropdown.classList.add('show'); });
+  document.addEventListener('click', (e) => {
+    if (!lotDropdown.contains(e.target) && e.target !== lotInput && e.target !== lotSearchBtn && e.target !== browseAllBtn) {
+      lotDropdown.classList.remove('show');
+    }
+  });
+
+  // ==================================================================
+  // ---------- ดึงข้อมูล Stock Card จาก stored procedure ----------
+  // ==================================================================
+  const viewBtn = document.getElementById('viewBtn');
+  const resultArea = document.getElementById('resultArea');
+  const resultCount = document.getElementById('resultCount');
+
+  function renderState(html){
+    resultArea.innerHTML = `<div class="state-box">${html}</div>`;
+    resultCount.textContent = '';
+    printBtn.disabled = true;
+    exportBtn.disabled = true;
+  }
+
+  function renderError(message){
+    resultArea.innerHTML = `<div class="state-box error">${message}</div>`;
+    resultCount.textContent = '';
+    printBtn.disabled = true;
+    exportBtn.disabled = true;
+  }
+
+  // ชื่อคอลัมน์จริงที่ stored procedure devsk.sp_StockCardInv คืนมา
+  // SP คำนวณ QtyIN / QtyOUT / BAL (ยอดคงเหลือ) มาให้เสร็จแล้ว ไม่ต้องคำนวณซ้ำฝั่งนี้
+  const SC_COL = {
+    date: 'DateX',
+    detail: 'Detail',
+    warehouse: 'WhName',
+    qtyIn: 'QtyIN',
+    qtyOut: 'QtyOUT',
+    balance: 'BAL',
+    unit: 'UnitName',
+    user: 'PsName'
+  };
+
+  function fmtNum(n){
+    if (n === '' || n === null || n === undefined || isNaN(n)) return '';
+    return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // แปลงวันที่ให้เป็น dd/MM/yyyy HH:mm:ss
+  // ⚠️ ค่าจาก SQL Server เป็น datetime แบบไม่มี timezone (naive) แต่พอส่งผ่าน JSON จะมี "Z" ต่อท้าย
+  // (ทำให้เบราว์เซอร์เข้าใจผิดว่าเป็น UTC แล้วแปลงบวกเวลาไทย +7 ชม. ซ้ำ ทำให้เวลาเพี้ยน)
+  // จึงต้องดึงตัวเลขจาก string ตรงๆ แทนการพึ่ง new Date().getHours() ที่แปลง timezone ให้อัตโนมัติ
+  function fmtDate(val){
+    if (!val) return '';
+
+    if (typeof val === 'string') {
+      const m = val.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+      if (m) {
+        const [, yyyy, mm, dd, hh, mi, ss] = m;
+        return `${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
+      }
+    }
+
+    // fallback: เผื่อค่าที่มาไม่ใช่ string รูปแบบข้างบน (เช่นเป็น Date object อยู่แล้ว)
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return String(val);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  // หาค่าจาก object โดยไม่สนตัวพิมพ์เล็ก-ใหญ่ของชื่อคอลัมน์
+  // กัน field หายเงียบๆ เวลาชื่อคอลัมน์จริงจาก SQL Server สะกดต่างจากที่ตั้งไว้ใน SC_COL แค่ตัวพิมพ์
+  function getField(row, name){
+    if (row[name] !== undefined) return row[name];
+    const lowerName = name.toLowerCase();
+    const foundKey = Object.keys(row).find(k => k.toLowerCase() === lowerName);
+    return foundKey ? row[foundKey] : undefined;
+  }
+
+  // แปลงข้อมูลดิบจาก SP ให้เป็นรูปแบบที่ตารางใช้แสดงผล
+  // ⚠️ BAL ที่ SP คืนมาเป็นแค่ค่า default 0 ไม่ใช่ยอดจริง ต้องคำนวณยอดคงเหลือสะสมเอง
+  // ยอดคงเหลือ = ยอดก่อนหน้า + QtyIN ของแถวนี้ - QtyOUT ของแถวนี้ ไล่จากแถวบนสุดลงล่าง
+  function computeStockCardRows(rawRows){
+    let balance = 0;
+    return rawRows.map(r => {
+      const qtyIn = Number(getField(r, SC_COL.qtyIn)) || 0;
+      const qtyOut = Number(getField(r, SC_COL.qtyOut)) || 0;
+      balance += qtyIn - qtyOut;
+
+      return {
+        date: fmtDate(getField(r, SC_COL.date)),
+        detail: getField(r, SC_COL.detail) ?? '',
+        warehouse: getField(r, SC_COL.warehouse) ?? '',
+        inQty: qtyIn || '',
+        outQty: qtyOut || '',
+        balance,
+        unit: getField(r, SC_COL.unit) ?? '',
+        user: getField(r, SC_COL.user) ?? ''
+      };
+    });
+  }
+
+  let lastProcessedRows = []; // เก็บผลลัพธ์ล่าสุดไว้ใช้ตอนพิมพ์/export
+
+  function renderTable(rawRows){
+    if (!rawRows || rawRows.length === 0) {
+      renderState('ไม่พบข้อมูล Stock Card สำหรับ Lot No. นี้');
+      printBtn.disabled = true;
+      exportBtn.disabled = true;
+      return;
+    }
+
+    const rows = computeStockCardRows(rawRows);
+    lastProcessedRows = rows;
+
+    let html = `
+      <div class="sc-print-head">
+        <div class="company">${companySelect.options[companySelect.selectedIndex]?.text || ''}</div>
+        <div class="line">Lot No.: ${confirmLotNo.textContent} &nbsp;&nbsp; สินค้า: ${confirmProduct.textContent}</div>
+        <div class="line">พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
+      </div>
+      <div class="table-scroll">
+        <table class="sc-table">
+          <thead><tr>
+            <th>วันที่</th><th class="detail">รายละเอียด</th><th>คลัง</th>
+            <th class="num">เข้า</th><th class="num">ออก</th><th class="num">คงเหลือ</th>
+            <th>หน่วย</th><th>ผู้ทำรายการ</th>
+          </tr></thead>
+          <tbody>`;
+
+    rows.forEach(r => {
+      html += `<tr>
+        <td>${r.date}</td>
+        <td class="detail">${r.detail}</td>
+        <td>${r.warehouse}</td>
+        <td class="num in-qty">${fmtNum(r.inQty)}</td>
+        <td class="num out-qty">${fmtNum(r.outQty)}</td>
+        <td class="num balance">${fmtNum(r.balance)}</td>
+        <td>${r.unit}</td>
+        <td>${r.user}</td>
+      </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+    resultArea.innerHTML = html;
+    resultCount.textContent = `${rows.length} แถว`;
+    printBtn.disabled = false;
+    exportBtn.disabled = false;
+  }
+
+  // ---------- ปุ่มพิมพ์เอกสาร ----------
+  const printBtn = document.getElementById('printBtn');
+  printBtn.addEventListener('click', () => window.print());
+
+  // ---------- ปุ่ม Export Excel ----------
+  const exportBtn = document.getElementById('exportBtn');
+  exportBtn.addEventListener('click', () => {
+    if (!lastProcessedRows.length) return;
+
+    const header = ['วันที่', 'รายละเอียด', 'คลัง', 'เข้า', 'ออก', 'คงเหลือ', 'หน่วย', 'ผู้ทำรายการ'];
+    const body = lastProcessedRows.map(r => [
+      r.date, r.detail, r.warehouse,
+      r.inQty === '' ? '' : Number(r.inQty),
+      r.outQty === '' ? '' : Number(r.outQty),
+      Number(r.balance),
+      r.unit, r.user
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+    ws['!cols'] = [{wch:12},{wch:40},{wch:14},{wch:10},{wch:10},{wch:12},{wch:8},{wch:22}];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock Card');
+
+    const lotNo = confirmLotNo.textContent.trim() || 'stockcard';
+    XLSX.writeFile(wb, `stockcard_${lotNo}.xlsx`);
+  });
+
+  async function resolveIdLot(companyId, lotNo){
+    const params = new URLSearchParams({ companyId, lotNo });
+    const res = await fetch('/api/lots/resolve?' + params.toString());
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'ไม่พบ Lot No. นี้');
+    return data.data; // { idLot, lotNo, productName }
+  }
+
+  async function loadStockCard(){
+    const companyId = companySelect.value;
+    const lotNoText = lotInput.value.trim();
+
+    if (!companyId) {
+      renderState('กรุณาเลือกบริษัทก่อน');
+      return;
+    }
+    if (!lotNoText) {
+      renderState('กรุณาระบุ Lot No. ก่อนกด "ดูข้อมูล"');
+      return;
+    }
+
+    viewBtn.disabled = true;
+    viewBtn.innerHTML = '<span class="spinner"></span> กำลังโหลด…';
+    renderState('กำลังดึงข้อมูล…');
+
+    try {
+      // ถ้าเคยเลือก Lot จาก dropdown ค้นหาไว้แล้ว และข้อความยังตรงกัน ใช้ idLot ที่แคชไว้ได้เลย
+      // ไม่งั้นต้องแปลง LotNo ที่พิมพ์เอง ให้เป็น idLot ก่อน เพราะ stored procedure ต้องการ idLot ไม่ใช่ LotNo
+      let idLot;
+      if (selectedIdLot && lotNoText === selectedLotNoText) {
+        idLot = selectedIdLot;
+        showLotConfirm(selectedLotNoText, selectedProductName);
+      } else {
+        const resolved = await resolveIdLot(companyId, lotNoText);
+        idLot = resolved.idLot;
+        selectedIdLot = resolved.idLot;
+        selectedLotNoText = resolved.lotNo;
+        selectedProductName = resolved.productName;
+        showLotConfirm(resolved.lotNo, resolved.productName);
+      }
+
+      const params = new URLSearchParams({ idLot });
+      const res = await fetch('/api/stockcard?' + params.toString());
+      const data = await res.json();
+
+      if (!data.success) {
+        renderError(data.message || 'ดึงข้อมูลไม่สำเร็จ');
+        return;
+      }
+      renderTable(data.data);
+
+    } catch (err) {
+      renderError(err.message || 'เชื่อมต่อ server ไม่ได้ กรุณาลองใหม่');
+    } finally {
+      viewBtn.disabled = false;
+      viewBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        ดูข้อมูล`;
+    }
+  }
+
+  viewBtn.addEventListener('click', loadStockCard);
+  lotInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadStockCard(); });
+</script>
+
+</body>
+</html>
