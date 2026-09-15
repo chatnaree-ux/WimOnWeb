@@ -622,6 +622,250 @@ app.post('/api/moisture/end', async (req, res) => {
   }
 });
 
+// ==================================================================
+// ---------- ระบบกำหนดสิทธิ์การเข้าถึงเมนู (ผูกกับ "กลุ่มผู้ใช้งาน") ----------
+// ==================================================================
+
+// ---------- ดึงรายการเมนูทั้งหมด (แบบ flat พร้อม idParentMenu ให้ frontend จัดเป็น tree เอง) ----------
+app.get('/api/permissions/menus', async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(
+      `SELECT idMenu, MenuCode, MenuName, MenuUrl, idParentMenu, SortOrder
+       FROM WIMWebMenu
+       WHERE stDel IS NULL
+       ORDER BY SortOrder, idMenu`
+    );
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error('Permissions menus error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการเมนูไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ดึงรายการกลุ่มผู้ใช้งานทั้งหมด พร้อมจำนวนสมาชิกแต่ละกลุ่ม ----------
+app.get('/api/usergroups', async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(
+      `SELECT g.idGroup, g.GroupName, g.stSystem,
+              (SELECT COUNT(*) FROM WIMWebUserGroupMember m WHERE m.idGroup = g.idGroup AND m.stDel IS NULL) AS memberCount
+       FROM WIMWebUserGroup g
+       WHERE g.stDel IS NULL
+       ORDER BY g.stSystem DESC, g.GroupName`
+    );
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error('Usergroups list error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการกลุ่มไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- สร้างกลุ่มผู้ใช้งานใหม่ ----------
+app.post('/api/usergroups', async (req, res) => {
+  const { groupName } = req.body;
+  if (!groupName || !groupName.trim()) {
+    return res.status(400).json({ success: false, message: 'กรุณาระบุชื่อกลุ่ม' });
+  }
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input('groupName', sql.NVarChar, groupName.trim())
+      .query(`INSERT INTO WIMWebUserGroup (GroupName) OUTPUT INSERTED.idGroup VALUES (@groupName)`);
+    res.json({ success: true, idGroup: result.recordset[0].idGroup });
+  } catch (err) {
+    console.error('Usergroups create error:', err);
+    res.status(500).json({ success: false, message: 'สร้างกลุ่มไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ดึงสมาชิกในกลุ่มหนึ่งๆ (แสดง CompCode/CompName/PositionName กำกับ) ----------
+app.get('/api/usergroups/:idGroup/members', async (req, res) => {
+  const idGroup = parseInt(req.params.idGroup, 10);
+  if (!idGroup) return res.status(400).json({ success: false, message: 'idGroup ไม่ถูกต้อง' });
+
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input('idGroup', sql.Int, idGroup)
+      .query(
+        `SELECT m.idPs,v.PsName, v.PositionName, v.CompName, v.CompCode
+         FROM WIMWebUserGroupMember m
+         JOIN devsk.vPersonxSelect v ON m.idPs = v.idPs
+         WHERE m.idGroup = @idGroup AND m.stDel IS NULL
+         ORDER BY v.PsName`
+      );
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error('Usergroup members error:', err);
+    res.status(500).json({ success: false, message: 'โหลดสมาชิกกลุ่มไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ค้นหาพนักงานที่ยังทำงานอยู่ (idstWork <> 4) สำหรับเพิ่มเข้ากลุ่ม ----------
+app.get('/api/usergroups/available-users', async (req, res) => {
+  const keyword = (req.query.keyword || '').trim();
+  try {
+    const pool = await poolPromise;
+    const topClause = keyword ? 'TOP 50' : '';
+    const result = await pool.request()
+      .input('keyword', sql.NVarChar, `%${keyword}%`)
+      .query(
+        `SELECT ${topClause} v.idPs, v.PsName, v.PositionName, v.CompName, v.CompCode
+         FROM devsk.vPersonxSelect v
+         WHERE v.idstWork <> 4
+           AND (v.PsName LIKE @keyword)
+         ORDER BY v.PsName`
+      );
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error('Available users error:', err);
+    res.status(500).json({ success: false, message: 'ค้นหาพนักงานไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- เพิ่มผู้ใช้เข้ากลุ่ม (ย้ายออกจากกลุ่มเดิมอัตโนมัติ เพราะ 1 คนอยู่ได้แค่ 1 กลุ่ม) ----------
+app.post('/api/usergroups/:idGroup/members', async (req, res) => {
+  const idGroup = parseInt(req.params.idGroup, 10);
+  const { idPs } = req.body;
+  if (!idGroup || !idPs) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน' });
+
+  try {
+    const pool = await poolPromise;
+    // ลบ membership เดิมของคนนี้ทิ้งก่อนเสมอ (ไม่ว่าจะเคยอยู่กลุ่มไหนมาก่อน) แล้วค่อยเพิ่มเข้ากลุ่มใหม่
+    await pool.request()
+      .input('idPs', sql.Int, idPs)
+      .query('DELETE FROM WIMWebUserGroupMember WHERE idPs = @idPs');
+
+    await pool.request()
+      .input('idPs', sql.Int, idPs)
+      .input('idGroup', sql.Int, idGroup)
+      .query('INSERT INTO WIMWebUserGroupMember (idPs, idGroup) VALUES (@idPs, @idGroup)');
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Add member error:', err);
+    res.status(500).json({ success: false, message: 'เพิ่มสมาชิกไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ลบสมาชิกออกจากกลุ่ม ----------
+app.delete('/api/usergroups/:idGroup/members/:idPs', async (req, res) => {
+  const idGroup = parseInt(req.params.idGroup, 10);
+  const idPs = parseInt(req.params.idPs, 10);
+  if (!idGroup || !idPs) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน' });
+
+  try {
+    const pool = await poolPromise;
+    await pool.request()
+      .input('idPs', sql.Int, idPs)
+      .input('idGroup', sql.Int, idGroup)
+      .query('DELETE FROM WIMWebUserGroupMember WHERE idPs = @idPs AND idGroup = @idGroup');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Remove member error:', err);
+    res.status(500).json({ success: false, message: 'ลบสมาชิกไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ดึงเมนูที่กลุ่มหนึ่งๆ ได้รับอนุญาตอยู่ตอนนี้ (สำหรับติ๊กช่องที่เคยอนุญาตไว้) ----------
+app.get('/api/usergroups/:idGroup/permissions', async (req, res) => {
+  const idGroup = parseInt(req.params.idGroup, 10);
+  if (!idGroup) return res.status(400).json({ success: false, message: 'idGroup ไม่ถูกต้อง' });
+
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input('idGroup', sql.Int, idGroup)
+      .query(`SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL`);
+    res.json({ success: true, data: result.recordset.map(r => r.idMenu) });
+  } catch (err) {
+    console.error('Get group permissions error:', err);
+    res.status(500).json({ success: false, message: 'โหลดสิทธิ์กลุ่มไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- บันทึกสิทธิ์ของกลุ่ม (แทนที่ชุดสิทธิ์เดิมทั้งหมดด้วยชุดใหม่ที่ส่งมา) ----------
+app.post('/api/usergroups/:idGroup/permissions', async (req, res) => {
+  const idGroup = parseInt(req.params.idGroup, 10);
+  const { menuIds, idPsCreate } = req.body;
+  if (!idGroup) return res.status(400).json({ success: false, message: 'idGroup ไม่ถูกต้อง' });
+  if (!Array.isArray(menuIds)) return res.status(400).json({ success: false, message: 'รูปแบบข้อมูลไม่ถูกต้อง' });
+
+  let transaction;
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    await new sql.Request(transaction)
+      .input('idGroup', sql.Int, idGroup)
+      .query('DELETE FROM WIMWebMenuPermission WHERE idGroup = @idGroup');
+
+    for (const idMenu of menuIds) {
+      const req2 = new sql.Request(transaction)
+        .input('idGroup', sql.Int, idGroup)
+        .input('idMenu', sql.Int, idMenu);
+      if (idPsCreate) req2.input('idPsCreate', sql.Int, idPsCreate);
+      await req2.query(
+        `INSERT INTO WIMWebMenuPermission (idGroup, idMenu, stAllow${idPsCreate ? ', idPsCreate' : ''})
+         VALUES (@idGroup, @idMenu, 1${idPsCreate ? ', @idPsCreate' : ''})`
+      );
+    }
+
+    await transaction.commit();
+    res.json({ success: true });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('Save group permissions error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกสิทธิ์ไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ดึงสิทธิ์ที่แท้จริงของผู้ใช้ที่ login อยู่ (เรียกใช้จากทุกหน้า เพื่อซ่อน/ล็อกเมนู) ----------
+// หลักการ:
+//   1. ถ้าผู้ใช้คนนี้ยังไม่สังกัดกลุ่มไหนเลย -> ถือว่ายังไม่ถูกจำกัดสิทธิ์ เข้าได้ทุกเมนู (กันผู้ใช้เดิมถูกล็อกออกกะทันหัน)
+//   2. ถ้าสังกัดกลุ่ม "ผู้ดูแลระบบ" (stSystem=1) -> เข้าได้ทุกเมนูเสมอ ไม่ต้องพึ่งการติ๊กสิทธิ์
+//   3. นอกนั้น -> เข้าได้เฉพาะเมนูที่กลุ่มของตัวเองถูกอนุญาตไว้เท่านั้น
+app.get('/api/permissions/my', async (req, res) => {
+  const idPs = parseInt(req.query.idPs, 10);
+  if (!idPs) return res.status(400).json({ success: false, message: 'กรุณาระบุ idPs' });
+
+  try {
+    const pool = await poolPromise;
+    const groupResult = await pool.request()
+      .input('idPs', sql.Int, idPs)
+      .query(
+        `SELECT g.idGroup, g.stSystem
+         FROM WIMWebUserGroupMember m
+         JOIN WIMWebUserGroup g ON m.idGroup = g.idGroup
+         WHERE m.idPs = @idPs AND m.stDel IS NULL AND g.stDel IS NULL`
+      );
+
+    if (groupResult.recordset.length === 0) {
+      return res.json({ success: true, unrestricted: true, allowedMenuCodes: [] });
+    }
+
+    const { idGroup, stSystem } = groupResult.recordset[0];
+    if (stSystem === true || stSystem === 1) {
+      return res.json({ success: true, unrestricted: true, allowedMenuCodes: [] });
+    }
+
+    const result = await pool.request()
+      .input('idGroup', sql.Int, idGroup)
+      .query(
+        `SELECT m.MenuCode
+         FROM WIMWebMenuPermission p
+         JOIN WIMWebMenu m ON p.idMenu = m.idMenu
+         WHERE p.idGroup = @idGroup AND p.stAllow = 1 AND p.stDel IS NULL AND m.stDel IS NULL`
+      );
+    res.json({ success: true, unrestricted: false, allowedMenuCodes: result.recordset.map(r => r.MenuCode) });
+  } catch (err) {
+    console.error('Permissions my error:', err);
+    res.status(500).json({ success: false, message: 'โหลดสิทธิ์การใช้งานไม่สำเร็จ', detail: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 WIM API server ทำงานที่ http://localhost:${PORT}`);
 });

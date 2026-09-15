@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIM — กำหนดสิทธิ์การใช้งาน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-950:#0c1420; --navy-900:#111d2e; --navy-800:#182a40; --navy-850:#0f1a29;
+    --steel-700:#25405c; --steel-500:#4a6b8a;
+    --concrete-200:#e7e4da; --concrete-400:#b9b4a5;
+    --amber-500:#f2a91c; --amber-600:#d8930c;
+    --safety-red:#e5533d; --ok-green:#3ecf8e; --sky-blue:#4ea7e0;
+    --radius:10px; --sidebar-w:270px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif; background:var(--navy-950); color:var(--concrete-200); min-height:100vh; overflow-x:hidden;}
+
+  .app-shell{display:flex; min-height:100vh;}
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:var(--sidebar-w); flex-shrink:0;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border-right:1px solid rgba(255,255,255,.07);
+    display:flex; flex-direction:column;
+    position:fixed; top:0; left:0; bottom:0; z-index:20;
+    transition:transform .25s ease;
+  }
+  .sidebar-head{display:flex; align-items:center; gap:12px; padding:22px 20px; border-bottom:1px solid rgba(255,255,255,.07);}
+  .brand-mark{
+    width:38px; height:38px; border:2px solid var(--amber-500); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    font-family:'Oswald',sans-serif; font-weight:700; color:var(--amber-500); font-size:15px;
+    transform:rotate(-3deg);
+  }
+  .brand-text{font-family:'Oswald',sans-serif; letter-spacing:.05em; font-size:16.5px; font-weight:600; color:var(--concrete-200); line-height:1.2;}
+  .brand-text small{display:block; font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.08em; color:var(--steel-500); font-weight:400; margin-top:2px;}
+
+  .side-nav{flex:1; padding:16px 12px; overflow-y:auto;}
+  .nav-section-label{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em; color:var(--steel-500); text-transform:uppercase; padding:6px 12px 8px;}
+  .nav-item{
+    width:100%; display:flex; align-items:center; gap:12px;
+    padding:11px 12px; border-radius:8px; margin-bottom:2px;
+    color:var(--concrete-200); text-decoration:none;
+    font-size:14px; font-family:'Inter',sans-serif; font-weight:500;
+    background:none; border:none; cursor:pointer; text-align:left;
+    transition:background .15s, color .15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-item.active{background:rgba(242,169,28,.12); color:var(--amber-500);}
+  .nav-icon{width:19px; height:19px; flex-shrink:0; color:var(--amber-500); opacity:.9;}
+  .nav-icon svg{width:100%; height:100%; stroke-width:1.8;}
+  .nav-label{flex:1;}
+  .nav-chevron{width:14px; height:14px; flex-shrink:0; color:var(--steel-500); transition:transform .2s ease;}
+  .nav-group.open .nav-chevron{transform:rotate(180deg);}
+  .nav-group.open > .nav-parent{background:rgba(255,255,255,.04);}
+  .nav-submenu{display:grid; grid-template-rows:0fr; overflow:hidden; transition:grid-template-rows .22s ease;}
+  .nav-group.open .nav-submenu{grid-template-rows:1fr;}
+  .nav-submenu-inner{overflow:hidden; padding-left:14px; margin:2px 0 6px;}
+  .nav-subitem{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 12px 9px 20px; border-radius:7px; margin-bottom:1px;
+    color:var(--concrete-400); text-decoration:none; font-size:13px;
+    position:relative; transition:background .15s, color .15s;
+    border-left:1px solid rgba(255,255,255,.09);
+  }
+  .nav-subitem::before{content:""; position:absolute; left:-1px; top:50%; width:12px; height:1px; background:rgba(255,255,255,.09);}
+  .nav-subitem:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-subitem.active{color:var(--amber-500); border-left-color:var(--amber-500); background:rgba(242,169,28,.08);}
+
+  .sidebar-foot{padding:16px; border-top:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:10px;}
+  .user-chip{
+    display:flex; align-items:center; gap:9px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-200);
+    border:1px solid rgba(255,255,255,.1); padding:9px 12px; border-radius:9px;
+    background:rgba(255,255,255,.02);
+  }
+  .user-chip .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-green); box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  #userLabel{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .logout-btn{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.05em;
+    color:var(--concrete-400); background:transparent; border:1px solid rgba(255,255,255,.15);
+    border-radius:8px; padding:9px 14px; cursor:pointer; text-transform:uppercase;
+    transition:border-color .15s, color .15s; width:100%;
+  }
+  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75;}
+
+  /* ---------- MAIN AREA ---------- */
+  .main-wrap{flex:1; margin-left:var(--sidebar-w); min-width:0;}
+  .topbar-mobile{
+    display:none; align-items:center; gap:14px; padding:16px 20px;
+    border-bottom:1px solid rgba(255,255,255,.07); position:sticky; top:0; background:var(--navy-950); z-index:15;
+  }
+  .hamburger{
+    width:38px; height:38px; border-radius:8px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.03); color:var(--concrete-200); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .hamburger svg{width:18px; height:18px;}
+
+  main{max-width:1440px; margin:0 auto; padding:clamp(28px,4vw,48px) clamp(20px,4vw,48px) 70px;}
+
+  .eyebrow{font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em; color:var(--amber-500); text-transform:uppercase; margin:0 0 10px;}
+  h1{font-family:'Oswald',sans-serif; font-weight:700; text-transform:uppercase; font-size:clamp(24px,3.4vw,32px); line-height:1.15; margin:0 0 8px; color:#fff;}
+  .sub{font-size:14px; color:var(--concrete-400); margin:0 0 24px;}
+
+  .toolbar{
+    display:flex; align-items:end; gap:16px; flex-wrap:wrap;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:18px 22px; margin-bottom:26px;
+  }
+  .field{display:flex; flex-direction:column; gap:7px;}
+  .field label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em; color:var(--concrete-400); text-transform:uppercase;}
+  .input-shell{
+    display:flex; align-items:center; gap:8px;
+    background:var(--navy-950); border:1px solid rgba(255,255,255,.1); border-radius:7px; padding:0 12px;
+    transition:border-color .18s, box-shadow .18s;
+  }
+  .input-shell:focus-within{border-color:var(--amber-500); box-shadow:0 0 0 3px rgba(242,169,28,.15);}
+  .input-shell select, .input-shell input{
+    flex:1; background:transparent; border:0; outline:0; color:#fff;
+    font-family:'Inter',sans-serif; font-size:14px; padding:11px 0; min-width:180px;
+  }
+  .input-shell select{cursor:pointer;}
+  .input-shell select option{background:var(--navy-900); color:#fff;}
+  .input-shell input[type="date"]{color-scheme:dark; min-width:150px;}
+
+  .refresh-btn{
+    display:flex; align-items:center; gap:7px; height:44px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.04em;
+    color:var(--concrete-200); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14);
+    border-radius:7px; padding:0 16px; cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .refresh-btn:hover{border-color:var(--amber-500); background:rgba(242,169,28,.08); color:var(--amber-500);}
+  .refresh-btn svg{width:15px; height:15px;}
+
+  /* ---------- KANBAN ---------- */
+  .kanban-top{display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; margin-bottom:20px;}
+  @media (max-width:900px){ .kanban-top{grid-template-columns:1fr;} }
+
+  .kanban-done-wrap{width:100%;}
+  .kb-col.done .kb-list{max-height:none; display:block; padding:0;}
+  .kb-col.done .table-scroll{overflow-x:auto;}
+  .done-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  .done-table thead tr.group-row th{
+    text-align:center; padding:9px 12px; font-family:'Oswald',sans-serif;
+    font-size:12px; letter-spacing:.04em; text-transform:uppercase; font-weight:600;
+    color:var(--navy-950); background:var(--amber-500);
+    border-bottom:1px solid rgba(0,0,0,.15); border-right:1px solid rgba(0,0,0,.12);
+  }
+  .done-table thead tr.group-row th:last-child{border-right:none;}
+  .done-table thead th{
+    text-align:center; padding:10px 12px; font-family:'JetBrains Mono',monospace;
+    font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--amber-500);
+    background:rgba(242,169,28,.06); border-bottom:1px solid rgba(255,255,255,.08); white-space:nowrap;
+  }
+  .done-table tbody td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.05); color:var(--concrete-200); white-space:nowrap; text-align:center;}
+  .done-table tbody td.wrap{white-space:normal; min-width:160px;}
+  .done-table tbody tr:hover{background:rgba(255,255,255,.03);}
+  .done-table tbody tr:last-child td{border-bottom:none;}
+  .done-table td.num{text-align:right;}
+  .done-table td.note-cell{text-align:left;}
+  .done-table td.duration{color:var(--amber-500); font-weight:700; text-align:center;}
+  .done-table .seed-cell{font-family:'Oswald',sans-serif; font-size:13.5px; color:#fff;}
+  .done-table .doc-cell{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500);}
+  .kb-col.done .kb-col-head{flex-wrap:wrap;}
+
+  .kb-col{background:linear-gradient(180deg, var(--navy-900), var(--navy-850)); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); overflow:hidden; border-top:3px solid transparent;}
+  .kb-col.waiting{border-top-color:var(--sky-blue);}
+  .kb-col.inprogress{border-top-color:var(--amber-500);}
+  .kb-col.done{border-top-color:var(--ok-green);}
+  .kb-col-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:16px 18px; border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .kb-col.waiting .kb-col-head{background:rgba(78,167,224,.09);}
+  .kb-col.inprogress .kb-col-head{background:rgba(242,169,28,.09);}
+  .kb-col.done .kb-col-head{background:rgba(62,207,142,.09);}
+  .kb-col-head .name{font-family:'Oswald',sans-serif; font-size:17.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:#fff; display:flex; align-items:center; gap:10px;}
+  .kb-col-head .dot{width:11px; height:11px; border-radius:50%; flex-shrink:0;}
+  .kb-col.waiting .dot{background:var(--sky-blue); box-shadow:0 0 8px var(--sky-blue);}
+  .kb-col.inprogress .dot{background:var(--amber-500); box-shadow:0 0 8px var(--amber-500);}
+  .kb-col.done .dot{background:var(--ok-green); box-shadow:0 0 8px var(--ok-green);}
+  .kb-count{
+    font-family:'JetBrains Mono',monospace; font-size:18px; color:var(--navy-950); font-weight:800;
+    background:var(--concrete-200); border-radius:999px; padding:4px 16px; min-width:38px; text-align:center;
+    box-shadow:0 4px 12px -2px rgba(0,0,0,.35);
+  }
+  .kb-col-sub{padding:0 18px 12px; margin-top:-4px;}
+  .kb-col-sub .input-shell{padding:0 10px;}
+  .kb-col-sub input{padding:8px 0; font-size:13px; min-width:0;}
+  .done-mode-toggle{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
+  .mode-radio{
+    display:flex; align-items:center; gap:6px; font-size:13px; color:var(--concrete-400);
+    cursor:pointer; user-select:none;
+  }
+  .mode-radio input{accent-color:var(--amber-500); cursor:pointer;}
+  .mode-radio:has(input:checked){color:#fff; font-weight:600;}
+  #doneDateShell{transition:opacity .15s;}
+  .date-overlay-wrap{position:relative;}
+  .date-overlay-wrap input[type="date"]{color:transparent; caret-color:transparent;}
+  .date-overlay-wrap input[type="date"]::-webkit-calendar-picker-indicator{opacity:1;}
+  .date-overlay-text{
+    position:absolute; left:12px; top:50%; transform:translateY(-50%);
+    pointer-events:none; font-family:'Inter',sans-serif; font-size:14px; color:#fff; white-space:nowrap;
+  }
+
+  .kb-list{padding:12px; display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 340px); overflow-y:auto; min-height:120px;}
+
+  .kb-card{
+    background:var(--navy-800); border:1px solid rgba(255,255,255,.07); border-radius:9px; padding:14px 16px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .kb-card .card-top-row{display:flex; align-items:baseline; justify-content:space-between; gap:10px;}
+  .kb-card .doc-code{font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; color:var(--amber-500); letter-spacing:.03em;}
+  .kb-card .start-time-inline{
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--concrete-400);
+    white-space:nowrap; text-align:right; flex-shrink:0;
+  }
+  .kb-card .start-time-inline .lbl{color:var(--steel-500);}
+  .kb-card .seed-name{font-family:'Oswald',sans-serif; font-size:15.5px; color:#fff; line-height:1.3;}
+  .kb-card .meta-row{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12px; color:var(--concrete-400);}
+  .kb-card .meta-row b{color:var(--concrete-200); font-weight:600;}
+  .kb-card .note{font-size:12.5px; color:var(--concrete-200); font-weight:500; font-style:italic;}
+  .kb-card .time-row{
+    display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:11.5px;
+    color:var(--concrete-400); background:rgba(255,255,255,.03); border-radius:6px; padding:6px 10px;
+  }
+  .kb-card .time-row .lbl{color:var(--steel-500);}
+
+  .kb-action-btn{
+    align-self:flex-start; margin-top:2px;
+    border:0; border-radius:7px; padding:9px 18px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    display:flex; align-items:center; gap:7px; transition:transform .15s, filter .15s;
+  }
+  .kb-action-btn:hover{transform:translateY(-1px); filter:brightness(1.1);}
+  .kb-action-btn:disabled{opacity:.5; cursor:not-allowed; transform:none;}
+  .kb-action-btn.start-btn{background:var(--sky-blue); color:var(--navy-950);}
+  .kb-action-btn.end-btn{background:var(--amber-500); color:var(--navy-950);}
+  .kb-action-btn svg{width:14px; height:14px;}
+
+  .kb-empty{padding:40px 16px; text-align:center; color:var(--concrete-400); font-size:13px;}
+  .kb-empty svg{width:30px; height:30px; margin-bottom:8px; opacity:.5;}
+  .kb-error{padding:20px 16px; text-align:center; color:#ff8a75; font-size:13px;}
+  .kb-loading{padding:40px 16px; text-align:center; color:var(--concrete-400); font-size:13px;}
+  .spinner{width:16px; height:16px; border:2px solid rgba(255,255,255,.15); border-top-color:var(--amber-500); border-radius:50%; animation:spin .7s linear infinite; display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  footer{text-align:center; padding:20px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500);}
+
+  /* ---------- MODAL: ยืนยันเริ่มเคลือบเมล็ด ---------- */
+  .start-modal-overlay{
+    display:none; position:fixed; inset:0; z-index:60;
+    background:rgba(6,10,16,.75); backdrop-filter:blur(3px);
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .start-modal-overlay.show{display:flex;}
+  .start-modal{
+    width:100%; max-width:380px;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border:1px solid rgba(78,167,224,.35); border-radius:16px;
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.7), 0 0 40px -10px rgba(78,167,224,.25);
+    padding:34px 30px 28px; text-align:center;
+  }
+  .start-modal-label{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.1em;
+    color:var(--steel-500); text-transform:uppercase; margin-bottom:10px;
+  }
+  .start-modal-clock{
+    font-family:'JetBrains Mono',monospace; font-size:48px; font-weight:700;
+    color:var(--sky-blue); letter-spacing:.03em; line-height:1; margin-bottom:8px;
+    text-shadow:0 0 24px rgba(78,167,224,.5);
+  }
+  .start-modal-date{font-size:14px; color:var(--concrete-400); margin-bottom:26px;}
+  .start-modal-confirm{
+    width:100%; border:0; border-radius:9px; padding:15px 18px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    background:var(--sky-blue); color:var(--navy-950);
+    display:flex; align-items:center; justify-content:center; gap:9px;
+    transition:transform .15s, filter .15s; margin-bottom:12px;
+  }
+  .start-modal-confirm:hover{transform:translateY(-1px); filter:brightness(1.1);}
+  .start-modal-confirm:disabled{opacity:.5; cursor:not-allowed; transform:none;}
+  .start-modal-confirm svg{width:16px; height:16px;}
+  .start-modal-cancel{
+    background:none; border:0; color:var(--steel-500); font-size:13px; cursor:pointer;
+    padding:6px; transition:color .15s;
+  }
+  .start-modal-cancel:hover{color:var(--concrete-200);}
+
+  /* ---------- หน้าจัดการสิทธิ์การเข้าถึง: 3 คอลัมน์ ---------- */
+  .perm-columns{display:grid; grid-template-columns:260px 1fr 1fr; gap:18px; align-items:start;}
+  @media (max-width:1100px){ .perm-columns{grid-template-columns:1fr;} }
+
+  .perm-col{
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); overflow:hidden;
+    display:flex; flex-direction:column; min-height:420px; max-height:calc(100vh - 260px);
+  }
+  .perm-col-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;
+  }
+  .perm-col-title{
+    display:flex; align-items:center; gap:8px;
+    font-family:'Oswald',sans-serif; font-size:14.5px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.02em; color:#fff;
+  }
+  .perm-col-icon{font-size:15px;}
+  .perm-add-btn{
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.03em;
+    color:var(--navy-950); background:var(--amber-500); border:0;
+    border-radius:7px; padding:7px 12px; cursor:pointer; white-space:nowrap;
+    transition:filter .15s;
+  }
+  .perm-add-btn:hover:not(:disabled){filter:brightness(1.1);}
+  .perm-add-btn:disabled{opacity:.35; cursor:not-allowed;}
+
+  .perm-col-search{padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0;}
+  .perm-col-search .input-shell{padding:0 10px;}
+  .perm-col-search input{padding:8px 0; font-size:13px;}
+
+  .perm-col-body{flex:1; overflow-y:auto; padding:8px;}
+  .perm-col-foot{
+    padding:12px 18px; border-top:1px solid rgba(255,255,255,.08); flex-shrink:0;
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-400);
+  }
+  .perm-col-foot-save{display:flex; align-items:center; justify-content:flex-end; gap:14px; flex-wrap:wrap;}
+  .perm-save-msg{font-size:12.5px; color:var(--ok-green);}
+
+  /* --- รายการกลุ่ม --- */
+  .group-row{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:11px 12px; border-radius:8px; cursor:pointer; margin-bottom:2px;
+    transition:background .15s;
+  }
+  .group-row:hover{background:rgba(255,255,255,.04);}
+  .group-row.active{background:rgba(242,169,28,.14);}
+  .group-row .g-name{font-size:14px; color:var(--concrete-200); font-weight:500;}
+  .group-row.active .g-name{color:var(--amber-500); font-weight:600;}
+  .group-row .g-right{display:flex; align-items:center; gap:8px;}
+  .group-row .g-count{
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--navy-950);
+    background:var(--concrete-400); border-radius:999px; padding:2px 9px; min-width:22px; text-align:center;
+  }
+  .group-row.active .g-count{background:var(--amber-500);}
+  .group-row .g-lock{font-size:13px; opacity:.7;}
+
+  /* --- รายการสมาชิก --- */
+  .member-row{
+    display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:8px;
+    transition:background .15s; margin-bottom:2px;
+  }
+  .member-row:hover{background:rgba(255,255,255,.03);}
+  .member-avatar{
+    width:36px; height:36px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:#fff;
+    background:var(--steel-700);
+  }
+  .member-info{flex:1; min-width:0;}
+  .member-name{font-size:13.5px; color:var(--concrete-200); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .member-sub{font-size:11.5px; color:var(--concrete-400); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .member-remove-btn{
+    flex-shrink:0; background:none; border:0; color:var(--steel-500); cursor:pointer; padding:6px;
+    transition:color .15s;
+  }
+  .member-remove-btn:hover{color:var(--safety-red);}
+
+  /* --- tree สิทธิ์เมนู --- */
+  .perm-group{padding:10px 8px; border-bottom:1px solid rgba(255,255,255,.05);}
+  .perm-group:last-child{border-bottom:none;}
+  .perm-group-head{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:6px 4px; cursor:pointer;
+  }
+  .perm-group-head .name{
+    display:flex; align-items:center; gap:8px;
+    font-family:'Oswald',sans-serif; font-size:13.5px; font-weight:600; color:#fff;
+    text-transform:uppercase; letter-spacing:.02em;
+  }
+  .perm-group-head .g-badge{
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--navy-950);
+    background:var(--steel-500); border-radius:999px; padding:1px 8px; min-width:20px; text-align:center;
+  }
+  .perm-group-head .g-badge.has-selected{background:var(--amber-500);}
+  .perm-item{
+    display:flex; align-items:center; gap:10px; padding:8px 8px; border-radius:7px;
+    cursor:pointer; font-size:13.5px; color:var(--concrete-200); transition:background .15s;
+  }
+  .perm-item:hover{background:rgba(255,255,255,.03);}
+  .perm-checkbox{width:17px; height:17px; accent-color:var(--amber-500); cursor:pointer; flex-shrink:0;}
+  .perm-children{padding-left:14px; display:flex; flex-direction:column;}
+
+  .state-box{padding:30px 20px; text-align:center; color:var(--concrete-400); font-size:13px;}
+  .state-box.error{color:#ff8a75;}
+
+  /* ---------- MODAL: เพิ่มกลุ่ม / เพิ่มสมาชิก ---------- */
+  .perm-modal-overlay{
+    display:none; position:fixed; inset:0; z-index:60; background:rgba(6,10,16,.7); backdrop-filter:blur(2px);
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .perm-modal-overlay.show{display:flex;}
+  .perm-modal{
+    width:100%; max-width:400px;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border:1px solid rgba(255,255,255,.1); border-radius:var(--radius);
+    box-shadow:0 30px 70px -20px rgba(0,0,0,.7); overflow:hidden;
+  }
+  .perm-modal-wide{max-width:520px; max-height:80vh; display:flex; flex-direction:column;}
+  .perm-modal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;
+  }
+  .perm-modal-title{font-family:'Oswald',sans-serif; font-size:15px; letter-spacing:.03em; text-transform:uppercase; color:#fff;}
+  .perm-modal-close{
+    width:30px; height:30px; border-radius:7px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.03); color:var(--concrete-200); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .perm-modal-close:hover{border-color:var(--safety-red); color:#ff8a75;}
+  .perm-modal-close svg{width:14px; height:14px;}
+  .perm-modal-body{padding:18px 20px;}
+  .perm-modal-body .field{display:flex; flex-direction:column; gap:7px;}
+  .perm-modal-body .field label{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.06em;
+    color:var(--concrete-400); text-transform:uppercase;
+  }
+  .perm-modal-body-list{overflow-y:auto; flex:1; padding:8px;}
+  .perm-modal-search{padding:14px 20px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0;}
+  .perm-modal-foot{
+    display:flex; justify-content:flex-end; gap:10px;
+    padding:14px 20px; border-top:1px solid rgba(255,255,255,.08);
+  }
+  .perm-modal-cancel{
+    background:none; border:1px solid rgba(255,255,255,.15); color:var(--concrete-400);
+    padding:10px 16px; border-radius:7px; cursor:pointer; font-size:13px; transition:border-color .15s;
+  }
+  .perm-modal-cancel:hover{border-color:var(--concrete-200); color:var(--concrete-200);}
+  .modal-field-error{color:#ff8a75; font-size:12.5px; margin-top:8px; display:none;}
+  .modal-field-error.show{display:block;}
+
+  .avail-user-row{
+    display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:8px;
+    transition:background .15s; margin-bottom:2px;
+  }
+  .avail-user-row:hover{background:rgba(255,255,255,.04);}
+  .avail-choose-btn{
+    flex-shrink:0; border:1px solid rgba(242,169,28,.4); background:rgba(242,169,28,.08);
+    color:var(--amber-500); font-family:'JetBrains Mono',monospace; font-size:11px;
+    letter-spacing:.03em; text-transform:uppercase; padding:7px 12px; border-radius:7px; cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .avail-choose-btn:hover{background:var(--amber-500); color:var(--navy-950);}
+
+  /* ---------- เมนูที่ไม่มีสิทธิ์เข้าถึง ---------- */
+  .menu-locked{opacity:.4; cursor:not-allowed !important;}
+  .menu-locked::after{content:"🔒"; margin-left:auto; font-size:11px; opacity:.9;}
+  a.menu-locked{pointer-events:none;}
+
+  .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:19;}
+  @media (max-width:900px){
+    .sidebar{transform:translateX(-100%);}
+    body.sidebar-open .sidebar{transform:translateX(0);}
+    body.sidebar-open .sidebar-overlay{display:block;}
+    .main-wrap{margin-left:0;}
+    .topbar-mobile{display:flex;}
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ---------- SIDEBAR ---------- -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <div class="brand-mark">W</div>
+      <div class="brand-text">WIM<small>WAREHOUSE &amp; INVENTORY MANAGEMENT</small></div>
+    </div>
+
+    <nav class="side-nav">
+      <div class="nav-section-label">เมนูหลัก</div>
+
+      <div class="nav-group open" id="seedGroup">
+        <button class="nav-item nav-parent" id="seedToggle" type="button" aria-expanded="true" aria-controls="seedSubmenu">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path><path d="M12 22v-9"></path>
+            </svg>
+          </span>
+          <span class="nav-label">การจัดการเมล็ดพันธุ์วัตถุดิบ</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="nav-submenu" id="seedSubmenu">
+          <div class="nav-submenu-inner">
+            <a class="nav-subitem" href="/coating.html" data-menu="coating">การลงเวลาเคลือบเมล็ด</a>
+            <a class="nav-subitem" href="/moisture.html" data-menu="moisture">การลงเวลาลดความชื้น</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-group" id="reportGroup">
+        <button class="nav-item nav-parent" id="reportToggle" type="button" aria-expanded="false" aria-controls="reportSubmenu">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"></path><path d="M7 15l4-5 3 3 5-7"></path>
+            </svg>
+          </span>
+          <span class="nav-label">รายงานสต๊อก</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="nav-submenu" id="reportSubmenu">
+          <div class="nav-submenu-inner">
+            <a class="nav-subitem" href="#" data-menu="stock_report_onhand">รายงานสต๊อกคงคลัง</a>
+            <a class="nav-subitem" href="/stockcard.html" data-menu="stockcard_lot">Stock Card (รายล็อต)</a>
+            <a class="nav-subitem" href="/stockcard-item.html" data-menu="stockcard_item">Stock Card (รายสินค้า)</a>
+            <a class="nav-subitem" href="#" data-menu="stock_movement">รายงานความเคลื่อนไหวสต๊อก</a>
+            <a class="nav-subitem" href="#" data-menu="stock_return">รายงานสินค้ารับคืน</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-group open" id="systemGroup">
+        <button class="nav-item nav-parent" id="systemToggle" type="button" aria-expanded="true" aria-controls="systemSubmenu">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </span>
+          <span class="nav-label">ระบบ</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="nav-submenu" id="systemSubmenu">
+          <div class="nav-submenu-inner">
+            <a class="nav-subitem active" href="/permissions.html">กำหนดสิทธิ์การใช้งาน</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="user-chip"><span class="dot"></span><span id="userLabel">กำลังโหลด…</span></div>
+      <button class="logout-btn" id="logoutBtn">ออกจากระบบ</button>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ---------- MAIN ---------- -->
+  <div class="main-wrap">
+
+    <div class="topbar-mobile">
+      <button class="hamburger" id="sidebarToggle" type="button" aria-label="เปิดเมนู">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <div class="brand-text">WIM</div>
+    </div>
+
+    <main>
+      <div class="eyebrow">ระบบ</div>
+      <h1>จัดการสิทธิ์การเข้าถึง</h1>
+      <p class="sub">เลือกกลุ่ม เพิ่ม/ลบสมาชิก แล้วกำหนดเมนูที่กลุ่มนั้นเข้าถึงได้</p>
+
+      <div class="perm-columns">
+
+        <!-- ---------- คอลัมน์ 1: กลุ่ม ---------- -->
+        <div class="perm-col">
+          <div class="perm-col-head">
+            <div class="perm-col-title"><span class="perm-col-icon">🗂</span>กลุ่ม</div>
+            <button type="button" class="perm-add-btn" id="addGroupBtn">+ เพิ่มกลุ่ม</button>
+          </div>
+          <div class="perm-col-body" id="groupList">
+            <div class="state-box">กำลังโหลด…</div>
+          </div>
+        </div>
+
+        <!-- ---------- คอลัมน์ 2: สมาชิก ---------- -->
+        <div class="perm-col">
+          <div class="perm-col-head">
+            <div class="perm-col-title"><span class="perm-col-icon">👥</span>สมาชิก</div>
+            <button type="button" class="perm-add-btn" id="addMemberBtn" disabled>+ เพิ่ม</button>
+          </div>
+          <div class="perm-col-search">
+            <div class="input-shell">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="memberFilterInput" placeholder="ค้นหาชื่อสมาชิก..." autocomplete="off" disabled>
+            </div>
+          </div>
+          <div class="perm-col-body" id="memberList">
+            <div class="state-box">เลือกกลุ่มทางซ้ายก่อน</div>
+          </div>
+          <div class="perm-col-foot" id="memberCount"></div>
+        </div>
+
+        <!-- ---------- คอลัมน์ 3: สิทธิ์เมนู ---------- -->
+        <div class="perm-col">
+          <div class="perm-col-head">
+            <div class="perm-col-title"><span class="perm-col-icon">🔑</span>สิทธิ์เมนู</div>
+          </div>
+          <div class="perm-col-body" id="permTree">
+            <div class="state-box">เลือกกลุ่มทางซ้ายก่อน</div>
+          </div>
+          <div class="perm-col-foot perm-col-foot-save">
+            <div class="perm-save-msg" id="permSaveMsg"></div>
+            <span id="permSelectedCount">0 สิทธิ์ที่เลือก</span>
+            <button type="button" class="btn-primary" id="savePermBtn" disabled>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              บันทึกสิทธิ์
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- ---------- POPUP: เพิ่มกลุ่มใหม่ ---------- -->
+    <div class="perm-modal-overlay" id="addGroupModalOverlay">
+      <div class="perm-modal">
+        <div class="perm-modal-head">
+          <div class="perm-modal-title">เพิ่มกลุ่มใหม่</div>
+          <button type="button" class="perm-modal-close" id="addGroupModalClose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="perm-modal-body">
+          <div class="field">
+            <label for="newGroupNameInput">ชื่อกลุ่ม</label>
+            <div class="input-shell">
+              <input type="text" id="newGroupNameInput" placeholder="เช่น Sale group" autocomplete="off">
+            </div>
+          </div>
+          <div class="modal-field-error" id="addGroupError"></div>
+        </div>
+        <div class="perm-modal-foot">
+          <button type="button" class="perm-modal-cancel" id="addGroupCancelBtn">ยกเลิก</button>
+          <button type="button" class="btn-primary" id="addGroupConfirmBtn">สร้างกลุ่ม</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- POPUP: เพิ่มสมาชิกเข้ากลุ่ม ---------- -->
+    <div class="perm-modal-overlay" id="addMemberModalOverlay">
+      <div class="perm-modal perm-modal-wide">
+        <div class="perm-modal-head">
+          <div class="perm-modal-title">เพิ่มสมาชิกเข้ากลุ่ม</div>
+          <button type="button" class="perm-modal-close" id="addMemberModalClose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="perm-modal-search">
+          <div class="input-shell">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="availUserFilterInput" placeholder="พิมพ์ชื่อพนักงาน..." autocomplete="off">
+          </div>
+        </div>
+        <div class="perm-modal-body perm-modal-body-list" id="availUserList">
+          <div class="state-box">พิมพ์เพื่อค้นหาพนักงาน</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>©2026 WIM ⋅ WAREHOUSE AND INVENTORY MANAGEMENT</footer>
+  </div>
+
+</div>
+
+<script>
+  // ---------- ตรวจสอบว่า login มาแล้วหรือยัง ----------
+  const raw = sessionStorage.getItem('wim_user');
+  if (!raw) {
+    window.location.href = '/index.html';
+  } else {
+    const user = JSON.parse(raw);
+    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
+    const displayName = fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
+    const userLabelEl = document.getElementById('userLabel');
+    if (userLabelEl) userLabelEl.textContent = displayName;
+  }
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.removeItem('wim_user');
+    window.location.href = '/index.html';
+  });
+
+  // ---------- accordion เมนู ----------
+  function setupAccordion(toggleId, groupId){
+    const toggle = document.getElementById(toggleId);
+    const group = document.getElementById(groupId);
+    toggle.addEventListener('click', () => {
+      const isOpen = group.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+  }
+  setupAccordion('seedToggle', 'seedGroup');
+  setupAccordion('reportToggle', 'reportGroup');
+  setupAccordion('systemToggle', 'systemGroup');
+
+  // ---------- sidebar drawer บนมือถือ ----------
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+  sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
+  sidebarOverlay.addEventListener('click', () => document.body.classList.remove('sidebar-open'));
+
+  // ==================================================================
+  // ---------- ระบบตรวจสอบสิทธิ์การเข้าถึงเมนู ----------
+  // ==================================================================
+  const CURRENT_PAGE_MENU_CODE = 'menu_permission'; // รหัสเมนูของหน้านี้ (null = ไม่ต้องเช็คสิทธิ์หน้านี้เอง)
+
+  function showAccessDeniedOverlay(){
+    document.body.innerHTML = `
+      <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:#0c1420; color:#e7e4da; font-family:'Inter',sans-serif; text-align:center; padding:20px;">
+        <div>
+          <div style="font-size:48px; margin-bottom:16px;">🔒</div>
+          <div style="font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; text-transform:uppercase; margin-bottom:10px; color:#fff;">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+          <p style="color:#b9b4a5; margin-bottom:24px;">กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์การใช้งาน</p>
+          <a href="/main-menu.html" style="display:inline-block; background:#f2a91c; color:#0c1420; padding:12px 24px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:700; text-decoration:none; text-transform:uppercase;">กลับหน้าเมนูหลัก</a>
+        </div>
+      </div>`;
+  }
+
+  async function applyMenuPermissions(){
+    let idPs = null;
+    try {
+      const userRaw = sessionStorage.getItem('wim_user');
+      if (userRaw) idPs = JSON.parse(userRaw).idPs;
+    } catch (e) {}
+    if (!idPs) return;
+
+    try {
+      const res = await fetch('/api/permissions/my?' + new URLSearchParams({ idPs }));
+      const data = await res.json();
+      if (!data.success) return;
+      if (data.unrestricted) return;
+
+      const allowed = new Set(data.allowedMenuCodes);
+
+      document.querySelectorAll('[data-menu]').forEach(el => {
+        const code = el.getAttribute('data-menu');
+        if (!allowed.has(code)) {
+          el.classList.add('menu-locked');
+          el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
+          el.addEventListener('click', (e) => e.preventDefault());
+        }
+      });
+
+      if (CURRENT_PAGE_MENU_CODE && !allowed.has(CURRENT_PAGE_MENU_CODE)) {
+        showAccessDeniedOverlay();
+      }
+    } catch (err) {
+      console.error('เช็คสิทธิ์การใช้งานไม่สำเร็จ:', err);
+    }
+  }
+
+  applyMenuPermissions();
+
+  // ==================================================================
+  // ---------- โหลดรายการเมนูทั้งหมด (ใช้สร้าง tree ในคอลัมน์ 3) ----------
+  // ==================================================================
+  let allMenus = [];
+  let currentGroupId = null;
+  let currentGroupIsSystem = false;
+  let allMembersCache = [];
+
+  function esc(s){
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function initials(f, s){
+    return ((f || '?')[0] + (s ? s[0] : '')).toUpperCase();
+  }
+  function fullName(f, s){
+    return [f, s].filter(Boolean).join(' ').trim() || '-';
+  }
+
+  const groupList = document.getElementById('groupList');
+  const addGroupBtn = document.getElementById('addGroupBtn');
+  const addMemberBtn = document.getElementById('addMemberBtn');
+  const memberFilterInput = document.getElementById('memberFilterInput');
+  const memberList = document.getElementById('memberList');
+  const memberCount = document.getElementById('memberCount');
+  const permTree = document.getElementById('permTree');
+  const permSaveMsg = document.getElementById('permSaveMsg');
+  const permSelectedCount = document.getElementById('permSelectedCount');
+  const savePermBtn = document.getElementById('savePermBtn');
+
+  async function loadMenus(){
+    try {
+      const res = await fetch('/api/permissions/menus');
+      const data = await res.json();
+      if (data.success) allMenus = data.data || [];
+    } catch (err) {
+      console.error('โหลดเมนูไม่สำเร็จ:', err);
+    }
+  }
+
+  // ==================================================================
+  // ---------- คอลัมน์ 1: กลุ่ม ----------
+  // ==================================================================
+  async function loadGroups(){
+    groupList.innerHTML = '<div class="state-box">กำลังโหลด…</div>';
+    try {
+      const res = await fetch('/api/usergroups');
+      const data = await res.json();
+      if (!data.success) {
+        groupList.innerHTML = `<div class="state-box error">${data.message || 'โหลดกลุ่มไม่สำเร็จ'}</div>`;
+        return;
+      }
+      renderGroups(data.data || []);
+    } catch (err) {
+      groupList.innerHTML = '<div class="state-box error">เชื่อมต่อ server ไม่ได้</div>';
+    }
+  }
+
+  function renderGroups(groups){
+    if (groups.length === 0) {
+      groupList.innerHTML = '<div class="state-box">ยังไม่มีกลุ่ม กด "+ เพิ่มกลุ่ม" เพื่อเริ่มสร้าง</div>';
+      return;
+    }
+    groupList.innerHTML = groups.map(g => `
+      <div class="group-row${currentGroupId === g.idGroup ? ' active' : ''}" data-idgroup="${g.idGroup}" data-system="${g.stSystem ? '1' : '0'}">
+        <span class="g-name">${esc(g.GroupName)}</span>
+        <span class="g-right">
+          <span class="g-count">${g.memberCount}</span>
+          ${g.stSystem ? '<span class="g-lock" title="กลุ่มระบบ แก้ไข/ลบไม่ได้">🔒</span>' : ''}
+        </span>
+      </div>`).join('');
+
+    groupList.querySelectorAll('.group-row').forEach(row => {
+      row.addEventListener('click', () => selectGroup(Number(row.dataset.idgroup), row.dataset.system === '1'));
+    });
+  }
+
+  async function selectGroup(idGroup, isSystem){
+    currentGroupId = idGroup;
+    currentGroupIsSystem = isSystem;
+    permSaveMsg.textContent = '';
+
+    groupList.querySelectorAll('.group-row').forEach(row => {
+      row.classList.toggle('active', Number(row.dataset.idgroup) === idGroup);
+    });
+
+    addMemberBtn.disabled = false;
+    memberFilterInput.disabled = false;
+    memberFilterInput.value = '';
+    savePermBtn.disabled = isSystem; // กลุ่มระบบเข้าได้ทุกเมนูอัตโนมัติอยู่แล้ว ไม่ต้องมาบันทึกสิทธิ์
+
+    await loadMembers(idGroup);
+    await loadGroupPermissions(idGroup, isSystem);
+  }
+
+  // ---------- POPUP: เพิ่มกลุ่มใหม่ ----------
+  const addGroupModalOverlay = document.getElementById('addGroupModalOverlay');
+  const newGroupNameInput = document.getElementById('newGroupNameInput');
+  const addGroupError = document.getElementById('addGroupError');
+
+  function openAddGroupModal(){
+    newGroupNameInput.value = '';
+    addGroupError.classList.remove('show');
+    addGroupModalOverlay.classList.add('show');
+    setTimeout(() => newGroupNameInput.focus(), 50);
+  }
+  function closeAddGroupModal(){ addGroupModalOverlay.classList.remove('show'); }
+
+  addGroupBtn.addEventListener('click', openAddGroupModal);
+  document.getElementById('addGroupModalClose').addEventListener('click', closeAddGroupModal);
+  document.getElementById('addGroupCancelBtn').addEventListener('click', closeAddGroupModal);
+  addGroupModalOverlay.addEventListener('click', (e) => { if (e.target === addGroupModalOverlay) closeAddGroupModal(); });
+
+  document.getElementById('addGroupConfirmBtn').addEventListener('click', async () => {
+    const groupName = newGroupNameInput.value.trim();
+    if (!groupName) {
+      addGroupError.textContent = 'กรุณาระบุชื่อกลุ่ม';
+      addGroupError.classList.add('show');
+      return;
+    }
+    try {
+      const res = await fetch('/api/usergroups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupName })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        addGroupError.textContent = data.message || 'สร้างกลุ่มไม่สำเร็จ';
+        addGroupError.classList.add('show');
+        return;
+      }
+      closeAddGroupModal();
+      await loadGroups();
+    } catch (err) {
+      addGroupError.textContent = 'เชื่อมต่อ server ไม่ได้';
+      addGroupError.classList.add('show');
+    }
+  });
+
+  // ==================================================================
+  // ---------- คอลัมน์ 2: สมาชิก ----------
+  // ==================================================================
+  async function loadMembers(idGroup){
+    memberList.innerHTML = '<div class="state-box">กำลังโหลด…</div>';
+    try {
+      const res = await fetch(`/api/usergroups/${idGroup}/members`);
+      const data = await res.json();
+      if (!data.success) {
+        memberList.innerHTML = `<div class="state-box error">${data.message || 'โหลดสมาชิกไม่สำเร็จ'}</div>`;
+        return;
+      }
+      allMembersCache = data.data || [];
+      renderMembers(allMembersCache);
+    } catch (err) {
+      memberList.innerHTML = '<div class="state-box error">เชื่อมต่อ server ไม่ได้</div>';
+    }
+  }
+
+  function renderMembers(members){
+    memberCount.textContent = `${allMembersCache.length} คน`;
+    if (members.length === 0) {
+      memberList.innerHTML = '<div class="state-box">ยังไม่มีสมาชิกในกลุ่มนี้</div>';
+      return;
+    }
+    memberList.innerHTML = members.map(m => `
+      <div class="member-row" data-idps="${m.idPs}">
+        <!--<div class="member-avatar">${esc(m.CompCode || initials(m.PsNameF, m.PsNameS))}</div>-->
+        <div class="member-avatar">${esc(m.CompCode || initials(m.PsName))}</div>
+        <div class="member-info">
+          <div class="member-name">${esc(fullName(m.PsName))}</div>
+          <div class="member-sub">${esc(m.PositionName) || '-'} · ${esc(m.CompName) || '-'}</div>
+        </div>
+        <button type="button" class="member-remove-btn" title="นำออกจากกลุ่ม" data-idps="${m.idPs}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>`).join('');
+
+    memberList.querySelectorAll('.member-remove-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('นำสมาชิกคนนี้ออกจากกลุ่ม?')) return;
+        try {
+          await fetch(`/api/usergroups/${currentGroupId}/members/${btn.dataset.idps}`, { method: 'DELETE' });
+          await loadMembers(currentGroupId);
+          await loadGroups(); // อัปเดตจำนวนสมาชิกในคอลัมน์ 1
+        } catch (err) {
+          alert('นำสมาชิกออกไม่สำเร็จ');
+        }
+      });
+    });
+  }
+
+  memberFilterInput.addEventListener('input', () => {
+    const kw = memberFilterInput.value.trim().toLowerCase();
+    const filtered = kw
+      ? allMembersCache.filter(m => fullName(m.PsName).toLowerCase().includes(kw))
+      : allMembersCache;
+    renderMembers(filtered);
+  });
+
+  // ---------- POPUP: เพิ่มสมาชิกเข้ากลุ่ม (ค้นหาพนักงานที่ยังทำงานอยู่) ----------
+  const addMemberModalOverlay = document.getElementById('addMemberModalOverlay');
+  const availUserFilterInput = document.getElementById('availUserFilterInput');
+  const availUserList = document.getElementById('availUserList');
+  let availUserDebounce = null;
+
+  function openAddMemberModal(){
+    availUserFilterInput.value = '';
+    availUserList.innerHTML = '<div class="state-box">พิมพ์เพื่อค้นหาพนักงาน</div>';
+    addMemberModalOverlay.classList.add('show');
+    setTimeout(() => availUserFilterInput.focus(), 50);
+  }
+  function closeAddMemberModal(){ addMemberModalOverlay.classList.remove('show'); }
+
+  addMemberBtn.addEventListener('click', openAddMemberModal);
+  document.getElementById('addMemberModalClose').addEventListener('click', closeAddMemberModal);
+  addMemberModalOverlay.addEventListener('click', (e) => { if (e.target === addMemberModalOverlay) closeAddMemberModal(); });
+
+  async function searchAvailUsers(keyword){
+    availUserList.innerHTML = '<div class="state-box">กำลังค้นหา…</div>';
+    try {
+      const res = await fetch('/api/usergroups/available-users?' + new URLSearchParams({ keyword }));
+      const data = await res.json();
+      if (!data.success) {
+        availUserList.innerHTML = `<div class="state-box error">${data.message || 'ค้นหาไม่สำเร็จ'}</div>`;
+        return;
+      }
+      if (!data.data || data.data.length === 0) {
+        availUserList.innerHTML = '<div class="state-box">ไม่พบพนักงานที่ตรงกับคำค้น</div>';
+        return;
+      }
+      availUserList.innerHTML = data.data.map(u => `
+        <div class="avail-user-row">
+          <div class="member-avatar">${esc(u.CompCode || initials(u.PsName))}</div>
+          <div class="member-info">
+            <div class="member-name">${esc(fullName(u.PsName))}</div>
+            <div class="member-sub">${esc(u.PositionName) || '-'} · ${esc(u.CompName) || '-'}</div>
+          </div>
+          <button type="button" class="avail-choose-btn" data-idps="${u.idPs}">เพิ่ม</button>
+        </div>`).join('');
+
+      availUserList.querySelectorAll('.avail-choose-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.textContent = '...';
+          try {
+            const res2 = await fetch(`/api/usergroups/${currentGroupId}/members`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ idPs: Number(btn.dataset.idps) })
+            });
+            const data2 = await res2.json();
+            if (!data2.success) {
+              alert(data2.message || 'เพิ่มสมาชิกไม่สำเร็จ');
+              btn.disabled = false;
+              btn.textContent = 'เพิ่ม';
+              return;
+            }
+            closeAddMemberModal();
+            await loadMembers(currentGroupId);
+            await loadGroups(); // อัปเดตจำนวนสมาชิก (และลดจำนวนกลุ่มเดิมที่คนนี้เคยอยู่ ถ้าย้ายมา)
+          } catch (err) {
+            alert('เชื่อมต่อ server ไม่ได้');
+            btn.disabled = false;
+            btn.textContent = 'เพิ่ม';
+          }
+        });
+      });
+    } catch (err) {
+      availUserList.innerHTML = '<div class="state-box error">เชื่อมต่อ server ไม่ได้</div>';
+    }
+  }
+
+  availUserFilterInput.addEventListener('input', () => {
+    clearTimeout(availUserDebounce);
+    const kw = availUserFilterInput.value.trim();
+    availUserDebounce = setTimeout(() => searchAvailUsers(kw), 250);
+  });
+
+  // ==================================================================
+  // ---------- คอลัมน์ 3: สิทธิ์เมนู ----------
+  // ==================================================================
+  function updateSelectedCount(){
+    const n = permTree.querySelectorAll('.perm-checkbox[data-parent]:checked').length;
+    permSelectedCount.textContent = `${n} สิทธิ์ที่เลือก`;
+    permTree.querySelectorAll('.perm-group').forEach(group => {
+      const badge = group.querySelector('.g-badge');
+      const checkedInGroup = group.querySelectorAll('.perm-checkbox[data-parent]:checked').length;
+      if (badge) {
+        badge.textContent = checkedInGroup;
+        badge.classList.toggle('has-selected', checkedInGroup > 0);
+      }
+    });
+  }
+
+  function renderMenuTree(){
+    const parents = allMenus.filter(m => !m.idParentMenu);
+    permTree.innerHTML = parents.map(parent => {
+      const children = allMenus.filter(m => m.idParentMenu === parent.idMenu);
+      return `
+        <div class="perm-group">
+          <div class="perm-group-head" data-idmenu="${parent.idMenu}">
+            <span class="name">${esc(parent.MenuName)}</span>
+            <span class="g-badge">0</span>
+          </div>
+          <div class="perm-children">
+            ${children.map(c => `
+              <label class="perm-item">
+                <input type="checkbox" class="perm-checkbox" data-idmenu="${c.idMenu}" data-parent="${parent.idMenu}">
+                <span>${esc(c.MenuName)}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>`;
+    }).join('');
+
+    permTree.querySelectorAll('.perm-checkbox').forEach(cb => {
+      cb.addEventListener('change', updateSelectedCount);
+    });
+    updateSelectedCount();
+  }
+
+  async function loadGroupPermissions(idGroup, isSystem){
+    if (allMenus.length === 0) await loadMenus();
+    renderMenuTree();
+
+    if (isSystem) {
+      // กลุ่มระบบเข้าได้ทุกเมนูอัตโนมัติ ติ๊กให้ครบหมดแบบ read-only (ไม่ต้องพึ่งฐานข้อมูล)
+      permTree.querySelectorAll('.perm-checkbox').forEach(cb => { cb.checked = true; cb.disabled = true; });
+      permSaveMsg.textContent = '🔒 กลุ่มระบบ เข้าได้ทุกเมนูเสมอ ไม่ต้องกำหนดสิทธิ์';
+      updateSelectedCount();
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/usergroups/${idGroup}/permissions`);
+      const data = await res.json();
+      if (!data.success) return;
+      const allowedIds = new Set(data.data.map(String));
+      permTree.querySelectorAll('.perm-checkbox[data-idmenu]').forEach(cb => {
+        cb.checked = allowedIds.has(cb.dataset.idmenu);
+      });
+      updateSelectedCount();
+    } catch (err) {
+      console.error('โหลดสิทธิ์กลุ่มไม่สำเร็จ:', err);
+    }
+  }
+
+  savePermBtn.addEventListener('click', async () => {
+    if (!currentGroupId || currentGroupIsSystem) return;
+
+    const menuIds = Array.from(permTree.querySelectorAll('.perm-checkbox[data-parent]:checked'))
+      .map(cb => Number(cb.dataset.idmenu));
+
+    let idPsCreate = null;
+    try {
+      const userRaw = sessionStorage.getItem('wim_user');
+      if (userRaw) idPsCreate = JSON.parse(userRaw).idPs || null;
+    } catch (e) {}
+
+    savePermBtn.disabled = true;
+    savePermBtn.innerHTML = '<span class="spinner"></span>';
+    permSaveMsg.textContent = '';
+
+    try {
+      const res = await fetch(`/api/usergroups/${currentGroupId}/permissions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ menuIds, idPsCreate })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        permSaveMsg.textContent = data.message || 'บันทึกไม่สำเร็จ';
+        permSaveMsg.style.color = '#ff8a75';
+      } else {
+        permSaveMsg.textContent = '✅ บันทึกสิทธิ์เรียบร้อยแล้ว';
+        permSaveMsg.style.color = 'var(--ok-green)';
+      }
+    } catch (err) {
+      permSaveMsg.textContent = 'เชื่อมต่อ server ไม่ได้';
+      permSaveMsg.style.color = '#ff8a75';
+    } finally {
+      savePermBtn.disabled = false;
+      savePermBtn.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+        บันทึกสิทธิ์`;
+    }
+  });
+
+  loadGroups();
+  loadMenus();
+</script>
+
+</body>
+</html>

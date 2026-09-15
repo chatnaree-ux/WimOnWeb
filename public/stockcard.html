@@ -401,6 +401,11 @@
   }
   .lot-modal-row .choose-btn:hover{background:var(--amber-500); color:var(--navy-950);}
 
+  /* ---------- เมนูที่ไม่มีสิทธิ์เข้าถึง ---------- */
+  .menu-locked{opacity:.4; cursor:not-allowed !important;}
+  .menu-locked::after{content:"🔒"; margin-left:auto; font-size:11px; opacity:.9;}
+  a.menu-locked{pointer-events:none;}
+
   .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:19;}
   @media (max-width:900px){
     .sidebar{transform:translateX(-100%);}
@@ -438,8 +443,8 @@
         </button>
         <div class="nav-submenu" id="seedSubmenu">
           <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="/coating.html">การลงเวลาเคลือบเมล็ด</a>
-            <a class="nav-subitem" href="/moisture.html">การลงเวลาลดความชื้น</a>
+            <a class="nav-subitem" href="/coating.html" data-menu="coating">การลงเวลาเคลือบเมล็ด</a>
+            <a class="nav-subitem" href="/moisture.html" data-menu="moisture">การลงเวลาลดความชื้น</a>
           </div>
         </div>
       </div>
@@ -458,11 +463,29 @@
 
         <div class="nav-submenu" id="reportSubmenu">
           <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="#">รายงานสต๊อกคงคลัง</a>
-            <a class="nav-subitem active" href="/stockcard.html">Stock Card (รายล็อต)</a>
-            <a class="nav-subitem" href="/stockcard-item.html">Stock Card (รายสินค้า)</a>
-            <a class="nav-subitem" href="#">รายงานความเคลื่อนไหวสต๊อก</a>
-            <a class="nav-subitem" href="#">รายงานสินค้ารับคืน</a>
+            <a class="nav-subitem" href="#" data-menu="stock_report_onhand">รายงานสต๊อกคงคลัง</a>
+            <a class="nav-subitem active" href="/stockcard.html" data-menu="stockcard_lot">Stock Card (รายล็อต)</a>
+            <a class="nav-subitem" href="/stockcard-item.html" data-menu="stockcard_item">Stock Card (รายสินค้า)</a>
+            <a class="nav-subitem" href="#" data-menu="stock_movement">รายงานความเคลื่อนไหวสต๊อก</a>
+            <a class="nav-subitem" href="#" data-menu="stock_return">รายงานสินค้ารับคืน</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-group" id="systemGroup">
+        <button class="nav-item nav-parent" id="systemToggle" type="button" aria-expanded="false" aria-controls="systemSubmenu">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </span>
+          <span class="nav-label">ระบบ</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="nav-submenu" id="systemSubmenu">
+          <div class="nav-submenu-inner">
+            <a class="nav-subitem" href="/permissions.html" data-menu="menu_permission">กำหนดสิทธิ์การใช้งาน</a>
           </div>
         </div>
       </div>
@@ -626,11 +649,70 @@
     reportToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   });
 
+  const systemToggle = document.getElementById('systemToggle');
+  const systemGroup = document.getElementById('systemGroup');
+  systemToggle.addEventListener('click', () => {
+    const isOpen = systemGroup.classList.toggle('open');
+    systemToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+
   // ---------- sidebar drawer บนมือถือ ----------
   const sidebarToggle = document.getElementById('sidebarToggle');
   const sidebarOverlay = document.getElementById('sidebarOverlay');
   sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
   sidebarOverlay.addEventListener('click', () => document.body.classList.remove('sidebar-open'));
+
+  // ==================================================================
+  // ---------- ระบบตรวจสอบสิทธิ์การเข้าถึงเมนู ----------
+  // ==================================================================
+  const CURRENT_PAGE_MENU_CODE = 'stockcard_lot'; // รหัสเมนูของหน้านี้ (null = ไม่ต้องเช็คสิทธิ์หน้านี้เอง)
+
+  function showAccessDeniedOverlay(){
+    document.body.innerHTML = `
+      <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:#0c1420; color:#e7e4da; font-family:'Inter',sans-serif; text-align:center; padding:20px;">
+        <div>
+          <div style="font-size:48px; margin-bottom:16px;">🔒</div>
+          <div style="font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; text-transform:uppercase; margin-bottom:10px; color:#fff;">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+          <p style="color:#b9b4a5; margin-bottom:24px;">กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์การใช้งาน</p>
+          <a href="/main-menu.html" style="display:inline-block; background:#f2a91c; color:#0c1420; padding:12px 24px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:700; text-decoration:none; text-transform:uppercase;">กลับหน้าเมนูหลัก</a>
+        </div>
+      </div>`;
+  }
+
+  async function applyMenuPermissions(){
+    let idPs = null;
+    try {
+      const userRaw = sessionStorage.getItem('wim_user');
+      if (userRaw) idPs = JSON.parse(userRaw).idPs;
+    } catch (e) {}
+    if (!idPs) return;
+
+    try {
+      const res = await fetch('/api/permissions/my?' + new URLSearchParams({ idPs }));
+      const data = await res.json();
+      if (!data.success) return;
+      if (data.unrestricted) return;
+
+      const allowed = new Set(data.allowedMenuCodes);
+
+      document.querySelectorAll('[data-menu]').forEach(el => {
+        const code = el.getAttribute('data-menu');
+        if (!allowed.has(code)) {
+          el.classList.add('menu-locked');
+          el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
+          el.addEventListener('click', (e) => e.preventDefault());
+        }
+      });
+
+      if (CURRENT_PAGE_MENU_CODE && !allowed.has(CURRENT_PAGE_MENU_CODE)) {
+        showAccessDeniedOverlay();
+      }
+    } catch (err) {
+      console.error('เช็คสิทธิ์การใช้งานไม่สำเร็จ:', err);
+    }
+  }
+
+  applyMenuPermissions();
 
   // ==================================================================
   // ---------- โหลดรายชื่อบริษัทลง combobox ----------

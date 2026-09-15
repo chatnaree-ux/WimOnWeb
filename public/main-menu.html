@@ -233,24 +233,15 @@
     <nav class="side-nav">
       <div class="nav-section-label">เมนูหลัก</div>
 
-      <div class="nav-group" id="seedGroup">
-        <button class="nav-item nav-parent" id="seedToggle" type="button" aria-expanded="false" aria-controls="seedSubmenu">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path>
-              <path d="M12 22v-9"></path>
-            </svg>
-          </span>
-          <span class="nav-label">การจัดการเมล็ดพันธุ์วัตถุดิบ</span>
-          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-        <div class="nav-submenu" id="seedSubmenu">
-          <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="/coating.html">การลงเวลาเคลือบเมล็ด</a>
-            <a class="nav-subitem" href="/moisture.html">การลงเวลาลดความชื้น</a>
-          </div>
-        </div>
-      </div>
+      <a class="nav-item" href="#">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path>
+            <path d="M12 22v-9"></path>
+          </svg>
+        </span>
+        <span class="nav-label">การจัดการเมล็ดพันธุ์</span>
+      </a>
 
       <div class="nav-group" id="reportGroup">
         <button class="nav-item nav-parent" id="reportToggle" type="button" aria-expanded="false" aria-controls="reportSubmenu">
@@ -319,7 +310,7 @@
               <path d="M12 22v-9"></path>
             </svg>
           </div>
-          <div class="title">การจัดการเมล็ดพันธุ์วัตถุดิบ</div>
+          <div class="title">จัดการเมล็ดพันธุ์</div>
           <p class="desc">เพิ่ม แก้ไข และค้นหาข้อมูลเมล็ดพันธุ์ในระบบ</p>
           <span class="arrow">→</span>
         </a>
@@ -430,13 +421,6 @@
   });
 
   // ---------- เมนูย่อยแบบ accordion ----------
-  const seedToggle = document.getElementById('seedToggle');
-  const seedGroup = document.getElementById('seedGroup');
-  seedToggle.addEventListener('click', () => {
-    const isOpen = seedGroup.classList.toggle('open');
-    seedToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  });
-
   const reportToggle = document.getElementById('reportToggle');
   const reportGroup = document.getElementById('reportGroup');
   reportToggle.addEventListener('click', () => {
