@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WIM — กำหนดสิทธิ์การใช้งาน</title>
+<link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -1089,7 +1090,7 @@
     if (isSystem) {
       // กลุ่มระบบเข้าได้ทุกเมนูอัตโนมัติ ติ๊กให้ครบหมดแบบ read-only (ไม่ต้องพึ่งฐานข้อมูล)
       permTree.querySelectorAll('.perm-checkbox').forEach(cb => { cb.checked = true; cb.disabled = true; });
-      permSaveMsg.textContent = '🔒 กลุ่มระบบ เข้าได้ทุกเมนูเสมอ ไม่ต้องกำหนดสิทธิ์';
+      // permSaveMsg.textContent = '🔒 กลุ่มระบบ เข้าได้ทุกเมนูเสมอ ไม่ต้องกำหนดสิทธิ์';
       updateSelectedCount();
       return;
     }
