@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WIM — เมนูหลัก</title>
+<title>WIM — หน้าหลัก</title>
 <link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -35,10 +35,9 @@
     overflow-x:hidden;
   }
 
-  /* ---------- APP SHELL ---------- */
   .app-shell{display:flex; min-height:100vh;}
 
-  /* ---------- SIDEBAR ---------- */
+  /* ---------- Sidebar (เหมือนหน้าอื่น) ---------- */
   .sidebar{
     width:var(--sidebar-w); flex-shrink:0;
     background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
@@ -113,24 +112,26 @@
     display:flex; flex-direction:column; gap:10px;
   }
   .user-chip{
-    display:flex; align-items:center; gap:9px;
-    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-200);
-    border:1px solid rgba(255,255,255,.1); padding:9px 12px; border-radius:9px;
-    background:rgba(255,255,255,.02);
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:700; color:#ffffff;
+    border:1px solid rgba(255,255,255,.15); padding:11px 14px; border-radius:9px;
+    background:rgba(255,255,255,.04);
   }
   .user-chip .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-green); box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; flex-shrink:0;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
   #userLabel{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 
   .logout-btn{
-    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.05em;
-    color:var(--concrete-400); background:transparent; border:1px solid rgba(255,255,255,.15);
-    border-radius:8px; padding:9px 14px; cursor:pointer; text-transform:uppercase;
-    transition:border-color .15s, color .15s; width:100%;
+    font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.05em;
+    color:#ffffff; background:rgba(255,255,255,.02);
+    border:1px solid rgba(255,255,255,.2); border-radius:8px;
+    padding:11px 14px; cursor:pointer; text-transform:uppercase;
+    transition:border-color .15s, color .15s, background .15s;
+    width:100%; text-align:center; text-decoration:none;
+    display:flex; align-items:center; justify-content:center; gap:8px;
   }
-  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75;}
+  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75; background:rgba(255,60,60,.08);}
 
-  /* ---------- MAIN AREA ---------- */
   .main-wrap{flex:1; margin-left:var(--sidebar-w); min-width:0;}
 
   .topbar-mobile{
@@ -147,57 +148,161 @@
 
   main{
     max-width:1180px; margin:0 auto;
-    padding:clamp(28px,4vw,48px) clamp(20px,4vw,48px) 70px;
+    padding:clamp(28px,4vw,48px) clamp(16px,4vw,48px) 70px;
   }
 
+  /* ---------- หน้า Home ---------- */
+  .home-head{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap;
+  }
   .eyebrow{
-    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em;
-    color:var(--amber-500); text-transform:uppercase; margin:0 0 10px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.08em;
+    color:var(--amber-500); margin:0 0 10px;
   }
-
   h1{
-    font-family:'Oswald',sans-serif; font-weight:700; text-transform:uppercase;
-    font-size:clamp(26px,3.6vw,36px); line-height:1.15; margin:0 0 8px; color:#fff;
-  }
-  .sub{font-size:14.5px; color:var(--concrete-400); margin:0 0 34px;}
-  .sub b{color:var(--concrete-200); font-weight:600;}
-
-  .menu-grid{
-    display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:18px;
+    font-family:'Oswald',sans-serif; font-weight:600;
+    font-size:clamp(24px,3.4vw,34px); line-height:1.2; margin:0; color:#fff;
   }
 
-  .menu-card{
-    position:relative; overflow:hidden; text-decoration:none; color:inherit;
-    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
-    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
-    padding:22px 20px 20px; display:flex; flex-direction:column; gap:14px;
-    transition:transform .18s, border-color .18s, box-shadow .18s;
+  .search-btn{
+    display:flex; align-items:center; gap:10px; min-width:260px;
+    padding:11px 14px; border-radius:10px; cursor:pointer;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+    color:var(--concrete-400); font:inherit; font-size:13.5px; text-align:left;
+    transition:border-color .15s, background .15s;
   }
-  .menu-card:hover{
-    transform:translateY(-4px); border-color:rgba(242,169,28,.4);
-    box-shadow:0 18px 34px -18px rgba(0,0,0,.55);
+  .search-btn:hover{border-color:rgba(242,169,28,.45); background:rgba(255,255,255,.06);}
+  .search-btn svg{width:16px; height:16px; color:var(--steel-500); flex-shrink:0;}
+  .search-btn span{flex:1;}
+  kbd{
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--concrete-400);
+    border:1px solid rgba(255,255,255,.15); border-bottom-width:2px; border-radius:5px; padding:1px 6px;
   }
-  .menu-card .zone-code{
-    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.08em;
-    color:var(--amber-500);
-  }
-  .menu-card .icon-shell{
-    width:44px; height:44px; border-radius:8px; border:1px solid rgba(242,169,28,.3);
-    display:flex; align-items:center; justify-content:center;
-    background:rgba(242,169,28,.06);
-  }
-  .menu-card svg{width:24px; height:24px; color:var(--amber-500); stroke-width:1.8;}
-  .menu-card .title{font-family:'Oswald',sans-serif; font-size:17px; font-weight:600; color:#fff; text-transform:uppercase; letter-spacing:.02em;}
-  .menu-card .desc{font-size:12.8px; color:var(--concrete-400); line-height:1.55; margin:0;}
-  .menu-card .arrow{
-    position:absolute; right:18px; bottom:18px; color:var(--steel-500);
-    transition:transform .18s, color .18s;
-  }
-  .menu-card:hover .arrow{transform:translateX(4px); color:var(--amber-500);}
 
+  .section-head{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin:34px 0 14px;
+  }
   .section-label{
     font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.1em;
-    color:var(--steel-500); text-transform:uppercase; margin:38px 0 14px;
+    color:var(--steel-500); text-transform:uppercase; margin:0;
+  }
+  .updated-at{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--steel-500);}
+
+  /* KPI */
+  .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:16px;}
+  .kpi-card{
+    display:flex; flex-direction:column; gap:6px;
+    padding:20px 20px 18px; border-radius:var(--radius); text-decoration:none; color:inherit;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08);
+    transition:transform .18s, border-color .18s, box-shadow .18s;
+  }
+  .kpi-card:hover{transform:translateY(-3px); border-color:rgba(242,169,28,.4); box-shadow:0 18px 34px -18px rgba(0,0,0,.55);}
+  .kpi-top{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+  .kpi-icon{
+    width:34px; height:34px; border-radius:8px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(242,169,28,.08); border:1px solid rgba(242,169,28,.25); color:var(--amber-500);
+  }
+  .kpi-icon svg{width:18px; height:18px; stroke-width:1.8;}
+  .kpi-label{font-size:13.5px; font-weight:600; color:var(--concrete-200);}
+  .live-dot{
+    width:7px; height:7px; border-radius:50%; background:var(--ok-green);
+    box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; margin-left:auto;
+  }
+  .kpi-value{
+    font-family:'Oswald',sans-serif; font-size:40px; font-weight:600; line-height:1.05; color:#fff;
+    font-variant-numeric:tabular-nums;
+  }
+  .kpi-value small{font-family:'Inter',sans-serif; font-size:13px; font-weight:500; color:var(--concrete-400); margin-left:6px;}
+  .kpi-value.zero{color:var(--steel-500);}
+  .kpi-sub{font-size:12.8px; color:var(--concrete-400); display:flex; flex-wrap:wrap; gap:4px 14px;}
+  .kpi-sub b{color:var(--concrete-200); font-weight:600; font-variant-numeric:tabular-nums;}
+  .kpi-sub .warn b{color:#ff8a75;}
+  .kpi-cta{
+    margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,.07);
+    font-size:12.8px; font-weight:600; color:var(--amber-500);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .kpi-cta .arrow{transition:transform .18s;}
+  .kpi-card:hover .kpi-cta .arrow{transform:translateX(4px);}
+
+  .skeleton{
+    border-radius:var(--radius); min-height:178px;
+    background:linear-gradient(90deg, rgba(255,255,255,.03) 25%, rgba(255,255,255,.07) 50%, rgba(255,255,255,.03) 75%);
+    background-size:200% 100%; animation:shimmer 1.4s infinite;
+  }
+  @keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+
+  /* ใช้ล่าสุด */
+  .recent-row{display:flex; flex-wrap:wrap; gap:10px;}
+  .recent-chip{
+    display:flex; align-items:center; gap:8px; padding:8px 14px 8px 10px; border-radius:999px;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+    color:var(--concrete-200); text-decoration:none; font-size:13px;
+    transition:border-color .15s, background .15s;
+  }
+  .recent-chip:hover{border-color:rgba(242,169,28,.45); background:rgba(242,169,28,.06);}
+  .recent-chip svg{width:16px; height:16px; color:var(--amber-500); stroke-width:1.8;}
+
+  /* เมนูของฉัน */
+  .group-label{font-size:12.5px; font-weight:600; color:var(--concrete-400); margin:20px 0 10px;}
+  .group-label:first-child{margin-top:0;}
+  .menu-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px;}
+  .menu-card{
+    display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:var(--radius);
+    background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.07);
+    text-decoration:none; color:inherit; transition:border-color .15s, background .15s;
+  }
+  .menu-card:hover{border-color:rgba(242,169,28,.4); background:rgba(255,255,255,.05);}
+  .menu-card .icon-shell{
+    width:40px; height:40px; border-radius:9px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(242,169,28,.06); border:1px solid rgba(242,169,28,.25);
+  }
+  .menu-card svg{width:20px; height:20px; color:var(--amber-500); stroke-width:1.8;}
+  .menu-card .text{min-width:0; flex:1;}
+  .menu-card .title{font-size:14px; font-weight:600; color:#fff;}
+  .menu-card .desc{font-size:12.3px; color:var(--concrete-400); margin-top:2px; line-height:1.45;}
+  .menu-card .arrow{color:var(--steel-500); transition:transform .15s, color .15s;}
+  .menu-card:hover .arrow{transform:translateX(3px); color:var(--amber-500);}
+
+  .empty-state{
+    text-align:center; padding:50px 20px; border-radius:var(--radius);
+    border:1px dashed rgba(255,255,255,.12); color:var(--concrete-400);
+  }
+  .empty-state .big{font-size:36px; margin-bottom:10px;}
+  .empty-state b{display:block; color:#fff; font-size:16px; margin-bottom:6px;}
+  .error-note{font-size:12.8px; color:#ff8a75; padding:14px 16px; border-radius:var(--radius); border:1px solid rgba(229,83,61,.3); background:rgba(229,83,61,.06);}
+
+  /* ช่องค้นหาเมนู Ctrl+K */
+  .palette-backdrop{
+    position:fixed; inset:0; z-index:50; background:rgba(5,10,18,.7); backdrop-filter:blur(3px);
+    display:none; align-items:flex-start; justify-content:center; padding:12vh 16px 16px;
+  }
+  .palette-backdrop.open{display:flex;}
+  .palette{
+    width:100%; max-width:560px; border-radius:14px; overflow:hidden;
+    background:var(--navy-900); border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 30px 70px -20px rgba(0,0,0,.7);
+  }
+  .palette-input-row{display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.08);}
+  .palette-input-row svg{width:18px; height:18px; color:var(--steel-500); flex-shrink:0;}
+  .palette input{flex:1; min-width:0; background:none; border:none; outline:none; color:#fff; font:inherit; font-size:15px;}
+  .palette input::placeholder{color:var(--steel-500);}
+  .palette-list{max-height:min(380px, 55vh); overflow-y:auto; padding:8px;}
+  .palette-item{
+    display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:8px;
+    color:var(--concrete-200); text-decoration:none; font-size:14px;
+  }
+  .palette-item svg{width:18px; height:18px; color:var(--amber-500); stroke-width:1.8; flex-shrink:0;}
+  .palette-item .grp{margin-left:auto; font-size:11.5px; color:var(--steel-500); white-space:nowrap;}
+  .palette-item.active{background:rgba(242,169,28,.12); color:#fff;}
+  .palette-empty{padding:22px; text-align:center; color:var(--steel-500); font-size:13.5px;}
+  .palette-foot{
+    display:flex; gap:16px; padding:10px 16px; border-top:1px solid rgba(255,255,255,.08);
+    font-size:11.5px; color:var(--steel-500);
   }
 
   footer{
@@ -205,12 +310,10 @@
     font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500);
   }
 
-  /* ---------- เมนูที่ไม่มีสิทธิ์เข้าถึง ---------- */
   .menu-locked{opacity:.4; cursor:not-allowed !important;}
   .menu-locked::after{content:"🔒"; margin-left:auto; font-size:11px; opacity:.9;}
   a.menu-locked{pointer-events:none;}
 
-  /* ---------- overlay สำหรับมือถือตอนเปิด sidebar ---------- */
   .sidebar-overlay{
     display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:19;
   }
@@ -222,103 +325,22 @@
     .main-wrap{margin-left:0;}
     .topbar-mobile{display:flex;}
   }
+  @media (max-width:600px){
+    .search-btn{min-width:0; width:100%;}
+    .search-btn kbd{display:none;}
+    .palette-foot{display:none;}
+  }
 </style>
 </head>
 <body>
 
 <div class="app-shell">
 
-  <!-- ---------- SIDEBAR ---------- -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-head">
-      <div class="brand-mark">W</div>
-      <div class="brand-text">WIM<small>WAREHOUSE &amp; INVENTORY MANAGEMENT</small></div>
-    </div>
-
-    <nav class="side-nav">
-      <div class="nav-section-label">เมนูหลัก</div>
-
-      <div class="nav-group" id="seedGroup">
-        <button class="nav-item nav-parent" id="seedToggle" type="button" aria-expanded="false" aria-controls="seedSubmenu">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path>
-              <path d="M12 22v-9"></path>
-            </svg>
-          </span>
-          <span class="nav-label">การจัดการเมล็ดพันธุ์วัตถุดิบ</span>
-          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-        <div class="nav-submenu" id="seedSubmenu">
-          <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="/coating.html" data-menu="coating">การลงเวลาเคลือบเมล็ด</a>
-            <a class="nav-subitem" href="/moisture.html" data-menu="moisture">การลงเวลาลดความชื้น</a>
-          </div>
-        </div>
-      </div>
-
-      <div class="nav-group" id="reportGroup">
-        <button class="nav-item nav-parent" id="reportToggle" type="button" aria-expanded="false" aria-controls="reportSubmenu">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 3v18h18"></path>
-              <path d="M7 15l4-5 3 3 5-7"></path>
-            </svg>
-          </span>
-          <span class="nav-label">รายงานสต๊อก</span>
-          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-
-        <div class="nav-submenu" id="reportSubmenu">
-          <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="#" data-menu="stock_report_onhand">รายงานสต๊อกคงคลัง</a>
-            <a class="nav-subitem" href="/stockcard.html" data-menu="stockcard_lot">Stock Card (รายล็อต)</a>
-            <a class="nav-subitem" href="/stockcard-item.html" data-menu="stockcard_item">Stock Card (รายสินค้า)</a>
-            <a class="nav-subitem" href="#" data-menu="stock_movement">รายงานความเคลื่อนไหวสต๊อก</a>
-            <a class="nav-subitem" href="#" data-menu="stock_return">รายงานสินค้ารับคืน</a>
-          </div>
-        </div>
-      </div>
-
-      <!-- <div class="nav-section-label" style="margin-top:14px;">เร็วๆ นี้</div>
-      <div class="nav-item" style="opacity:.4; cursor:default;">
-        <span class="nav-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"></circle>
-            <path d="M12 8v4l3 2"></path>
-          </svg>
-        </span>
-        <span class="nav-label">เมนูอื่นๆ (รอเพิ่ม)</span>
-      </div> -->
-
-      <div class="nav-group" id="systemGroup">
-        <button class="nav-item nav-parent" id="systemToggle" type="button" aria-expanded="false" aria-controls="systemSubmenu">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-          </span>
-          <span class="nav-label">ระบบ</span>
-          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-        <div class="nav-submenu" id="systemSubmenu">
-          <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="/permissions.html" data-menu="menu_permission">กำหนดสิทธิ์การใช้งาน</a>
-          </div>
-        </div>
-      </div>
-    </nav>
-
-    <div class="sidebar-foot">
-      <div class="user-chip"><span class="dot"></span><span id="userLabel">กำลังโหลด…</span></div>
-      <button class="logout-btn" id="logoutBtn">ออกจากระบบ</button>
-    </div>
-  </aside>
+  <!-- Sidebar จะถูกโหลดเข้ามาใส่ที่นี่อัตโนมัติ -->
+  <aside class="sidebar" id="sidebar"></aside>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-  <!-- ---------- MAIN ---------- -->
   <div class="main-wrap">
 
     <div class="topbar-mobile">
@@ -329,101 +351,37 @@
     </div>
 
     <main>
-      <div class="eyebrow">Main Menu</div>
-      <h1>ยินดีต้อนรับ</h1>
-      <p class="sub">เข้าสู่ระบบในฐานะ <b id="userLabelSub">ผู้ใช้งาน</b> · เลือกเมนูจากแถบด้านซ้ายเพื่อเริ่มทำงาน</p>
-
-      <div class="menu-grid">
-        <a class="menu-card" href="#">
-          <div class="zone-code">SEED</div>
-          <div class="icon-shell">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path>
-              <path d="M12 22v-9"></path>
-            </svg>
-          </div>
-          <div class="title">การจัดการเมล็ดพันธุ์วัตถุดิบ</div>
-          <p class="desc">เพิ่ม แก้ไข และค้นหาข้อมูลเมล็ดพันธุ์ในระบบ</p>
-          <span class="arrow">→</span>
-        </a>
-
-        <a class="menu-card" href="#">
-          <div class="zone-code">REPORT</div>
-          <div class="icon-shell">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 3v18h18"></path>
-              <path d="M7 15l4-5 3 3 5-7"></path>
-            </svg>
-          </div>
-          <div class="title">รายงานสต๊อก</div>
-          <p class="desc">ดูภาพรวมรายงานสต๊อกทั้งหมด 4 ประเภท</p>
-          <span class="arrow">→</span>
-        </a>
+      <div class="home-head">
+        <div>
+          <div class="eyebrow" id="todayLabel">&nbsp;</div>
+          <h1>Work Overview</h1>
+        </div>
+        <button class="search-btn" id="openPalette" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <span>ค้นหาเมนู…</span>
+          <kbd>Ctrl K</kbd>
+        </button>
       </div>
 
-      <div class="section-label">รายงานสต๊อก — ทางลัด</div>
-      <div class="menu-grid">
-        <a class="menu-card" href="#">
-          <div class="zone-code">REPORT / 01</div>
-          <div class="icon-shell">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 4h18"></path><path d="M3 12h18"></path><path d="M3 20h18"></path>
-              <rect x="6" y="5.5" width="3" height="3"></rect><rect x="15" y="5.5" width="3" height="3"></rect><rect x="10.5" y="13.5" width="3" height="3"></rect>
-            </svg>
-          </div>
-          <div class="title">รายงานสต๊อกคงคลัง</div>
-          <p class="desc">ดูยอดคงเหลือปัจจุบันของสินค้าทั้งหมดในคลัง</p>
-          <span class="arrow">→</span>
-        </a>
+      <section id="kpiSection">
+        <div class="section-head">
+          <h2 class="section-label">Live Status</h2>
+          <span class="updated-at" id="updatedAt"></span>
+        </div>
+        <div class="kpi-grid" id="kpiGrid">
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+        </div>
+      </section>
 
-        <a class="menu-card" href="/stockcard.html" data-menu="stockcard_lot">
-          <div class="zone-code">REPORT / 02</div>
-          <div class="icon-shell">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M8 4v16"></path>
-            </svg>
-          </div>
-          <div class="title">Stock Card (รายล็อต)</div>
-          <p class="desc">ประวัติการเคลื่อนไหวเฉพาะ Lot No. ที่ระบุ</p>
-          <span class="arrow">→</span>
-        </a>
+      <section id="recentSection" hidden>
+        <div class="section-head"><h2 class="section-label">Recent</h2></div>
+        <div class="recent-row" id="recentRow"></div>
+      </section>
 
-        <a class="menu-card" href="/stockcard-item.html" data-menu="stockcard_item">
-          <div class="zone-code">REPORT / 02B</div>
-          <div class="icon-shell">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="7" width="18" height="14" rx="2"></rect><path d="M3 7l9-4 9 4"></path>
-            </svg>
-          </div>
-          <div class="title">Stock Card (รายสินค้า)</div>
-          <p class="desc">ภาพรวมการเคลื่อนไหวของสินค้า รวมทุก Lot</p>
-          <span class="arrow">→</span>
-        </a>
-
-        <a class="menu-card" href="#">
-          <div class="zone-code">REPORT / 03</div>
-          <div class="icon-shell">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 17l6-6 4 4 6-8"></path><path d="M4 21h16"></path>
-            </svg>
-          </div>
-          <div class="title">รายงานความเคลื่อนไหวสต๊อก</div>
-          <p class="desc">สรุปรับเข้า-จ่ายออกในแต่ละช่วงเวลา</p>
-          <span class="arrow">→</span>
-        </a>
-
-        <a class="menu-card" href="#">
-          <div class="zone-code">REPORT / 04</div>
-          <div class="icon-shell">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path>
-            </svg>
-          </div>
-          <div class="title">รายงานสินค้ารับคืน</div>
-          <p class="desc">ตรวจสอบรายการสินค้าที่ถูกส่งกลับเข้าคลัง</p>
-          <span class="arrow">→</span>
-        </a>
-      </div>
+      <section>
+        <div class="section-head"><h2 class="section-label">My Menu</h2></div>
+        <div id="menuArea"></div>
+      </section>
     </main>
 
     <footer>©2026 WIM ⋅ WAREHOUSE AND INVENTORY MANAGEMENT</footer>
@@ -431,88 +389,345 @@
 
 </div>
 
+<!-- ช่องค้นหาเมนู (Ctrl+K) -->
+<div class="palette-backdrop" id="palette" role="dialog" aria-modal="true" aria-label="ค้นหาเมนู">
+  <div class="palette">
+    <div class="palette-input-row">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input id="paletteInput" type="text" placeholder="พิมพ์ชื่อเมนู เช่น เคลือบ, stock, ร้องขอ" autocomplete="off">
+      <kbd>Esc</kbd>
+    </div>
+    <div class="palette-list" id="paletteList"></div>
+    <div class="palette-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> เลือก</span><span><kbd>Enter</kbd> เปิด</span></div>
+  </div>
+</div>
+
+<script src="/menu-config.js"></script>
 <script>
-  // ---------- ตรวจสอบว่า login มาแล้วหรือยัง (client-side gate เบื้องต้น) ----------
-  const raw = sessionStorage.getItem('wim_user');
-  if (!raw) {
-    window.location.href = '/index.html';
-  } else {
-    const user = JSON.parse(raw);
-    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
-    const displayName = fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
+  const SUMMARY_REFRESH_MS = 60 * 1000;
+  const RECENT_KEY = 'wim_recent_menus';
+  const RECENT_MAX = 4;
 
-    const userLabelEl = document.getElementById('userLabel');
-    const userLabelSubEl = document.getElementById('userLabelSub');
-    if (userLabelEl) userLabelEl.textContent = displayName;
-    if (userLabelSubEl) userLabelSubEl.textContent = displayName;
-  }
+  let myMenus = [];          // เมนูที่ผู้ใช้มีสิทธิ์ (จาก WIM_MENUS)
+  let allowedCodes = null;   // null = ใช้ได้ทุกเมนู
 
-  document.getElementById('logoutBtn').addEventListener('click', () => {
-    sessionStorage.removeItem('wim_user');
-    window.location.href = '/index.html';
-  });
+  const svg = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${WIM_ICONS[name] || ''}</svg>`;
+  const nf = (n) => Number(n || 0).toLocaleString('th-TH');
 
-  // ---------- เมนูย่อยแบบ accordion ----------
-  const seedToggle = document.getElementById('seedToggle');
-  const seedGroup = document.getElementById('seedGroup');
-  seedToggle.addEventListener('click', () => {
-    const isOpen = seedGroup.classList.toggle('open');
-    seedToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  });
-
-  const reportToggle = document.getElementById('reportToggle');
-  const reportGroup = document.getElementById('reportGroup');
-  reportToggle.addEventListener('click', () => {
-    const isOpen = reportGroup.classList.toggle('open');
-    reportToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  });
-
-  const systemToggle = document.getElementById('systemToggle');
-  const systemGroup = document.getElementById('systemGroup');
-  systemToggle.addEventListener('click', () => {
-    const isOpen = systemGroup.classList.toggle('open');
-    systemToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  });
-
-  // ---------- sidebar แบบ drawer บนมือถือ ----------
-  const sidebarToggle = document.getElementById('sidebarToggle');
-  const sidebarOverlay = document.getElementById('sidebarOverlay');
-  function closeSidebar(){ document.body.classList.remove('sidebar-open'); }
-  sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
-  sidebarOverlay.addEventListener('click', closeSidebar);
-
-  // ==================================================================
-  // ---------- ระบบตรวจสอบสิทธิ์การเข้าถึงเมนู ----------
-  // ==================================================================
-  // หน้าเมนูหลักเข้าได้เสมอไม่ว่าจะมีสิทธิ์อะไรก็ตาม (CURRENT_PAGE_MENU_CODE = null)
-  // แต่ยังต้องล็อกลิงก์เมนู/การ์ดทางลัดที่ไม่มีสิทธิ์ ไม่ให้กดเข้าไปหน้าอื่นได้
-  async function applyMenuPermissions(){
-    let idPs = null;
+  // ฟังก์ชันดึง Sidebar เข้ามาแปะอัตโนมัติ
+  async function loadSidebar() {
     try {
-      const userRaw = sessionStorage.getItem('wim_user');
-      if (userRaw) idPs = JSON.parse(userRaw).idPs;
-    } catch (e) {}
-    if (!idPs) return;
+      const res = await fetch('/sidebar.html');
+      const html = await res.text();
+      document.getElementById('sidebar').innerHTML = html;
 
-    try {
-      const res = await fetch('/api/permissions/my?' + new URLSearchParams({ idPs }));
-      const data = await res.json();
-      if (!data.success || data.unrestricted) return;
-
-      const allowed = new Set(data.allowedMenuCodes);
-      document.querySelectorAll('[data-menu]').forEach(el => {
-        const code = el.getAttribute('data-menu');
-        if (!allowed.has(code)) {
-          el.classList.add('menu-locked');
-          el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
-          el.addEventListener('click', (e) => e.preventDefault());
-        }
-      });
+      // หลังจากโหลดเสร็จ ให้ผูก Event และดึงข้อมูลผู้ใช้ต่อ
+      initSidebarEvents();
+      initAuthUser();
     } catch (err) {
-      console.error('เช็คสิทธิ์การใช้งานไม่สำเร็จ:', err);
+      console.error('โหลด Sidebar ไม่สำเร็จ:', err);
     }
   }
-  applyMenuPermissions();
+
+  // ดึงข้อมูลผู้ใช้ปัจจุบันจาก Session ของ Backend ทันทีที่โหลดหน้าหลัก
+  async function initAuthUser() {
+    try {
+      const res = await fetch('/api/auth/me');
+      const data = await res.json();
+
+      if (!data.success) {
+        window.location.href = '/index.html';
+        return;
+      }
+
+      const user = data.user;
+      // เก็บลง sessionStorage เผื่อหน้าอื่นใช้ต่อ
+      sessionStorage.setItem('wim_user', JSON.stringify(user));
+
+      // เข้ามาจากลิงก์ที่ต้อง login ก่อน (เช่น ลิงก์ตอบกลับคำร้อง) แต่ login แล้วตกมาหน้านี้ -> พากลับไปลิงก์เดิม
+      try {
+        const back = JSON.parse(localStorage.getItem('wim_return_to') || 'null');
+        localStorage.removeItem('wim_return_to');
+        if (back && back.exp > Date.now() && /^\/(?![\/\\])/.test(back.path)) {
+          window.location.replace(back.path);
+          return;
+        }
+      } catch (e) { /* storage ใช้ไม่ได้ ก็อยู่หน้าเมนูตามปกติ */ }
+
+      const fullName = [user.PsName].filter(Boolean).join(' ').trim();
+      const displayName = fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
+
+      const userLabelEl = document.getElementById('userLabel');
+      if (userLabelEl) userLabelEl.textContent = displayName;
+
+      await loadHome();
+      setInterval(() => { if (!document.hidden) loadSummary(); }, SUMMARY_REFRESH_MS);
+    } catch (err) {
+      console.error('Auth check error:', err);
+      window.location.href = '/index.html';
+    }
+  }
+
+  // เมนูย่อยแบบ accordion และมือถือ
+  function initSidebarEvents() {
+    ['seed', 'report', 'system', 'manual'].forEach(key => {
+      const toggle = document.getElementById(key + 'Toggle');
+      const group = document.getElementById(key + 'Group');
+      if (!toggle || !group) return;
+      toggle.addEventListener('click', () => {
+        const isOpen = group.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+    });
+
+    // Sidebar mobile drawer
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    function closeSidebar(){ document.body.classList.remove('sidebar-open'); }
+    if (sidebarToggle && sidebarOverlay) {
+      sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
+      sidebarOverlay.addEventListener('click', closeSidebar);
+    }
+  }
+
+  // ==================================================================
+  // ---------- หน้า Home ----------
+  // ==================================================================
+  function renderHeader() {
+    document.getElementById('todayLabel').textContent =
+      new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  async function loadHome() {
+    renderHeader();
+    const ok = await loadSummary();
+    if (!ok) {
+      // โหลดตัวเลขสรุปไม่ได้ ก็ยังแสดงเมนูตามสิทธิ์ได้
+      try {
+        const res = await fetch('/api/permissions/my');
+        const data = await res.json();
+        if (data.success) setAllowed(data.unrestricted ? null : data.allowedMenuCodes);
+      } catch (e) { console.error('โหลดสิทธิ์ไม่สำเร็จ:', e); }
+    }
+    renderMenus();
+    renderRecent();
+  }
+
+  function setAllowed(codes) {
+    allowedCodes = codes ? new Set(codes) : null;
+    myMenus = WIM_MENUS.filter(m => !allowedCodes || allowedCodes.has(m.code));
+    lockSidebar();
+  }
+
+  // ล็อกเมนูใน sidebar ที่ไม่มีสิทธิ์ (เหมือนหน้าอื่น)
+  function lockSidebar() {
+    if (!allowedCodes) return;
+    document.querySelectorAll('#sidebar [data-menu]').forEach(el => {
+      if (allowedCodes.has(el.getAttribute('data-menu')) || el.classList.contains('menu-locked')) return;
+      el.classList.add('menu-locked');
+      el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
+      el.addEventListener('click', (e) => e.preventDefault());
+    });
+  }
+
+  // ตัวเลขสรุป: server ส่งมาเฉพาะส่วนที่ผู้ใช้มีสิทธิ์
+  async function loadSummary() {
+    const grid = document.getElementById('kpiGrid');
+    try {
+      const res = await fetch('/api/home/summary');
+      if (res.status === 401) { window.location.href = '/index.html'; return false; }
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      setAllowed(data.unrestricted ? null : data.allowedMenuCodes);
+
+      const cards = buildKpiCards(data.data || {});
+      document.getElementById('kpiSection').hidden = cards.length === 0;
+      grid.innerHTML = cards.join('');
+      document.getElementById('updatedAt').textContent =
+        'อัปเดต ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+      return true;
+    } catch (err) {
+      console.error('โหลดข้อมูลสรุปไม่สำเร็จ:', err);
+      grid.style.display = 'block';
+      grid.innerHTML = '<div class="error-note">โหลดข้อมูลสรุปไม่สำเร็จ — ลองรีเฟรชหน้าอีกครั้ง</div>';
+      return false;
+    }
+  }
+
+  function kpiCard({ href, icon, label, value, unit, subs, cta, live }) {
+    return `
+      <a class="kpi-card" href="${href}" data-go="${href}">
+        <div class="kpi-top">
+          <div class="kpi-icon">${svg(icon)}</div>
+          <div class="kpi-label">${label}</div>
+          ${live ? '<span class="live-dot" title="มีงานกำลังดำเนินการ"></span>' : ''}
+        </div>
+        <div class="kpi-value ${value ? '' : 'zero'}">${nf(value)}<small>${unit}</small></div>
+        <div class="kpi-sub">${subs.join('')}</div>
+        <div class="kpi-cta"><span>${cta}</span><span class="arrow">→</span></div>
+      </a>`;
+  }
+
+  function buildKpiCards(d) {
+    const cards = [];
+    if (d.coating) {
+      cards.push(kpiCard({
+        href: '/coating.html', icon: 'seed', label: 'เคลือบเมล็ด',
+        value: d.coating.inprogress, unit: 'รายการกำลังเคลือบ', live: d.coating.inprogress > 0,
+        subs: [`<span>รอคิว <b>${nf(d.coating.waiting)}</b> รายการ</span>`],
+        cta: 'ไปลงเวลาเคลือบเมล็ด'
+      }));
+    }
+    if (d.moisture) {
+      cards.push(kpiCard({
+        href: '/moisture.html', icon: 'drop', label: 'ลดความชื้น',
+        value: d.moisture.inprogress, unit: 'รายการกำลังลดความชื้น', live: d.moisture.inprogress > 0,
+        subs: [
+          `<span>ห้องใช้งาน <b>${nf(d.moisture.roomsBusy)}/${nf(d.moisture.roomsTotal)}</b></span>`,
+          `<span>รอคิว <b>${nf(d.moisture.waiting)}</b> รายการ</span>`
+        ],
+        cta: 'ไปลงเวลาลดความชื้น'
+      }));
+    }
+    if (d.urs) {
+      cards.push(kpiCard({
+        href: '/urs-request.html', icon: 'bolt', label: 'ร้องขอเมล็ดพันธุ์เร่งด่วน',
+        value: d.urs.awaitingReply, unit: 'รายการรอตอบกลับ', live: false,
+        subs: [
+          `<span class="${d.urs.notReady ? 'warn' : ''}">ไม่พร้อมส่ง <b>${nf(d.urs.notReady)}</b></span>`,
+          `<span>Draft <b>${nf(d.urs.draftDocs)}</b> ฉบับ</span>`
+        ],
+        cta: 'ไปที่รายการคำร้อง'
+      }));
+    }
+    return cards;
+  }
+
+  function menuCard(m) {
+    return `
+      <a class="menu-card" href="${m.href}" data-go="${m.href}">
+        <div class="icon-shell">${svg(m.icon)}</div>
+        <div class="text">
+          <div class="title">${m.title}</div>
+          <div class="desc">${m.desc}</div>
+        </div>
+        <span class="arrow">→</span>
+      </a>`;
+  }
+
+  function renderMenus() {
+    const area = document.getElementById('menuArea');
+    if (!myMenus.length) {
+      area.innerHTML = `
+        <div class="empty-state">
+          <div class="big">🔒</div>
+          <b>บัญชีของคุณยังไม่ได้รับสิทธิ์ใช้งานเมนู</b>
+          กรุณาแจ้งผู้ดูแลระบบเพื่อเปิดสิทธิ์การใช้งาน<br>
+          <small>หากได้รับลิงก์ตอบกลับคำร้องขอเมล็ดพันธุ์ ยังเปิดลิงก์เพื่อตอบกลับได้ตามปกติ</small>
+        </div>`;
+      return;
+    }
+    const groups = [];
+    myMenus.forEach(m => {
+      let g = groups.find(x => x.name === m.group);
+      if (!g) groups.push(g = { name: m.group, items: [] });
+      g.items.push(m);
+    });
+    area.innerHTML = groups.map(g => `
+      <div class="group-label">${g.name}</div>
+      <div class="menu-grid">${g.items.map(menuCard).join('')}</div>`).join('');
+  }
+
+  // ---------- ใช้ล่าสุด (เก็บในเครื่องนี้เท่านั้น) ----------
+  function readRecent() {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch (e) { return []; }
+  }
+  function pushRecent(href) {
+    try {
+      const list = [href, ...readRecent().filter(h => h !== href)].slice(0, RECENT_MAX);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+    } catch (e) { /* storage ใช้ไม่ได้ ไม่เป็นไร */ }
+  }
+  function renderRecent() {
+    const items = readRecent().map(h => myMenus.find(m => m.href === h)).filter(Boolean);
+    document.getElementById('recentSection').hidden = items.length === 0;
+    document.getElementById('recentRow').innerHTML = items.map(m =>
+      `<a class="recent-chip" href="${m.href}" data-go="${m.href}">${svg(m.icon)}${m.title}</a>`).join('');
+  }
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-go]');
+    if (a) pushRecent(a.getAttribute('data-go'));
+  });
+
+  // ==================================================================
+  // ---------- ช่องค้นหาเมนู (Ctrl+K) ----------
+  // ==================================================================
+  const palette = document.getElementById('palette');
+  const paletteInput = document.getElementById('paletteInput');
+  const paletteList = document.getElementById('paletteList');
+  let paletteItems = [];
+  let paletteIndex = 0;
+
+  function openPalette() {
+    palette.classList.add('open');
+    paletteInput.value = '';
+    renderPalette();
+    setTimeout(() => paletteInput.focus(), 0);
+  }
+  function closePalette() { palette.classList.remove('open'); }
+
+  function renderPalette() {
+    const q = paletteInput.value.trim().toLowerCase();
+    paletteItems = myMenus.filter(m =>
+      !q || (m.title + ' ' + m.group + ' ' + m.desc + ' ' + m.keywords).toLowerCase().includes(q));
+    paletteIndex = 0;
+    if (!paletteItems.length) {
+      paletteList.innerHTML = '<div class="palette-empty">ไม่พบเมนูที่ตรงกับคำค้น</div>';
+      return;
+    }
+    paletteList.innerHTML = paletteItems.map((m, i) =>
+      `<a class="palette-item ${i === 0 ? 'active' : ''}" href="${m.href}" data-go="${m.href}" data-i="${i}">
+         ${svg(m.icon)}<span>${m.title}</span><span class="grp">${m.group}</span>
+       </a>`).join('');
+  }
+
+  function movePalette(step) {
+    if (!paletteItems.length) return;
+    paletteIndex = (paletteIndex + step + paletteItems.length) % paletteItems.length;
+    paletteList.querySelectorAll('.palette-item').forEach((el, i) => {
+      el.classList.toggle('active', i === paletteIndex);
+      if (i === paletteIndex) el.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  document.getElementById('openPalette').addEventListener('click', openPalette);
+  palette.addEventListener('click', (e) => { if (e.target === palette) closePalette(); });
+  paletteInput.addEventListener('input', renderPalette);
+  paletteList.addEventListener('mousemove', (e) => {
+    const item = e.target.closest('.palette-item');
+    if (item && Number(item.dataset.i) !== paletteIndex) movePalette(Number(item.dataset.i) - paletteIndex);
+  });
+  paletteInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); movePalette(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); movePalette(-1); }
+    else if (e.key === 'Enter' && paletteItems[paletteIndex]) {
+      const m = paletteItems[paletteIndex];
+      pushRecent(m.href);
+      window.location.href = m.href;
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      palette.classList.contains('open') ? closePalette() : openPalette();
+    } else if (e.key === 'Escape' && palette.classList.contains('open')) {
+      closePalette();
+    }
+  });
+
+  // เริ่มต้นเรียกทำงาน
+  loadSidebar();
 </script>
 
 </body>

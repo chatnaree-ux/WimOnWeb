@@ -40,7 +40,7 @@
   /* ---------- APP SHELL ---------- */
   .app-shell{display:flex; min-height:100vh;}
 
-  /* ---------- SIDEBAR (เหมือนหน้า main-menu) ---------- */
+  /* ---------- SIDEBAR ---------- */
   .sidebar{
     width:var(--sidebar-w); flex-shrink:0;
     background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
@@ -98,22 +98,67 @@
   .nav-subitem.active{color:var(--amber-500); border-left-color:var(--amber-500); background:rgba(242,169,28,.08);}
 
   .sidebar-foot{padding:16px; border-top:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:10px;}
-  .user-chip{
-    display:flex; align-items:center; gap:9px;
-    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-200);
-    border:1px solid rgba(255,255,255,.1); padding:9px 12px; border-radius:9px;
-    background:rgba(255,255,255,.02);
+ .user-chip{
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    gap: 10px;
+    font-family: 'JetBrains Mono', monospace; 
+    font-size: 13.5px;
+    font-weight: 700; 
+    color: #ffffff;
+    border: 1px solid rgba(255,255,255,.15); 
+    padding: 11px 14px; 
+    border-radius: 9px;
+    background: rgba(255,255,255,.04);
   }
   .user-chip .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-green); box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; flex-shrink:0;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
   #userLabel{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .logout-btn{
-    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.05em;
-    color:var(--concrete-400); background:transparent; border:1px solid rgba(255,255,255,.15);
-    border-radius:8px; padding:9px 14px; cursor:pointer; text-transform:uppercase;
-    transition:border-color .15s, color .15s; width:100%;
+ .logout-btn{
+    font-family: 'JetBrains Mono', monospace; 
+    font-size: 13px; 
+    font-weight: 700; 
+    letter-spacing: .05em;
+    color: #ffffff; 
+    background: rgba(255,255,255,.02); 
+    border: 1px solid rgba(255,255,255,.2); 
+    border-radius: 8px; 
+    padding: 11px 14px; 
+    cursor: pointer; 
+    text-transform: uppercase;
+    transition: border-color .15s, color .15s, background .15s; 
+    width: 100%; 
+    text-align: center; 
+    text-decoration: none; 
+    display: block;
   }
-  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75;}
+.logout-btn{
+    font-family: 'JetBrains Mono', monospace; 
+    font-size: 13px; 
+    font-weight: 700; 
+    letter-spacing: .05em;
+    color: #ffffff; 
+    background: rgba(255,255,255,.02); 
+    border: 1px solid rgba(255,255,255,.2); 
+    border-radius: 8px; 
+    padding: 11px 14px; 
+    cursor: pointer; 
+    text-transform: uppercase;
+    transition: border-color .15s, color .15s, background .15s; 
+    width: 100%; 
+    text-align: center; 
+    text-decoration: none; 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px; /* ระยะห่างระหว่างไอคอนกับข้อความ */
+  }
+  .logout-btn:hover{
+    border-color: var(--safety-red); 
+    color: #ff8a75;
+    background: rgba(255, 60, 60, 0.08); 
+  }
 
   /* ---------- MAIN AREA ---------- */
   .main-wrap{flex:1; margin-left:var(--sidebar-w); min-width:0;}
@@ -421,82 +466,8 @@
 
 <div class="app-shell">
 
-  <!-- ---------- SIDEBAR ---------- -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-head">
-      <div class="brand-mark">W</div>
-      <div class="brand-text">WIM<small>WAREHOUSE &amp; INVENTORY MANAGEMENT</small></div>
-    </div>
-
-    <nav class="side-nav">
-      <div class="nav-section-label">เมนูหลัก</div>
-
-      <div class="nav-group" id="seedGroup">
-        <button class="nav-item nav-parent" id="seedToggle" type="button" aria-expanded="false" aria-controls="seedSubmenu">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path>
-              <path d="M12 22v-9"></path>
-            </svg>
-          </span>
-          <span class="nav-label">การจัดการเมล็ดพันธุ์วัตถุดิบ</span>
-          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-        <div class="nav-submenu" id="seedSubmenu">
-          <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="/coating.html" data-menu="coating">การลงเวลาเคลือบเมล็ด</a>
-            <a class="nav-subitem" href="/moisture.html" data-menu="moisture">การลงเวลาลดความชื้น</a>
-          </div>
-        </div>
-      </div>
-
-      <div class="nav-group open" id="reportGroup">
-        <button class="nav-item nav-parent" id="reportToggle" type="button" aria-expanded="true" aria-controls="reportSubmenu">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 3v18h18"></path>
-              <path d="M7 15l4-5 3 3 5-7"></path>
-            </svg>
-          </span>
-          <span class="nav-label">รายงานสต๊อก</span>
-          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-
-        <div class="nav-submenu" id="reportSubmenu">
-          <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="#" data-menu="stock_report_onhand">รายงานสต๊อกคงคลัง</a>
-            <a class="nav-subitem active" href="/stockcard.html" data-menu="stockcard_lot">Stock Card (รายล็อต)</a>
-            <a class="nav-subitem" href="/stockcard-item.html" data-menu="stockcard_item">Stock Card (รายสินค้า)</a>
-            <a class="nav-subitem" href="#" data-menu="stock_movement">รายงานความเคลื่อนไหวสต๊อก</a>
-            <a class="nav-subitem" href="#" data-menu="stock_return">รายงานสินค้ารับคืน</a>
-          </div>
-        </div>
-      </div>
-
-      <div class="nav-group" id="systemGroup">
-        <button class="nav-item nav-parent" id="systemToggle" type="button" aria-expanded="false" aria-controls="systemSubmenu">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-          </span>
-          <span class="nav-label">ระบบ</span>
-          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-        <div class="nav-submenu" id="systemSubmenu">
-          <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="/permissions.html" data-menu="menu_permission">กำหนดสิทธิ์การใช้งาน</a>
-          </div>
-        </div>
-      </div>
-    </nav>
-
-    <div class="sidebar-foot">
-      <div class="user-chip"><span class="dot"></span><span id="userLabel">กำลังโหลด…</span></div>
-      <button class="logout-btn" id="logoutBtn">ออกจากระบบ</button>
-    </div>
-  </aside>
+  <!-- ---------- SIDEBAR (โหลดไฟล์กลางมาแปะอัตโนมัติ) ---------- -->
+  <aside class="sidebar" id="sidebar"></aside>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -618,55 +589,114 @@
 </div>
 
 <script>
-  // ---------- ตรวจสอบว่า login มาแล้วหรือยัง ----------
-  const raw = sessionStorage.getItem('wim_user');
-  if (!raw) {
-    window.location.href = '/index.html';
-  } else {
-    const user = JSON.parse(raw);
-    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
-    const displayName = fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
-    const userLabelEl = document.getElementById('userLabel');
-    if (userLabelEl) userLabelEl.textContent = displayName;
+  // ==================================================================
+  // ---------- โหลด Sidebar จากไฟล์กลาง (sidebar.html) ----------
+  // ==================================================================
+  async function loadSidebar() {
+    try {
+      const res = await fetch('/sidebar.html');
+      const html = await res.text();
+      document.getElementById('sidebar').innerHTML = html;
+
+      initSidebarEvents();
+      initAuthAndPermissions();
+      initActiveSidebarMenu();
+      
+    } catch (err) {
+      console.error('โหลด Sidebar ไม่สำเร็จ:', err);
+    }
   }
 
-  document.getElementById('logoutBtn').addEventListener('click', () => {
-    sessionStorage.removeItem('wim_user');
-    window.location.href = '/index.html';
-  });
+  // ---------- ตรวจสอบว่า login มาแล้วหรือยัง และจัดการแสดงชื่อผู้ใช้ ----------
+  function initAuthAndPermissions() {
+    const raw = sessionStorage.getItem('wim_user');
+    if (!raw) {
+      window.location.href = '/index.html';
+      return;
+    }
+    
+    const user = JSON.parse(raw);
+    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
+    const displayName = user.PsName || fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
+    
+    const userLabelEl = document.getElementById('userLabel');
+    if (userLabelEl) userLabelEl.textContent = displayName;
 
-  // ---------- accordion เมนูย่อย ----------
-  const seedToggle = document.getElementById('seedToggle');
-  const seedGroup = document.getElementById('seedGroup');
-  seedToggle.addEventListener('click', () => {
-    const isOpen = seedGroup.classList.toggle('open');
-    seedToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  });
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        sessionStorage.removeItem('wim_user');
+        window.location.href = '/index.html';
+      });
+    }
 
-  const reportToggle = document.getElementById('reportToggle');
-  const reportGroup = document.getElementById('reportGroup');
-  reportToggle.addEventListener('click', () => {
-    const isOpen = reportGroup.classList.toggle('open');
-    reportToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  });
+    applyMenuPermissions(user.idPs);
+  }
 
-  const systemToggle = document.getElementById('systemToggle');
-  const systemGroup = document.getElementById('systemGroup');
-  systemToggle.addEventListener('click', () => {
-    const isOpen = systemGroup.classList.toggle('open');
-    systemToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  });
+  // ---------- ควบคุมการเปิด/ปิด Accordion Sidebar แบบถูกต้อง (ไม่บล็อกการคลิก) ----------
+  function initActiveSidebarMenu() {
+    const currentPath = window.location.pathname;
 
-  // ---------- sidebar drawer บนมือถือ ----------
-  const sidebarToggle = document.getElementById('sidebarToggle');
-  const sidebarOverlay = document.getElementById('sidebarOverlay');
-  sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
-  sidebarOverlay.addEventListener('click', () => document.body.classList.remove('sidebar-open'));
+    // 1. ไฮไลต์เมนูย่อยที่ตรงกับหน้าปัจจุบัน และกางกลุ่มแม่ของมันค้างไว้
+    const subItems = document.querySelectorAll(".nav-subitem");
+    subItems.forEach((item) => {
+      if (item.getAttribute("href") === currentPath) {
+        item.classList.add("active");
+        const parentGroup = item.closest(".nav-group");
+        if (parentGroup) {
+          parentGroup.classList.add("open");
+          const parentToggle = parentGroup.querySelector(".nav-parent");
+          if (parentToggle) parentToggle.setAttribute("aria-expanded", "true");
+        }
+      }
+    });
+
+    // 2. จัดการคลิกปุ่มแม่ (Accordion Behavior) โดยใช้ Event Delegation ที่ตัว .side-nav ครั้งเดียวจบ
+    const sideNav = document.querySelector(".side-nav");
+    if (sideNav && !sideNav.dataset.listenerAttached) {
+      sideNav.dataset.listenerAttached = "true";
+
+      sideNav.addEventListener("click", function (e) {
+        const button = e.target.closest(".nav-parent");
+        if (!button) return; // ถ้าไม่ได้คลิกปุ่มแม่ ให้ข้ามไป
+
+        const parentGroup = button.closest(".nav-group");
+        if (!parentGroup) return;
+
+        const isOpen = parentGroup.classList.contains("open");
+
+        // ปิดทุกกลุ่มเมนูก่อน
+        document.querySelectorAll(".nav-group").forEach((group) => {
+          group.classList.remove("open");
+          const toggle = group.querySelector(".nav-parent");
+          if (toggle) toggle.setAttribute("aria-expanded", "false");
+        });
+
+        // ถ้ากลุ่มที่คลิกยังไม่ได้เปิด ให้สั่งเปิดกลุ่มนี้กลุ่มเดียว
+        if (!isOpen) {
+          parentGroup.classList.add("open");
+          button.setAttribute("aria-expanded", "true");
+        }
+      });
+    }
+  }
+
+  // ---------- Sidebar Mobile Drawer ----------
+  function initSidebarEvents() {
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    function closeSidebar(){ document.body.classList.remove('sidebar-open'); }
+    if (sidebarToggle && sidebarOverlay) {
+      sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
+      sidebarOverlay.addEventListener('click', closeSidebar);
+    }
+  }
 
   // ==================================================================
   // ---------- ระบบตรวจสอบสิทธิ์การเข้าถึงเมนู ----------
   // ==================================================================
-  const CURRENT_PAGE_MENU_CODE = 'stockcard_lot'; // รหัสเมนูของหน้านี้ (null = ไม่ต้องเช็คสิทธิ์หน้านี้เอง)
+  const CURRENT_PAGE_MENU_CODE = 'stockcard_lot';
 
   function showAccessDeniedOverlay(){
     document.body.innerHTML = `
@@ -680,12 +710,7 @@
       </div>`;
   }
 
-  async function applyMenuPermissions(){
-    let idPs = null;
-    try {
-      const userRaw = sessionStorage.getItem('wim_user');
-      if (userRaw) idPs = JSON.parse(userRaw).idPs;
-    } catch (e) {}
+  async function applyMenuPermissions(idPs){
     if (!idPs) return;
 
     try {
@@ -713,8 +738,6 @@
     }
   }
 
-  applyMenuPermissions();
-
   // ==================================================================
   // ---------- โหลดรายชื่อบริษัทลง combobox ----------
   // ==================================================================
@@ -722,7 +745,7 @@
 
   async function loadCompanies(){
     try {
-      const res = await fetch('/api/companies');
+      const res = await fetch('/api/companies?' + new URLSearchParams({ idPs: (JSON.parse(sessionStorage.getItem('wim_user') || '{}').idPs) || '' }));
       const data = await res.json();
 
       if (!data.success) {
@@ -737,7 +760,7 @@
       if (!Array.isArray(data.data) || data.data.length === 0) {
         const opt = document.createElement('option');
         opt.value = '';
-        opt.textContent = 'ไม่พบข้อมูลบริษัทในระบบ';
+        opt.textContent = 'ไม่มีสิทธิ์เข้าถึงบริษัทใด';
         companySelect.appendChild(opt);
         return;
       }
@@ -749,7 +772,6 @@
         companySelect.appendChild(opt);
       });
 
-      // ตั้งค่า default ให้ตรงกับบริษัทของผู้ใช้ที่ login อยู่ (ถ้ามี) แล้ว trigger การเปลี่ยนแปลง
       try {
         const userRaw = sessionStorage.getItem('wim_user');
         if (userRaw) {
@@ -763,7 +785,7 @@
             }
           }
         }
-      } catch (e) { /* เงียบไว้ ถ้า parse ไม่ได้ก็แค่ไม่ default ให้ */ }
+      } catch (e) {}
     } catch (err) {
       console.error('โหลดบริษัทไม่สำเร็จ (network):', err);
       const opt = document.createElement('option');
@@ -774,7 +796,6 @@
   }
   loadCompanies().then(applyUrlParams);
 
-  // ---------- รองรับลิงก์ drill-down จากหน้า Stock Card (รายสินค้า): /stockcard.html?companyId=..&lotNo=.. ----------
   function applyUrlParams(){
     const params = new URLSearchParams(window.location.search);
     const urlCompanyId = params.get('companyId');
@@ -783,7 +804,7 @@
 
     companySelect.value = urlCompanyId;
     lotInput.value = urlLotNo;
-    loadStockCard(); // ฟังก์ชันนี้ถูกประกาศด้านล่างของไฟล์ แต่เรียกได้เพราะ function declaration ถูก hoist ไว้แล้ว
+    loadStockCard();
   }
 
   // ==================================================================
@@ -797,13 +818,11 @@
   const confirmLotNo = document.getElementById('confirmLotNo');
   const confirmProduct = document.getElementById('confirmProduct');
 
-  // เก็บ idLot ที่ได้จากการเลือกจาก dropdown ค้นหา (ใช้เรียก stored procedure ได้ทันทีโดยไม่ต้อง resolve ซ้ำ)
   let selectedIdLot = null;
   let selectedLotNoText = null;
   let selectedProductName = null;
 
   companySelect.addEventListener('change', () => {
-    // เปลี่ยนบริษัทแล้ว ค่า lot เดิมอาจไม่ตรงบริษัทใหม่ ล้างค่าทิ้งเพื่อความถูกต้อง
     lotInput.value = '';
     selectedIdLot = null;
     selectedLotNoText = null;
@@ -814,12 +833,10 @@
 
   let searchDebounceTimer = null;
   lotInput.addEventListener('input', () => {
-    // ถ้าพิมพ์แก้ข้อความหลังจากเคยเลือกจาก dropdown แล้ว ให้ยกเลิก idLot ที่แคชไว้
     if (lotInput.value.trim() !== selectedLotNoText) {
       selectedIdLot = null;
     }
 
-    // live-search: พิมพ์ปุ๊บ filter รายการ Lot No ให้ทันที (หน่วงเวลาเล็กน้อยกันยิง request รัวเกินไป)
     clearTimeout(searchDebounceTimer);
     const keyword = lotInput.value.trim();
 
@@ -848,7 +865,6 @@
     selectedProductName = item.productName ?? '';
     lotDropdown.classList.remove('show');
     showLotConfirm(item.lotNo, item.productName);
-    // เลือก lot แล้ว โหลด stock card ให้ทันที ไม่ต้องกด "ดูข้อมูล" ซ้ำ
     loadStockCard();
   }
 
@@ -863,7 +879,6 @@
     });
   }
 
-  // โหมด 1: พิมพ์ Lot No. เอง (บางส่วนหรือทั้งหมด) แล้วค้นหา
   async function searchLots(){
     const keyword = lotInput.value.trim();
     const companyId = companySelect.value;
@@ -903,9 +918,8 @@
   const lotModalClose = document.getElementById('lotModalClose');
   const lotModalFilter = document.getElementById('lotModalFilter');
 
-  let allLotsCache = []; // เก็บรายการทั้งหมดที่โหลดมา ไว้ filter ในเครื่องโดยไม่ต้องยิง API ซ้ำ
-
-  const MAX_RENDER = 200; // จำกัดจำนวนแถวที่ render พร้อมกัน กันหน้าค้างตอนมีข้อมูลเป็นพันแถว
+  let allLotsCache = [];
+  const MAX_RENDER = 200;
 
   function renderLotModalRows(rows){
     if (!rows || rows.length === 0) {
@@ -915,8 +929,6 @@
     }
 
     const shown = rows.slice(0, MAX_RENDER);
-
-    // สร้าง HTML string เดียวแล้วเซ็ตทีเดียว (เร็วกว่า appendChild ทีละแถวมาก)
     let html = '';
     shown.forEach((item, idx) => {
       html += `
@@ -934,10 +946,9 @@
     }
 
     lotModalBody.innerHTML = html;
-    lotModalBody._currentRows = shown; // เก็บไว้ใช้ตอนคลิกเลือก (อ้างอิงด้วย data-idx)
+    lotModalBody._currentRows = shown;
   }
 
-  // ใช้ event delegation ตัวเดียว แทนการผูก listener ทีละแถว (เร็วกว่ามากเมื่อมีหลายร้อยแถว)
   lotModalBody.addEventListener('click', (e) => {
     const btn = e.target.closest('.choose-btn');
     if (!btn) return;
@@ -949,20 +960,15 @@
     selectLot(item);
   });
 
-  function openLotModal(){
-    lotModalOverlay.classList.add('show');
-  }
+  function openLotModal(){ lotModalOverlay.classList.add('show'); }
   function closeLotModal(){
     lotModalOverlay.classList.remove('show');
     lotModalFilter.value = '';
   }
 
   lotModalClose.addEventListener('click', closeLotModal);
-  lotModalOverlay.addEventListener('click', (e) => {
-    if (e.target === lotModalOverlay) closeLotModal();
-  });
+  lotModalOverlay.addEventListener('click', (e) => { if (e.target === lotModalOverlay) closeLotModal(); });
 
-  // กรองรายการที่โหลดมาแล้ว (client-side) ตามคำที่พิมพ์ในหน้าต่าง ไม่ต้องยิง API ซ้ำ
   let modalFilterDebounce = null;
   lotModalFilter.addEventListener('input', () => {
     clearTimeout(modalFilterDebounce);
@@ -977,7 +983,6 @@
     }, 200);
   });
 
-  // เปิด pop-up แสดง Lot No. ทั้งหมดของบริษัทที่เลือก (เฉพาะ Lot ที่ยังไม่ยกเลิก ตาม query ฝั่ง server)
   async function browseAllLots(){
     const companyId = companySelect.value;
     if (!companyId) {
@@ -1034,8 +1039,6 @@
     exportBtn.disabled = true;
   }
 
-  // ชื่อคอลัมน์จริงที่ stored procedure devsk.sp_StockCardInv คืนมา
-  // SP คำนวณ QtyIN / QtyOUT / BAL (ยอดคงเหลือ) มาให้เสร็จแล้ว ไม่ต้องคำนวณซ้ำฝั่งนี้
   const SC_COL = {
     date: 'DateX',
     detail: 'Detail',
@@ -1052,13 +1055,8 @@
     return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  // แปลงวันที่ให้เป็น dd/MM/yyyy HH:mm:ss
-  // ⚠️ ค่าจาก SQL Server เป็น datetime แบบไม่มี timezone (naive) แต่พอส่งผ่าน JSON จะมี "Z" ต่อท้าย
-  // (ทำให้เบราว์เซอร์เข้าใจผิดว่าเป็น UTC แล้วแปลงบวกเวลาไทย +7 ชม. ซ้ำ ทำให้เวลาเพี้ยน)
-  // จึงต้องดึงตัวเลขจาก string ตรงๆ แทนการพึ่ง new Date().getHours() ที่แปลง timezone ให้อัตโนมัติ
   function fmtDate(val){
     if (!val) return '';
-
     if (typeof val === 'string') {
       const m = val.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
       if (m) {
@@ -1066,16 +1064,12 @@
         return `${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
       }
     }
-
-    // fallback: เผื่อค่าที่มาไม่ใช่ string รูปแบบข้างบน (เช่นเป็น Date object อยู่แล้ว)
     const d = new Date(val);
     if (isNaN(d.getTime())) return String(val);
     const pad = (n) => String(n).padStart(2, '0');
     return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
-  // หาค่าจาก object โดยไม่สนตัวพิมพ์เล็ก-ใหญ่ของชื่อคอลัมน์
-  // กัน field หายเงียบๆ เวลาชื่อคอลัมน์จริงจาก SQL Server สะกดต่างจากที่ตั้งไว้ใน SC_COL แค่ตัวพิมพ์
   function getField(row, name){
     if (row[name] !== undefined) return row[name];
     const lowerName = name.toLowerCase();
@@ -1083,9 +1077,6 @@
     return foundKey ? row[foundKey] : undefined;
   }
 
-  // แปลงข้อมูลดิบจาก SP ให้เป็นรูปแบบที่ตารางใช้แสดงผล
-  // ⚠️ BAL ที่ SP คืนมาเป็นแค่ค่า default 0 ไม่ใช่ยอดจริง ต้องคำนวณยอดคงเหลือสะสมเอง
-  // ยอดคงเหลือ = ยอดก่อนหน้า + QtyIN ของแถวนี้ - QtyOUT ของแถวนี้ ไล่จากแถวบนสุดลงล่าง
   function computeStockCardRows(rawRows){
     let balance = 0;
     return rawRows.map(r => {
@@ -1106,7 +1097,7 @@
     });
   }
 
-  let lastProcessedRows = []; // เก็บผลลัพธ์ล่าสุดไว้ใช้ตอนพิมพ์/export
+  let lastProcessedRows = [];
 
   function renderTable(rawRows){
     if (!rawRows || rawRows.length === 0) {
@@ -1154,11 +1145,9 @@
     exportBtn.disabled = false;
   }
 
-  // ---------- ปุ่มพิมพ์เอกสาร ----------
   const printBtn = document.getElementById('printBtn');
   printBtn.addEventListener('click', () => window.print());
 
-  // ---------- ปุ่ม Export Excel ----------
   const exportBtn = document.getElementById('exportBtn');
   exportBtn.addEventListener('click', () => {
     if (!lastProcessedRows.length) return;
@@ -1187,7 +1176,7 @@
     const res = await fetch('/api/lots/resolve?' + params.toString());
     const data = await res.json();
     if (!data.success) throw new Error(data.message || 'ไม่พบ Lot No. นี้');
-    return data.data; // { idLot, lotNo, productName }
+    return data.data;
   }
 
   async function loadStockCard(){
@@ -1208,8 +1197,6 @@
     renderState('กำลังดึงข้อมูล…');
 
     try {
-      // ถ้าเคยเลือก Lot จาก dropdown ค้นหาไว้แล้ว และข้อความยังตรงกัน ใช้ idLot ที่แคชไว้ได้เลย
-      // ไม่งั้นต้องแปลง LotNo ที่พิมพ์เอง ให้เป็น idLot ก่อน เพราะ stored procedure ต้องการ idLot ไม่ใช่ LotNo
       let idLot;
       if (selectedIdLot && lotNoText === selectedLotNoText) {
         idLot = selectedIdLot;
@@ -1245,6 +1232,9 @@
 
   viewBtn.addEventListener('click', loadStockCard);
   lotInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadStockCard(); });
+
+  // เริ่มต้นเรียกใช้งานการโหลด Sidebar
+  loadSidebar();
 </script>
 
 </body>

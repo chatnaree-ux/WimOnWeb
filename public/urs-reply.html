@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIM — ตอบกลับคำร้องขอเมล็ดพันธุ์</title>
+<link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* หน้าตอบกลับสถานะคำร้อง — เปิดจากลิงก์ที่แชร์ใน LINE (ใช้บนมือถือบ่อย) จึงไม่มี sidebar */
+  :root{
+    --navy-950:#0c1420; --navy-900:#111d2e; --navy-800:#182a40; --navy-850:#0f1a29;
+    --steel-700:#25405c; --steel-500:#4a6b8a;
+    --concrete-200:#e7e4da; --concrete-400:#b9b4a5;
+    --amber-500:#f2a91c; --safety-red:#e5533d; --ok-green:#3ecf8e; --sky-blue:#4ea7e0;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0; padding:0;}
+  body{font-family:'Inter',sans-serif; background:var(--navy-950); color:var(--concrete-200); min-height:100vh; padding-bottom:96px;}
+
+  /* ---------- TOP BAR ---------- */
+  .topbar{display:flex; align-items:center; gap:12px; padding:14px clamp(16px,4vw,32px); border-bottom:1px solid rgba(255,255,255,.07); background:var(--navy-900);}
+  .brand-mark{width:34px; height:34px; border:2px solid var(--amber-500); border-radius:6px; display:flex; align-items:center; justify-content:center; font-family:'Oswald',sans-serif; font-weight:700; color:var(--amber-500); font-size:13px; transform:rotate(-3deg); flex-shrink:0;}
+  .brand-text{font-family:'Oswald',sans-serif; letter-spacing:.05em; font-size:15px; font-weight:600; line-height:1.2;}
+  .brand-text small{display:block; font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.08em; color:var(--steel-500); font-weight:400;}
+  .topbar .spacer{flex:1;}
+  .user-chip{display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; color:#fff; border:1px solid rgba(255,255,255,.15); padding:7px 12px; border-radius:8px; max-width:45vw;}
+  .user-chip span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .user-chip .dot{width:7px; height:7px; border-radius:50%; background:var(--ok-green); flex-shrink:0;}
+  .top-link{font-size:12.5px; color:var(--concrete-400); text-decoration:none; border:1px solid rgba(255,255,255,.12); padding:7px 12px; border-radius:8px; white-space:nowrap;}
+  .top-link:hover{color:var(--amber-500); border-color:var(--amber-500);}
+
+  main{max-width:980px; margin:0 auto; padding:clamp(20px,4vw,36px) clamp(16px,4vw,32px);}
+  .eyebrow{font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.14em; color:var(--amber-500); text-transform:uppercase; margin:0 0 8px;}
+  h1{font-family:'Oswald',sans-serif; font-weight:700; font-size:clamp(22px,4vw,30px); margin:0 0 18px; color:#fff; letter-spacing:.02em;}
+  h1 .doc{font-family:'JetBrains Mono',monospace; color:var(--amber-500);}
+
+  .card{background:linear-gradient(180deg, var(--navy-900), var(--navy-850)); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:18px 20px; margin-bottom:16px;}
+  .info-grid{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px;}
+  .info-grid .full{grid-column:1 / -1;}
+  .info-lbl{font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--steel-500); text-transform:uppercase; margin-bottom:5px;}
+  .info-val{font-size:14px; color:#fff; word-break:break-word;}
+  .co-pill{display:inline-block; padding:2px 10px; border-radius:999px; font-size:12.5px; font-weight:600; white-space:nowrap;
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.22); color:var(--concrete-200);}
+  .co-pill.co-3{background:rgba(62,207,142,.12); border-color:rgba(62,207,142,.45); color:var(--ok-green);}
+  .co-pill.co-2{background:rgba(78,167,224,.12); border-color:rgba(78,167,224,.45); color:var(--sky-blue);}
+  .co-pill.co-4{background:rgba(244,114,182,.13); border-color:rgba(244,114,182,.45); color:#f472b6;}
+
+  .notice{border-radius:8px; padding:12px 16px; margin-bottom:16px; font-size:13.5px; border:1px solid; border-left-width:3px;}
+  .notice.info{background:rgba(78,167,224,.08); border-color:rgba(78,167,224,.4); color:#a8d4f2;}
+  .notice.warn{background:rgba(242,169,28,.08); border-color:rgba(242,169,28,.45); color:#f5c66b;}
+  .notice.ok{background:rgba(62,207,142,.08); border-color:rgba(62,207,142,.45); color:#8fe3bd; line-height:1.6;}
+  .item-meta .delivered{color:#c4b5fd;}
+  .notice.error{background:rgba(229,83,61,.08); border-color:rgba(229,83,61,.45); color:#ff8a75;}
+
+  .list-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:22px 0 12px;}
+  .list-head h2{margin:0; font-family:'Oswald',sans-serif; font-size:17px; font-weight:600; color:#fff; letter-spacing:.03em;}
+  .progress{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-400);}
+  .progress b{color:var(--amber-500);}
+
+  /* ---------- การ์ดรายการเมล็ด ---------- */
+  .item{background:linear-gradient(180deg, var(--navy-900), var(--navy-850)); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); margin-bottom:12px; overflow:hidden;}
+  .item.dirty{border-color:rgba(242,169,28,.55);}
+  .item.has-error{border-color:rgba(229,83,61,.6);}
+  .item-head{display:flex; gap:12px; align-items:flex-start; padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.06);}
+  .item-no{width:28px; height:28px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; background:rgba(242,169,28,.12); border:1px solid rgba(242,169,28,.35); color:var(--amber-500);}
+  .item-title{flex:1; min-width:0;}
+  .item-name{font-size:15px; font-weight:600; color:#fff; word-break:break-word;}
+  .item-meta{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:6px; font-size:12.5px; color:var(--concrete-400);}
+  .item-meta b{color:#fff; font-weight:600;}
+  .type-chip{display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; background:rgba(255,255,255,.07); color:var(--concrete-200);}
+  .badge{padding:3px 11px; border-radius:999px; font-size:11.5px; font-weight:700; display:inline-block; border:1px solid transparent; white-space:nowrap;}
+  .badge.st-0{background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.22); color:var(--concrete-200);}
+  .badge.st-1{background:rgba(78,167,224,.14); border-color:rgba(78,167,224,.4); color:var(--sky-blue);}
+  .badge.st-2{background:rgba(62,207,142,.12); border-color:rgba(62,207,142,.4); color:var(--ok-green);}
+  .badge.st-3{background:rgba(229,83,61,.14); border-color:rgba(229,83,61,.4); color:#ff8a75;}
+  .badge.st-4{background:rgba(167,139,250,.14); border-color:rgba(167,139,250,.4); color:#c4b5fd;}
+  .badge.st-5{background:rgba(45,212,191,.14); border-color:rgba(45,212,191,.45); color:#5eead4;}
+  .replied-by{font-size:11.5px; color:var(--steel-500); margin-top:5px; text-align:right;}
+
+  .item-body{padding:14px 18px 16px;}
+  .choice{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;}
+  .choice button{
+    display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:9px; cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:14px; font-weight:600;
+    background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.14); color:var(--concrete-200); transition:.15s;
+  }
+  .choice button svg{width:17px; height:17px;}
+  .choice button:hover{border-color:rgba(255,255,255,.3);}
+  .choice button.ready.on{background:rgba(62,207,142,.14); border-color:var(--ok-green); color:var(--ok-green);}
+  .choice button.not.on{background:rgba(229,83,61,.14); border-color:var(--safety-red); color:#ff8a75;}
+  .fields{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .fields .full{grid-column:1 / -1;}
+  .field label{display:block; font-size:12.5px; color:var(--concrete-400); margin-bottom:6px;}
+  .field label .req{color:var(--safety-red); margin-left:3px;}
+  .field label .opt{color:var(--steel-500); font-size:11.5px; margin-left:4px;}
+  input, textarea{
+    width:100%; padding:11px 12px; background:var(--navy-950); border:1px solid rgba(255,255,255,.12); border-radius:7px;
+    color:#fff; font-family:'Inter',sans-serif; font-size:14px;
+  }
+  input:focus, textarea:focus{outline:none; border-color:var(--amber-500); box-shadow:0 0 0 3px rgba(242,169,28,.15);}
+  textarea{resize:vertical; min-height:70px;}
+  input[type="date"]{color-scheme:dark;}
+  /* ช่องวันที่ (.date-overlay-wrap): หน้าตา + ปฏิทินเลือกวันที่อยู่ใน thai-datepicker.js (ใช้ร่วมกันทุกหน้า) */
+  .field-err{font-size:12px; color:#ff8a75; margin-top:5px;}
+  .apply-all{margin-top:10px; background:none; border:0; padding:0; color:var(--sky-blue); font-size:12.5px; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;}
+  .apply-all:hover{color:#8ccaf2;}
+  .readonly-answer{font-size:13.5px; line-height:1.6;}
+  .readonly-answer .k{color:var(--concrete-400);}
+
+  /* ---------- แถบบันทึกด้านล่าง (ติดจอ) ---------- */
+  .save-bar{position:fixed; left:0; right:0; bottom:0; z-index:20; background:rgba(15,26,41,.96); backdrop-filter:blur(6px); border-top:1px solid rgba(255,255,255,.1);}
+  .save-inner{max-width:980px; margin:0 auto; padding:12px clamp(16px,4vw,32px); display:flex; align-items:center; gap:12px; justify-content:space-between;}
+  .save-info{font-size:12.5px; color:var(--concrete-400);}
+  .save-info b{color:var(--amber-500);}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 22px; border-radius:8px; border:1px solid transparent; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; letter-spacing:.04em; background:var(--amber-500); color:var(--navy-950);}
+  .btn:disabled{background:rgba(255,255,255,.08); color:var(--steel-500); cursor:not-allowed;}
+
+  .state-box{text-align:center; padding:60px 20px; color:var(--concrete-400);}
+  .toast{position:fixed; bottom:84px; left:50%; transform:translate(-50%, 20px); z-index:50; background:var(--navy-800); color:#fff;
+    border:1px solid rgba(62,207,142,.45); border-left:3px solid var(--ok-green); padding:12px 18px; border-radius:9px; font-size:13.5px;
+    box-shadow:0 20px 50px -15px rgba(0,0,0,.7); opacity:0; transition:.3s; pointer-events:none; width:max-content; max-width:min(92vw, 520px); line-height:1.5;}
+  .toast.show{opacity:1; transform:translate(-50%, 0);}
+  .toast.err{border-color:rgba(229,83,61,.5); border-left-color:var(--safety-red);}
+
+  @media (max-width:720px){
+    .info-grid{grid-template-columns:1fr 1fr;}
+    .fields{grid-template-columns:1fr;}
+    .save-info{display:none;}
+    .save-inner .btn{flex:1;}
+    .item-head{flex-wrap:wrap;}
+    .item-status{width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; padding-left:40px;}
+    .replied-by{margin-top:0;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand-mark">WIM</div>
+  <div class="brand-text">WIM<small>ตอบกลับคำร้องขอเมล็ดพันธุ์</small></div>
+  <div class="spacer"></div>
+  <a class="top-link" href="/urs-request.html">รายการร้องขอ</a>
+  <div class="user-chip"><i class="dot"></i><span id="userLabel">…</span></div>
+</header>
+
+<main id="app">
+  <div class="state-box" id="stateBox">กำลังโหลดข้อมูลคำร้อง…</div>
+</main>
+
+<div class="save-bar" id="saveBar" hidden>
+  <div class="save-inner">
+    <div class="save-info" id="saveInfo"></div>
+    <button type="button" class="btn" id="saveBtn" disabled>บันทึกการตอบกลับ</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => s === null || s === undefined ? '' :
+    String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const ST_LABEL = { '1': 'รอตอบกลับ', '2': 'พร้อมส่ง', '3': 'ไม่พร้อมส่ง', '4': 'จัดส่งบางส่วน', '5': 'จัดส่งครบแล้ว' };
+  const READY = '2', NOT_READY = '3';
+  const ICON_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+  const ICON_NO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+
+  const idUrs = parseInt(new URLSearchParams(location.search).get('id'), 10);
+  let doc = null;        // ข้อมูลคำร้อง + items จาก server
+  let forms = {};        // คำตอบที่กำลังกรอก ต่อ idUrsDt: { status, dateSent, note }
+  let errors = {};       // ข้อความ error ต่อ idUrsDt
+  const todayISO = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+
+  function formatDateThai(iso){
+    if(!iso) return '-';
+    const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+    return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y + 543}`;
+  }
+  function fmtDateTimeThai(v){
+    if(!v) return '-';
+    const [d, t] = String(v).split(' ');
+    return formatDateThai(d) + (t ? ' ' + t.slice(0, 5) : '');
+  }
+  function fmtNum(v){
+    if(v === null || v === undefined) return '-';
+    return Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function shortCompName(name){
+    return String(name || '').replace(/^\s*บริษัท\s*/, '').replace(/\s*จำกัด(\s*\(มหาชน\))?\s*$/, '').trim() || name || '-';
+  }
+  function coPill(id, name){
+    return name ? `<span class="co-pill co-${esc(id)}" title="${esc(name)}">${esc(shortCompName(name))}</span>` : '-';
+  }
+  let toastTimer;
+  function showToast(msg, isErr, ms){
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.toggle('err', !!isErr);
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), ms || 2800);
+  }
+  function showState(html){
+    $('app').innerHTML = `<div class="state-box">${html}</div>`;
+    $('saveBar').hidden = true;
+  }
+
+  /* ---------- login: ยังไม่ login -> ไป SSO แล้วกลับมาหน้านี้ ---------- */
+  async function ensureLogin(){
+    const res = await fetch('/api/auth/me');
+    const data = await res.json().catch(() => ({}));
+    if(!data.success){
+      const back = location.pathname + location.search;
+      // สำรอง: ถ้า login แล้วไปตกที่ main-menu ให้หน้านั้นพากลับมาที่ลิงก์นี้ (หมดอายุใน 30 นาที)
+      try{ localStorage.setItem('wim_return_to', JSON.stringify({ path: back, exp: Date.now() + 30 * 60 * 1000 })); } catch(e){ /* ไม่มี storage ก็ใช้ returnTo ฝั่ง server */ }
+      location.href = '/auth/sso/login?returnTo=' + encodeURIComponent(back);
+      return null;
+    }
+    try{
+      sessionStorage.setItem('wim_user', JSON.stringify(data.user));
+      localStorage.removeItem('wim_return_to'); // มาถึงหน้าตอบกลับแล้ว ไม่ต้องพากลับอีก
+    } catch(e){ /* ไม่มี storage ก็ใช้ต่อได้ */ }
+    $('userLabel').textContent = data.user.PsName || data.user.Username || 'ผู้ใช้งาน';
+    return data.user;
+  }
+
+  async function loadDoc(){
+    const res = await fetch(`/api/urs/reply/${encodeURIComponent(idUrs)}`);
+    if(res.status === 401){ location.reload(); return null; }
+    const data = await res.json();
+    if(!data.success) throw new Error(data.message || 'โหลดข้อมูลคำร้องไม่สำเร็จ');
+    return data.data;
+  }
+
+  // ค่าเริ่มต้นของฟอร์ม = คำตอบล่าสุดที่บันทึกไว้ (ถ้ามี)
+  function initForms(){
+    forms = {};
+    errors = {};
+    doc.items.forEach(it => {
+      forms[it.idUrsDt] = {
+        status: answerOf(it),
+        dateSent: it.DateSent || '',
+        note: it.NotSentNote || ''
+      };
+    });
+  }
+  function isDirty(it){
+    const f = forms[it.idUrsDt];
+    if(!f.status) return false;
+    const orig = { status: answerOf(it), dateSent: it.DateSent || '', note: it.NotSentNote || '' };
+    return f.status !== orig.status || f.dateSent !== orig.dateSent ||
+      (f.status === NOT_READY && f.note.trim() !== orig.note.trim());
+  }
+  const PARTIAL = '4', DONE = '5';
+  const isSent = (it) => !!it.stReq; // Draft = ยังไม่ส่งคำร้อง ตอบไม่ได้
+  const isDone = (it) => it.stReq === DONE; // รับของครบแล้ว (ระบบตั้งจากยอดรับเข้า) = สิ้นสุด แก้คำตอบไม่ได้
+  const canAnswer = (it) => isSent(it) && !isDone(it); // 1/2/3/4 แก้คำตอบได้เรื่อยๆ จนกว่าจะรับครบ
+  // คำตอบล่าสุดของบริษัทต้นทาง: 2/3 = ตามสถานะ / 4,5 (สถานะจัดส่งทับไว้) = อ่านจากข้อมูลการตอบที่เก็บไว้ (มีสาเหตุ = ไม่พร้อมส่ง)
+  function answerOf(it){
+    if(it.stReq === READY || it.stReq === NOT_READY) return it.stReq;
+    if((it.stReq === PARTIAL || it.stReq === DONE) && it.DateReplied) return it.NotSentNote ? NOT_READY : READY;
+    return '';
+  }
+
+  /* ---------- render ---------- */
+  function render(){
+    const answered = doc.items.filter(it => answerOf(it) || isDone(it)).length;
+    const notSent = doc.items.filter(it => !isSent(it)).length;
+    const answerable = doc.items.filter(canAnswer);
+    const allAnswered = answerable.length > 0 && answerable.every(it => answerOf(it));
+
+    let notice = '';
+    if(doc.idPsCancel) notice = '<div class="notice error">คำร้องนี้ถูกยกเลิกแล้ว ไม่สามารถตอบกลับได้</div>';
+    else if(notSent === doc.items.length) notice = '<div class="notice warn">คำร้องนี้ยังไม่ได้ถูกส่ง จึงยังตอบกลับไม่ได้</div>';
+    else if(answerable.length === 0) notice = `<div class="notice ok"><b>✅ รับของครบทุกรายการแล้ว</b> — คำร้องนี้สิ้นสุดแล้ว ไม่สามารถแก้ไขการตอบกลับได้อีก (ดูคำตอบล่าสุดได้ด้านล่าง)</div>`;
+    else if(allAnswered) notice = `<div class="notice ok"><b>✅ บันทึกการตอบกลับแล้ว</b> — หากกำหนดส่งหรือสถานะเปลี่ยน สามารถกลับมาแก้ไขคำตอบผ่านลิงก์นี้ได้ จนกว่าจะรับของครบ (สถานะ "จัดส่งครบแล้ว") ${doc.items.some(isDone) ? '<br>รายการที่รับของครบแล้วจะแก้ไขไม่ได้' : ''}</div>`;
+    else notice = '<div class="notice info">เลือกสถานะของแต่ละรายการ: <b>พร้อมส่ง</b> ระบุวันที่กำหนดส่ง / <b>ไม่พร้อมส่ง</b> ระบุสาเหตุ (และวันที่คาดว่าจะพร้อม ถ้าทราบ) แล้วกด "บันทึกการตอบกลับ" — แก้ไขคำตอบภายหลังได้จนกว่าจะรับของครบ</div>';
+
+    $('app').innerHTML = `
+      <p class="eyebrow">Urgent Seed Request · ตอบกลับสถานะ</p>
+      <h1>คำร้องขอเลขที่ <span class="doc">${esc(doc.DocReq)}</span></h1>
+      <div class="card">
+        <div class="info-grid">
+          <div><div class="info-lbl">วันที่ร้องขอ</div><div class="info-val">${formatDateThai(doc.DateReq)}</div></div>
+          <div><div class="info-lbl">บริษัทที่ส่งคำร้องขอ</div><div class="info-val">${coPill(doc.idCompReq, doc.CompNameReq)}</div></div>
+          <div><div class="info-lbl">ส่งคำร้องขอถึง (บริษัทต้นทาง)</div><div class="info-val">${coPill(doc.idCompTarget, doc.CompNameTarget)}</div></div>
+          <div><div class="info-lbl">ผู้ร้องขอ</div><div class="info-val">${esc(doc.PsNameReq) || '-'}</div></div>
+          <div class="full"><div class="info-lbl">เหตุผล/สาเหตุที่ต้องการเร่งด่วน</div><div class="info-val">${esc(doc.ReasonReq) || '-'}</div></div>
+        </div>
+      </div>
+      ${notice}
+      <div class="list-head">
+        <h2>รายการเมล็ดพันธุ์ (${doc.items.length})</h2>
+        <span class="progress">ตอบกลับแล้ว <b>${answered}</b> / ${doc.items.length} รายการ</span>
+      </div>
+      ${doc.items.map((it, i) => renderItem(it, i)).join('')}`;
+
+    $('saveBar').hidden = !doc.canReply || answerable.length === 0;
+    updateSaveBar();
+  }
+
+  function renderItem(it, i){
+    const st = it.stReq || '';
+    const badge = st ? `<span class="badge st-${st}">${ST_LABEL[st] || esc(st)}</span>` : '<span class="badge st-0">ยังไม่ส่งคำร้อง</span>';
+    const repliedBy = answerOf(it)
+      ? `<div class="replied-by">ตอบโดย ${esc(it.PsNameReplied) || '-'} · ${fmtDateTimeThai(it.DateReplied)}</div>` : '';
+    const delivered = Number(it.AmtDelivered) > 0
+      ? `<span class="delivered">จัดส่งแล้ว <b>${fmtNum(it.AmtDelivered)}</b> / ${fmtNum(it.AmountReq)} ${esc(it.UnitName) || ''}${isDone(it) ? '' : ` · คงค้าง <b>${fmtNum(it.AmtRemain)}</b>`}</span>` : '';
+    const f = forms[it.idUrsDt];
+    const editable = doc.canReply && canAnswer(it);
+    const cls = ['item', editable && isDirty(it) ? 'dirty' : '', errors[it.idUrsDt] ? 'has-error' : ''].join(' ').trim();
+
+    return `
+      <section class="${cls}" data-item="${it.idUrsDt}">
+        <div class="item-head">
+          <div class="item-no">${i + 1}</div>
+          <div class="item-title">
+            <div class="item-name">${esc(it.InvName) || '-'}</div>
+            <div class="item-meta">
+              ${it.SeedName ? `<span class="type-chip">${esc(it.SeedName)}</span>` : ''}
+              <span>จำนวน <b>${fmtNum(it.AmountReq)}</b> ${esc(it.UnitName) || ''}</span>
+              <span>ต้องการใช้ <b>${formatDateThai(it.DateNeeded)}</b></span>
+              ${delivered}
+            </div>
+          </div>
+          <div class="item-status">${badge}${repliedBy}</div>
+        </div>
+        <div class="item-body">${editable ? renderForm(it, f) : renderReadonly(it)}</div>
+      </section>`;
+  }
+
+  function dateField(id, label, value, required, field){
+    return `
+      <div class="field">
+        <label for="${id}">${label}${required ? '<span class="req">*</span>' : '<span class="opt">(ถ้าทราบ)</span>'}</label>
+        <span class="date-overlay-wrap">
+          <input type="date" class="date-input" id="${id}" min="${todayISO}" value="${esc(value)}" data-field="${field}">
+          <span class="date-overlay-text ${value ? '' : 'empty'}">${value ? formatDateThai(value) : 'วว/ดด/ปปปป'}</span>
+        </span>
+      </div>`;
+  }
+
+  function renderForm(it, f){
+    const id = it.idUrsDt;
+    let fields = '';
+    if(f.status === READY){
+      fields = `<div class="fields">${dateField(`d${id}`, 'วันที่กำหนดส่ง', f.dateSent, true, 'dateSent')}</div>`;
+    } else if(f.status === NOT_READY){
+      fields = `<div class="fields">
+        <div class="field full">
+          <label for="n${id}">สาเหตุ / ปัญหาที่ทำให้ไม่พร้อมส่ง<span class="req">*</span></label>
+          <textarea id="n${id}" maxlength="1000" data-field="note" placeholder="เช่น เมล็ดอยู่ระหว่างรอผลตรวจคุณภาพ, สต๊อกไม่พอ...">${esc(f.note)}</textarea>
+        </div>
+        ${dateField(`d${id}`, 'คาดว่าจะพร้อมส่งวันที่', f.dateSent, false, 'dateSent')}
+      </div>`;
+    }
+    const canApplyAll = f.status && doc.items.filter(canAnswer).length > 1;
+    const partialHint = it.stReq === PARTIAL
+      ? `<div class="readonly-answer k" style="margin-bottom:10px">จัดส่งแล้วบางส่วน — ตอบสถานะ / กำหนดส่งของยอดคงค้าง ${fmtNum(it.AmtRemain)} ${esc(it.UnitName) || ''}</div>` : '';
+    return `
+      ${partialHint}
+      <div class="choice">
+        <button type="button" class="ready ${f.status === READY ? 'on' : ''}" data-status="${READY}">${ICON_OK} พร้อมส่ง</button>
+        <button type="button" class="not ${f.status === NOT_READY ? 'on' : ''}" data-status="${NOT_READY}">${ICON_NO} ไม่พร้อมส่ง</button>
+      </div>
+      ${fields}
+      ${errors[id] ? `<div class="field-err">⚠ ${esc(errors[id])}</div>` : ''}
+      ${canApplyAll ? '<button type="button" class="apply-all" data-apply-all>ใช้คำตอบนี้กับทุกรายการ</button>' : ''}`;
+  }
+
+  function renderReadonly(it){
+    if(!isSent(it)) return '<div class="readonly-answer k">รายการนี้ยังไม่ได้ส่งคำร้อง</div>';
+    // รับครบแล้ว: แสดงคำตอบล่าสุด (ถ้าเคยตอบ) + แจ้งว่าสิ้นสุดแล้ว
+    const doneLine = isDone(it) ? '<div class="k" style="margin-top:6px">🔒 รับของครบแล้ว — แก้ไขการตอบกลับไม่ได้</div>' : '';
+    const ans = answerOf(it);
+    if(ans === READY) return `<div class="readonly-answer"><span class="k">วันที่กำหนดส่ง:</span> ${formatDateThai(it.DateSent)}${doneLine}</div>`;
+    if(ans === NOT_READY) return `<div class="readonly-answer">
+      <div><span class="k">สาเหตุ:</span> ${esc(it.NotSentNote) || '-'}</div>
+      <div><span class="k">คาดว่าจะพร้อมส่ง:</span> ${it.DateSent ? formatDateThai(it.DateSent) : 'ยังไม่ทราบ'}</div>${doneLine}</div>`;
+    if(isDone(it)) return `<div class="readonly-answer">${doneLine}</div>`;
+    return '<div class="readonly-answer k">รอบริษัทต้นทางตอบกลับ</div>';
+  }
+
+  function updateSaveBar(){
+    if(!doc) return;
+    const dirty = doc.items.filter(it => doc.canReply && canAnswer(it) && isDirty(it)).length;
+    const sentItems = doc.items.filter(canAnswer);
+    const chosen = sentItems.filter(it => forms[it.idUrsDt].status).length;
+    const progress = `เลือกสถานะแล้ว <b>${chosen}</b> / ${sentItems.length} รายการ`;
+    $('saveInfo').innerHTML = dirty ? `${progress} · มีการเปลี่ยนแปลง <b>${dirty}</b> รายการ ยังไม่ได้บันทึก` : progress;
+    $('saveBtn').disabled = dirty === 0;
+    $('saveBtn').textContent = dirty ? `บันทึกการตอบกลับ (${dirty})` : 'บันทึกการตอบกลับ';
+  }
+
+  // re-render เฉพาะการ์ดเดียว (ไม่ให้ช่องที่กำลังพิมพ์หลุด focus ทั้งหน้า)
+  function rerenderItem(idUrsDt){
+    const i = doc.items.findIndex(x => x.idUrsDt === idUrsDt);
+    const el = document.querySelector(`[data-item="${idUrsDt}"]`);
+    if(i < 0 || !el) return;
+    el.outerHTML = renderItem(doc.items[i], i);
+    updateSaveBar();
+  }
+
+  /* ---------- validate + save ---------- */
+  function validate(it){
+    const f = forms[it.idUrsDt];
+    if(f.status === READY && !f.dateSent) return 'กรุณาระบุวันที่กำหนดส่ง';
+    if(f.status === NOT_READY && !f.note.trim()) return 'กรุณาระบุสาเหตุที่ไม่พร้อมส่ง';
+    return '';
+  }
+
+  async function save(){
+    const dirtyItems = doc.items.filter(it => doc.canReply && canAnswer(it) && isDirty(it));
+    if(dirtyItems.length === 0) return;
+
+    // ต้องตอบกลับให้ครบทุกรายการที่ส่งมา ก่อนบันทึก + กรอกช่องบังคับของแต่ละสถานะให้ครบ
+    const sentItems = doc.items.filter(canAnswer);
+    errors = {};
+    const unanswered = [];
+    sentItems.forEach(it => {
+      if(!forms[it.idUrsDt].status){
+        errors[it.idUrsDt] = 'ยังไม่ได้เลือกสถานะ — กรุณาเลือก พร้อมส่ง หรือ ไม่พร้อมส่ง';
+        unanswered.push(doc.items.indexOf(it) + 1);
+        return;
+      }
+      const e = validate(it);
+      if(e) errors[it.idUrsDt] = e;
+    });
+    if(Object.keys(errors).length){
+      sentItems.forEach(it => rerenderItem(it.idUrsDt));
+      const first = document.querySelector('.item.has-error');
+      if(first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const incomplete = Object.keys(errors).length - unanswered.length;
+      const msgs = [];
+      if(unanswered.length) msgs.push(`ยังตอบกลับไม่ครบ ${unanswered.length} รายการ (รายการที่ ${unanswered.join(', ')})`);
+      if(incomplete) msgs.push(`กรอกข้อมูลไม่ครบ ${incomplete} รายการ`);
+      showToast(`⚠ บันทึกไม่ได้: ${msgs.join(' และ ')} — กรุณาตอบกลับให้ครบทุกรายการก่อนบันทึก`, true, 6000);
+      return;
+    }
+
+    const btn = $('saveBtn');
+    btn.disabled = true;
+    btn.textContent = 'กำลังบันทึก…';
+    try{
+      const res = await fetch(`/api/urs/reply/${encodeURIComponent(idUrs)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: dirtyItems.map(it => {
+            const f = forms[it.idUrsDt];
+            return { idUrsDt: it.idUrsDt, status: f.status, dateSent: f.dateSent || null, note: f.status === NOT_READY ? f.note.trim() : '' };
+          })
+        })
+      });
+      if(!(res.headers.get('content-type') || '').includes('application/json')){
+        throw new Error(`บันทึกไม่สำเร็จ (server ตอบกลับ ${res.status}) — กรุณาแจ้งผู้ดูแลระบบ`);
+      }
+      const data = await res.json();
+      if(!data.success) throw new Error(data.message || 'บันทึกไม่สำเร็จ');
+    } catch(err){
+      console.error('บันทึกการตอบกลับไม่สำเร็จ:', err);
+      showToast('❌ ' + err.message, true);
+      updateSaveBar();
+      return;
+    }
+    showToast(`✅ บันทึกการตอบกลับแล้ว ${dirtyItems.length} รายการ — กลับมาแก้ไขผ่านลิงก์นี้ได้จนกว่าจะรับของครบ`, false, 5000);
+    doc = await loadDoc();
+    initForms();
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });   // ให้เห็นกล่องแจ้ง "บันทึกการตอบกลับแล้ว" ด้านบน
+  }
+
+  /* ---------- events (ผูกที่ #app เพราะเนื้อหาถูกสร้างใหม่) ---------- */
+  function attachEvents(){
+    $('app').addEventListener('click', (e) => {
+      const card = e.target.closest('[data-item]');
+      if(!card) return;
+      const id = Number(card.dataset.item);
+      const f = forms[id];
+
+      const stBtn = e.target.closest('[data-status]');
+      if(stBtn){
+        f.status = f.status === stBtn.dataset.status ? '' : stBtn.dataset.status; // กดซ้ำ = ยกเลิกการเลือก
+        delete errors[id];
+        rerenderItem(id);
+        // ไม่พร้อมส่ง -> พาไปช่องสาเหตุเลย / ไม่ focus ช่องวันที่อัตโนมัติ (focus แล้ว browser ไฮไลต์ช่อง mm ขึ้นทับข้อความ พ.ศ.)
+        if(f.status === NOT_READY){
+          const note = document.querySelector(`[data-item="${id}"] textarea`);
+          if(note) note.focus();
+        }
+        return;
+      }
+      if(e.target.closest('[data-apply-all]')){
+        doc.items.filter(it => canAnswer(it) && it.idUrsDt !== id).forEach(it => {
+          forms[it.idUrsDt] = { ...f };
+          delete errors[it.idUrsDt];
+          rerenderItem(it.idUrsDt);
+        });
+        showToast('ใช้คำตอบนี้กับทุกรายการแล้ว');
+        return;
+      }
+    });
+
+    $('app').addEventListener('input', (e) => {
+      const card = e.target.closest('[data-item]');
+      const field = e.target.dataset.field;
+      if(!card || !field) return;
+      const id = Number(card.dataset.item);
+      forms[id][field] = e.target.value;
+      if(field === 'dateSent'){
+        const txt = e.target.parentElement.querySelector('.date-overlay-text');
+        txt.textContent = e.target.value ? formatDateThai(e.target.value) : 'วว/ดด/ปปปป';
+        txt.classList.toggle('empty', !e.target.value);
+      }
+      if(errors[id] && !validate(doc.items.find(x => x.idUrsDt === id))){
+        delete errors[id];
+        card.classList.remove('has-error');
+        const err = card.querySelector('.field-err');
+        if(err) err.remove();
+      }
+      const it = doc.items.find(x => x.idUrsDt === id);
+      card.classList.toggle('dirty', isDirty(it));
+      updateSaveBar();
+    });
+
+    $('saveBtn').addEventListener('click', save);
+    // กันปิดหน้าโดยยังไม่บันทึก
+    window.addEventListener('beforeunload', (e) => {
+      if(doc && doc.items.some(it => doc.canReply && canAnswer(it) && isDirty(it))){ e.preventDefault(); e.returnValue = ''; }
+    });
+  }
+
+  async function init(){
+    if(!idUrs) return showState('ลิงก์ไม่ถูกต้อง — ไม่พบเลขที่คำร้อง');
+    try{
+      const user = await ensureLogin();
+      if(!user) return;
+      doc = await loadDoc();
+      if(!doc) return;
+    } catch(err){
+      console.error(err);
+      return showState(esc(err.message || 'โหลดข้อมูลไม่สำเร็จ'));
+    }
+    initForms();
+    attachEvents();
+    render();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+<script src="thai-datepicker.js"></script>
+</body>
+</html>
