@@ -292,6 +292,21 @@
   .co-pill.co-3{background:rgba(62,207,142,.12); border-color:rgba(62,207,142,.45); color:var(--ok-green);}
   .co-pill.co-2{background:rgba(78,167,224,.12); border-color:rgba(78,167,224,.45); color:var(--sky-blue);}
   .co-pill.co-4{background:rgba(244,114,182,.13); border-color:rgba(244,114,182,.45); color:#f472b6;}
+  /* ตรึงหัวตาราง: ตารางเลื่อนในกรอบของตัวเอง (สูงไม่เกินจอ) + thead ทั้งก้อน (แถวกลุ่ม + แถวชื่อคอลัมน์) ติดด้านบน */
+  .req-list-wrap{max-height:calc(100vh - 170px); min-height:240px; overflow:auto;}
+  .req-list-table thead{position:sticky; top:0; z-index:5;}
+  .req-list-table thead th{position:static;}
+  .req-list-table thead tr:last-child th{box-shadow:inset 0 -1px 0 rgba(242,169,28,.35);}
+  /* แบ่งหน้า (ข้อมูลโหลดมาครบแล้ว แบ่งแสดงในหน้าเว็บ) */
+  .list-pager{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:12px; font-size:12.5px; color:var(--concrete-400);}
+  .list-pager[hidden]{display:none;}
+  .list-pager .pg-btns{display:flex; align-items:center; gap:4px; flex-wrap:wrap;}
+  .list-pager button{min-width:32px; height:32px; padding:0 10px; border-radius:7px; cursor:pointer; font:inherit; font-size:12.5px;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14); color:var(--concrete-200);}
+  .list-pager button:hover:not(:disabled){border-color:var(--amber-500); color:var(--amber-500);}
+  .list-pager button.on{background:var(--amber-500); border-color:var(--amber-500); color:var(--navy-950); font-weight:600;}
+  .list-pager button:disabled{opacity:.4; cursor:default;}
+  .list-pager .pg-gap{padding:0 4px;}
   .req-list-table thead tr.group-row th{
     text-align:center; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.04em;
     color:var(--navy-950); background:var(--amber-500); border-right:1px solid rgba(0,0,0,.15);
@@ -650,6 +665,8 @@
     body.printing #printArea{display:block !important;}
   }
 </style>
+<!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
+<script src="session-guard.js"></script>
 </head>
 <body>
 
@@ -808,7 +825,7 @@
             </div>
           </div>
           <p class="flt-count" id="fltCount"></p>
-          <div class="table-responsive">
+          <div class="table-responsive req-list-wrap" id="reqListWrap">
             <table class="req-list-table">
               <thead>
                 <tr class="group-row">
@@ -829,6 +846,7 @@
             </table>
             <p class="empty-msg" id="noRequestMsg">ยังไม่มีรายการร้องขอของบริษัทนี้</p>
           </div>
+          <nav class="list-pager" id="listPager" hidden aria-label="แบ่งหน้ารายการร้องขอ"></nav>
         </div>
       </section>
     </main>
@@ -1305,10 +1323,11 @@
   }
   // แก้ไขคำร้องเดิม (server เช็คซ้ำว่ายังไม่ถูกยกเลิก / ยังไม่มีรายการตอบกลับ)
   async function updateRequestToDB(idUrs, requestData){
+    // origin: ถ้าคำร้องส่งไปแล้ว server จะสร้างข้อความ "แก้ไข" + แจ้งเตือน Telegram (ลิงก์ตอบกลับในข้อความใช้ origin นี้)
     const res = await fetch(`/api/urs/requests/${encodeURIComponent(idUrs)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: requestBody(requestData)
+      body: JSON.stringify({ ...JSON.parse(requestBody(requestData)), origin: location.origin })
     });
     const data = await res.json();
     if(!data.success) throw new Error(data.message || 'แก้ไขคำร้องไม่สำเร็จ');
@@ -2108,12 +2127,12 @@
       if(editingIdUrs){
         const idUrs = editingIdUrs;
         const result = await updateRequestToDB(idUrs, data);
-        showToast(`✅ แก้ไขคำขอ ${data.requestNo} สำเร็จ`);
+        showToast(`✅ แก้ไขคำขอ ${data.requestNo} สำเร็จ${result.sent ? notifyNote(result) : ''}`);
         await resetForm(true);
         switchPage('listPage', 'navListBtn');
         await loadRequestList();
         // ส่งไปแล้ว -> เปิดลิงก์ตอบกลับพร้อมข้อความใหม่ ให้คัดลอกไปแจ้งในกลุ่ม LINE ว่ามีการแก้ไข
-        if(result.sent) openLinkModal(idUrs, true);
+        if(result.sent) openLinkModal(idUrs, true, result.message);
       } else {
         const saved = await saveRequestToDB(data);
         showToast(`✅ บันทึกคำขอ ${data.requestNo} สำเร็จ`);
@@ -2122,8 +2141,7 @@
         if(companies.some(c => Number(c.id) === Number(data.companyId))) $('listCompanySelect').value = String(data.companyId);
         switchPage('listPage', 'navListBtn');
         await loadRequestList();
-        const newRow = document.querySelector(`[data-print-urs="${saved.idUrs}"]`);
-        if(newRow) newRow.closest('tr').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        showDocInList(saved.idUrs);   // เอกสารใหม่อยู่ท้ายรายการ -> ไปหน้าที่มีเอกสารนั้น
       }
     } catch(err){
       showToast('❌ ' + (err.message || 'เกิดข้อผิดพลาดในการบันทึก'));
@@ -2401,6 +2419,7 @@
       cancelledRows = [];
       renderDashboard([], [], []);
       $('statusBar').innerHTML = '';
+      $('listPager').hidden = true;
       msg.innerHTML = 'ยังไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง<br><button type="button" class="btn btn-secondary list-retry" data-retry-list>ลองใหม่</button>';
       return;
     } finally {
@@ -2512,9 +2531,66 @@
     }).join('');
   }
 
-  function renderRequestList(){
+  /* ---------- แบ่งหน้าแสดงผล (ข้อมูลโหลดมาครบรอบเดียว แบ่งแสดงทีละประมาณ PAGE_SIZE แถว) ---------- */
+  // ไม่ตัดเอกสารเดียวกันไว้คนละหน้า (ปุ่มจัดการอยู่แถวแรกของเอกสาร) -> หน้าหนึ่งอาจเกิน PAGE_SIZE ได้เมื่อเอกสารสุดท้ายมีหลายเมล็ด
+  const PAGE_SIZE = 10;   // แถวที่มีคำตอบกลับสูง 2-3 บรรทัด — 10 แถวพอดีกรอบตารางบนจอทั่วไป
+  let listPage = 1;
+  let listViewKey = '';   // บริษัท + การ์ด + ตัวกรอง — เปลี่ยนเมื่อไหร่กลับไปหน้า 1 (โหลดใหม่ด้วยเงื่อนไขเดิม = อยู่หน้าเดิม)
+
+  function paginateByDoc(rows){
+    const pages = [];
+    let cur = [];
+    for(let i = 0; i < rows.length;){
+      let j = i;
+      while(j < rows.length && rows[j].idUrs === rows[i].idUrs) j++;   // [i, j) = แถวของเอกสารเดียวกัน
+      if(cur.length && cur.length + (j - i) > PAGE_SIZE){ pages.push(cur); cur = []; }
+      cur = cur.concat(rows.slice(i, j));
+      i = j;
+    }
+    if(cur.length) pages.push(cur);
+    return pages;
+  }
+
+  function currentViewKey(){
+    return JSON.stringify([$('listCompanySelect').value, statusFilter,
+      LIST_FILTERS.map(f => $(f.on).checked ? $(f.ctl).value.trim() : '')]);
+  }
+
+  // เลขหน้าแบบย่อ: 1 … 4 5 6 … 12
+  function pagerHtml(page, total, from, to, count){
+    const nums = [];
+    for(let p = 1; p <= total; p++){
+      if(p === 1 || p === total || Math.abs(p - page) <= 1) nums.push(p);
+      else if(nums[nums.length - 1] !== '…') nums.push('…');
+    }
+    return `
+      <span>แสดงรายการที่ <b>${from}–${to}</b> จาก ${count} รายการ</span>
+      <div class="pg-btns">
+        <button type="button" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''} aria-label="หน้าก่อนหน้า">‹ ก่อนหน้า</button>
+        ${nums.map(n => n === '…' ? '<span class="pg-gap">…</span>'
+          : `<button type="button" data-page="${n}" class="${n === page ? 'on' : ''}" ${n === page ? 'aria-current="page"' : ''}>${n}</button>`).join('')}
+        <button type="button" data-page="${page + 1}" ${page >= total ? 'disabled' : ''} aria-label="หน้าถัดไป">ถัดไป ›</button>
+      </div>`;
+  }
+
+  function goListPage(p){
+    listPage = p;
+    renderRequestList();
+    $('reqListWrap').scrollTop = 0;
+  }
+
+  // ไปหน้าที่มีเอกสารนี้ แล้วเลื่อนให้เห็น (เช่น หลังบันทึกเอกสารใหม่ ซึ่งอยู่ท้ายรายการ)
+  function showDocInList(idUrs){
+    renderRequestList({ focusIdUrs: idUrs });
+    const btn = document.querySelector(`[data-print-urs="${idUrs}"]`);
+    if(btn) btn.closest('tr').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function renderRequestList(opts = {}){
     const tbody = $('requestListBody');
     const msg = $('noRequestMsg');
+    const pager = $('listPager');
+    pager.hidden = true;
     if(requestRows.length === 0 && doneRows.length === 0 && cancelledRows.length === 0){
       renderDashboard([], [], []);
       tbody.innerHTML = '';
@@ -2547,9 +2623,26 @@
     }
     msg.style.display = 'none';
 
+    // แบ่งหน้า: เงื่อนไขการแสดงเปลี่ยน -> หน้า 1 / ขอไปที่เอกสาร -> หน้าที่มีเอกสารนั้น / ไม่งั้นคงหน้าเดิม (ไม่เกินหน้าสุดท้าย)
+    const pages = paginateByDoc(rows);
+    const viewKey = currentViewKey();
+    if(viewKey !== listViewKey){ listPage = 1; listViewKey = viewKey; }
+    if(opts.focusIdUrs !== undefined){
+      const hit = pages.findIndex(pg => pg.some(r => r.idUrs === opts.focusIdUrs));
+      if(hit !== -1) listPage = hit + 1;
+    }
+    listPage = Math.min(Math.max(listPage, 1), pages.length);
+    const offset = pages.slice(0, listPage - 1).reduce((n, pg) => n + pg.length, 0);
+    const pageRows = pages[listPage - 1];
+    if(pages.length > 1){
+      pager.innerHTML = pagerHtml(listPage, pages.length, offset + 1, offset + pageRows.length, rows.length);
+      pager.hidden = false;
+    }
+
     // แถว = เมล็ด 1 รายการ (Dt) / เอกสารเดียวกันอยู่ติดกัน: แถวแรกแสดงวันที่+เลขที่เด่น แถวถัดไปสีจาง และสลับสีพื้นทีละเอกสาร
     let docIndex = -1, lastIdUrs = null;
-    tbody.innerHTML = rows.map((r, idx) => {
+    tbody.innerHTML = pageRows.map((r, i) => {
+      const idx = offset + i;   // ลำดับต่อเนื่องข้ามหน้า
       const first = r.idUrs !== lastIdUrs;
       if(first){ docIndex++; lastIdUrs = r.idUrs; }
       const cancelled = r.stReq === ST_CANCEL;
@@ -2597,8 +2690,20 @@
      ส่งคำร้อง + ลิงก์ตอบกลับ (คัดลอกไปวางใน LINE)
      ส่งทั้งเอกสารครั้งเดียว (ทุกรายการที่ยังเป็น Draft) / บริษัทต้นทางตอบกลับทีละรายการผ่านลิงก์
   ================================================================== */
+  // ผลการแจ้งเตือน Telegram ตามที่ server ยืนยัน (notified) — ไม่มี field นี้ = server ยังรันโค้ดเก่า (ไม่ได้ insert LineNotify)
+  function notifyNote(data){
+    if(data && data.notified === true) return ' (แจ้งเตือน Telegram แล้ว)';
+    if(data && data.notified === false) return '';
+    return ' — ⚠ ยังไม่ได้แจ้งเตือน Telegram: server ยังเป็นเวอร์ชันเก่า กรุณาแจ้งผู้ดูแลระบบให้ restart server';
+  }
+
   async function sendRequestToDB(idUrs){
-    const res = await fetch(`/api/urs/requests/${encodeURIComponent(idUrs)}/send`, { method: 'POST' });
+    // server สร้างข้อความ + แจ้งเตือน Telegram (LineNotify) ใน transaction เดียวกับการส่ง — origin ใช้สร้างลิงก์ตอบกลับในข้อความ
+    const res = await fetch(`/api/urs/requests/${encodeURIComponent(idUrs)}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ origin: location.origin })
+    });
     // server ตอบกลับเป็น HTML (เช่น server ยังเป็นโค้ดเก่า ไม่มี endpoint นี้) -> แจ้งให้ชัด แทน error JSON
     if(!(res.headers.get('content-type') || '').includes('application/json')){
       throw new Error(`ส่งคำร้องไม่สำเร็จ (server ตอบกลับ ${res.status}) — กรุณาแจ้งผู้ดูแลระบบให้ restart server`);
@@ -2669,8 +2774,9 @@
     const idUrs = Number(btn.dataset.urs);
     btn.disabled = true;
     btn.textContent = 'กำลังส่ง…';
+    let sentData;
     try{
-      await sendRequestToDB(idUrs);
+      sentData = await sendRequestToDB(idUrs);
     } catch(err){
       console.error('ส่งคำร้องไม่สำเร็จ:', err);
       showToast('❌ ' + err.message);
@@ -2678,14 +2784,16 @@
       btn.textContent = 'ยืนยันส่งคำร้อง';
       return;
     }
-    showToast('✅ ส่งคำร้องแล้ว');
+    showToast('✅ ส่งคำร้องแล้ว' + notifyNote(sentData));
     await loadRequestList();
-    openLinkModal(idUrs);
+    openLinkModal(idUrs, false, sentData.message);
   }
 
   // ขั้นที่ 2: ลิงก์ + ข้อความ ให้คัดลอกไปวางในกลุ่ม LINE เอง (ไม่ใช้ปุ่มแชร์ เพราะบนคอมจะเปิด LINE แบบเว็บ ผู้ใช้ไม่คุ้น)
   // edited = เพิ่งแก้ไขคำร้องที่ส่งไปแล้ว -> ข้อความขึ้นต้นว่า "แก้ไข" ให้แจ้งในกลุ่ม LINE อีกครั้ง
-  function openLinkModal(idUrs, edited){
+  // serverMsg = ข้อความที่ server สร้างและแจ้ง Telegram ไปแล้ว (หลังส่ง / แก้ไข) — ใช้ตัวนี้ให้ตรงกับ Telegram ทุกตัวอักษร
+  //   กดดูลิงก์ซ้ำ (ไม่มี serverMsg) -> สร้างจาก replyMessage() ซึ่งรูปแบบเดียวกับ buildUrsMessage() ใน server.js
+  function openLinkModal(idUrs, edited, serverMsg){
     const doc = docSummary(idUrs);
     if(!doc) return;
     if(!doc.rows.some(r => r.stReq)){
@@ -2693,11 +2801,11 @@
       return;
     }
     const link = replyLink(idUrs);
-    const msg = replyMessage(doc, edited);
+    const msg = serverMsg || replyMessage(doc, edited);
     $('sendModalTitle').textContent = `ลิงก์ตอบกลับ ${doc.head.DocReq}`;
     $('sendModalBody').innerHTML = `
       ${edited ? '<p class="send-note"><b>คำร้องนี้ถูกแก้ไขหลังส่งไปแล้ว</b> — กรุณาคัดลอกข้อความด้านล่างไปแจ้งในกลุ่ม LINE อีกครั้ง (ลิงก์ตอบกลับยังเป็นลิงก์เดิม)</p>' : ''}
-      <p class="send-note">ส่งลิงก์นี้ให้บริษัทต้นทาง (${esc(shortCompName(doc.head.CompNameTarget))}) เพื่อเข้ามาตอบกลับสถานะ — ผู้ตอบต้อง login เข้าระบบ WIM ก่อน</p>
+      <p class="send-note">ส่งลิงก์นี้ให้บริษัทต้นทาง (${esc(shortCompName(doc.head.CompNameTarget))}) เพื่อเข้ามาตอบกลับสถานะ </p>
       <div class="link-box">
         <input type="text" id="replyLinkInput" readonly value="${esc(link)}">
         <button type="button" class="btn btn-secondary" data-copy="replyLinkInput">คัดลอกลิงก์</button>
@@ -2800,6 +2908,11 @@
       const key = card.dataset.dash === 'all' ? '' : card.dataset.dash;
       statusFilter = statusFilter === key ? '' : key;
       renderRequestList();
+    });
+    // แบ่งหน้า
+    $('listPager').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-page]');
+      if(btn && !btn.disabled) goListPage(Number(btn.dataset.page));
     });
     $('fltClearBtn').addEventListener('click', () => {
       statusFilter = '';

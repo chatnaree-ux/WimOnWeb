@@ -1784,12 +1784,20 @@ app.put('/api/urs/requests/:idUrs', requireMenu('urs_request'), async (req, res)
       }
     }
 
+    // ส่งไปแล้ว -> แจ้งเตือน Telegram ว่ามีการแก้ไข (ข้อความเดียวกับที่ให้คัดลอกไปวางใน LINE) — insert ไม่สำเร็จ = ยกเลิกการแก้ไขทั้งหมด
+    let message = null;
+    if (sent) {
+      message = await buildUrsMessage(transaction, idUrs, ursReplyOrigin(req), true);
+      await queueUrsNotify(transaction, message, idPs);
+    }
+
     await transaction.commit();
-    res.json({ success: true, idUrs, sent });
+    // notified = server insert LineNotify สำเร็จจริง (หน้าเว็บใช้ตัวนี้แจ้งผู้ใช้ ไม่เดาเอง)
+    res.json({ success: true, idUrs, sent, message, notified: sent });
   } catch (err) {
     if (transaction) { try { await transaction.rollback(); } catch (rollbackErr) {} }
     console.error('URS edit request error:', err);
-    res.status(500).json({ success: false, message: 'แก้ไขคำร้องไม่สำเร็จ', detail: err.message });
+    res.status(500).json({ success: false, message: 'แก้ไขคำร้องไม่สำเร็จ (รวมถึงการแจ้งเตือน Telegram) — กรุณาลองใหม่อีกครั้ง', detail: err.message });
   }
 });
 
@@ -2051,22 +2059,93 @@ function ursReplyStatus(r) {
   return r.NotSentNote ? URS_ST_NOT_READY : URS_ST_READY;
 }
 
-// ---------- ส่งคำร้อง: Draft ทุกรายการในเอกสาร -> ส่งคำร้องแล้ว + เก็บผู้ส่ง / เวลาส่ง ----------
-// ส่งซ้ำได้ (กดเพื่อขอลิงก์อีกครั้ง) — รายการที่ส่ง/ตอบกลับไปแล้วไม่ถูกแตะ
+// ---------- ข้อความแจ้งคำร้อง (ใช้ทั้งคัดลอกไปวางใน LINE และแจ้งเตือน Telegram ผ่าน LineNotify) ----------
+// สร้างที่ server ที่เดียว ให้ข้อความ Telegram กับข้อความที่ผู้ใช้คัดลอกตรงกันเสมอ — รูปแบบต้องตรงกับ replyMessage() ใน urs-request.html
+const URS_NOTIFY_LINE_ID = 189;   // devsk.LineNotify.lineID ของกลุ่มแจ้งเตือนคำร้องเร่งด่วน
+const ursFmtDateThai = (iso) => {
+  if (!iso) return '-';
+  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y + 543}`;
+};
+const ursFmtNum = (v) => v === null || v === undefined ? '-'
+  : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// origin ของลิงก์ตอบกลับ: ใช้ของหน้าเว็บที่ส่งมา (ตรงกับ location.origin) ถ้ารูปแบบถูก ไม่งั้นใช้ host ของ request
+function ursReplyOrigin(req) {
+  const o = typeof req.body.origin === 'string' ? req.body.origin.trim() : '';
+  return /^https?:\/\/[^\s/?#]+$/i.test(o) ? o : `${req.protocol}://${req.get('host')}`;
+}
+
+// อ่านข้อมูลเอกสารภายใน transaction เดียวกัน (เห็นข้อมูลที่เพิ่งแก้ / เพิ่งส่ง) แล้วสร้างข้อความ
+async function buildUrsMessage(transaction, idUrs, origin, edited) {
+  const head = await new sql.Request(transaction)
+    .input('idUrs', sql.Int, idUrs)
+    .query(
+      `SELECT mt.DocReq, mt.ReasonReq, c.CompName, ct.CompName AS CompNameTarget, ps.PsName AS PsNameReq
+       FROM GR_Group.devsk.SeedUrgentReqMt mt
+       LEFT JOIN PchInvAndProject.dbo.dCompany c ON mt.idCompReq = c.idComp
+       LEFT JOIN PchInvAndProject.dbo.dCompany ct ON mt.idCompTarget = ct.idComp
+       OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = mt.idPsReq) ps
+       WHERE mt.idUrs = @idUrs`
+    );
+  const items = await new sql.Request(transaction)
+    .input('idUrs', sql.Int, idUrs)
+    .input('stCancel', sql.VarChar(1), URS_ST_CANCEL)
+    .query(
+      `SELECT i.InvName, dt.AmountReq, u.UnitName, CONVERT(char(10), dt.DateNeeded, 23) AS DateNeeded
+       FROM GR_Group.devsk.SeedUrgentReqDt dt
+       LEFT JOIN devsk.dInventoryMain i ON dt.idInvMain = i.idInvMain
+       LEFT JOIN devsk.dInvUnit u ON dt.idUnit = u.idUnit
+       WHERE dt.idUrs = @idUrs AND ISNULL(dt.stReq, '') <> @stCancel
+       ORDER BY dt.idUrsDt`
+    );
+  const h = head.recordset[0] || {};
+  const lines = items.recordset.map((r, i) =>
+    `${i + 1}. ${r.InvName || '-'} — ${ursFmtNum(r.AmountReq)} ${r.UnitName || ''} (ต้องการ ${ursFmtDateThai(r.DateNeeded)})`);
+  return [
+    edited ? `✏️ แก้ไขคำร้องขอเมล็ดพันธุ์เร่งด่วน ${h.DocReq} (ข้อมูลล่าสุด)` : `📌 คำร้องขอเมล็ดพันธุ์เร่งด่วน ${h.DocReq}`,
+    `จาก: ${h.CompName || '-'}`,
+    `ถึง: ${h.CompNameTarget || '-'}`,
+    `ผู้ร้องขอ: ${h.PsNameReq || '-'}`,
+    `เหตุผล: ${h.ReasonReq || '-'}`,
+    '',
+    ...lines,
+    '',
+    `กรุณาตอบกลับสถานะ (พร้อมส่ง / ไม่พร้อมส่ง) ที่ลิงก์นี้:`,
+    `${origin}/urs-reply.html?id=${encodeURIComponent(idUrs)}`
+  ].join('\n');
+}
+
+// แจ้งเตือน Telegram: insert ลงคิว devsk.LineNotify (ระบบส่งแจ้งเตือนอ่านคิวไปส่งเอง) — อยู่ใน transaction เดียวกับการส่ง/แก้ไข
+// insert ไม่สำเร็จ = throw -> ผู้เรียก rollback ทั้งหมด (การส่ง/แก้ไขคำร้องไม่ถูกบันทึก)
+async function queueUrsNotify(transaction, message, idPs) {
+  await new sql.Request(transaction)
+    .input('lineID', sql.Int, URS_NOTIFY_LINE_ID)
+    .input('msg', sql.NVarChar(sql.MAX), message)
+    .input('idPs', sql.Int, idPs)
+    .query(`INSERT INTO GR_Group.devsk.LineNotify (lineID, Messages, idPsTs) VALUES (@lineID, @msg, @idPs)`);
+}
+
+// ---------- ส่งคำร้อง: Draft ทุกรายการในเอกสาร -> ส่งคำร้องแล้ว + เก็บผู้ส่ง / เวลาส่ง + แจ้งเตือน Telegram ----------
+// ส่งซ้ำได้ (กดเพื่อขอลิงก์อีกครั้ง) — รายการที่ส่ง/ตอบกลับไปแล้วไม่ถูกแตะ / แจ้งเตือนเฉพาะครั้งที่มีรายการถูกส่งจริง
+// คืน message = ข้อความเดียวกับที่แจ้ง Telegram ให้หน้าเว็บแสดงให้คัดลอกไปวางใน LINE
 app.post('/api/urs/requests/:idUrs/send', requireMenu('urs_request'), async (req, res) => {
   const idPs = req.session.user && parseInt(req.session.user.idPs, 10);
   if (!idPs) return res.status(401).json({ success: false, message: 'หมดเวลาเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่' });
   const idUrs = parseInt(req.params.idUrs, 10);
   if (!idUrs) return res.status(400).json({ success: false, message: 'idUrs ไม่ถูกต้อง' });
 
+  let transaction;
   try {
     const pool = await poolPromise;
-    const result = await pool.request()
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const result = await new sql.Request(transaction)
       .input('idUrs', sql.Int, idUrs)
       .input('idPs', sql.Int, idPs)
       .input('stSent', sql.VarChar(1), URS_ST_SENT)
       .query(
-        `IF NOT EXISTS (SELECT 1 FROM GR_Group.devsk.SeedUrgentReqMt WHERE idUrs = @idUrs AND idPsCancel IS NULL)
+        `IF NOT EXISTS (SELECT 1 FROM GR_Group.devsk.SeedUrgentReqMt WITH (UPDLOCK, HOLDLOCK) WHERE idUrs = @idUrs AND idPsCancel IS NULL)
            SELECT CAST(-1 AS INT) AS sentCount;
          ELSE
          BEGIN
@@ -2077,11 +2156,18 @@ app.post('/api/urs/requests/:idUrs/send', requireMenu('urs_request'), async (req
          END`
       );
     const sentCount = result.recordset[0].sentCount;
-    if (sentCount === -1) return res.status(404).json({ success: false, message: 'ไม่พบคำร้องนี้ หรือคำร้องถูกยกเลิกแล้ว' });
-    res.json({ success: true, sentCount });
+    if (sentCount === -1) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'ไม่พบคำร้องนี้ หรือคำร้องถูกยกเลิกแล้ว' });
+    }
+    const message = await buildUrsMessage(transaction, idUrs, ursReplyOrigin(req), false);
+    if (sentCount > 0) await queueUrsNotify(transaction, message, idPs);
+    await transaction.commit();
+    res.json({ success: true, sentCount, message, notified: sentCount > 0 });
   } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (rollbackErr) {} }
     console.error('URS send error:', err);
-    res.status(500).json({ success: false, message: 'ส่งคำร้องไม่สำเร็จ', detail: err.message });
+    res.status(500).json({ success: false, message: 'ส่งคำร้องไม่สำเร็จ (รวมถึงการแจ้งเตือน Telegram) — กรุณาลองใหม่อีกครั้ง', detail: err.message });
   }
 });
 

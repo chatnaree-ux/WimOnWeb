@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIM — เข้าสู่ระบบแล้ว</title>
+<link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
+<!-- หน้าปลายทางหลัง login ใหม่จากกล่อง "หมดเวลาเข้าสู่ระบบ" (session-guard.js): แจ้งแท็บเดิมแล้วปิดตัวเอง -->
+<style>
+  :root{color-scheme:dark;}
+  body{margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px;
+    background:#12161c; color:#e8ecf1; font-family:'Inter','Sarabun',system-ui,sans-serif;}
+  .box{max-width:380px; text-align:center; background:#1c222b; border:1px solid rgba(255,255,255,.12);
+    border-top:3px solid #3ecf8e; border-radius:12px; padding:26px 22px;}
+  h1{margin:0 0 8px; font-size:18px; color:#8fe3bd;}
+  p{margin:0; font-size:14px; line-height:1.6; color:#c3cad4;}
+</style>
+</head>
+<body>
+  <div class="box">
+    <h1>✅ เข้าสู่ระบบแล้ว</h1>
+    <p>ปิดแท็บนี้ แล้วกลับไปที่หน้าเดิมเพื่อกดบันทึกอีกครั้ง<br>(ข้อมูลที่กรอกไว้ยังอยู่)</p>
+  </div>
+<script>
+  try { if (window.opener) window.opener.postMessage({ type: 'wim-session-ok' }, location.origin); } catch (e) {}
+  setTimeout(() => { try { window.close(); } catch (e) {} }, 1500);
+</script>
+</body>
+</html>
