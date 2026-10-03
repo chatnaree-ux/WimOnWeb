@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WIM — รายงานการรับคืนสินค้า</title>
+<link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -98,21 +99,23 @@
 
   .sidebar-foot{padding:16px; border-top:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:10px;}
   .user-chip{
-    display:flex; align-items:center; gap:9px;
-    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-200);
-    border:1px solid rgba(255,255,255,.1); padding:9px 12px; border-radius:9px;
-    background:rgba(255,255,255,.02);
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:700; color:#ffffff;
+    border:1px solid rgba(255,255,255,.15); padding:11px 14px; border-radius:9px;
+    background:rgba(255,255,255,.04);
   }
   .user-chip .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-green); box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; flex-shrink:0;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
   #userLabel{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .logout-btn{
-    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.05em;
-    color:var(--concrete-400); background:transparent; border:1px solid rgba(255,255,255,.15);
-    border-radius:8px; padding:9px 14px; cursor:pointer; text-transform:uppercase;
-    transition:border-color .15s, color .15s; width:100%;
+    font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.05em;
+    color:#ffffff; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.2);
+    border-radius:8px; padding:11px 14px; cursor:pointer; text-transform:uppercase;
+    transition:border-color .15s, color .15s, background .15s; width:100%;
+    text-align:center; text-decoration:none;
+    display:flex; align-items:center; justify-content:center; gap:8px;
   }
-  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75;}
+  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75; background:rgba(255,60,60,.08);}
 
   /* ---------- MAIN AREA ---------- */
   .main-wrap{flex:1; margin-left:var(--sidebar-w); min-width:0;}
@@ -128,7 +131,8 @@
   }
   .hamburger svg{width:18px; height:18px;}
 
-  main{max-width:1320px; margin:0 auto; padding:clamp(28px,4vw,48px) clamp(20px,4vw,48px) 70px;}
+  /* ตารางรายงานมีหลายคอลัมน์ — ไม่จำกัดความกว้าง ให้ขยายเต็มจอเมื่อจอกว้าง */
+  main{max-width:none; margin:0 auto; padding:clamp(28px,4vw,48px) clamp(20px,4vw,48px) 70px;}
 
   .eyebrow{
     font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em;
@@ -250,8 +254,25 @@
   .result-panel{
     background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
     border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
-    overflow:hidden;
+    overflow:hidden; position:relative;
   }
+  .result-panel.is-loading{min-height:300px;}
+
+  /* Loading (แบบเดียวกับหน้าร้องขอเมล็ดพันธุ์): คลุมกล่องผลลัพธ์ + โลโก้ + วงแหวนหมุน + ข้อความ Loading . . . */
+  .list-loading{position:absolute; inset:0; z-index:5; display:flex; align-items:flex-start; justify-content:center;
+    padding-top:min(110px, 14vh); border-radius:inherit; background:rgba(16,20,26,.72); backdrop-filter:blur(2px);}
+  .list-loading[hidden]{display:none;}
+  .ld-box{display:flex; flex-direction:column; align-items:center; gap:8px; position:sticky; top:120px;}
+  .ld-ring{position:relative; width:66px; height:66px; display:flex; align-items:center; justify-content:center;}
+  .ld-ring::before{content:""; position:absolute; inset:0; border-radius:50%;
+    border:2.5px solid rgba(242,169,28,.15); border-top-color:var(--amber-500); border-right-color:var(--amber-500);
+    animation:ldSpin .9s linear infinite;}
+  .ld-logo{width:48px; height:48px; filter:drop-shadow(0 4px 10px rgba(242,120,28,.3));}
+  .ld-text{font-family:'Inter',sans-serif; font-size:14px; font-weight:500; letter-spacing:.32em; padding-left:.32em; color:#f5c66b;}
+  .ld-sub{font-size:12.5px; color:var(--concrete-400);}
+  @keyframes ldSpin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){ .ld-ring::before{animation-duration:2.5s;} }
+
   .result-head{
     display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
     padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.08);
@@ -305,10 +326,7 @@
     th, td{white-space:normal !important; word-break:break-word; padding:5px 6px !important;}
   }
 
-  footer{
-    text-align:center; padding:24px; color:var(--steel-500);
-    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.05em;
-  }
+  footer{text-align:center; padding:20px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500);}
 
   /* ---------- เมนูที่ไม่มีสิทธิ์เข้าถึง ---------- */
   .menu-locked{opacity:.4; cursor:not-allowed !important;}
@@ -329,82 +347,8 @@
 
 <div class="app-shell">
 
-  <!-- ---------- SIDEBAR ---------- -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-head">
-      <div class="brand-mark">W</div>
-      <div class="brand-text">WIM<small>WAREHOUSE &amp; INVENTORY MANAGEMENT</small></div>
-    </div>
-
-    <nav class="side-nav">
-      <div class="nav-section-label">เมนูหลัก</div>
-
-      <div class="nav-group" id="seedGroup">
-        <button class="nav-item nav-parent" id="seedToggle" type="button" aria-expanded="false" aria-controls="seedSubmenu">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path>
-              <path d="M12 22v-9"></path>
-            </svg>
-          </span>
-          <span class="nav-label">การจัดการเมล็ดพันธุ์วัตถุดิบ</span>
-          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-        <div class="nav-submenu" id="seedSubmenu">
-          <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="/coating.html" data-menu="coating">การลงเวลาเคลือบเมล็ด</a>
-            <a class="nav-subitem" href="/moisture.html" data-menu="moisture">การลงเวลาลดความชื้น</a>
-          </div>
-        </div>
-      </div>
-
-      <div class="nav-group open" id="reportGroup">
-        <button class="nav-item nav-parent" id="reportToggle" type="button" aria-expanded="true" aria-controls="reportSubmenu">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 3v18h18"></path>
-              <path d="M7 15l4-5 3 3 5-7"></path>
-            </svg>
-          </span>
-          <span class="nav-label">รายงานสต๊อก</span>
-          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-
-        <div class="nav-submenu" id="reportSubmenu">
-          <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="#" data-menu="stock_report_onhand">รายงานสต๊อกคงคลัง</a>
-            <a class="nav-subitem" href="/stockcard.html" data-menu="stockcard_lot">Stock Card (รายล็อต)</a>
-            <a class="nav-subitem" href="/stockcard-item.html" data-menu="stockcard_item">Stock Card (รายสินค้า)</a>
-            <a class="nav-subitem" href="#" data-menu="stock_movement">รายงานความเคลื่อนไหวสต๊อก</a>
-            <a class="nav-subitem active" href="/stockreturn.html" data-menu="stock_return">รายงานสินค้ารับคืน</a>
-          </div>
-        </div>
-      </div>
-
-      <div class="nav-group" id="systemGroup">
-        <button class="nav-item nav-parent" id="systemToggle" type="button" aria-expanded="false" aria-controls="systemSubmenu">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-          </span>
-          <span class="nav-label">ระบบ</span>
-          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
-        <div class="nav-submenu" id="systemSubmenu">
-          <div class="nav-submenu-inner">
-            <a class="nav-subitem" href="/permissions.html" data-menu="menu_permission">กำหนดสิทธิ์การใช้งาน</a>
-          </div>
-        </div>
-      </div>
-    </nav>
-
-    <div class="sidebar-foot">
-      <div class="user-chip"><span class="dot"></span><span id="userLabel">กำลังโหลด…</span></div>
-      <button class="logout-btn" id="logoutBtn">ออกจากระบบ</button>
-    </div>
-  </aside>
+  <!-- ---------- SIDEBAR (โหลดไฟล์กลางมาแปะอัตโนมัติ) ---------- -->
+  <aside class="sidebar" id="sidebar"></aside>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -538,6 +482,14 @@
 
       <!-- ---------- RESULT PANEL ---------- -->
       <div class="result-panel" id="resultPanel">
+        <!-- แสดงระหว่างดึงข้อมูลรายงาน -->
+        <div class="list-loading" id="listLoading" hidden role="status" aria-live="polite">
+          <div class="ld-box">
+            <div class="ld-ring"><img src="images/WIM_LoadingLogo.png" alt="" class="ld-logo" width="48" height="48"></div>
+            <div class="ld-text" aria-label="กำลังโหลด">Loading . . .</div>
+            <div class="ld-sub">กำลังดึงข้อมูลรายงานการรับคืนสินค้า</div>
+          </div>
+        </div>
         <div class="result-head">
           <div class="title">รายการรับคืนสินค้า</div>
         </div>
@@ -557,38 +509,93 @@
 </div>
 
 <script>
-  // ---------- ตรวจสอบว่า login มาแล้วหรือยัง ----------
-  const raw = sessionStorage.getItem('wim_user');
-  if (!raw) {
-    window.location.href = '/index.html';
-  } else {
-    const user = JSON.parse(raw);
-    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
-    const displayName = fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
-    const userLabelEl = document.getElementById('userLabel');
-    if (userLabelEl) userLabelEl.textContent = displayName;
+  // ==================================================================
+  // ---------- โหลด Sidebar จากไฟล์กลาง (sidebar.html) ----------
+  // ==================================================================
+  async function loadSidebar() {
+    try {
+      const res = await fetch('/sidebar.html');
+      const html = await res.text();
+      document.getElementById('sidebar').innerHTML = html;
+
+      initSidebarEvents();
+      initAuthAndPermissions();
+      initActiveSidebarMenu();
+    } catch (err) {
+      console.error('โหลด Sidebar ไม่สำเร็จ:', err);
+    }
   }
 
-  document.getElementById('logoutBtn').addEventListener('click', () => {
-    sessionStorage.removeItem('wim_user');
-    window.location.href = '/index.html';
-  });
+  // ---------- ตรวจสอบการ Login และจัดการแสดงชื่อผู้ใช้งาน ----------
+  function initAuthAndPermissions() {
+    const raw = sessionStorage.getItem('wim_user');
+    if (!raw) {
+      window.location.href = '/index.html';
+      return;
+    }
+    const user = JSON.parse(raw);
+    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
+    const displayName = user.PsName || fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
 
-  // ---------- accordion เมนูย่อย ----------
-  ['seed', 'report', 'system'].forEach(key => {
-    const toggle = document.getElementById(key + 'Toggle');
-    const group = document.getElementById(key + 'Group');
-    toggle.addEventListener('click', () => {
-      const isOpen = group.classList.toggle('open');
-      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    const userLabelEl = document.getElementById('userLabel');
+    if (userLabelEl) userLabelEl.textContent = displayName;
+
+    applyMenuPermissions(user.idPs);
+  }
+
+  // ---------- ตั้งค่า Mobile Drawer ----------
+  function initSidebarEvents() {
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    function closeSidebar(){ document.body.classList.remove('sidebar-open'); }
+    if (sidebarToggle && sidebarOverlay) {
+      sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
+      sidebarOverlay.addEventListener('click', closeSidebar);
+    }
+  }
+
+  // ---------- ไฮไลต์เมนูหน้าปัจจุบัน + Accordion (เปิดได้ทีละกลุ่ม) ----------
+  function initActiveSidebarMenu() {
+    const currentPath = window.location.pathname;
+
+    document.querySelectorAll(".nav-subitem").forEach((item) => {
+      if (item.getAttribute("href") === currentPath) {
+        item.classList.add("active");
+        const parentGroup = item.closest(".nav-group");
+        if (parentGroup) {
+          parentGroup.classList.add("open");
+          const parentToggle = parentGroup.querySelector(".nav-parent");
+          if (parentToggle) parentToggle.setAttribute("aria-expanded", "true");
+        }
+      }
     });
-  });
 
-  // ---------- sidebar drawer บนมือถือ ----------
-  const sidebarToggle = document.getElementById('sidebarToggle');
-  const sidebarOverlay = document.getElementById('sidebarOverlay');
-  sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
-  sidebarOverlay.addEventListener('click', () => document.body.classList.remove('sidebar-open'));
+    const sideNav = document.querySelector(".side-nav");
+    if (sideNav && !sideNav.dataset.listenerAttached) {
+      sideNav.dataset.listenerAttached = "true";
+
+      sideNav.addEventListener("click", function (e) {
+        const button = e.target.closest(".nav-parent");
+        if (!button) return;
+
+        const parentGroup = button.closest(".nav-group");
+        if (!parentGroup) return;
+
+        const isOpen = parentGroup.classList.contains("open");
+
+        document.querySelectorAll(".nav-group").forEach((group) => {
+          group.classList.remove("open");
+          const toggle = group.querySelector(".nav-parent");
+          if (toggle) toggle.setAttribute("aria-expanded", "false");
+        });
+
+        if (!isOpen) {
+          parentGroup.classList.add("open");
+          button.setAttribute("aria-expanded", "true");
+        }
+      });
+    }
+  }
 
   // ==================================================================
   // ---------- ระบบตรวจสอบสิทธิ์การเข้าถึงเมนู ----------
@@ -607,12 +614,7 @@
       </div>`;
   }
 
-  async function applyMenuPermissions(){
-    let idPs = null;
-    try {
-      const userRaw = sessionStorage.getItem('wim_user');
-      if (userRaw) idPs = JSON.parse(userRaw).idPs;
-    } catch (e) {}
+  async function applyMenuPermissions(idPs){
     if (!idPs) return;
 
     try {
@@ -639,8 +641,6 @@
       console.error('เช็คสิทธิ์การใช้งานไม่สำเร็จ:', err);
     }
   }
-
-  applyMenuPermissions();
 
   // ==================================================================
   // ---------- โหลดรายชื่อบริษัทลง combobox ----------
@@ -686,7 +686,6 @@
       companySelect.appendChild(opt);
     }
   }
-  loadCompanies();
 
   // ==================================================================
   // ---------- โหมดวันที่ (วัน / เดือน / ปี) ----------
@@ -738,6 +737,8 @@
   // ---------- ดึงข้อมูลรายงาน / แสดงตาราง ----------
   // ==================================================================
   const viewBtn = document.getElementById('viewBtn');
+  const resultPanel = document.getElementById('resultPanel');
+  const listLoading = document.getElementById('listLoading');
   const resultArea = document.getElementById('resultArea');
   const resultCount = document.getElementById('resultCount');
   const printBtn = document.getElementById('printBtn');
@@ -748,6 +749,9 @@
     resultCount.textContent = '0';
     printBtn.disabled = true;
     exportBtn.disabled = true;
+  }
+  function escHtml(s){
+    return String(s).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
   }
   function renderError(message){
     resultArea.innerHTML = `<div class="state-box error">${message}</div>`;
@@ -897,19 +901,24 @@
 
     viewBtn.disabled = true;
     viewBtn.innerHTML = '<span class="spinner"></span> กำลังโหลด…';
-    renderState('กำลังดึงข้อมูล…');
+    renderState('');
+    resultPanel.classList.add('is-loading');
+    listLoading.hidden = false;
 
     try {
       const res = await fetch('/api/salereturn?' + params.toString());
       const data = await res.json();
       if (!data.success) {
-        renderError(data.message || 'ดึงข้อมูลไม่สำเร็จ');
+        const detail = data.detail ? `<div style="margin-top:8px; font-size:12px; opacity:.8;">สาเหตุ: ${escHtml(data.detail)}</div>` : '';
+        renderError(escHtml(data.message || 'ดึงข้อมูลไม่สำเร็จ') + detail);
         return;
       }
       renderTable(data.data);
     } catch (err) {
       renderError(err.message || 'เชื่อมต่อ server ไม่ได้ กรุณาลองใหม่');
     } finally {
+      listLoading.hidden = true;
+      resultPanel.classList.remove('is-loading');
       viewBtn.disabled = false;
       viewBtn.innerHTML = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -918,6 +927,12 @@
   }
 
   viewBtn.addEventListener('click', loadReport);
+
+  // ---------- เริ่มต้นการทำงานเมื่อโหลดหน้าเว็บเสร็จ ----------
+  document.addEventListener('DOMContentLoaded', () => {
+    loadSidebar();
+    loadCompanies();
+  });
 </script>
 
 </body>

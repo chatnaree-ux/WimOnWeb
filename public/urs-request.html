@@ -560,6 +560,9 @@
   .av-card.wip{border-style:dashed;}
   .av-card.wip .nm{margin-top:0;}
   .av-card .nm{margin-top:5px; font-size:14px; font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  /* วันที่คาดการณ์ผล (popup GR / FLO): มีผล PureSPA แล้ว = น้ำเงิน / ยังไม่มีผล = แดง */
+  .av-lot-table td.tone-blue{color:#5b9dff; font-weight:600;}
+  .av-lot-table td.tone-red{color:#ff6b5b; font-weight:600;}
   .wait-pill{display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; background:rgba(255,255,255,.07); color:var(--concrete-400); font-family:'Inter',sans-serif;}
   .stock-pill{display:inline-block; padding:1px 9px; border-radius:999px; font-size:11px; font-weight:700; font-family:'Inter',sans-serif;}
   .stock-pill.release{background:rgba(62,207,142,.14); color:var(--ok-green);}
@@ -809,12 +812,13 @@
             <table class="req-list-table">
               <thead>
                 <tr class="group-row">
-                  <th colspan="6" class="grp-manage">จัดการ</th>
-                  <th colspan="12">รายละเอียดการร้องขอ</th>
+                  <th colspan="5" class="grp-manage">จัดการ</th>
+                  <th colspan="13">รายละเอียดการร้องขอ</th>
                   <th colspan="4" class="grp-action">การดำเนินการ</th>
                 </tr>
                 <tr>
-                  <th class="ctr mg">ลำดับ</th><th class="ctr mg">เอกสาร</th><th class="ctr mg">ส่ง<br>คำร้อง</th><th class="ctr mg">แก้ไข</th><th class="ctr mg">ยกเลิก</th><th class="ctr mg">สถานะ</th>
+                  <th class="ctr mg">ลำดับ</th><th class="ctr mg">เอกสาร</th><th class="ctr mg">ส่ง<br>คำร้อง</th><th class="ctr mg">แก้ไข</th><th class="ctr mg">ยกเลิก</th>
+                  <th class="ctr">สถานะ</th>
                   <th>เลขที่ร้องขอ</th><th class="ctr">วันที่ร้องขอ</th><th class="ctr">ส่งคำร้องถึง<br>(บริษัทต้นทาง)</th><th class="ctr">วันที่ต้องการใช้งาน</th><th>ชื่อเมล็ดพันธุ์</th><th class="ctr">ประเภทพืช</th>
                   <th class="num">คงเหลือ (AV)</th><th class="num">คงเหลือ (GR)</th><th class="num">คงเหลือ (FLO)</th>
                   <th class="num">จำนวนที่ต้องการ</th><th class="ctr">หน่วย</th><th>ผู้ร้องขอ</th>
@@ -1792,7 +1796,8 @@
   // ---------- คอลัมน์ตาราง: t = ชนิดการแสดงผล, blk = บล็อกสี (grow = SPM, pure = SPA, etc = QA) ----------
   const ST_SPA_COLS = [
     { k: 'PureSPA',      l: '% Genetic<br>Purity',    t: 'num' },
-    { k: 'DateCheckRef', l: 'วันที่คาด<br>การณ์ผล',    t: 'date' }
+    // วันที่คาดการณ์ผล: มีผล % Genetic Purity (PureSPA) แล้ว = น้ำเงิน / ยังไม่มีผล = แดง
+    { k: 'DateCheckRef', l: 'วันที่คาด<br>การณ์ผล',    t: 'date', tone: (r) => r.PureSPA !== null && r.PureSPA !== undefined ? 'tone-blue' : 'tone-red' }
   ];
   const ST_QA_COLS = [
     { k: 'per_mc',               l: '%<br>MC-QA',            t: 'raw' },
@@ -2001,7 +2006,7 @@
       return `<td class="${cls}">${stCell(c, r[c.k])}</td>`;
     };
     const qcTd = (c, b, first, r) =>
-      `<td class="${c.t === 'note' ? 'note' : 'qc'} ${b.blk}${first ? ' blk-start' : ''}">${stCell(c, r[c.k])}</td>`;
+      `<td class="${c.t === 'note' ? 'note' : 'qc'} ${b.blk}${first ? ' blk-start' : ''}${c.tone ? ' ' + c.tone(r) : ''}">${stCell(c, r[c.k])}</td>`;
 
     $('stLotBody').innerHTML = list.map((r, idx) => `
       <tr>

@@ -52,6 +52,8 @@ const dbConfig = {
     encrypt: process.env.DB_ENCRYPT === 'true',
     trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'
   },
+  // ค่าเริ่มต้นของ mssql คือ 15 วินาที — เผื่อไว้สำหรับรายงานช่วงยาว (เช่น รับคืนสินค้าทั้งปี) ตอน DB ทำงานหนัก
+  requestTimeout: 30000,
   pool: { max: 10, min: 0, idleTimeoutMillis: 30000 }
 };
 
@@ -516,6 +518,220 @@ app.get('/api/stockcard-allot', requireMenu('stockcard_item', { companyParam: 'i
   } catch (err) {
     console.error('StockCard AllLot error:', err);
     res.status(500).json({ success: false, message: 'ดึงข้อมูล Stock Card (รายสินค้า) ไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ==================================================================
+// ---------- รายงานการรับคืนสินค้า (Sale Return Report) ----------
+// ==================================================================
+// Query ตั้งต้นแปลงมาจากหน้า VB.NET เดิม (GCRTRpt) ตรงๆ โดยเปลี่ยนค่าที่ hardcode ไว้
+// (idComp = 4, MONTH/YEAR = 9/2026) ให้เป็น parameter แทน
+//
+// ⚠️ หมายเหตุสำคัญที่ยังไม่ได้ทำในเวอร์ชันนี้ (รอ confirm business rule ก่อน):
+//   1. ตัวกรอง "เฉพาะที่ผลงอกออกแล้ว" และ "เฉพาะความงอกน้อยกว่า 50%" ของหน้าจอเดิม
+//      ยังไม่ทราบแน่ชัดว่า "ความงอก" ใน query นี้อ้างอิงจากคอลัมน์ไหน (GrowPaper / GrowSand / Pure / PureGene)
+//      จึงยังไม่ implement เงื่อนไข SQL ส่วนนี้ — ส่งมาได้แต่จะยังไม่มีผลกับผลลัพธ์
+//   2. ปุ่ม "ทำรายการร้องขอทำลาย" และ "รายงานการร้องขอทำลาย" ของหน้าจอเดิม (เขียนข้อมูล ไม่ใช่แค่ดูรายงาน)
+//      ยังไม่มี endpoint รองรับ เพราะยังไม่มี schema ตารางที่ใช้บันทึกคำร้องขอทำลาย
+//
+// สถานะ "การแสดง Lot รับคืน" (all / depleted / remaining) คำนวณจากคอลัมน์ derived AmountRTBal
+// จึง filter หลังคำนวณ AmountRTBal ในตารางชั่วคราว #rt แล้วเท่านั้น
+// ทดสอบเทียบกับ query เดิมได้ด้วย sql/salereturn-compare.sql
+// schema: Ss* / SmSaleReturnMt / SmSaleReturnDt / SmSaleReturnCause / dPackingPdSet อยู่ dbo — ที่เหลืออยู่ devsk
+const EXCLUDED_WH = 5503; // คลังใน dInvLotRefWh ที่ไม่นับเป็นยอดคงเหลือของสินค้ารับคืน
+
+app.get('/api/salereturn', requireMenu('stock_return', { companyParam: 'companyId' }), async (req, res) => {
+  const companyId = (req.query.companyId || '').trim();
+  const statusMode = (req.query.statusMode || 'remaining').trim(); // all | depleted | remaining
+  const dateMode = (req.query.dateMode || 'month').trim();         // day | month | year
+  const dateFrom = (req.query.dateFrom || '').trim();
+  const dateTo = (req.query.dateTo || '').trim();
+  const month = parseInt(req.query.month, 10);
+  const year = parseInt(req.query.year, 10); // เป็น ค.ศ. เสมอ (แปลงจาก พ.ศ. ฝั่ง frontend ก่อนส่งมา)
+  const lotNo = (req.query.lotNo || '').trim();
+  const returnNo = (req.query.returnNo || '').trim();
+  const productName = (req.query.productName || '').trim();
+
+  if (!companyId) {
+    return res.status(400).json({ success: false, message: 'กรุณาเลือกบริษัทก่อน' });
+  }
+
+  // ---------- เงื่อนไขวันที่ตามโหมดที่เลือก ----------
+  // แปลงทุกโหมดเป็นช่วง [dStart, dEnd) แล้วเทียบกับคอลัมน์ตรงๆ (ไม่ครอบด้วย YEAR()/MONTH()/CAST()) ให้ SQL Server ใช้ index ได้
+  // ส่งเป็น string รูปแบบ YYYYMMDD ซึ่งแปลงเป็น datetime ได้ถูกต้องเสมอ ไม่ขึ้นกับ DATEFORMAT / ภาษาของ session
+  const ymd = (y, m, d) => `${String(y).padStart(4, '0')}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}`;
+  const parseIsoDate = (s) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return null;
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    return d.getUTCMonth() === +m[2] - 1 ? d : null;
+  };
+  let dStart, dEnd;
+  if (dateMode === 'day') {
+    const from = parseIsoDate(dateFrom);
+    const to = parseIsoDate(dateTo);
+    if (!from || !to) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุช่วงวันที่ให้ครบ' });
+    }
+    to.setUTCDate(to.getUTCDate() + 1); // รวมทั้งวันสุดท้าย
+    dStart = ymd(from.getUTCFullYear(), from.getUTCMonth() + 1, from.getUTCDate());
+    dEnd = ymd(to.getUTCFullYear(), to.getUTCMonth() + 1, to.getUTCDate());
+  } else if (dateMode === 'month') {
+    if (!month || month < 1 || month > 12 || !year) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุเดือนและปี' });
+    }
+    dStart = ymd(year, month, 1);
+    dEnd = month === 12 ? ymd(year + 1, 1, 1) : ymd(year, month + 1, 1);
+  } else if (dateMode === 'year') {
+    if (!year) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุปี' });
+    }
+    dStart = ymd(year, 1, 1);
+    dEnd = ymd(year + 1, 1, 1);
+  } else {
+    return res.status(400).json({ success: false, message: 'ระบุ dateMode ไม่ถูกต้อง (day/month/year)' });
+  }
+  const dateCondition = 'AND wrtMt.DateWaitReturn >= @dStart AND wrtMt.DateWaitReturn < @dEnd';
+
+  // ---------- เงื่อนไข "การแสดง Lot รับคืน" (ใช้กับ #rt หลังคำนวณ AmountRTBal แล้ว) ----------
+  let statusCondition = '';
+  if (statusMode === 'remaining') statusCondition = 'AND a.AmountRTBal > 0';
+  else if (statusMode === 'depleted') statusCondition = 'AND a.AmountRTBal <= 0';
+  else if (statusMode !== 'all') {
+    return res.status(400).json({ success: false, message: 'ระบุ statusMode ไม่ถูกต้อง (all/depleted/remaining)' });
+  }
+
+  try {
+    const pool = await poolPromise;
+    const request = pool.request()
+      .input('idComp', sql.NVarChar, companyId)
+      .input('dStart', sql.VarChar(8), dStart)
+      .input('dEnd', sql.VarChar(8), dEnd);
+
+    // ---------- เงื่อนไขค้นหาเพิ่มเติม (optional) ----------
+    // lotNo / returnNo กรองได้ตั้งแต่ขั้นเลือก Lot (ลดจำนวน Lot ที่ต้องหาเมล็ด) / productName ต้องใช้ SeedNameUsed จึงกรองขั้นสุดท้าย
+    let searchConditions = '';
+    if (lotNo) {
+      request.input('lotNo', sql.NVarChar, `%${lotNo}%`);
+      searchConditions += ' AND a.LotNoRT LIKE @lotNo';
+    }
+    if (returnNo) {
+      request.input('returnNo', sql.NVarChar, `%${returnNo}%`);
+      searchConditions += ' AND a.ReturnNo LIKE @returnNo';
+    }
+    let productCondition = '';
+    if (productName) {
+      request.input('productName', sql.NVarChar, `%${productName}%`);
+      productCondition = " AND (a.InvName LIKE @productName OR ISNULL(s.SeedNameUsed, '-') LIKE @productName)";
+    }
+
+    // ทำเป็นขั้นด้วยตารางชั่วคราว (ทดสอบแล้ว ผลตรงกับ query เดิมทุกแถว / ทั้งปีจาก >60 วินาที เหลือ <1 วินาที):
+    //   1. แถวพื้นฐาน: เริ่มจาก WimWaitReturnMt ที่กรองวันที่ + INNER JOIN เส้นทาง wrtMt → wrtDt → rtdt → wDt → rDt
+    //      (เงื่อนไขวันที่บังคับให้ทุกตารางในเส้นทางนี้มีข้อมูลอยู่แล้ว ผลเท่ากับ LEFT JOIN เดิม)
+    //   2. AmountRTBal: รวม dInvLotRefWh ตาม idBox ครั้งเดียวทั้งชุด / "Amount ของ idRefLot เดียวกัน" = wh.Amount
+    //      ไม่นับของที่อยู่คลัง EXCLUDED_WH (ยอดรวมกล่อง = ไม่รวมแถวคลังนั้น / ยอดของ idRefLot นี้ = 0 ถ้าอยู่คลังนั้น)
+    //   3. SeedNameUsed: เฉพาะ Lot ที่ผ่านตัวกรอง — join หาเมล็ดทุก Lot ครั้งเดียว (#pairs) แล้วต่อชื่อจากตารางเล็ก
+    //   (ตัด DateGrowPP / DateGrowSand ออก เพราะหน้าเว็บยังไม่ได้ใช้)
+    const query = `
+      SET NOCOUNT ON;
+
+      SELECT CONVERT(bit,0) AS chk, rDt.idCountRef, comp.CompCode, lm.idLot, ps.PsName AS PsSale,
+             wrtMt.DateWaitReturn, wrtMt.ReturnNo, rtdt.LotNoRT, p.PartnerName,
+             inv.idInvMain, inv.idUnit, inv.InvName, rDt.idComp,
+             ISNULL(CONCAT(FORMAT(pk.Weight,'#,##0.##'), ' ' + uw.UnitName),'-') AS WeightxUnit,
+             inv.idInvGroup, rDt.SumVolumn AS AmountRT, wh.idRefLot,
+             wh.idBox AS whIdBox, IIF(ISNULL(wh.idWh,0) = ${EXCLUDED_WH}, 0, wh.Amount) AS whAmount,
+             u.UnitName, rDt.idPkPORec, rtdt.idSaleReturnDt, ISNULL(b.BoxNo, swh.WareHouseName) AS BoxNo,
+             CASE WHEN ISNULL(st.idSaleRtType,'') = '' THEN cause.ReturnCause
+                  ELSE st.SaleReturnType + ' (' + cause.ReturnCause + ')' END AS ReturnCause,
+             qt.Humid, rDt.SumVolumn, rDt.idLotMain,
+             ISNULL(rtdt.RTPrice,0) AS RTPrice,
+             qt.GrowPaper, qt.GrowSand, qt.GrowAA, qt.GrowMedia, qt.Pure, qt.PureGene, qt.NoteConfirm,
+             b.BoxNo AS BoxNoRT, swh.WareHouseName
+      INTO #rt
+      FROM devsk.WimWaitReturnMt wrtMt
+      JOIN devsk.WimWaitReturnDt wrtDt ON wrtDt.idWaitReturn = wrtMt.idWaitReturn
+      JOIN dbo.SmSaleReturnDt rtdt     ON rtdt.idWaitReturnDt = wrtDt.idWaitReturnDt
+      JOIN devsk.WimWaitRecDt wDt      ON wDt.idDt = rtdt.idSaleReturnDt
+      JOIN devsk.vPkPORecReturn rDt    ON rDt.idWaitRecDt = wDt.idWaitRecDt
+      LEFT JOIN devsk.WimWaitRecMt wMt ON wDt.idWaitRecMt = wMt.idWaitRecMt AND wMt.ProcessID = 3 AND wMt.stCancel IS NULL
+      LEFT JOIN dbo.SmSaleReturnMt rtmt       ON rtdt.idSaleReturn = rtmt.idSaleReturn
+      LEFT JOIN dbo.SsWareHouse swh           ON rDt.idWh = swh.idWh
+      LEFT JOIN devsk.dPartner p              ON rtmt.idPartner = p.idPartner
+      LEFT JOIN devsk.dInventoryMain inv      ON rDt.idInvMain = inv.idInvMain
+      LEFT JOIN devsk.WimReturnBox b          ON rDt.idBox = b.idBox
+      LEFT JOIN devsk.dInvUnit u              ON rDt.idUnitNew = u.idUnit
+      LEFT JOIN devsk.vPersonxSelect ps       ON rtmt.idPsSale = ps.idPs
+      LEFT JOIN dbo.SmSaleReturnCause cause   ON wrtDt.idRtCause = cause.idRtCause
+      LEFT JOIN devsk.SmSaleReturnType st     ON cause.idSaleRtType = st.idSaleRtType
+      LEFT JOIN dbo.dPackingPdSet pk          ON inv.idSubType = pk.idPdPk AND inv.idInvGroup = 2
+      LEFT JOIN devsk.dInvUnit uw             ON pk.idUnitW = uw.idUnit
+      LEFT JOIN devsk.dInvLotRefWh wh         ON rDt.idRefLot = wh.idRefLot
+      LEFT JOIN PchInvAndProject.dbo.dCompany AS comp ON rDt.idComp = comp.idComp
+      LEFT JOIN devsk.dInvLotQuality qt       ON rtdt.idSaleReturnDt = qt.idLot AND qt.TypeReturn = 1
+      LEFT JOIN devsk.dInvLotMain lm          ON rDt.idLotMain = lm.idLot
+      WHERE rtmt.idPsCancel IS NULL
+        AND rDt.idComp = @idComp
+        ${dateCondition};
+
+      SELECT rw.idBox, SUM(rw.Amount) AS BoxSum
+      INTO #box
+      FROM devsk.dInvLotRefWh rw
+      WHERE rw.idBox IN (SELECT whIdBox FROM #rt WHERE whIdBox IS NOT NULL)
+        AND ISNULL(rw.idWh,0) <> ${EXCLUDED_WH}
+      GROUP BY rw.idBox;
+
+      ALTER TABLE #rt ADD AmountRTBal decimal(18,4) NULL;
+
+      UPDATE a
+      SET AmountRTBal = IIF(ISNULL(bx.BoxSum,0) = 0,
+                            IIF(a.whAmount > a.SumVolumn, a.SumVolumn, a.whAmount),
+                            bx.BoxSum)
+      FROM #rt a
+      LEFT JOIN #box bx ON bx.idBox = a.whIdBox;
+
+      SELECT DISTINCT a.idLotMain
+      INTO #lots
+      FROM #rt a
+      WHERE a.idLotMain IS NOT NULL
+        ${statusCondition}
+        ${searchConditions};
+
+      SELECT DISTINCT lm2.idLot AS idLotMain, inv2.InvName
+      INTO #pairs
+      FROM devsk.dInvLotMain lm2
+      JOIN devsk.dWithdrawMt dMt      ON lm2.idPlan = dMt.idPlanMt
+      JOIN devsk.dWithdrawDt dDt      ON dMt.idWitdMt = dDt.idWitdMt
+      JOIN devsk.dInventoryMain inv2  ON dDt.idInvMain = inv2.idInvMain
+      WHERE lm2.idLot IN (SELECT idLotMain FROM #lots)
+        AND inv2.idInvGroup = 1
+        AND stCancel = 0;
+
+      SELECT l.idLotMain,
+             ISNULL(SUBSTRING(
+               (SELECT ',' + pr.InvName AS [text()]
+                FROM #pairs pr
+                WHERE pr.idLotMain = l.idLotMain
+                ORDER BY pr.InvName
+                FOR XML PATH (''), TYPE
+               ).value('text()[1]','nvarchar(max)'), 2, 2000), '-') AS SeedNameUsed
+      INTO #seed
+      FROM #lots l;
+
+      SELECT a.*, ISNULL(s.SeedNameUsed, '-') AS SeedNameUsed
+      FROM #rt a
+      LEFT JOIN #seed s ON s.idLotMain = a.idLotMain
+      WHERE 1=1
+        ${statusCondition}
+        ${searchConditions}
+        ${productCondition}
+      ORDER BY a.BoxNo;`;
+
+    const result = await request.query(query);
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error('Sale return report error:', err);
+    res.status(500).json({ success: false, message: 'ดึงข้อมูลรายงานการรับคืนสินค้าไม่สำเร็จ', detail: err.message });
   }
 });
 
