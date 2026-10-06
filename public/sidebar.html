@@ -1,3 +1,24 @@
+<style>
+  /* ---------- เมนูซ้อนหลายชั้น (CSS กลาง แปะมากับ sidebar ทุกหน้า) ----------
+     CSS เดิมของแต่ละหน้าใช้ ".nav-group.open .nav-submenu" (ทุกชั้น) → เปิดกลุ่มแม่แล้วกลุ่มลูกเปิดตามหมด
+     ตรงนี้บังคับให้เปิด/ปิดเฉพาะชั้นของตัวเอง */
+  #sidebar .nav-group:not(.open) > .nav-submenu{grid-template-rows:0fr;}
+  #sidebar .nav-group.open > .nav-submenu{grid-template-rows:1fr;}
+  #sidebar .nav-group:not(.open) > .nav-parent .nav-chevron{transform:none;}
+  #sidebar .nav-group.open > .nav-parent .nav-chevron{transform:rotate(180deg);}
+  /* ชั้นที่ 2 (กลุ่มย่อย): ปุ่มเล็กกว่า ไม่มีไอคอน มีเส้นนำทางซ้ายแบบเดียวกับเมนูย่อย */
+  #sidebar .nav-group-sub{margin:2px 0;}
+  #sidebar .nav-group-sub > .nav-parent{
+    padding:8px 10px 8px 20px; margin:0; font-size:13px; font-weight:600; color:var(--concrete-200, #e7e4da);
+    border-radius:7px; border-left:1px solid rgba(255,255,255,.09); border-top-left-radius:0; border-bottom-left-radius:0; position:relative;
+  }
+  #sidebar .nav-group-sub > .nav-parent::before{content:""; position:absolute; left:-1px; top:50%; width:12px; height:1px; background:rgba(255,255,255,.09);}
+  #sidebar .nav-group-sub > .nav-parent .nav-chevron{width:12px; height:12px;}
+  #sidebar .nav-group-sub.open > .nav-parent{background:rgba(255,255,255,.04); color:#fff;}
+  #sidebar .nav-group-sub > .nav-submenu > .nav-submenu-inner{padding-left:18px; margin:2px 0 4px;}
+  /* กลุ่มย่อยที่มีหน้าปัจจุบันอยู่ข้างใน: ตัวหนังสือสีส้มทอง */
+  #sidebar .nav-group-sub:has(.nav-subitem.active) > .nav-parent{color:var(--amber-500, #f2a91c);}
+</style>
 <a href="/main-menu.html" class="sidebar-head" style="text-decoration: none; display: flex; align-items: center; gap: 12px; cursor: pointer;">
   <div class="brand-mark">W</div>
   <div class="brand-text">WIM<small>WAREHOUSE &amp; INVENTORY MANAGEMENT</small></div>
@@ -42,17 +63,39 @@
           <path d="M7 15l4-5 3 3 5-7"></path>
         </svg>
       </span>
-      <span class="nav-label">รายงานสต๊อก</span>
+      <span class="nav-label">รายงาน</span>
       <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
     </button>
 
     <div class="nav-submenu" id="reportSubmenu">
       <div class="nav-submenu-inner">
-        <!-- <a class="nav-subitem" href="#" data-menu="stock_report_onhand">รายงานสต๊อกคงคลัง</a> -->
-        <a class="nav-subitem" href="/stockcard.html" data-menu="stockcard_lot">Stock Card (รายล็อต)</a>
-        <a class="nav-subitem" href="/stockcard-item.html" data-menu="stockcard_item">Stock Card (รายสินค้า)</a>
-        <a class="nav-subitem" href="/stockreturn.html" data-menu="stock_return">รายงานสินค้ารับคืน</a>
-        <!-- <a class="nav-subitem" href="#" data-menu="stock_movement">รายงานความเคลื่อนไหวสต๊อก</a> -->
+        <!-- ชั้นที่ 2: กลุ่มย่อย (.nav-group ซ้อนใน .nav-submenu-inner) / ชั้นที่ 3: เมนูที่คลิกเข้าหน้าได้ -->
+        <div class="nav-group nav-group-sub" data-group="report_stock">
+          <button class="nav-item nav-parent" type="button" aria-expanded="false">
+            <span class="nav-label">รายงานสต๊อก</span>
+            <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="nav-submenu">
+            <div class="nav-submenu-inner">
+              <!-- <a class="nav-subitem" href="#" data-menu="stock_report_onhand">รายงานสต๊อกคงคลัง</a> -->
+              <a class="nav-subitem" href="/stockcard.html" data-menu="stockcard_lot">Stock Card (รายล็อต)</a>
+              <a class="nav-subitem" href="/stockcard-item.html" data-menu="stockcard_item">Stock Card (รายสินค้า)</a>
+              <!-- <a class="nav-subitem" href="#" data-menu="stock_movement">รายงานความเคลื่อนไหวสต๊อก</a> -->
+            </div>
+          </div>
+        </div>
+        <div class="nav-group nav-group-sub" data-group="report_receive">
+          <button class="nav-item nav-parent" type="button" aria-expanded="false">
+            <span class="nav-label">รายงานการรับสินค้า</span>
+            <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="nav-submenu">
+            <div class="nav-submenu-inner">
+              <a class="nav-subitem" href="/po-receive-affiliate.html" data-menu="po_receive_affiliate">รายงานรับเมล็ดจากบริษัทในเครือ</a>
+              <a class="nav-subitem" href="/stockreturn.html" data-menu="stock_return">รายงานสินค้ารับคืน</a>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

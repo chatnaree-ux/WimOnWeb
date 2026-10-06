@@ -403,6 +403,7 @@
 </div>
 
 <script src="/menu-config.js"></script>
+<script src="/sidebar.js"></script>
 <script>
   const SUMMARY_REFRESH_MS = 60 * 1000;
   const RECENT_KEY = 'wim_recent_menus';
@@ -414,19 +415,10 @@
   const svg = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${WIM_ICONS[name] || ''}</svg>`;
   const nf = (n) => Number(n || 0).toLocaleString('th-TH');
 
-  // ฟังก์ชันดึง Sidebar เข้ามาแปะอัตโนมัติ
+  // Sidebar: ใช้ไฟล์กลาง sidebar.js (เมนู / ไฮไลต์ / เปิด-ปิดกลุ่ม / มือถือ) — ผู้ใช้ + สิทธิ์ หน้านี้จัดการเอง (initAuthUser / lockSidebar)
   async function loadSidebar() {
-    try {
-      const res = await fetch('/sidebar.html');
-      const html = await res.text();
-      document.getElementById('sidebar').innerHTML = html;
-
-      // หลังจากโหลดเสร็จ ให้ผูก Event และดึงข้อมูลผู้ใช้ต่อ
-      initSidebarEvents();
-      initAuthUser();
-    } catch (err) {
-      console.error('โหลด Sidebar ไม่สำเร็จ:', err);
-    }
+    await WIMSidebar.load({ manageUser: false });
+    initAuthUser();
   }
 
   // ดึงข้อมูลผู้ใช้ปัจจุบันจาก Session ของ Backend ทันทีที่โหลดหน้าหลัก
@@ -468,28 +460,6 @@
     }
   }
 
-  // เมนูย่อยแบบ accordion และมือถือ
-  function initSidebarEvents() {
-    ['seed', 'report', 'system', 'manual'].forEach(key => {
-      const toggle = document.getElementById(key + 'Toggle');
-      const group = document.getElementById(key + 'Group');
-      if (!toggle || !group) return;
-      toggle.addEventListener('click', () => {
-        const isOpen = group.classList.toggle('open');
-        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-      });
-    });
-
-    // Sidebar mobile drawer
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-    function closeSidebar(){ document.body.classList.remove('sidebar-open'); }
-    if (sidebarToggle && sidebarOverlay) {
-      sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
-      sidebarOverlay.addEventListener('click', closeSidebar);
-    }
-  }
-
   // ==================================================================
   // ---------- หน้า Home ----------
   // ==================================================================
@@ -506,16 +476,25 @@
       try {
         const res = await fetch('/api/permissions/my');
         const data = await res.json();
-        if (data.success) setAllowed(data.unrestricted ? null : data.allowedMenuCodes);
+        if (data.success) setAllowed(data.unrestricted ? null : data.allowedMenuCodes, data.menuOrder);
       } catch (e) { console.error('โหลดสิทธิ์ไม่สำเร็จ:', e); }
     }
     renderMenus();
     renderRecent();
   }
 
-  function setAllowed(codes) {
+  // order = { MenuCode: SortOrder } จาก WIMWebMenu — เรียงเมนูภายในแต่ละกลุ่มตาม DB (ลำดับกลุ่มคงตาม menu-config.js)
+  // เมนูที่ไม่มีใน DB ต่อท้ายกลุ่มตามลำดับเดิม
+  function setAllowed(codes, order) {
     allowedCodes = codes ? new Set(codes) : null;
-    myMenus = WIM_MENUS.filter(m => !allowedCodes || allowedCodes.has(m.code));
+    const groupIdx = new Map();
+    WIM_MENUS.forEach(m => { if (!groupIdx.has(m.group)) groupIdx.set(m.group, groupIdx.size); });
+    const key = (m) => (order && order[m.code] != null ? order[m.code] : Number.MAX_SAFE_INTEGER);
+    myMenus = WIM_MENUS
+      .map((m, i) => ({ m, i }))
+      .filter(({ m }) => !allowedCodes || allowedCodes.has(m.code))
+      .sort((a, b) => groupIdx.get(a.m.group) - groupIdx.get(b.m.group) || key(a.m) - key(b.m) || a.i - b.i)
+      .map(({ m }) => m);
     lockSidebar();
   }
 
@@ -539,7 +518,7 @@
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
 
-      setAllowed(data.unrestricted ? null : data.allowedMenuCodes);
+      setAllowed(data.unrestricted ? null : data.allowedMenuCodes, data.menuOrder);
 
       const cards = buildKpiCards(data.data || {});
       document.getElementById('kpiSection').hidden = cards.length === 0;

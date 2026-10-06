@@ -365,6 +365,27 @@
   .faq .ans{padding:10px 16px 14px 40px; font-size:14px; line-height:1.7; color:var(--concrete-400);}
   .faq .ans p{margin:0 0 8px; font-size:14px;}
 
+  /* กล่องเข้ากลุ่ม Telegram */
+  .tg-join{display:flex; gap:20px; align-items:center; flex-wrap:wrap; max-width:860px; margin:14px 0 18px; padding:16px 18px; border-radius:10px;
+    background:rgba(42,171,238,.07); border:1px solid rgba(42,171,238,.4); border-left:3px solid #2aabee;}
+  .tg-info{flex:1 1 320px; min-width:0;}
+  .tg-label{font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:#6cc6f2;}
+  .tg-name{font-size:16px; font-weight:600; color:#fff; margin:3px 0 6px;}
+  .tg-info p{font-size:13.5px !important; color:var(--concrete-400); margin:0 0 12px !important;}
+  .tg-btn{display:inline-flex; align-items:center; gap:8px; padding:9px 16px; border-radius:7px; background:#2aabee; color:#fff; text-decoration:none;
+    font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;}
+  .tg-btn:hover{filter:brightness(1.1);}
+  .tg-btn svg{width:16px; height:16px;}
+  .tg-actions{display:flex; align-items:stretch; gap:10px; flex-wrap:wrap;}
+  .tg-link{display:flex; gap:8px; flex:1 1 300px; max-width:440px;}
+  .tg-link input{flex:1; min-width:0; padding:8px 10px; border-radius:7px; border:1px solid rgba(255,255,255,.12); background:var(--navy-950);
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--sky-blue);}
+  .tg-link input:focus{outline:none; border-color:#2aabee;}
+  .tg-copy{flex-shrink:0; padding:0 14px; border-radius:7px; cursor:pointer; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.04);
+    color:var(--concrete-200); font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; white-space:nowrap;}
+  .tg-copy:hover{border-color:#2aabee; color:#6cc6f2;}
+  .tg-copy.done{border-color:var(--ok-green); color:var(--ok-green);}
+
   .to-top{display:inline-flex; align-items:center; gap:6px; margin-top:6px; font-size:12.5px; color:var(--steel-500); text-decoration:none;}
   .to-top:hover{color:var(--amber-500);}
 
@@ -390,6 +411,9 @@
     .mdash-card.follow{grid-column:span 1;}
   }
 </style>
+<!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
+<script src="session-guard.js"></script>
+<script src="sidebar.js"></script>
 </head>
 <body>
 
@@ -763,6 +787,25 @@ https://…/urs-reply.html?id=123<span class="pin tr">2</span></div>
 
             <h3 id="telegram">การแจ้งเตือน Telegram อัตโนมัติ</h3>
             <p>ระบบจะส่งข้อความเข้ากลุ่ม Telegram แจ้งเตือน คำร้องขอเมล็ดพันธุ์เร่งด่วนให้อัตโนมัติ</p>
+
+            <div class="tg-join">
+              <div class="tg-info">
+                <div class="tg-label">กลุ่ม Telegram แจ้งเตือน</div>
+                <div class="tg-name">ASG-แจ้งร้องขอเมล็ดพันธุ์เร่งด่วน</div>
+                <p>เข้ากลุ่มนี้เพื่อรับแจ้งเตือนทุกครั้งที่มีการส่งหรือแก้ไขคำร้อง กดปุ่มด้านล่าง (ถ้าเปิดบนมือถือที่มีแอป Telegram จะเปิดในแอปให้เอง)</p>
+                <!-- ปุ่มเข้ากลุ่ม + ช่องลิงก์ อยู่แถวเดียวกัน (จอแคบขึ้นบรรทัดใหม่เอง) -->
+                <div class="tg-actions">
+                  <a class="tg-btn" href="https://t.me/+VKnYj8j2KAA0M2I1" target="_blank" rel="noopener">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.9 4.3 18.7 19.4c-.2 1.1-.9 1.3-1.8.8l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.3-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6.2 13l-4.8-1.5c-1-.3-1.1-1 .2-1.5L20.5 2.8c.9-.3 1.7.2 1.4 1.5z"/></svg>
+                    เข้ากลุ่ม Telegram
+                  </a>
+                  <div class="tg-link">
+                    <input type="text" id="tgLinkInput" readonly value="https://t.me/+VKnYj8j2KAA0M2I1" aria-label="ลิงก์เข้ากลุ่ม Telegram" onclick="this.select()">
+                    <button type="button" class="tg-copy" data-copy="tgLinkInput">คัดลอกลิงก์</button>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="ref-table-wrap">
               <table class="ref-table">
                 <thead><tr><th>เหตุการณ์</th><th>แจ้ง Telegram</th><th>ข้อความขึ้นต้นด้วย</th></tr></thead>
@@ -986,152 +1029,10 @@ https://…/urs-reply.html?id=123<span class="pin tr">2</span></div>
 
 <script>
   // ==================================================================
-  // ---------- โหลด Sidebar จากไฟล์กลาง (sidebar.html) ----------
-  // ==================================================================
-  async function loadSidebar() {
-    try {
-      const res = await fetch('/sidebar.html');
-      const html = await res.text();
-      document.getElementById('sidebar').innerHTML = html;
-
-      initSidebarEvents();
-      initAuthAndPermissions();
-      initActiveSidebarMenu();
-    } catch (err) {
-      console.error('โหลด Sidebar ไม่สำเร็จ:', err);
-    }
-  }
-
-  // ---------- ตรวจสอบการ Login และจัดการแสดงชื่อผู้ใช้งาน ----------
-  function initAuthAndPermissions() {
-    const raw = sessionStorage.getItem('wim_user');
-    if (!raw) {
-      window.location.href = '/index.html';
-      return;
-    }
-    const user = JSON.parse(raw);
-    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
-    const displayName = user.PsName || fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
-
-    const userLabelEl = document.getElementById('userLabel');
-    if (userLabelEl) userLabelEl.textContent = displayName;
-
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        sessionStorage.removeItem('wim_user');
-        window.location.href = '/index.html';
-      });
-    }
-
-    applyMenuPermissions(user.idPs);
-  }
-
-  // ---------- ตั้งค่า Mobile Drawer ----------
-  function initSidebarEvents() {
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-    function closeSidebar(){ document.body.classList.remove('sidebar-open'); }
-    if (sidebarToggle && sidebarOverlay) {
-      sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
-      sidebarOverlay.addEventListener('click', closeSidebar);
-    }
-  }
-
-  // ---------- ไฮไลต์เมนูปัจจุบัน + Accordion Sidebar ----------
-  function initActiveSidebarMenu() {
-    const currentPath = window.location.pathname;
-
-    document.querySelectorAll("a.nav-item").forEach((item) => {
-      if (item.getAttribute("href") === currentPath) item.classList.add("active");
-    });
-
-    const subItems = document.querySelectorAll(".nav-subitem");
-    subItems.forEach((item) => {
-      if (item.getAttribute("href") === currentPath) {
-        item.classList.add("active");
-        const parentGroup = item.closest(".nav-group");
-        if (parentGroup) {
-          parentGroup.classList.add("open");
-          const parentToggle = parentGroup.querySelector(".nav-parent");
-          if (parentToggle) parentToggle.setAttribute("aria-expanded", "true");
-        }
-      }
-    });
-
-    const sideNav = document.querySelector(".side-nav");
-    if (sideNav && !sideNav.dataset.listenerAttached) {
-      sideNav.dataset.listenerAttached = "true";
-
-      sideNav.addEventListener("click", function (e) {
-        const button = e.target.closest(".nav-parent");
-        if (!button) return;
-
-        const parentGroup = button.closest(".nav-group");
-        if (!parentGroup) return;
-
-        const isOpen = parentGroup.classList.contains("open");
-
-        document.querySelectorAll(".nav-group").forEach((group) => {
-          group.classList.remove("open");
-          const toggle = group.querySelector(".nav-parent");
-          if (toggle) toggle.setAttribute("aria-expanded", "false");
-        });
-
-        if (!isOpen) {
-          parentGroup.classList.add("open");
-          button.setAttribute("aria-expanded", "true");
-        }
-      });
-    }
-  }
-
-  // ==================================================================
-  // ---------- ระบบตรวจสอบสิทธิ์การเข้าถึงเมนู ----------
-  // คู่มือใช้ MenuCode เดียวกับเมนูที่อธิบาย (ไม่มีสิทธิ์เมนู = ไม่เห็นคู่มือ)
+  // ---------- Sidebar: ใช้ไฟล์กลาง sidebar.js (โหลดเมนู / ชื่อผู้ใช้ / ไฮไลต์ / เปิด-ปิดกลุ่ม / ล็อกตามสิทธิ์) ----------
   // ==================================================================
   const CURRENT_PAGE_MENU_CODE = 'urs_request';
-
-  function showAccessDeniedOverlay(){
-    document.body.innerHTML = `
-      <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:#0c1420; color:#e7e4da; font-family:'Inter',sans-serif; text-align:center; padding:20px;">
-        <div>
-          <div style="font-size:48px; margin-bottom:16px;">🔒</div>
-          <div style="font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; text-transform:uppercase; margin-bottom:10px; color:#fff;">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
-          <p style="color:#b9b4a5; margin-bottom:24px;">กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์การใช้งาน</p>
-          <a href="/main-menu.html" style="display:inline-block; background:#f2a91c; color:#0c1420; padding:12px 24px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:700; text-decoration:none; text-transform:uppercase;">กลับหน้าเมนูหลัก</a>
-        </div>
-      </div>`;
-  }
-
-  async function applyMenuPermissions(idPs){
-    if (!idPs) return;
-
-    try {
-      const res = await fetch('/api/permissions/my?' + new URLSearchParams({ idPs }));
-      const data = await res.json();
-      if (!data.success) return;
-      if (data.unrestricted) return;
-
-      const allowed = new Set(data.allowedMenuCodes);
-
-      document.querySelectorAll('[data-menu]').forEach(el => {
-        const code = el.getAttribute('data-menu');
-        if (!allowed.has(code)) {
-          el.classList.add('menu-locked');
-          el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
-          el.addEventListener('click', (e) => e.preventDefault());
-        }
-      });
-
-      if (CURRENT_PAGE_MENU_CODE && !allowed.has(CURRENT_PAGE_MENU_CODE)) {
-        showAccessDeniedOverlay();
-      }
-    } catch (err) {
-      console.error('เช็คสิทธิ์การใช้งานไม่สำเร็จ:', err);
-    }
-  }
+  function loadSidebar() { return WIMSidebar.load({ menuCode: CURRENT_PAGE_MENU_CODE }); }
 
   // ==================================================================
   // ---------- สารบัญ: ไฮไลต์หัวข้อที่กำลังอ่าน ----------
@@ -1153,9 +1054,30 @@ https://…/urs-reply.html?id=123<span class="pin tr">2</span></div>
     sections.forEach(s => io.observe(s));
   }
 
+  // ==================================================================
+  // ---------- ปุ่มคัดลอก (ลิงก์กลุ่ม Telegram) ----------
+  // Clipboard API ใช้ได้เฉพาะ https/localhost ไม่งั้นใช้ execCommand แทน (เหมือนหน้า urs-request)
+  // ==================================================================
+  async function copyFromInput(btn){
+    const el = document.getElementById(btn.dataset.copy);
+    if (!el) return;
+    try {
+      await navigator.clipboard.writeText(el.value);
+    } catch (err) {
+      el.select();
+      document.execCommand('copy');
+      window.getSelection().removeAllRanges();
+    }
+    const label = btn.textContent;
+    btn.textContent = 'คัดลอกแล้ว ✓';
+    btn.classList.add('done');
+    setTimeout(() => { btn.textContent = label; btn.classList.remove('done'); }, 2000);
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     loadSidebar();
     initToc();
+    document.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', () => copyFromInput(btn)));
   });
 </script>
 </body>

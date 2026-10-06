@@ -281,6 +281,9 @@
   .perm-item:hover{background:rgba(255,255,255,.03);}
   .perm-checkbox{width:17px; height:17px; accent-color:var(--amber-500); cursor:pointer; flex-shrink:0;}
   .perm-children{padding-left:14px; display:flex; flex-direction:column;}
+  /* หัวข้อกลุ่มย่อย (ชั้นที่ 2 ขึ้นไป) — ไม่มี checkbox เมนูข้างใต้เยื้องเข้าไป */
+  .perm-subhead{font-size:12px; font-weight:600; color:var(--amber-500); letter-spacing:.02em; padding:8px 6px 4px; border-top:1px dashed rgba(255,255,255,.08); margin-top:4px;}
+  .perm-children > .perm-subhead:first-child{border-top:0; margin-top:0;}
 
   .state-box{padding:30px 20px; text-align:center; color:var(--concrete-400); font-size:13px;}
   .state-box.error{color:#ff8a75;}
@@ -365,6 +368,7 @@
 </style>
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="session-guard.js"></script>
+<script src="sidebar.js"></script>
 </head>
 <body>
 
@@ -512,151 +516,10 @@
 
 <script>
   // ==================================================================
-  // ---------- โหลด Sidebar จากไฟล์กลาง (sidebar.html) ----------
-  // ==================================================================
-  async function loadSidebar() {
-    try {
-      const res = await fetch('/sidebar.html');
-      const html = await res.text();
-      document.getElementById('sidebar').innerHTML = html;
-
-      initSidebarEvents();
-      initAuthAndPermissions();
-      initActiveSidebarMenu();
-    } catch (err) {
-      console.error('โหลด Sidebar ไม่สำเร็จ:', err);
-    }
-  }
-
-  // ---------- ตรวจสอบการ Login และจัดการแสดงชื่อผู้ใช้งาน ----------
-  function initAuthAndPermissions() {
-    const raw = sessionStorage.getItem('wim_user');
-    if (!raw) {
-      window.location.href = '/index.html';
-      return;
-    }
-    const user = JSON.parse(raw);
-    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
-    const displayName = user.PsName || fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
-    
-    const userLabelEl = document.getElementById('userLabel');
-    if (userLabelEl) userLabelEl.textContent = displayName;
-
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        sessionStorage.removeItem('wim_user');
-        window.location.href = '/index.html';
-      });
-    }
-
-    applyMenuPermissions(user.idPs);
-  }
-
-  // ---------- ตั้งค่า Mobile Drawer ----------
-  function initSidebarEvents() {
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-    function closeSidebar(){ document.body.classList.remove('sidebar-open'); }
-    if (sidebarToggle && sidebarOverlay) {
-      sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
-      sidebarOverlay.addEventListener('click', closeSidebar);
-    }
-  }
-
-  // ---------- ควบคุมการเปิด/ปิด Accordion Sidebar แบบถูกต้อง (ไม่บล็อกการคลิก) ----------
-  function initActiveSidebarMenu() {
-    const currentPath = window.location.pathname;
-
-    // 1. ไฮไลต์เมนูย่อยที่ตรงกับหน้าปัจจุบัน และกางกลุ่มแม่ของมันค้างไว้
-    const subItems = document.querySelectorAll(".nav-subitem");
-    subItems.forEach((item) => {
-      if (item.getAttribute("href") === currentPath) {
-        item.classList.add("active");
-        const parentGroup = item.closest(".nav-group");
-        if (parentGroup) {
-          parentGroup.classList.add("open");
-          const parentToggle = parentGroup.querySelector(".nav-parent");
-          if (parentToggle) parentToggle.setAttribute("aria-expanded", "true");
-        }
-      }
-    });
-
-    // 2. จัดการคลิกปุ่มแม่ (Accordion Behavior) โดยใช้ Event Delegation ที่ตัว .side-nav ครั้งเดียวจบ
-    const sideNav = document.querySelector(".side-nav");
-    if (sideNav && !sideNav.dataset.listenerAttached) {
-      sideNav.dataset.listenerAttached = "true";
-
-      sideNav.addEventListener("click", function (e) {
-        const button = e.target.closest(".nav-parent");
-        if (!button) return; // ถ้าไม่ได้คลิกปุ่มแม่ ให้ข้ามไป
-
-        const parentGroup = button.closest(".nav-group");
-        if (!parentGroup) return;
-
-        const isOpen = parentGroup.classList.contains("open");
-
-        // ปิดทุกกลุ่มเมนูก่อน
-        document.querySelectorAll(".nav-group").forEach((group) => {
-          group.classList.remove("open");
-          const toggle = group.querySelector(".nav-parent");
-          if (toggle) toggle.setAttribute("aria-expanded", "false");
-        });
-
-        // ถ้ากลุ่มที่คลิกยังไม่ได้เปิด ให้สั่งเปิดกลุ่มนี้กลุ่มเดียว
-        if (!isOpen) {
-          parentGroup.classList.add("open");
-          button.setAttribute("aria-expanded", "true");
-        }
-      });
-    }
-  }
-
-  // ==================================================================
-  // ---------- ระบบตรวจสอบสิทธิ์การเข้าถึงเมนู ----------
+  // ---------- Sidebar: ใช้ไฟล์กลาง sidebar.js (โหลดเมนู / ชื่อผู้ใช้ / ไฮไลต์ / เปิด-ปิดกลุ่ม / ล็อกตามสิทธิ์) ----------
   // ==================================================================
   const CURRENT_PAGE_MENU_CODE = 'menu_permission';
-
-  function showAccessDeniedOverlay(){
-    document.body.innerHTML = `
-      <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:#0c1420; color:#e7e4da; font-family:'Inter',sans-serif; text-align:center; padding:20px;">
-        <div>
-          <div style="font-size:48px; margin-bottom:16px;">🔒</div>
-          <div style="font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; text-transform:uppercase; margin-bottom:10px; color:#fff;">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
-          <p style="color:#b9b4a5; margin-bottom:24px;">กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์การใช้งาน</p>
-          <a href="/main-menu.html" style="display:inline-block; background:#f2a91c; color:#0c1420; padding:12px 24px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:700; text-decoration:none; text-transform:uppercase;">กลับหน้าเมนูหลัก</a>
-        </div>
-      </div>`;
-  }
-
-  async function applyMenuPermissions(idPs){
-    if (!idPs) return;
-
-    try {
-      const res = await fetch('/api/permissions/my?' + new URLSearchParams({ idPs }));
-      const data = await res.json();
-      if (!data.success) return;
-      if (data.unrestricted) return;
-
-      const allowed = new Set(data.allowedMenuCodes);
-
-      document.querySelectorAll('[data-menu]').forEach(el => {
-        const code = el.getAttribute('data-menu');
-        if (!allowed.has(code)) {
-          el.classList.add('menu-locked');
-          el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
-          el.addEventListener('click', (e) => e.preventDefault());
-        }
-      });
-
-      if (CURRENT_PAGE_MENU_CODE && !allowed.has(CURRENT_PAGE_MENU_CODE)) {
-        showAccessDeniedOverlay();
-      }
-    } catch (err) {
-      console.error('เช็คสิทธิ์การใช้งานไม่สำเร็จ:', err);
-    }
-  }
+  function loadSidebar() { return WIMSidebar.load({ menuCode: CURRENT_PAGE_MENU_CODE }); }
 
   // ==================================================================
   // ---------- โหลดรายการเมนูทั้งหมด (ใช้สร้าง tree ในคอลัมน์ 3) ----------
@@ -962,10 +825,26 @@
     // กลุ่ม "ระบบ" (system_admin) แสดงไว้ท้ายสุดเสมอ — ที่เหลือเรียงตาม SortOrder เดิม
     const parents = allMenus.filter(m => !m.idParentMenu)
       .sort((a, b) => (a.MenuCode === 'system_admin') - (b.MenuCode === 'system_admin'));
+    // เมนูซ้อนได้หลายชั้น (idParentMenu): กลุ่มย่อย = หัวข้อย่อย (ไม่มี checkbox) / เมนูปลายทาง = ติ๊กสิทธิ์ได้
+    // data-parent = กลุ่มบนสุดเสมอ (ใช้นับ badge ของกลุ่ม)
+    const kids = (id) => allMenus.filter(m => m.idParentMenu === id);
+    const itemHtml = (m, topId, depth) => `
+              <label class="perm-item" style="margin-left:${depth * 14}px">
+                <input type="checkbox" class="perm-checkbox" data-idmenu="${m.idMenu}" data-parent="${topId}">
+                <span>${esc(m.MenuName)}</span>
+              </label>`;
+    const nodeHtml = (m, topId, depth) => {
+      const ch = kids(m.idMenu);
+      if (!ch.length) return itemHtml(m, topId, depth);
+      return `<div class="perm-subhead" style="margin-left:${depth * 14}px">${esc(m.MenuName)}</div>`
+        + ch.map(c => nodeHtml(c, topId, depth + 1)).join('');
+    };
     permTree.innerHTML = parents.map(parent => {
-      let children = allMenus.filter(m => m.idParentMenu === parent.idMenu);
+      const children = kids(parent.idMenu);
       // เมนูระดับบนที่ไม่มีเมนูย่อย แต่เป็นหน้าจริง (มี MenuUrl เช่น ร้องขอเมล็ดพันธุ์เร่งด่วน) ให้ติ๊กสิทธิ์ตัวมันเองได้
-      if (children.length === 0 && parent.MenuUrl) children = [parent];
+      const body = children.length
+        ? children.map(c => nodeHtml(c, parent.idMenu, 0)).join('')
+        : (parent.MenuUrl ? itemHtml(parent, parent.idMenu, 0) : '');
       return `
         <div class="perm-group">
           <div class="perm-group-head" data-idmenu="${parent.idMenu}">
@@ -973,12 +852,7 @@
             <span class="g-badge">0</span>
           </div>
           <div class="perm-children">
-            ${children.map(c => `
-              <label class="perm-item">
-                <input type="checkbox" class="perm-checkbox" data-idmenu="${c.idMenu}" data-parent="${parent.idMenu}">
-                <span>${esc(c.MenuName)}</span>
-              </label>
-            `).join('')}
+            ${body}
           </div>
         </div>`;
     }).join('');

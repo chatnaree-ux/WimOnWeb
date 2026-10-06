@@ -1,0 +1,2369 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIM — รายงานรับเมล็ดจากบริษัทในเครือ</title>
+<link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy-950:#0c1420;
+    --navy-900:#111d2e;
+    --navy-800:#182a40;
+    --navy-850:#0f1a29;
+    --steel-700:#25405c;
+    --steel-500:#4a6b8a;
+    --concrete-200:#e7e4da;
+    --concrete-400:#b9b4a5;
+    --amber-500:#f2a91c;
+    --amber-600:#d8930c;
+    --safety-red:#e5533d;
+    --ok-green:#3ecf8e;
+    --radius:10px;
+    --sidebar-w:270px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+
+  body{
+    font-family:'Inter',sans-serif;
+    background:var(--navy-950);
+    color:var(--concrete-200);
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+
+  /* ---------- APP SHELL ---------- */
+  .app-shell{display:flex; min-height:100vh;}
+
+  /* ---------- SIDEBAR (เหมือนหน้า main-menu / stockcard) ---------- */
+  .sidebar{
+    width:var(--sidebar-w); flex-shrink:0;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border-right:1px solid rgba(255,255,255,.07);
+    display:flex; flex-direction:column;
+    position:fixed; top:0; left:0; bottom:0; z-index:20;
+    transition:transform .25s ease;
+  }
+  .sidebar-head{
+    display:flex; align-items:center; gap:12px;
+    padding:22px 20px; border-bottom:1px solid rgba(255,255,255,.07);
+  }
+  .brand-mark{
+    width:38px; height:38px; border:2px solid var(--amber-500); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    font-family:'Oswald',sans-serif; font-weight:700; color:var(--amber-500); font-size:15px;
+    transform:rotate(-3deg);
+  }
+  .brand-text{font-family:'Oswald',sans-serif; letter-spacing:.05em; font-size:16.5px; font-weight:600; color:var(--concrete-200); line-height:1.2;}
+  .brand-text small{display:block; font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.08em; color:var(--steel-500); font-weight:400; margin-top:2px;}
+
+  .side-nav{flex:1; padding:16px 12px; overflow-y:auto;}
+  .nav-section-label{
+    font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em;
+    color:var(--steel-500); text-transform:uppercase; padding:6px 12px 8px;
+  }
+  .nav-item{
+    width:100%; display:flex; align-items:center; gap:12px;
+    padding:11px 12px; border-radius:8px; margin-bottom:2px;
+    color:var(--concrete-200); text-decoration:none;
+    font-size:14px; font-family:'Inter',sans-serif; font-weight:500;
+    background:none; border:none; cursor:pointer; text-align:left;
+    transition:background .15s, color .15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-item.active{background:rgba(242,169,28,.12); color:var(--amber-500);}
+  .nav-icon{width:19px; height:19px; flex-shrink:0; color:var(--amber-500); opacity:.9;}
+  .nav-icon svg{width:100%; height:100%; stroke-width:1.8;}
+  .nav-label{flex:1;}
+  .nav-chevron{width:14px; height:14px; flex-shrink:0; color:var(--steel-500); transition:transform .2s ease;}
+  .nav-group.open .nav-chevron{transform:rotate(180deg);}
+  .nav-group.open > .nav-parent{background:rgba(255,255,255,.04);}
+  .nav-submenu{display:grid; grid-template-rows:0fr; overflow:hidden; transition:grid-template-rows .22s ease;}
+  .nav-group.open .nav-submenu{grid-template-rows:1fr;}
+  .nav-submenu-inner{overflow:hidden; padding-left:14px; margin:2px 0 6px;}
+  .nav-subitem{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 12px 9px 20px; border-radius:7px; margin-bottom:1px;
+    color:var(--concrete-400); text-decoration:none; font-size:13px;
+    position:relative; transition:background .15s, color .15s;
+    border-left:1px solid rgba(255,255,255,.09);
+  }
+  .nav-subitem::before{content:""; position:absolute; left:-1px; top:50%; width:12px; height:1px; background:rgba(255,255,255,.09);}
+  .nav-subitem:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-subitem.active{color:var(--amber-500); border-left-color:var(--amber-500); background:rgba(242,169,28,.08);}
+
+  .sidebar-foot{padding:16px; border-top:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:10px;}
+  .user-chip{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:700; color:#ffffff;
+    border:1px solid rgba(255,255,255,.15); padding:11px 14px; border-radius:9px;
+    background:rgba(255,255,255,.04);
+  }
+  .user-chip .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-green); box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  #userLabel{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .logout-btn{
+    font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.05em;
+    color:#ffffff; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.2);
+    border-radius:8px; padding:11px 14px; cursor:pointer; text-transform:uppercase;
+    transition:border-color .15s, color .15s, background .15s; width:100%;
+    text-align:center; text-decoration:none;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75; background:rgba(255,60,60,.08);}
+
+  /* ---------- MAIN AREA ---------- */
+  .main-wrap{flex:1; margin-left:var(--sidebar-w); min-width:0;}
+  .topbar-mobile{
+    display:none; align-items:center; gap:14px;
+    padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.07);
+    position:sticky; top:0; background:var(--navy-950); z-index:15;
+  }
+  .hamburger{
+    width:38px; height:38px; border-radius:8px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.03); color:var(--concrete-200); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .hamburger svg{width:18px; height:18px;}
+
+  /* ตารางรายงานมีหลายคอลัมน์ — ไม่จำกัดความกว้าง ให้ขยายเต็มจอเมื่อจอกว้าง */
+  main{max-width:none; margin:0 auto; padding:clamp(28px,4vw,48px) clamp(20px,4vw,48px) 70px;}
+
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em;
+    color:var(--amber-500); text-transform:uppercase; margin:0 0 10px;
+  }
+  h1{
+    font-family:'Oswald',sans-serif; font-weight:700; text-transform:uppercase;
+    font-size:clamp(24px,3.4vw,32px); line-height:1.15; margin:0 0 8px; color:#fff;
+  }
+  .sub{font-size:14px; color:var(--concrete-400); margin:0 0 26px;}
+
+  /* ---------- FILTER PANEL (แนวนอนทั้งแถบ ประหยัดพื้นที่แนวตั้ง) ---------- */
+  .filter-panel{
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
+    padding:12px 18px; margin-bottom:18px;
+    display:flex; flex-wrap:wrap; align-items:center;
+    row-gap:10px; column-gap:0;
+  }
+  .filter-row{display:contents;} /* ไม่ใช้ grid/แบ่งแถวอีกต่อไป ให้ทุก block ไหลอยู่แถวเดียวกับ .filter-panel */
+
+  .filter-block{
+    display:inline-flex; align-items:center; flex-wrap:wrap; gap:8px;
+    border:0; border-right:1px solid rgba(255,255,255,.09);
+    padding:0 16px; background:none;
+  }
+  .filter-block:last-child{border-right:0; padding-right:0;}
+  .filter-block:first-child{padding-left:0;}
+  @media (max-width:1150px){
+    .filter-block{border-right:0; padding:6px 0; width:100%;}
+  }
+
+  .filter-block-title{
+    font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; letter-spacing:.02em;
+    color:var(--concrete-200); margin:0; white-space:nowrap; flex-shrink:0;
+  }
+
+  .mini-label{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.04em;
+    color:var(--concrete-400); white-space:nowrap; flex-shrink:0;
+  }
+
+  .field{display:flex; flex-direction:column; gap:7px;}
+  .field label{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em;
+    color:var(--concrete-400); text-transform:uppercase;
+  }
+  .input-shell{
+    display:flex; align-items:center; gap:6px;
+    background:var(--navy-950); border:1px solid rgba(255,255,255,.1); border-radius:6px;
+    padding:0 9px; transition:border-color .18s, box-shadow .18s;
+  }
+  .input-shell:focus-within{border-color:var(--amber-500); box-shadow:0 0 0 3px rgba(242,169,28,.15);}
+  .input-shell select, .input-shell input{
+    flex:1; background:transparent; border:0; outline:0; color:#fff; width:100%; min-width:0;
+    font-family:'Inter',sans-serif; font-size:13px; padding:7px 0;
+  }
+  .input-shell select{cursor:pointer;}
+  .input-shell select option{background:var(--navy-900); color:#fff;}
+  .input-shell input::placeholder{color:#5b6b7d;}
+  .input-shell.disabled{opacity:.4; pointer-events:none;}
+  .input-shell input[type="date"]{color-scheme:dark;}
+
+  /* ---------- radio / checkbox rows ---------- */
+  .radio-row{display:flex; flex-wrap:wrap; gap:12px; align-items:center;}
+  .radio-opt, .check-opt{
+    display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;
+    font-size:13px; color:var(--concrete-200); user-select:none;
+  }
+  .radio-opt input, .check-opt input{accent-color:var(--amber-500); width:15px; height:15px; cursor:pointer; flex-shrink:0;}
+  .check-opt.disabled{opacity:.4; cursor:not-allowed;}
+  .check-opt.disabled input{cursor:not-allowed;}
+
+  .date-mode-grid{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center;}
+  .date-mode-line{display:inline-flex; align-items:center; gap:6px; flex-wrap:nowrap;}
+  .date-mode-line .input-shell{width:118px;}
+  .date-mode-line .input-shell.wide{width:132px;}
+  .date-mode-line .sep{color:var(--concrete-400); font-size:12px; padding:0 1px;}
+
+  .search-field-row{display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center;}
+  .search-field-line{display:inline-flex; align-items:center; gap:7px; flex-wrap:nowrap;}
+  .search-field-line .check-opt{flex-shrink:0;}
+  .search-field-line .input-shell{width:128px;}
+
+  /* ---------- ACTION BAR ---------- */
+  .action-bar{
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
+    padding:14px 18px; margin-bottom:26px;
+  }
+  .btn-primary{
+    border:0; border-radius:7px; padding:12.5px 22px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    background:var(--amber-500); color:var(--navy-950);
+    display:flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;
+    transition:transform .15s, background .15s;
+  }
+  .btn-primary:hover{background:var(--amber-600); transform:translateY(-1px);}
+  .btn-primary:disabled{opacity:.5; cursor:not-allowed; transform:none;}
+
+  .tool-btn{
+    display:flex; align-items:center; gap:7px;
+    font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.03em;
+    color:var(--concrete-200); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14);
+    border-radius:7px; padding:11px 14px; cursor:pointer;
+    transition:border-color .15s, background .15s, opacity .15s;
+  }
+  .tool-btn svg{width:14px; height:14px; flex-shrink:0;}
+  .tool-btn:hover:not(:disabled){border-color:var(--amber-500); background:rgba(242,169,28,.08); color:var(--amber-500);}
+  .tool-btn:disabled{opacity:.35; cursor:not-allowed;}
+  .tool-btn.soon{position:relative;}
+
+  .action-spacer{flex:1;}
+  .action-count{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-400); white-space:nowrap;}
+  .action-count b{color:var(--amber-500); font-size:14px;}
+
+  .result-panel{
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
+    overflow:hidden; position:relative;
+  }
+  .result-panel.is-loading{min-height:300px;}
+
+  /* Loading (แบบเดียวกับหน้าร้องขอเมล็ดพันธุ์): คลุมกล่องผลลัพธ์ + โลโก้ + วงแหวนหมุน + ข้อความ Loading . . . */
+  .list-loading{position:absolute; inset:0; z-index:5; display:flex; align-items:flex-start; justify-content:center;
+    padding-top:min(110px, 14vh); border-radius:inherit; background:rgba(16,20,26,.72); backdrop-filter:blur(2px);}
+  .list-loading[hidden]{display:none;}
+  .ld-box{display:flex; flex-direction:column; align-items:center; gap:8px; position:sticky; top:120px;}
+  .ld-ring{position:relative; width:66px; height:66px; display:flex; align-items:center; justify-content:center;}
+  .ld-ring::before{content:""; position:absolute; inset:0; border-radius:50%;
+    border:2.5px solid rgba(242,169,28,.15); border-top-color:var(--amber-500); border-right-color:var(--amber-500);
+    animation:ldSpin .9s linear infinite;}
+  .ld-logo{width:48px; height:48px; filter:drop-shadow(0 4px 10px rgba(242,120,28,.3));}
+  .ld-text{font-family:'Inter',sans-serif; font-size:14px; font-weight:500; letter-spacing:.32em; padding-left:.32em; color:#f5c66b;}
+  .ld-sub{font-size:12.5px; color:var(--concrete-400);}
+  @keyframes ldSpin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){ .ld-ring::before{animation-duration:2.5s;} }
+
+  .pager{
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
+    padding:14px 20px; border-top:1px solid rgba(255,255,255,.08);
+  }
+  .pager-info{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-400);}
+  .pager-info b{color:var(--amber-500);}
+  .pager-ctrl{display:flex; align-items:center; gap:10px;}
+  .pager-page{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-200); min-width:92px; text-align:center;}
+  .pager-btn{
+    font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.04em;
+    color:var(--concrete-200); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14);
+    border-radius:7px; padding:9px 16px; cursor:pointer;
+    transition:border-color .15s, background .15s, color .15s;
+  }
+  .pager-btn:hover:not(:disabled){border-color:var(--amber-500); background:rgba(242,169,28,.08); color:var(--amber-500);}
+  .pager-btn:disabled{opacity:.35; cursor:not-allowed;}
+
+  .state-box{padding:50px 20px; text-align:center; color:var(--concrete-400); font-size:13.5px;}
+  .state-box.error{color:#ff8a75;}
+  .state-box svg{width:34px; height:34px; margin-bottom:10px; opacity:.6;}
+
+  .spinner{
+    display:inline-block; width:14px; height:14px; border-radius:50%;
+    border:2px solid rgba(12,20,32,.35); border-top-color:var(--navy-950);
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  footer{text-align:center; padding:20px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500);}
+
+  /* ---------- เมนูที่ไม่มีสิทธิ์เข้าถึง ---------- */
+  .menu-locked{opacity:.4; cursor:not-allowed !important;}
+  .menu-locked::after{content:"🔒"; margin-left:auto; font-size:11px; opacity:.9;}
+  a.menu-locked{pointer-events:none;}
+
+  .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:19;}
+  @media (max-width:900px){
+    .sidebar{transform:translateX(-100%);}
+    body.sidebar-open .sidebar{transform:translateX(0);}
+    body.sidebar-open .sidebar-overlay{display:block;}
+    .main-wrap{margin-left:0;}
+    .topbar-mobile{display:flex;}
+  }
+
+  /* ==================================================================
+     ---------- รายงานรับเมล็ดจากบริษัทในเครือ ----------
+     ================================================================== */
+  /* ---------- กล่องเงื่อนไข: 3 บล็อก + ปุ่ม (2 แถว) ----------
+     บล็อก 1: [บริษัท]   / [Supplier]        บล็อก 2: [ประเภทพืช] / [ค้นหา]
+     บล็อก 3: วันที่ออก PO  แถว 1 = ○ทั้งหมด ○ปี [ปี]  /  แถว 2 = ○เดือน [เดือน][ปี]          ปุ่ม: [แสดงข้อมูล] / [Export]
+     แต่ละ .filter-block เป็น display:contents → ป้ายชื่อ/ช่องกรอกวางลงคอลัมน์ตาม class fb-* */
+  .filter-panel.filter-grid{
+    /* คอลัมน์: ป้าย1 | บริษัท/Supplier | ป้าย2 | ประเภทพืช/ค้นหา | ป้ายวันที่ | วันที่ | ช่องว่าง | ปุ่ม */
+    display:grid;
+    grid-template-columns:max-content minmax(200px, 260px) max-content minmax(170px, 220px) max-content max-content minmax(0, 1fr) 140px;
+    align-items:center; column-gap:10px; row-gap:12px; padding:14px 18px; margin-bottom:18px;
+  }
+  .filter-grid .filter-block{display:contents;}
+  .fb-company  > :first-child{grid-column:1; grid-row:1;} .fb-company  > :last-child{grid-column:2; grid-row:1;}
+  .fb-supplier > :first-child{grid-column:1; grid-row:2;} .fb-supplier > :last-child{grid-column:2; grid-row:2;}
+  .fb-crop     > :first-child{grid-column:3; grid-row:1;} .fb-crop     > :last-child{grid-column:4; grid-row:1;}
+  .fb-search   > :first-child{grid-column:3; grid-row:2;} .fb-search   > :last-child{grid-column:4; grid-row:2;}
+  .fb-date     > :first-child{grid-column:5; grid-row:1 / 3;} .fb-date > :last-child{grid-column:6; grid-row:1 / 3;}
+  .filter-grid .col-shell{width:100%;}
+  /* ช่องกรอกและปุ่มสูงเท่ากันหมด */
+  .filter-grid .input-shell{min-height:38px;}
+  .filter-actions{display:contents;}
+  .filter-btn{height:38px; width:100%; padding:0 14px; justify-content:center;}
+  #viewBtn{grid-column:8; grid-row:1; font-size:13.5px;}
+  #exportBtn{grid-column:8; grid-row:2;}
+  /* ปุ่ม Export สีเขียวแบบ Excel เห็นแล้วรู้ทันที */
+  .excel-btn{
+    display:flex; align-items:center; gap:8px; border:0; border-radius:7px; cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:600; color:#fff;
+    background:#107c41; transition:background .15s, transform .15s, opacity .15s;
+  }
+  .excel-btn:hover:not(:disabled){background:#0e6b38; transform:translateY(-1px);}
+  .excel-btn:disabled{opacity:.4; cursor:not-allowed;}
+  .excel-btn .xl-icon{width:20px; height:20px; flex-shrink:0;}
+  /* ป้ายของบล็อก 2 และบล็อก 3: เว้นระยะ + เส้นคั่นจากบล็อกก่อนหน้า */
+  .fb-crop > .filter-block-title, .fb-search > .filter-block-title, .fb-date > .filter-block-title{
+    margin-left:4px; padding-left:14px; border-left:1px solid rgba(255,255,255,.09); align-self:stretch;
+    display:flex; align-items:center;
+  }
+  .filter-grid .search-shell{width:100%;}
+  /* วันที่ออก PO (จอกว้าง): ตาราง 3 คอลัมน์ 2 แถว ตรงกับแถวของช่องกรอก — combobox ปีของทั้ง 2 แถวอยู่คอลัมน์เดียวกัน
+       ○ทั้งหมด   ○ปี        [ปี]
+       ○เดือน    [เดือน]    [ปี]      (.date-mode-line เป็น display:contents ให้ลูกวางลงช่องตาราง) */
+  .filter-grid .date-mode-grid{display:grid; grid-template-columns:max-content max-content max-content; gap:12px 10px; align-items:center;}
+  .filter-grid .date-mode-line{display:contents;}
+  .filter-grid .dm-all > .radio-opt{grid-column:1; grid-row:1;}
+  .filter-grid .dm-year > .radio-opt{grid-column:2; grid-row:1;}
+  .filter-grid .dm-year > .input-shell{grid-column:3; grid-row:1; width:100% !important;}   /* ยืดเต็มคอลัมน์ ให้ขอบขวาตรงกับปุ่มเดือนด้านล่าง */
+  .filter-grid .dm-month > .radio-opt{grid-column:1; grid-row:2;}
+  .filter-grid .dm-month > .month-picker-shell{grid-column:2 / 4; grid-row:2;}   /* กว้างเท่า "○ปี" + combobox ปี ด้านบน */
+  .filter-grid .date-mode-grid .radio-opt{min-height:38px;}
+  /* ---------- ตัวเลือกเดือน/ปี: ปุ่ม "ตุลาคม 2569" + popup ปี/12 เดือน ---------- */
+  .month-picker-shell{min-width:170px; padding:0;}
+  .month-picker-btn{
+    display:flex; align-items:center; gap:8px; width:100%; min-height:38px; padding:0 10px; cursor:pointer;
+    background:none; border:0; color:#fff; font-family:'Inter',sans-serif; font-size:13px; text-align:left;
+  }
+  .month-picker-btn > svg{width:15px; height:15px; color:var(--concrete-400); flex-shrink:0;}
+  .month-picker-btn > span{flex:1; white-space:nowrap;}
+  .month-picker-btn .mp-caret{width:12px; height:12px;}
+  .month-picker-shell.mp-inactive{opacity:.55;}           /* ไม่ได้อยู่โหมดเดือน: จางลง แต่ยังคลิกเลือกได้ (เลือกแล้วสลับเป็นโหมดเดือนให้) */
+  .month-picker-shell.mp-open{border-color:var(--amber-500); box-shadow:0 0 0 3px rgba(242,169,28,.15); opacity:1;}
+  .month-picker-pop{
+    position:fixed; z-index:60; width:244px; padding:12px;
+    background:var(--navy-900); border:1px solid rgba(255,255,255,.16); border-radius:10px; box-shadow:0 16px 40px rgba(0,0,0,.55);
+  }
+  .month-picker-pop[hidden]{display:none;}
+  .mp-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .mp-year{font-family:'Oswald',sans-serif; font-size:18px; font-weight:600; color:#fff; letter-spacing:.03em;}
+  .mp-nav{width:32px; height:32px; border-radius:7px; cursor:pointer; font-size:18px; line-height:1;
+    color:var(--concrete-200); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14);}
+  .mp-nav:hover:not(:disabled){border-color:var(--amber-500); color:var(--amber-500);}
+  .mp-nav:disabled{opacity:.3; cursor:not-allowed;}
+  .mp-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px;}
+  .mp-month{
+    height:36px; border-radius:7px; cursor:pointer; font-family:'Inter',sans-serif; font-size:13px; font-weight:500;
+    color:var(--concrete-200); background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+  }
+  .mp-month:hover:not(:disabled){border-color:var(--amber-500); color:#fff;}
+  .mp-month.now{border-color:rgba(242,169,28,.45);}
+  .mp-month.sel{background:var(--amber-500); border-color:var(--amber-500); color:var(--navy-950); font-weight:700;}
+  .mp-month:disabled{opacity:.25; cursor:not-allowed;}
+  .mp-today{width:100%; margin-top:10px; height:32px; border-radius:7px; cursor:pointer; font-size:12.5px; font-weight:600;
+    color:var(--amber-500); background:rgba(242,169,28,.08); border:1px solid rgba(242,169,28,.3);}
+  .mp-today:hover{background:rgba(242,169,28,.16);}
+
+  /* ป้าย "วันที่ออก PO" อยู่ระดับแถวบน (เส้นคั่นยังยาวครอบ 2 แถว) */
+  .filter-grid .fb-date > .filter-block-title{align-items:flex-start; line-height:38px;}
+  /* มีคำค้นหา = ค้นทุกช่วงเวลา: เงื่อนไขเดือน/ปีจางลง (ยังเลือกได้ ใช้เมื่อล้างช่องค้นหา) */
+  .date-mode-grid.date-ignored{opacity:.4; transition:opacity .15s;}
+
+  /* จอกลาง (901–1549px เช่น notebook 1366 / จอ 1440): 3 แถว — คงการจับคู่ของบล็อกเดิม
+     [บริษัท | ประเภทพืช | แสดงข้อมูล] / [Supplier | ค้นหา | Export] / [วันที่ออก PO (บรรทัดเดียว)] */
+  @media (min-width:901px) and (max-width:1549px){
+    .filter-panel.filter-grid{grid-template-columns:max-content minmax(0, 1fr) max-content minmax(0, 1fr) 140px;}
+    .fb-date > :first-child{grid-column:1; grid-row:3;} .fb-date > :last-child{grid-column:2 / 5; grid-row:3;}
+    .fb-date > .filter-block-title{margin-left:0; padding-left:0; border-left:0;}
+    .filter-grid .date-mode-grid{display:flex; flex-wrap:wrap; gap:8px 16px;}
+    .filter-grid .date-mode-line{display:inline-flex;}
+    .filter-grid .fb-date > .filter-block-title{align-items:center; line-height:normal;}
+    #viewBtn{grid-column:5; grid-row:1;}
+    #exportBtn{grid-column:5; grid-row:2;}
+  }
+  /* จอแคบ (มือถือ / แท็บเล็ต): เรียงลงมาทีละแถว บริษัท → Supplier → ประเภทพืช → ค้นหา → วันที่ (ป้ายซ้าย / ช่องกรอกขวา) */
+  @media (max-width:900px){
+    .filter-panel.filter-grid{grid-template-columns:max-content minmax(0, 1fr);}
+    .filter-grid .filter-block > :first-child{grid-column:1 !important; grid-row:auto !important;}
+    .filter-grid .filter-block > :last-child{grid-column:2 !important; grid-row:auto !important;}
+    .fb-crop > .filter-block-title, .fb-search > .filter-block-title, .fb-date > .filter-block-title{margin-left:0; padding-left:0; border-left:0;}
+    .filter-grid .search-shell{max-width:none;}
+    .filter-grid .date-mode-grid{display:flex; flex-wrap:wrap; gap:8px 14px;}
+    .filter-grid .fb-date > .filter-block-title{align-items:center; line-height:normal;}
+    .filter-grid .date-mode-line{display:inline-flex; flex-wrap:wrap; row-gap:8px;}
+    /* จอแคบ: ปุ่มเรียงคู่กันเป็นแถวสุดท้าย */
+    .filter-actions{display:grid; grid-template-columns:1fr 1fr; gap:10px; grid-column:1 / -1;}
+    #viewBtn, #exportBtn{grid-column:auto; grid-row:auto;}
+  }
+
+  /* ---------- ป้ายผู้ขาย (ตัวย่อ + ชื่อ มีสีเฉพาะที่ป้าย — กรอบ/แถบการ์ดใช้สีสถานะ) ---------- */
+  .sup-tag{display:inline-flex; align-items:center; gap:6px; color:var(--sup, var(--concrete-200)); font-size:12px; font-weight:600; white-space:nowrap;}
+  .sup-tag b{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700; letter-spacing:.06em;
+    color:var(--sup, #fff); background:var(--sup-bg, rgba(255,255,255,.1)); border:1px solid var(--sup, rgba(255,255,255,.22));
+    border-radius:5px; padding:2px 6px;
+  }
+  /* ผู้ขาย = ฟ้า / เขียว / ชมพู (สีสถานะใช้ เทา / เหลืองทอง / ม่วง / แดง จึงไม่ซ้ำกัน) */
+  .sup-tag.sup-361{--sup:#4ea3ff; --sup-bg:rgba(78,163,255,.15);}   /* ฟ้า */
+  .sup-tag.sup-504{--sup:#3ecf8e; --sup-bg:rgba(62,207,142,.15);}   /* เขียว */
+  .sup-tag.sup-932{--sup:#ff6fb5; --sup-bg:rgba(255,111,181,.15);}  /* ชมพู */
+
+  /* ---------- สีสถานะ PO (ใช้ร่วมกันทั้ง KPI / แถบการ์ด / badge / progress / timeline) ---------- */
+  :root{
+    --st-partial:#f5c542;   /* รับบางส่วน = เหลืองทอง */
+    --st-complete:#b197fc;  /* รับครบ (100% – 100.9%) = ม่วง */
+    --st-excess:#ff922b;    /* รับเกิน 1–20% (101% – 120%) = ส้ม: อยู่ระหว่างเหลือง (บางส่วน) กับแดง (เกิน 20%) */
+    --st-ended:#3b5bdb;      /* สิ้นสุด PO = น้ำเงินเข้ม (ป้ายพื้นทึบ + กุญแจ) — ไม่ชนส้มของรับเกิน / เข้มกว่าฟ้าของ FLO */
+    --st-ended-text:#91a7ff; /* น้ำเงินอ่อน สำหรับตัวหนังสือบนพื้นกรมท่า */
+  }
+  .year-select{text-align:center;}
+
+  /* ---------- KPI (คลิกเพื่อกรองสถานะ) ---------- */
+  .kpi-row{display:grid; grid-template-columns:repeat(auto-fit, minmax(128px, 1fr)); gap:10px; margin-bottom:18px;}
+  .kpi-row[hidden]{display:none;} /* ต้องระบุเอง: display:grid ด้านบนชนะ attribute hidden ทำให้การ์ดสรุปค้างตัวเลขเก่าตอนไม่พบข้อมูล */
+  .kpi{
+    text-align:left; cursor:pointer; font:inherit; color:inherit;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
+    padding:14px 16px; position:relative; overflow:hidden;
+    transition:border-color .15s, transform .15s, background .15s;
+  }
+  .kpi::before{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--k-color, var(--steel-500));}
+  .kpi:hover{transform:translateY(-1px); border-color:rgba(255,255,255,.18);}
+  .kpi.active{border-color:var(--k-color, var(--amber-500)); background:rgba(242,169,28,.06);}
+  .kpi .k-label{font-family:'Inter',sans-serif; font-size:14px; font-weight:600; letter-spacing:.01em; color:var(--concrete-200);}
+  .kpi .k-value{font-family:'Oswald',sans-serif; font-size:34px; font-weight:600; color:#fff; line-height:1.15; margin-top:4px;}
+  .kpi .k-hint{font-size:12.5px; color:var(--concrete-400); margin-top:2px;}
+  .kpi[data-status="all"]{--k-color:var(--amber-500);}
+  .kpi[data-status="pending"]{--k-color:#7d8da0;}
+  .kpi[data-status="partial"]{--k-color:var(--st-partial);}
+  .kpi[data-status="complete"]{--k-color:var(--st-complete);}
+  .kpi[data-status="excess"]{--k-color:var(--st-excess);}
+  .kpi[data-status="over"]{--k-color:var(--safety-red);}
+  .kpi[data-status="over"] .k-value{color:#ff8a75;}
+
+  /* ---------- PO CARD LIST ---------- */
+  .list-head{padding:16px 18px 0; font-size:13px; color:var(--concrete-200); display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-wrap:wrap;}
+  .po-list{display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:14px; padding:18px;}
+  @media (max-width:520px){ .po-list{grid-template-columns:1fr; padding:12px;} }
+  .po-card{
+    text-align:left; font:inherit; color:inherit; cursor:pointer;
+    /* แถบซ้าย = สีสถานะ (ชุดเดียวกับ KPI / badge / progress) */
+    background:rgba(255,255,255,.025);
+    border:1px solid rgba(255,255,255,.08); border-left:4px solid var(--st, #7d8da0); border-radius:10px;
+    padding:14px 16px 13px 14px; display:flex; flex-direction:column; gap:10px;
+    transition:border-color .15s, background .15s, transform .15s, box-shadow .15s;
+  }
+  .po-card.st-pending{--st:#7d8da0;}
+  .po-card.st-partial{--st:var(--st-partial);}
+  .po-card.st-complete{--st:var(--st-complete);}
+  .po-card.st-excess{--st:var(--st-excess);}
+  .po-card.st-over{--st:var(--safety-red); background:rgba(229,83,61,.05);}
+  .po-card:hover{border-color:rgba(242,169,28,.55); border-left-color:var(--st); background:rgba(242,169,28,.04); transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,0,0,.25);}
+  .po-card:focus-visible{outline:2px solid var(--amber-500); outline-offset:2px;}
+  .pc-top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
+  .pc-code{font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:600; color:#fff;}
+  .pc-code small, .pc-line small{font-family:'Inter',sans-serif; font-size:12px; font-weight:500; color:var(--concrete-400); margin-right:6px;}
+  .pc-line{font-size:12.5px; color:var(--concrete-200); margin-top:4px; display:flex; align-items:center; flex-wrap:wrap;}
+  .pc-product{font-size:13px; color:var(--concrete-200); line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.9em;}
+  .pc-product small{color:var(--steel-500);}
+  .pc-meta{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:13px; color:var(--concrete-200);}
+  .pc-meta b{font-family:'JetBrains Mono',monospace; color:#fff; font-weight:700; font-size:13.5px;}
+  .pc-foot{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; color:var(--concrete-200);}
+  .pc-foot b{color:#fff; font-family:'JetBrains Mono',monospace;}
+  .pc-foot .open-hint{color:var(--amber-500); font-family:'JetBrains Mono',monospace; font-size:12.5px; white-space:nowrap;}
+
+  /* ---------- STATUS BADGE ---------- */
+  .badge{
+    display:inline-flex; align-items:center; gap:5px; white-space:nowrap;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:600; letter-spacing:.04em;
+    padding:4px 8px; border-radius:999px; border:1px solid currentColor;
+  }
+  .badge.pending{color:#9aa8b8; background:rgba(154,168,184,.08);}
+  .badge.partial{color:var(--st-partial); background:rgba(245,197,66,.1);}
+  .badge.complete{color:var(--st-complete); background:rgba(177,151,252,.12);}
+  .badge.excess{color:var(--st-excess); background:rgba(255,146,43,.12);}
+  .badge.over{color:#ff8a75; background:rgba(229,83,61,.12);}
+  /* สิ้นสุด PO: แสดงคู่กับสถานะการรับ (ฟ้าอมเขียว + กรอบทึบ ต่างจากสถานะการรับที่เป็นกรอบเส้น) */
+  .badge.ended{color:#fff; background:var(--st-ended); border-color:var(--st-ended);}
+  .badge .lock{width:11px; height:11px; flex-shrink:0;}
+  .pc-badges{display:flex; flex-direction:column; align-items:flex-end; gap:5px;}
+  .kpi[data-status="ended"]{--k-color:var(--st-ended);}
+  .ended-note{font-size:12.5px; color:var(--concrete-200); margin-top:8px;}
+  .ended-note b{color:var(--st-ended-text);}
+  .badge.unit{color:#f5c66b; background:rgba(242,169,28,.1);}
+
+  /* ---------- PROGRESS BAR (เส้นประที่ 100% และ 120%) ---------- */
+  .progress{display:flex; align-items:center; gap:10px;}
+  .pbar{position:relative; flex:1; height:8px; border-radius:99px; background:rgba(255,255,255,.08); overflow:visible;}
+  .pbar-fill{position:absolute; left:0; top:0; bottom:0; border-radius:99px; background:var(--st-partial); max-width:100%;}
+  .pbar-fill.complete{background:var(--st-complete);}
+  .pbar-fill.excess{background:var(--st-excess);}
+  .pbar-fill.over{background:var(--safety-red);}
+  .pbar-mark{position:absolute; top:-3px; bottom:-3px; width:0; border-left:1px dashed rgba(255,255,255,.45);}
+  .pbar-mark.limit{border-left-color:rgba(229,83,61,.8);}
+  .pct{font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; color:#fff; min-width:62px; text-align:right;}
+  .pct.over{color:#ff8a75;}
+  .pct.complete{color:var(--st-complete);}
+  .pct.excess{color:var(--st-excess);}
+
+  /* ---------- MODAL กลางจอ (รายละเอียด PO) / มือถือ = เต็มจอ เลื่อนขึ้นจากด้านล่าง ---------- */
+  .drawer-backdrop{position:fixed; inset:0; background:rgba(4,8,14,.65); backdrop-filter:blur(3px); z-index:40; opacity:0; pointer-events:none; transition:opacity .2s;}
+  .drawer{
+    position:fixed; top:50%; left:50%; z-index:41;
+    width:min(760px, calc(100vw - 48px)); max-height:min(88vh, 900px);
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-950));
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; box-shadow:0 30px 80px rgba(0,0,0,.55);
+    transform:translate(-50%, -46%) scale(.97); opacity:0; pointer-events:none;
+    transition:transform .22s ease, opacity .22s ease;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  body.drawer-open .drawer{transform:translate(-50%, -50%) scale(1); opacity:1; pointer-events:auto;}
+  body.drawer-open .drawer-backdrop{opacity:1; pointer-events:auto;}
+  @media (max-width:640px){
+    .drawer{
+      top:auto; left:0; right:0; bottom:0; width:100vw; max-height:100dvh; height:100dvh;
+      border-radius:0; border:0; transform:translateY(100%); opacity:1;
+    }
+    body.drawer-open .drawer{transform:translateY(0);}
+    .dr-head{padding:16px 16px 14px !important;}
+    .dr-body{padding:16px 16px 32px !important;}
+    .dr-stats{grid-template-columns:1fr 1fr 1fr; gap:6px;}
+  }
+  @media (prefers-reduced-motion: reduce){ .drawer{transition:opacity .15s;} }
+  body.drawer-open{overflow:hidden;}
+  .dr-head{padding:20px 22px 16px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; flex-direction:column; gap:12px;}
+  .dr-title-row{display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
+  .dr-eyebrow{font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:var(--amber-500); text-transform:uppercase;}
+  .dr-code{font-family:'Oswald',sans-serif; font-size:24px; font-weight:600; color:#fff; letter-spacing:.02em;}
+  .dr-sub{font-size:12.5px; color:var(--concrete-400); margin-top:2px;}
+  .dr-close{
+    width:36px; height:36px; border-radius:8px; flex-shrink:0; cursor:pointer;
+    border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.04); color:var(--concrete-200);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .dr-close:hover{border-color:var(--amber-500); color:var(--amber-500);}
+  .dr-close svg{width:16px; height:16px;}
+  .dr-stats{display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;}
+  .dr-stat{background:var(--ds-bg, rgba(255,255,255,.03)); border:1px solid var(--ds-line, rgba(255,255,255,.07)); border-top:3px solid var(--ds, rgba(255,255,255,.2)); border-radius:8px; padding:9px 12px 10px;}
+  /* สีกล่องสรุปบน popup: จำนวน PO = ฟ้าอ่อน / รับแล้ว = เขียว / คงเหลือ = เหลือง (ติดลบ = แดง) */
+  .dr-stat.ds-po{--ds:#8ccbff; --ds-bg:rgba(140,203,255,.08); --ds-line:rgba(140,203,255,.22);}
+  .dr-stat.ds-rec{--ds:#3ecf8e; --ds-bg:rgba(62,207,142,.09); --ds-line:rgba(62,207,142,.28);}
+  .dr-stat.ds-rec .s-value{color:#7ee2b4;}
+  .dr-stat.ds-bal{--ds:#f5c542; --ds-bg:rgba(245,197,66,.09); --ds-line:rgba(245,197,66,.3);}
+  .dr-stat.ds-bal.neg{--ds:var(--safety-red); --ds-bg:rgba(229,83,61,.1); --ds-line:rgba(229,83,61,.3);}
+  .dr-stat .s-label{font-family:'Inter',sans-serif; font-size:13px; font-weight:600; color:var(--concrete-200);}
+  .dr-stat .s-value{font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; color:#fff; margin-top:4px;}
+  .dr-stat .s-value small{font-family:'Inter',sans-serif; font-size:12.5px; font-weight:500; color:var(--concrete-200);}
+  .dr-body{flex:1; overflow-y:auto; padding:18px 22px 40px;}
+
+  .line-block{margin-bottom:26px;}
+  .line-head{
+    background:rgba(242,169,28,.06); border:1px solid rgba(242,169,28,.2); border-radius:10px;
+    padding:12px 14px; display:flex; flex-direction:column; gap:9px; margin-bottom:14px;
+  }
+  .line-name{font-weight:700; color:#8ccbff; font-size:18px; line-height:1.4; display:flex; justify-content:space-between; gap:10px; align-items:flex-start;} /* ชื่อสินค้า = ข้อมูลสำคัญ ใช้ฟ้าอ่อนให้เด่น (ไม่กลืนกับป้ายเหลือง "รับบางส่วน") */
+  .line-nums{display:flex; flex-wrap:wrap; gap:4px 16px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--concrete-400);}
+  .line-nums b{color:var(--concrete-200);}
+  .line-nums b.bal{color:var(--amber-500);}
+  .line-nums b.neg{color:#ff8a75;}
+
+  /* ---------- TIMELINE (ครั้งที่รับ) ---------- */
+  .timeline{position:relative; padding-left:26px;}
+  .timeline::before{content:""; position:absolute; left:9px; top:6px; bottom:6px; border-left:2px solid rgba(255,255,255,.1);}
+  .rc{position:relative; margin-bottom:12px;}
+  .rc-dot{
+    position:absolute; left:-26px; top:12px; width:20px; height:20px; border-radius:50%;
+    background:var(--navy-900); border:2px solid var(--st-partial); color:#fff;
+    font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .rc.over .rc-dot{border-color:var(--safety-red);}
+  .rc.complete .rc-dot{border-color:var(--st-complete);}
+  .rc.excess .rc-dot{border-color:var(--st-excess);}
+  /* กล่องการรับแต่ละครั้ง: พื้นฟ้าเทาจางๆ + กรอบชัดขึ้น ให้แยกจากพื้นหลังได้ */
+  .rc-card{background:rgba(140,203,255,.06); border:1px solid rgba(140,203,255,.2); border-radius:10px; padding:12px 14px; box-shadow:0 2px 10px rgba(0,0,0,.18);}
+  .rc.over .rc-card{border-color:rgba(229,83,61,.45); background:rgba(229,83,61,.06);}
+  .rc-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;}
+  .rc-title{font-size:14.5px; color:#fff; font-weight:600; line-height:1.55;}
+  .rc-title span{font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--amber-500); font-weight:600;}
+  .rc-title small{font-size:13px; font-weight:500; color:var(--concrete-200); margin-left:2px;}
+  .rc-date{font-size:13.5px; color:var(--concrete-200); margin-top:3px;}
+  .rc-amount{text-align:right;}
+  .rc-amount .amt{font-family:'JetBrains Mono',monospace; font-size:19px; font-weight:700; color:#fff;}
+  .rc-amount .amt small{font-family:'Inter',sans-serif; font-size:13px; color:var(--concrete-200); font-weight:500;}
+  .rc-amount .of{font-size:13px; color:var(--concrete-200); margin-top:2px;}
+  .rc-grid{display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-top:10px;}
+  .rc-cell{background:rgba(0,0,0,.18); border-radius:7px; padding:7px 10px;}
+  .rc-cell .s-label{font-family:'Inter',sans-serif; font-size:13px; font-weight:600; color:var(--concrete-200);}
+  .rc-cell .s-value{font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; color:#fff; margin-top:2px;}
+  .rc-cell .s-value.bal{color:var(--amber-500);}
+  .rc-cell .s-value.neg{color:#ff8a75;}
+  .rc-cell .s-value.over{color:#ff8a75;}
+  .lots{margin-top:10px; border-top:1px dashed rgba(255,255,255,.1); padding-top:8px; display:flex; flex-direction:column; gap:6px;}
+  .lot-row{display:flex; justify-content:space-between; gap:10px; font-size:13.5px; color:var(--concrete-200);}
+  /* Lot No.: ฟอนต์ Inter น้ำหนักปกติ + ตัวเลขกว้างเท่ากัน อ่านง่ายกว่า Mono ตัวหนา */
+  .lot-row .lot-no{font-family:'Inter',sans-serif; font-variant-numeric:tabular-nums; letter-spacing:.02em; font-size:14px; color:#fff; font-weight:500;}
+  .lot-row .lot-amt{font-family:'Inter',sans-serif; font-variant-numeric:tabular-nums; font-size:14px; color:#fff; font-weight:500; white-space:nowrap;}
+  .lot-row.err .lot-amt{color:#f5c66b; text-decoration:line-through;}
+
+  .alert{
+    display:flex; gap:9px; align-items:flex-start; border-radius:8px; padding:9px 12px;
+    font-size:12.5px; line-height:1.45; margin-top:10px;
+  }
+  .alert svg{width:16px; height:16px; flex-shrink:0; margin-top:1px;}
+  .alert.over{background:rgba(229,83,61,.1); border:1px solid rgba(229,83,61,.35); color:#ffb2a5;}
+  .alert.unit{background:rgba(242,169,28,.08); border:1px solid rgba(242,169,28,.35); color:#f5d28f;}
+  .empty-line{font-size:12.5px; color:var(--steel-500); padding:6px 0 0 2px;}
+
+  .pc-alerts{display:flex; flex-wrap:wrap; gap:6px;}
+
+  /* ==================================================================
+     ---------- แท็บ: รายการ PO ในเครือ / Stock Card ราย PO ----------
+     ================================================================== */
+  .tabs{display:flex; gap:4px; box-shadow:inset 0 -1px 0 rgba(255,255,255,.1); margin:6px 0 18px; overflow-x:auto; overflow-y:hidden; scrollbar-width:none;}
+  .tab-btn{
+    display:inline-flex; align-items:center; gap:8px; white-space:nowrap; cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:14.5px; font-weight:600; color:var(--concrete-400);
+    background:none; border:0; border-bottom:3px solid transparent; padding:10px 16px 11px;
+    transition:color .15s, border-color .15s, background .15s; border-radius:8px 8px 0 0;
+  }
+  .tab-btn svg{width:16px; height:16px;}
+  .tab-btn:hover{color:#fff; background:rgba(255,255,255,.04);}
+  .tab-btn.active{color:var(--amber-500); border-bottom-color:var(--amber-500); background:rgba(242,169,28,.06);}
+  section[hidden]{display:none !important;}
+
+  /* ปุ่มใน popup → ไปแท็บ Stock Card */
+  .dr-sc-btn{
+    align-self:flex-start; display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:600; color:var(--amber-500);
+    background:rgba(242,169,28,.08); border:1px solid rgba(242,169,28,.35); border-radius:7px; padding:8px 12px;
+  }
+  .dr-sc-btn:hover{background:rgba(242,169,28,.16);}
+  .dr-sc-btn svg{width:15px; height:15px;}
+
+  /* ---------- ตัวกรองแท็บ 2 ---------- */
+  .sc-filter{display:grid; grid-template-columns:max-content 220px max-content minmax(0, 1fr) auto; align-items:center; gap:10px 12px; padding:14px 18px; margin-bottom:18px;}
+  .sc-filter .input-shell{min-height:38px;}
+  .sc-po-label{margin-left:4px; padding-left:14px; border-left:1px solid rgba(255,255,255,.09); align-self:stretch; display:flex; align-items:center;}
+  .sc-po-wrap{position:relative; min-width:0;}
+  .sc-actions{display:flex; gap:8px;}
+  .sc-actions .filter-btn{width:auto; white-space:nowrap;}
+  @media (max-width:1100px){
+    .sc-filter{grid-template-columns:max-content minmax(0, 1fr);}
+    .sc-po-label{margin-left:0; padding-left:0; border-left:0;}
+    .sc-actions{grid-column:1 / -1; display:grid; grid-template-columns:repeat(3, 1fr);}
+    .sc-actions .filter-btn{width:100%;}
+  }
+
+  /* รายการแนะนำ PO (เด้งใต้ช่อง) */
+  .sc-suggest{
+    position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:30; max-height:360px; overflow-y:auto;
+    background:var(--navy-900); border:1px solid rgba(255,255,255,.16); border-radius:9px; box-shadow:0 14px 34px rgba(0,0,0,.5);
+  }
+  .sc-suggest[hidden]{display:none;}
+  .sg-item{display:grid; grid-template-columns:auto 1fr auto; gap:3px 12px; align-items:center; padding:9px 12px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,.06);}
+  .sg-item:last-child{border-bottom:0;}
+  .sg-item:hover, .sg-item.active{background:rgba(242,169,28,.1);}
+  .sg-code{font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:600; color:#fff;}
+  .sg-date{font-size:12.5px; color:var(--concrete-400);}
+  .sg-prod{grid-column:1 / 3; font-size:13px; color:#8ccbff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .sg-prod small{color:var(--concrete-400);}
+  .sg-right{grid-row:1 / 3; grid-column:3; display:flex; flex-direction:column; align-items:flex-end; gap:4px;}
+  .sg-empty{padding:12px 14px; font-size:13px; color:var(--concrete-400);}
+
+  /* ---------- ผล Stock Card ---------- */
+  .sc-panel{min-height:120px;}
+  .sc-head{padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px 20px; align-items:flex-start;}
+  .sc-po{font-family:'Oswald',sans-serif; font-size:24px; font-weight:600; color:#fff; letter-spacing:.02em;}
+  .sc-po small{font-family:'Inter',sans-serif; font-size:13px; font-weight:500; color:var(--concrete-400); margin-right:8px; letter-spacing:0;}
+  .sc-meta{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:13.5px; color:var(--concrete-200); margin-top:4px; align-items:center;}
+  .sc-meta small{color:var(--concrete-400); margin-right:5px;}
+  .sc-line{padding:18px 20px 22px; border-bottom:1px solid rgba(255,255,255,.08);}
+  .sc-line:last-child{border-bottom:0;}
+  .sc-line-head{display:grid; grid-template-columns:minmax(0, 1fr) minmax(240px, 360px); gap:10px 24px; align-items:center; margin-bottom:12px;}
+  .sc-prod{font-size:19px; font-weight:700; color:#8ccbff; line-height:1.4;}
+  .sc-prod-sub{display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; margin-top:6px; font-size:13.5px; color:var(--concrete-200);}
+  .sc-prod-sub b{font-family:'JetBrains Mono',monospace; color:#fff;}
+  @media (max-width:760px){ .sc-line-head{grid-template-columns:1fr;} }
+  /* แท็บ Stock Card: ป้ายสถานะ + แถบ % ใหญ่ขึ้นให้เห็นชัด (เฉพาะใน #scResult ไม่กระทบการ์ดแท็บภาพรวม) */
+  #scResult .badge{font-size:13px; padding:6px 12px; gap:6px; letter-spacing:.03em;}
+  #scResult .badge .lock{width:13px; height:13px;}
+  #scResult .pc-badges{gap:8px;}
+  #scResult .progress{gap:14px;}
+  #scResult .pbar{height:14px;}
+  #scResult .pbar-mark{top:-4px; bottom:-4px; border-left-width:2px;}
+  #scResult .pct{font-size:20px; min-width:90px;}
+  #scResult .sc-line-head{grid-template-columns:minmax(0, 1fr) minmax(280px, 420px);}
+  @media (max-width:760px){ #scResult .sc-line-head{grid-template-columns:1fr;} }
+
+  .sc-table-wrap{overflow-x:auto; border:1px solid rgba(255,255,255,.08); border-radius:9px;}
+  .sc-table{width:100%; border-collapse:collapse; font-size:13.5px; white-space:nowrap;}
+  .sc-table th{
+    text-align:left; padding:10px 12px; font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600;
+    color:var(--amber-500); background:rgba(242,169,28,.07); border-bottom:1px solid rgba(255,255,255,.1);
+  }
+  .sc-table th.num, .sc-table td.num{text-align:right;}
+  .sc-table td{padding:9px 12px; border-bottom:1px solid rgba(255,255,255,.06); color:var(--concrete-200);}
+  .sc-table td.num{font-family:'Inter',sans-serif; font-variant-numeric:tabular-nums; color:#fff;}
+  .sc-table td.mono{font-family:'Inter',sans-serif; font-variant-numeric:tabular-nums; letter-spacing:.02em; color:#fff;}
+  .sc-table tbody tr:hover td{background:rgba(255,255,255,.03);}
+  .sc-table td.bal{font-weight:700; color:var(--amber-500);}
+  .sc-table td.bal.neg{color:#ff6b57;}             /* ติดลบ = รับเกิน PO */
+  /* แยกการรับแต่ละครั้ง: เส้นคั่นหนาที่บรรทัดแรกของแต่ละครั้ง */
+  .sc-table tr.rec-start td{border-top:2px solid rgba(140,203,255,.45);}
+  .sc-table tr.neg-row td{background:rgba(229,83,61,.06);}
+  .sc-table tr.open-row td{background:rgba(140,203,255,.07); color:#8ccbff; font-weight:600;}
+  .sc-table tr.open-row td.num{color:#8ccbff;}
+  .sc-table tr.end-row td{background:rgba(59,91,219,.16); color:var(--st-ended-text); font-weight:600;}
+  .sc-table tr.err-row td{color:#f5d28f;}
+  .sc-table tr.err-row td.qty{text-decoration:line-through;}
+  .sc-table tfoot td{padding:10px 12px; font-weight:700; color:#fff; background:rgba(255,255,255,.05); border-top:1px solid rgba(255,255,255,.14);}
+  .tag-type{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:2px 8px; border-radius:999px;}
+  .tag-type.open{color:#0c1420; background:#8ccbff;}
+  .tag-type.rec{color:#7ee2b4; background:rgba(62,207,142,.12); border:1px solid rgba(62,207,142,.35);}
+  .tag-type.end{color:#fff; background:var(--st-ended);}
+
+
+  /* ==================================================================
+     ---------- แท็บ 3: วิเคราะห์การรับเทียบ PO ----------
+     ================================================================== */
+  .an-filter{display:flex; flex-wrap:wrap; align-items:center; gap:10px 12px; padding:14px 18px; margin-bottom:18px;}
+  .an-filter .input-shell{min-height:38px;}
+  .an-field{display:flex; align-items:center; gap:10px;}
+  .an-w-lg{width:230px;} .an-w-sm{width:110px;}
+  .an-sep{margin-left:4px; padding-left:14px; border-left:1px solid rgba(255,255,255,.09);}
+  @media (max-width:900px){
+    .an-filter{flex-direction:column; align-items:stretch;}
+    .an-field{display:grid; grid-template-columns:96px minmax(0,1fr);}
+    .an-sep{margin-left:0; padding-left:0; border-left:0;}
+    .an-w-lg, .an-w-sm{width:auto;}
+    .an-note{margin-left:0;}
+    .an-panel{padding:18px 0;}
+  }
+  .an-note{margin-left:auto; font-size:12px; color:var(--concrete-400);}
+  .an-panel{min-height:160px; padding:18px; background:none; border:0; overflow:visible;}
+  .an-kpis{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-bottom:18px;}
+  .an-kpi{background:linear-gradient(180deg, var(--navy-900), var(--navy-800)); border:1px solid rgba(255,255,255,.08);
+    border-left:3px solid var(--k, var(--steel-500)); border-radius:var(--radius); padding:12px 14px;}
+  .an-kpi .l{font-size:13px; font-weight:600; color:var(--concrete-200);}
+  .an-kpi .v{font-family:'Oswald',sans-serif; font-size:28px; font-weight:600; color:#fff; line-height:1.2; margin-top:2px;}
+  .an-kpi .s{font-size:12px; color:var(--concrete-400); margin-top:2px;}
+  .an-kpi.bad .v{color:#ff8a75;}
+  .an-grid{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:14px; margin-bottom:14px;}
+  @media (max-width:1100px){ .an-grid{grid-template-columns:1fr;} }
+  .an-card{background:linear-gradient(180deg, var(--navy-900), var(--navy-800)); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:14px 16px; margin-bottom:14px; min-width:0;}
+  .an-card h3{margin:0; font-size:15px; font-weight:600; color:#fff;}
+  .an-card .sub{font-size:12.5px; color:var(--concrete-400); margin:2px 0 10px;}
+  .an-head{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .an-chart{position:relative; height:260px;}
+  .an-seg{display:inline-flex; border:1px solid rgba(255,255,255,.14); border-radius:8px; overflow:hidden;}
+  .an-seg button{background:none; border:0; border-right:1px solid rgba(255,255,255,.1); padding:7px 12px; cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; color:var(--concrete-400);}
+  .an-seg button:last-child{border-right:0;}
+  .an-seg button.active{background:rgba(242,169,28,.14); color:var(--amber-500);}
+  .an-table-wrap{overflow-x:auto; margin-top:10px; border:1px solid rgba(255,255,255,.08); border-radius:9px;}
+  .an-table{width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap;}
+  .an-table th{text-align:left; padding:9px 10px; font-size:12px; font-weight:600; color:var(--amber-500); background:rgba(242,169,28,.07); border-bottom:1px solid rgba(255,255,255,.1);}
+  .an-table td{padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.06); color:var(--concrete-200);}
+  .an-table th.num, .an-table td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .an-table td.num{color:#fff;}
+  .an-table td.bad{color:#ff8a75; font-weight:600;}
+  .an-table tbody tr:hover td{background:rgba(255,255,255,.03);}
+  .an-table tfoot td{font-weight:700; color:#fff; background:rgba(255,255,255,.05); border-top:1px solid rgba(255,255,255,.14);}
+  .an-table-grouped .g-start{border-left:2px solid rgba(255,255,255,.16);}
+  /* ตารางสรุปราย Supplier: แถวน้อย ตัวเลขสั้น → จัดกลางทั้งหมด + คอลัมน์ตัวเลขกว้างเท่ากัน */
+  .an-table-grouped{table-layout:fixed; min-width:980px;}
+  .an-table-grouped col.c-sup{width:170px;}
+  .an-table-grouped.an-dim-table{min-width:640px;}
+  .an-table-grouped.an-prod-table{min-width:960px;}
+  .an-table-grouped.an-dim-table.an-has-qty{min-width:1000px;}
+  .an-table-grouped.an-prod-table.an-has-qty{min-width:1320px;}
+  .an-table-grouped.an-prod-table col.c-sup{width:340px;}
+  .an-table-grouped.an-prod-table col.c-crop{width:120px;}
+  .an-table-grouped.an-prod-table td.an-name{text-align:left; white-space:normal;}
+  .an-chart.an-chart-tall{height:340px;}
+  .an-more{margin-top:10px; text-align:center;}
+  .an-table-grouped .an-group-row th[rowspan].g-po{color:#fff;}
+  .an-table-grouped th, .an-table-grouped td, .an-table-grouped th.num, .an-table-grouped td.num{text-align:center;}
+  .an-table th .th-note{display:block; font-size:10.5px; font-weight:400; color:var(--concrete-400); margin-top:1px;}
+  .an-table-grouped .an-group-row th{text-align:center; font-size:13px; color:#fff; border-bottom:1px solid rgba(255,255,255,.1);}
+  .an-table-grouped .an-group-row th[rowspan]{vertical-align:middle; color:var(--amber-500);}
+  .an-table-grouped .an-group-row th span{font-weight:400; font-size:11.5px; color:var(--concrete-400); margin-left:4px;}
+  .an-table-grouped .an-group-row th.g-po{background:rgba(140,203,255,.10); box-shadow:inset 0 -2px 0 #8ccbff;}
+  .an-table-grouped .an-group-row th.g-dt{background:rgba(255,146,43,.10); box-shadow:inset 0 -2px 0 #ff922b;}
+  .an-table-grouped .an-group-row th.g-qty{background:rgba(229,83,61,.10); box-shadow:inset 0 -2px 0 #e5533d;}
+  .an-empty{font-size:13px; color:var(--concrete-400); padding:18px 4px; text-align:center;}
+
+  /* ---------- พิมพ์ Stock Card (พื้นขาว ตัวดำ) — มีผลเฉพาะตอนกดปุ่ม "พิมพ์" ในแท็บ Stock Card (body.print-sc) ---------- */
+  .sc-print-head{display:none;}
+  @media print{
+    @page{size:A4 landscape; margin:10mm;}
+    /* ซ่อนทุกอย่างที่ไม่ใช่ Stock Card ออกจากโครงหน้า (display:none) แล้วให้ Stock Card ไหลตามปกติหลายหน้าได้
+       (เดิมใช้ visibility + position:absolute ทำให้กล่องที่ครอบหดและ overflow:hidden ตัดเหลือแค่ส่วนหัว) */
+    body.print-sc{background:#fff !important; color:#000;}
+    body.print-sc .sidebar, body.print-sc .sidebar-overlay, body.print-sc .topbar-mobile, body.print-sc footer,
+    body.print-sc main > .eyebrow, body.print-sc main > h1, body.print-sc .tabs, body.print-sc #tabOverview,
+    body.print-sc .sc-filter, body.print-sc #scLoading, body.print-sc .drawer, body.print-sc .drawer-backdrop{display:none !important;}
+    body.print-sc .app-shell{display:block;}
+    body.print-sc .main-wrap{margin:0 !important;}
+    body.print-sc main{padding:0 !important; max-width:none;}
+    body.print-sc #scPanel{background:#fff !important; border:0 !important; overflow:visible !important; min-height:0; box-shadow:none;}
+    body.print-sc .sc-print-head{display:block; font-family:'Inter',sans-serif; color:#000; margin-bottom:8px;}
+    body.print-sc .sc-print-head .t{font-family:'Oswald',sans-serif; font-size:18px; font-weight:700;}
+    body.print-sc .sc-print-head .s{font-size:11px;}
+    body.print-sc .sc-head, body.print-sc .sc-line{border-color:#999 !important;}
+    body.print-sc .sc-po, body.print-sc .sc-po small, body.print-sc .sc-meta, body.print-sc .sc-meta small, body.print-sc .sc-prod, body.print-sc .sc-prod-sub, body.print-sc .sc-prod-sub b{color:#000 !important;}
+    body.print-sc .sc-table-wrap{overflow:visible; border-color:#999;}
+    body.print-sc .tag-type{white-space:nowrap;}
+    body.print-sc .sc-table th, body.print-sc .sc-table td{padding:6px 8px !important;}
+    body.print-sc .sc-line{page-break-inside:auto;}
+    body.print-sc .sc-table thead{display:table-header-group;} /* หัวตารางซ้ำทุกหน้า */
+    body.print-sc .alert{color:#000 !important; background:#fff !important; border-color:#999 !important;}
+    body.print-sc .sc-table{font-size:10.5px;}
+    body.print-sc .sc-table th{color:#000 !important; background:#eee !important;}
+    body.print-sc .sc-table td, body.print-sc .sc-table td.num, body.print-sc .sc-table td.mono, body.print-sc .sc-table tfoot td{color:#000 !important; background:#fff !important; border-color:#ccc !important;}
+    body.print-sc .sc-table td.bal.neg{color:#c00 !important;}
+    body.print-sc .sc-table tr{page-break-inside:avoid;}
+    body.print-sc .sc-table tr.rec-start td{border-top:2px solid #555 !important;}
+    body.print-sc .sc-table tr.open-row td, body.print-sc .sc-table tr.end-row td{font-weight:700; color:#000 !important; background:#f2f2f2 !important;}
+    body.print-sc .tag-type{border:1px solid #666 !important; color:#000 !important; background:#fff !important;}
+    body.print-sc .sup-tag, body.print-sc .sup-tag b{color:#000 !important; background:#fff !important; border-color:#666 !important;}
+    body.print-sc .badge{color:#000 !important; background:#fff !important; border-color:#666 !important;}
+    /* แถบ % ไม่ออกบนกระดาษ และซ้ำกับคอลัมน์ % รับสะสมในตาราง → ไม่พิมพ์ */
+    body.print-sc #scResult .progress{display:none !important;}
+    body.print-sc #scResult .sc-line-head{grid-template-columns:1fr;}
+  }
+</style>
+<!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
+<script src="session-guard.js"></script>
+<script src="sidebar.js"></script>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ---------- SIDEBAR (โหลดไฟล์กลางมาแปะอัตโนมัติ) ---------- -->
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ---------- MAIN ---------- -->
+  <div class="main-wrap">
+
+    <div class="topbar-mobile">
+      <button class="hamburger" id="sidebarToggle" type="button" aria-label="เปิดเมนู">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <div class="brand-text">WIM</div>
+    </div>
+
+    <main>
+      <div class="eyebrow">รายงาน · รายงานการรับสินค้า</div>
+      <h1>รายงานรับเมล็ดจากบริษัทในเครือ</h1>
+
+      <!-- ---------- TABS: รายการ PO ในเครือ / Stock Card ราย PO ---------- -->
+      <div class="tabs" role="tablist" aria-label="มุมมองรายงาน">
+        <button type="button" class="tab-btn active" role="tab" id="tabBtnOverview" aria-controls="tabOverview" aria-selected="true" data-tab="overview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+          PO-Status
+        </button>
+        <button type="button" class="tab-btn" role="tab" id="tabBtnStockcard" aria-controls="tabStockcard" aria-selected="false" data-tab="stockcard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg>
+          PO-StockCard
+        </button>
+        <button type="button" class="tab-btn" role="tab" id="tabBtnAnalysis" aria-controls="tabAnalysis" aria-selected="false" data-tab="analysis">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          PO-Analytics
+        </button>
+      </div>
+
+      <section id="tabOverview" role="tabpanel" aria-labelledby="tabBtnOverview">
+      <!-- ---------- FILTER PANEL ---------- -->
+      <div class="filter-panel filter-grid">
+        <div class="filter-block fb-company">
+          <div class="filter-block-title">บริษัท : </div>
+          <div class="input-shell col-shell">
+            <select id="companySelect">
+              <option value="">— เลือกบริษัท —</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-block fb-supplier">
+          <div class="filter-block-title">Supplier : </div>
+          <div class="input-shell col-shell">
+            <select id="supplierSelect">
+              <option value="">ทุกบริษัทในเครือ</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-block fb-crop">
+          <div class="filter-block-title">ประเภทพืช : </div>
+          <div class="input-shell col-shell">
+            <select id="cropSelect">
+              <option value="">ทุกประเภทพืช</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-block search-block fb-search">
+          <div class="filter-block-title">ค้นหา : </div>
+          <div class="input-shell search-shell">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--steel-500); flex-shrink:0;"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="keywordInput" placeholder="เลขที่ PO / ชื่อสินค้า / Lot No. / เลขที่ใบรับ">
+          </div>
+        </div>
+        <div class="filter-block fb-date">
+          <div class="filter-block-title">วันที่ออก PO : </div>
+          <div class="date-mode-grid">
+            <div class="date-mode-line dm-all">
+              <label class="radio-opt"><input type="radio" name="dateMode" value="all"> ทั้งหมด</label>
+            </div>
+            <div class="date-mode-line dm-year">
+              <label class="radio-opt"><input type="radio" name="dateMode" value="year" checked> ปี</label>
+              <div class="input-shell disabled" style="width:78px;"><select id="yearOnlySelect" class="year-select" disabled></select></div>
+            </div>
+            <div class="date-mode-line dm-month">
+              <label class="radio-opt"><input type="radio" name="dateMode" value="month"> เดือน</label>
+              <!-- ตัวเลือกเดือน/ปี (popup): คลิกเดือนเดียวจบ / ค่าเก็บใน select ที่ซ่อนไว้ 2 ตัวด้านล่าง (โค้ดเดิมอ่านจากตัวนี้) -->
+              <div class="input-shell month-picker-shell">
+                <button type="button" class="month-picker-btn" id="monthPickerBtn" aria-haspopup="dialog" aria-expanded="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                  <span id="monthPickerText"></span>
+                  <svg class="mp-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+              </div>
+              <select id="monthSelect" hidden>
+                <option value="1">มกราคม</option><option value="2">กุมภาพันธ์</option><option value="3">มีนาคม</option>
+                <option value="4">เมษายน</option><option value="5">พฤษภาคม</option><option value="6">มิถุนายน</option>
+                <option value="7">กรกฎาคม</option><option value="8">สิงหาคม</option><option value="9">กันยายน</option>
+                <option value="10">ตุลาคม</option><option value="11">พฤศจิกายน</option><option value="12">ธันวาคม</option>
+              </select>
+              <select id="monthYearSelect" hidden></select>
+            </div>
+          </div>
+          <!-- popup ตัวเลือกเดือน/ปี -->
+          <div class="month-picker-pop" id="monthPickerPop" role="dialog" aria-label="เลือกเดือนและปี" hidden>
+            <div class="mp-head">
+              <button type="button" class="mp-nav" data-step="-1" aria-label="ปีก่อนหน้า">‹</button>
+              <span class="mp-year" id="mpYear"></span>
+              <button type="button" class="mp-nav" data-step="1" aria-label="ปีถัดไป">›</button>
+            </div>
+            <div class="mp-grid" id="mpGrid"></div>
+            <button type="button" class="mp-today" id="mpToday">เดือนนี้</button>
+          </div>
+        </div>
+        <!-- ปุ่มอยู่คอลัมน์ขวาสุดของกล่องเงื่อนไข: แถว 1 = แสดงข้อมูล / แถว 2 = Export -->
+        <div class="filter-actions">
+          <button class="btn-primary filter-btn" id="viewBtn" type="button" title="โหลดข้อมูลใหม่ (เปลี่ยนเงื่อนไขแล้วระบบโหลดให้อัตโนมัติ)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            แสดงข้อมูล
+          </button>
+          <button type="button" class="filter-btn excel-btn" id="exportBtn" disabled>
+            <!-- ไอคอนแบบ Excel: ไฟล์เขียวมีตัว X -->
+            <svg class="xl-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="7" y="2.5" width="14.5" height="19" rx="2" fill="#fff" opacity=".92"></rect>
+              <path d="M14 7h5M14 11h5M14 15h5" stroke="#107c41" stroke-width="1.6" stroke-linecap="round"></path>
+              <rect x="2" y="6" width="11" height="12" rx="1.6" fill="#0b5a2e"></rect>
+              <path d="M5 9l5 6M10 9l-5 6" stroke="#fff" stroke-width="1.9" stroke-linecap="round"></path>
+            </svg>
+            Export Excel
+          </button>
+        </div>
+      </div>
+
+      <!-- ---------- KPI (คลิกเพื่อกรองสถานะ) ---------- -->
+      <div class="kpi-row" id="kpiRow" hidden>
+        <button type="button" class="kpi active" data-status="all"><div class="k-label">จำนวน PO ทั้งหมด</div><div class="k-value" data-k="all">0</div><div class="k-hint">ตามเงื่อนไขที่ค้นหา</div></button>
+        <button type="button" class="kpi" data-status="pending"><div class="k-label">ยังไม่รับ</div><div class="k-value" data-k="pending">0</div><div class="k-hint">ยังไม่มีใบรับอ้างอิง</div></button>
+        <button type="button" class="kpi" data-status="partial"><div class="k-label">รับบางส่วน</div><div class="k-value" data-k="partial">0</div><div class="k-hint">รับแล้วน้อยกว่า 100%</div></button>
+        <button type="button" class="kpi" data-status="complete"><div class="k-label">รับครบ</div><div class="k-value" data-k="complete">0</div><div class="k-hint">100% – 100.9% ของ PO</div></button>
+        <button type="button" class="kpi" data-status="excess"><div class="k-label">รับเกิน 1–20%</div><div class="k-value" data-k="excess">0</div><div class="k-hint">101% – 120% ของ PO</div></button>
+        <button type="button" class="kpi" data-status="over"><div class="k-label">⚠ รับเกิน 20%</div><div class="k-value" data-k="over">0</div><div class="k-hint">รับสะสมเกิน 120% ของ PO</div></button>
+        <button type="button" class="kpi" data-status="ended"><div class="k-label">🔒 สิ้นสุด PO</div><div class="k-value" data-k="ended">0</div><div class="k-hint">ปิด PO แล้ว (ไม่รับเพิ่ม)</div></button>
+      </div>
+
+      <!-- ---------- RESULT PANEL ---------- -->
+      <div class="result-panel" id="resultPanel">
+        <div class="list-loading" id="listLoading" hidden role="status" aria-live="polite">
+          <div class="ld-box">
+            <div class="ld-ring"><img src="images/WIM_LoadingLogo.png" alt="" class="ld-logo" width="48" height="48"></div>
+            <div class="ld-text" aria-label="กำลังโหลด">Loading . . .</div>
+            <div class="ld-sub">กำลังดึงข้อมูลการรับเมล็ดพันธุ์</div>
+          </div>
+        </div>
+        <div id="resultArea">
+          <div class="state-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path><path d="M12 22v-9"></path></svg>
+            <div>เลือกบริษัทและช่วงวันที่ PO แล้วกด "แสดงข้อมูล" เพื่อแสดงผล</div>
+          </div>
+        </div>
+      </div>
+      </section>
+
+      <!-- ==================== แท็บ 2: Stock Card ราย PO ==================== -->
+      <section id="tabStockcard" role="tabpanel" aria-labelledby="tabBtnStockcard" hidden>
+        <div class="filter-panel sc-filter">
+          <div class="filter-block-title">บริษัท : </div>
+          <div class="input-shell sc-company-shell">
+            <select id="scCompanySelect"></select>
+          </div>
+          <div class="filter-block-title sc-po-label">PO No. : </div>
+          <div class="sc-po-wrap">
+            <div class="input-shell">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--steel-500); flex-shrink:0;"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="scPoInput" autocomplete="off" placeholder="พิมพ์เลขที่ PO / ชื่อสินค้า เพื่อเลือกจากรายการ"
+                     role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="scSuggest">
+            </div>
+            <div class="sc-suggest" id="scSuggest" role="listbox" hidden></div>
+          </div>
+          <div class="sc-actions">
+            <button class="btn-primary filter-btn" id="scViewBtn" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              แสดงข้อมูล
+            </button>
+            <button type="button" class="filter-btn excel-btn" id="scExportBtn" disabled>
+              <svg class="xl-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="7" y="2.5" width="14.5" height="19" rx="2" fill="#fff" opacity=".92"></rect>
+                <path d="M14 7h5M14 11h5M14 15h5" stroke="#107c41" stroke-width="1.6" stroke-linecap="round"></path>
+                <rect x="2" y="6" width="11" height="12" rx="1.6" fill="#0b5a2e"></rect>
+                <path d="M5 9l5 6M10 9l-5 6" stroke="#fff" stroke-width="1.9" stroke-linecap="round"></path>
+              </svg>
+              Export Excel
+            </button>
+            <button type="button" class="tool-btn filter-btn" id="scPrintBtn" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              พิมพ์
+            </button>
+          </div>
+        </div>
+
+        <div class="result-panel sc-panel" id="scPanel">
+          <div class="list-loading" id="scLoading" hidden role="status" aria-live="polite">
+            <div class="ld-box">
+              <div class="ld-ring"><img src="images/WIM_LoadingLogo.png" alt="" class="ld-logo" width="48" height="48"></div>
+              <div class="ld-text" aria-label="กำลังโหลด">Loading . . .</div>
+              <div class="ld-sub">กำลังดึง Stock Card ของ PO</div>
+            </div>
+          </div>
+          <div id="scResult">
+            <div class="state-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+              <div>ระบุเลขที่ PO หรือค้นหาจากรายการ เพื่อดู Stock Card การรับของ PO</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== แท็บ 3: วิเคราะห์การรับเทียบ PO ==================== -->
+      <section id="tabAnalysis" role="tabpanel" aria-labelledby="tabBtnAnalysis" hidden>
+        <div class="filter-panel an-filter">
+          <div class="an-field"><div class="filter-block-title">บริษัท : </div><div class="input-shell an-w-lg"><select id="anCompanySelect"></select></div></div>
+          <div class="an-field an-sep"><div class="filter-block-title">ปีที่ออก PO : </div><div class="input-shell an-w-sm"><select id="anYearSelect"></select></div></div>
+        </div>
+
+        <div class="result-panel an-panel" id="anPanel">
+          <div class="list-loading" id="anLoading" hidden role="status" aria-live="polite">
+            <div class="ld-box">
+              <div class="ld-ring"><img src="images/WIM_LoadingLogo.png" alt="" class="ld-logo" width="48" height="48"></div>
+              <div class="ld-text" aria-label="กำลังโหลด">Loading . . .</div>
+              <div class="ld-sub">กำลังวิเคราะห์ข้อมูลการรับ</div>
+            </div>
+          </div>
+          <div id="anResult"><div class="state-box">เลือกบริษัทและปี เพื่อดูการวิเคราะห์</div></div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer>©2026 WIM ⋅ WAREHOUSE AND INVENTORY MANAGEMENT</footer>
+  </div>
+
+</div>
+
+<!-- ---------- DRAWER: รายละเอียด PO ---------- -->
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drCode" aria-hidden="true">
+  <div class="dr-head">
+    <div class="dr-title-row">
+      <div>
+        <div class="dr-eyebrow">ใบสั่งซื้อ (PO)</div>
+        <div class="dr-code" id="drCode"></div>
+        <div class="dr-sub" id="drSub"></div>
+      </div>
+      <button type="button" class="dr-close" id="drClose" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="dr-stats" id="drStats"></div>
+    <div id="drProgress"></div>
+    <button type="button" class="dr-sc-btn" id="drStockcardBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg>
+      ดู PO-StockCard ›
+    </button>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+</aside>
+
+<script>
+  // ==================================================================
+  // ---------- Sidebar: ใช้ไฟล์กลาง sidebar.js (โหลดเมนู / ชื่อผู้ใช้ / ไฮไลต์ / เปิด-ปิดกลุ่ม / ล็อกตามสิทธิ์) ----------
+  // ==================================================================
+  const CURRENT_PAGE_MENU_CODE = 'po_receive_affiliate';
+  function loadSidebar() { return WIMSidebar.load({ menuCode: CURRENT_PAGE_MENU_CODE }); }
+
+  // ==================================================================
+  // ---------- รายงานรับเมล็ดจากบริษัทในเครือ ----------
+  // ==================================================================
+  // ข้อมูล/การคำนวณ (ยอดรับสะสม, %, คงเหลือ, แปลงหน่วย กรัม<->กก.) มาจาก /api/po-receive-affiliate
+  // หน้านี้ทำหน้าที่แสดงผลเท่านั้น: การ์ด PO + KPI กรองสถานะ + แผงรายละเอียด (timeline การรับ)
+  const AFFILIATE_COMPANIES = ['2', '3', '4'];
+  const PAGE_STEP = 60; // แสดงการ์ดทีละ 60 ใบ กด "แสดงเพิ่ม" เพื่อดูต่อ
+
+  const STATUS_LABEL = { pending: 'ยังไม่รับ', partial: 'รับบางส่วน', complete: 'รับครบ', excess: 'รับเกิน 1–20%', over: 'รับเกิน 20%', ended: 'สิ้นสุด PO' };
+
+  // ป้ายผู้ขาย: ตัวย่อ + ชื่อสั้น / สีเฉพาะที่ป้าย (CSS .sup-tag.sup-xxx: 361 ฟ้า / 504 เขียว / 932 ชมพู)
+  const SUPPLIER_TAG = { 361: ['FLO', 'โฟลเทคซีดส์'], 504: ['GR', 'กรีนซีดส์'], 932: ['AV', 'แอ๊ดว้านซ์ ซีดส์'] };
+  function supTag(po){
+    const t = SUPPLIER_TAG[po.idSup];
+    return t ? `<span class="sup-tag sup-${po.idSup}" title="${escHtml(po.supName || '')}"><b>${t[0]}</b>${t[1]}</span>`
+             : `<span class="sup-tag">${escHtml(po.supName || '')}</span>`;
+  }
+
+  const companySelect = document.getElementById('companySelect');
+  const supplierSelect = document.getElementById('supplierSelect');
+  const cropSelect = document.getElementById('cropSelect');
+  const monthSelect = document.getElementById('monthSelect');
+  const monthYearSelect = document.getElementById('monthYearSelect');
+  const yearOnlySelect = document.getElementById('yearOnlySelect');
+  const keywordInput = document.getElementById('keywordInput');
+  const viewBtn = document.getElementById('viewBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const resultPanel = document.getElementById('resultPanel');
+  const listLoading = document.getElementById('listLoading');
+  const resultArea = document.getElementById('resultArea');
+  const kpiRow = document.getElementById('kpiRow');
+
+  let allPos = [];
+  let overPct = 120;
+  let statusFilter = 'all';
+  let hideEnded = false; // checkbox "ซ่อน PO ที่สิ้นสุดแล้ว" (กรองฝั่งหน้าเว็บ ไม่ต้องโหลดใหม่)
+  let shown = PAGE_STEP;
+
+  // ---------- helpers ----------
+  function escHtml(s){
+    return String(s ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+  }
+  function fmtDate(val){
+    if (!val) return '-';
+    const m = String(val).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}/${m[2]}/${Number(m[1]) + 543}`; // แสดงเป็น พ.ศ. ให้ตรงกับตัวกรองด้านบน
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return String(val);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear() + 543}`;
+  }
+  function fmtQty(n){
+    if (n === null || n === undefined || isNaN(n)) return '-';
+    const v = Number(n);
+    // เมล็ดน้ำหนักเบามาก: ถ้าแสดง 2 ตำแหน่งแล้วกลายเป็น 0.00 (แต่ค่าไม่ใช่ 0) ให้แสดง 4-6 ตำแหน่งแทน
+    if (v !== 0 && Math.abs(v) < 0.005) {
+      return v.toLocaleString('th-TH', { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+    }
+    // ปกติ: ทศนิยม 2 ตำแหน่ง ตามมาตรฐานเมล็ดพันธุ์
+    return v.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  // ปัด % เป็นทศนิยม 1 ตำแหน่งแบบเดียวกับที่แสดง (ใช้ตัดสินสถานะให้ตรงกับตัวเลขบนจอ — เหมือน server)
+  const pct1 = (p) => Math.round(p * 10) / 10;
+  function fmtPct(n){
+    if (n === null || n === undefined || isNaN(n)) return '-';
+    return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+  }
+
+  // แถบ progress: เต็มหลอด = 120% (ขีดประที่ 100% และขีดแดงที่ 120%)
+  function progressHtml(pct, status){
+    const scale = overPct;
+    const w = pct === null ? 0 : Math.min(pct, scale) / scale * 100;
+    const cls = (status === 'over' || status === 'complete' || status === 'excess') ? status : '';
+    return `<div class="progress">
+      <div class="pbar" title="ขีดประ = 100% / ขีดแดง = ${scale}%">
+        <div class="pbar-fill ${cls}" style="width:${w}%"></div>
+        <div class="pbar-mark" style="left:${100 / scale * 100}%"></div>
+        <div class="pbar-mark limit" style="left:100%"></div>
+      </div>
+      <div class="pct ${cls}">${fmtPct(pct)}</div>
+    </div>`;
+  }
+  const LOCK_SVG = '<svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2" fill="currentColor"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>';
+  const badge = (status) => `<span class="badge ${status}">${status === 'ended' ? LOCK_SVG : ''}${STATUS_LABEL[status] || status}</span>`;
+  const unitBadge = (n) => n ? `<span class="badge unit">⚠ หน่วยไม่ตรง ${n} รายการ</span>` : '';
+
+  const ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+
+  // ยอดรวมระดับ PO: บรรทัดเดียวใช้ค่าของบรรทัดนั้น / หลายบรรทัดที่เป็น กรัม/กก. ทั้งหมด รวมเป็นกิโลกรัม
+  // (เมล็ดพันธุ์วัตถุดิบแสดงเป็นกิโลกรัมเสมอ) / มีซองปน = รวมไม่ได้
+  function poTotals(po){
+    if (po.lines.length === 1) {
+      const l = po.lines[0];
+      return { po: l.amountPOInUnit, received: l.received, balance: l.balance, unit: l.unit };
+    }
+    if (po.totalGram) {
+      return {
+        po: po.totalGram.po / 1000, received: po.totalGram.received / 1000,
+        balance: (po.totalGram.po - po.totalGram.received) / 1000, unit: 'กิโลกรัม'
+      };
+    }
+    return null; // มีหน่วยอื่นปน รวมไม่ได้
+  }
+
+  // ---------- โหลดบริษัท (เฉพาะบริษัทที่ใช้รายงานนี้ได้ และผู้ใช้มีสิทธิ์) ----------
+  async function loadCompanies(){
+    try {
+      const res = await fetch('/api/companies');
+      const data = await res.json();
+      const list = (data.success && Array.isArray(data.data)) ? data.data.filter(c => AFFILIATE_COMPANIES.includes(String(c.id))) : [];
+      if (!list.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = data.success ? 'ไม่มีบริษัทที่มีสิทธิ์ดูรายงานนี้' : '⚠ โหลดข้อมูลบริษัทไม่สำเร็จ';
+        companySelect.appendChild(opt);
+        return;
+      }
+      list.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        companySelect.appendChild(opt);
+      });
+
+      const params = new URLSearchParams(location.search);
+      let preferred = params.get('companyId');
+      if (!preferred) {
+        try { preferred = String(JSON.parse(sessionStorage.getItem('wim_user') || '{}').idComp ?? ''); } catch (e) { preferred = ''; }
+      }
+      if (list.some(c => String(c.id) === preferred)) companySelect.value = preferred;
+      else if (list.length === 1) companySelect.value = String(list[0].id);
+    } catch (err) {
+      console.error('โหลดบริษัทไม่สำเร็จ (network):', err);
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '⚠ เชื่อมต่อ server ไม่ได้';
+      companySelect.appendChild(opt);
+    }
+  }
+
+  // ---------- ปี (พ.ศ.) ----------
+  // ---------- โหมดวันที่ PO: ทั้งหมด / เดือน / ปี (ค่าเริ่มต้น = ปีปัจจุบัน) ----------
+  (function initDateMode(){
+    const now = new Date();
+    const thisYear = now.getFullYear();
+    const yearOpts = Array.from({ length: thisYear - 2019 + 1 }, (_, i) => thisYear - i)
+      .map(y => `<option value="${y}">${y + 543}</option>`).join(''); // แสดง พ.ศ. ส่งค่าเป็น ค.ศ.
+    monthYearSelect.innerHTML = yearOpts;
+    yearOnlySelect.innerHTML = yearOpts;
+    monthSelect.value = String(now.getMonth() + 1);
+    monthYearSelect.value = String(thisYear);
+    yearOnlySelect.value = String(thisYear);
+
+    const setEnabled = (sel, on) => { sel.disabled = !on; sel.closest('.input-shell').classList.toggle('disabled', !on); };
+    const applyMode = () => {
+      const mode = getDateMode();
+      // ตัวเลือกเดือนไม่ปิดใช้งาน (คลิกเลือกเดือนแล้วสลับเป็นโหมดเดือนให้เอง) แค่จางลงเมื่อไม่ได้อยู่โหมดเดือน
+      document.querySelector('.month-picker-shell').classList.toggle('mp-inactive', mode !== 'month');
+      setEnabled(yearOnlySelect, mode === 'year');
+    };
+    document.querySelectorAll('input[name="dateMode"]').forEach(radio => radio.addEventListener('change', applyMode));
+    applyMode(); // ค่าเริ่มต้น = ปีปัจจุบัน (โหมดเดือนต้นเดือนมักยังไม่มี PO ทำให้เปิดมาเจอหน้าว่าง)
+  })();
+  // ---------- ตัวเลือกเดือน/ปี (popup ปี + 12 เดือน) ----------
+  // ค่าที่เลือกเก็บใน monthSelect / monthYearSelect (ซ่อนไว้) เหมือนเดิม → loadReport อ่านจากตัวนี้ได้ทันที
+  (function initMonthPicker(){
+    const MONTH_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const btn = document.getElementById('monthPickerBtn');
+    const shell = btn.closest('.month-picker-shell');
+    const pop = document.getElementById('monthPickerPop');
+    document.body.appendChild(pop); // ย้ายออกจากกล่องเงื่อนไข (grid) ไปไว้ท้าย body ไม่ให้กระทบการจัดวาง
+    const now = new Date();
+    const minYear = 2019, maxYear = now.getFullYear();
+    let viewYear = maxYear;
+
+    const updateText = () => {
+      const m = Number(monthSelect.value), y = Number(monthYearSelect.value);
+      document.getElementById('monthPickerText').textContent = `${monthSelect.options[m - 1].text} ${y + 543}`;
+    };
+    const render = () => {
+      const selM = Number(monthSelect.value), selY = Number(monthYearSelect.value);
+      document.getElementById('mpYear').textContent = viewYear + 543;
+      pop.querySelector('[data-step="-1"]').disabled = viewYear <= minYear;
+      pop.querySelector('[data-step="1"]').disabled = viewYear >= maxYear;
+      document.getElementById('mpGrid').innerHTML = MONTH_SHORT.map((t, i) => {
+        const m = i + 1;
+        const future = viewYear === maxYear && m > now.getMonth() + 1;   // เดือนในอนาคตยังไม่มี PO
+        const cls = ['mp-month', viewYear === selY && m === selM ? 'sel' : '', viewYear === maxYear && m === now.getMonth() + 1 ? 'now' : ''].join(' ');
+        return `<button type="button" class="${cls.trim()}" data-m="${m}" ${future ? 'disabled' : ''}>${t}</button>`;
+      }).join('');
+    };
+    const place = () => {
+      const r = shell.getBoundingClientRect();
+      const left = Math.min(r.left, window.innerWidth - pop.offsetWidth - 8);
+      const below = r.bottom + 6 + pop.offsetHeight <= window.innerHeight;
+      pop.style.left = Math.max(8, left) + 'px';
+      pop.style.top = (below ? r.bottom + 6 : Math.max(8, r.top - pop.offsetHeight - 6)) + 'px';
+    };
+    const open = () => {
+      viewYear = Number(monthYearSelect.value) || maxYear;
+      render();
+      pop.hidden = false;
+      place();
+      shell.classList.add('mp-open');
+      btn.setAttribute('aria-expanded', 'true');
+    };
+    const close = () => {
+      if (pop.hidden) return;
+      pop.hidden = true;
+      shell.classList.remove('mp-open');
+      btn.setAttribute('aria-expanded', 'false');
+    };
+    // เลือกเดือน: เก็บค่า → ถ้ายังไม่อยู่โหมดเดือนให้สลับ (โหลดอัตโนมัติจาก change ของ radio) / อยู่แล้วยิง change ให้โหลดใหม่
+    const choose = (m, y) => {
+      monthSelect.value = String(m);
+      monthYearSelect.value = String(y);
+      updateText();
+      close();
+      if (getDateMode() !== 'month') setDateMode('month');
+      else monthSelect.dispatchEvent(new Event('change'));
+    };
+
+    btn.addEventListener('click', () => (pop.hidden ? open() : close()));
+    pop.addEventListener('click', (e) => {
+      const nav = e.target.closest('.mp-nav');
+      if (nav && !nav.disabled) { viewYear += Number(nav.dataset.step); render(); return; }
+      const mb = e.target.closest('.mp-month');
+      if (mb && !mb.disabled) { choose(Number(mb.dataset.m), viewYear); return; }
+      if (e.target.closest('#mpToday')) choose(now.getMonth() + 1, now.getFullYear());
+    });
+    document.addEventListener('mousedown', (e) => { if (!pop.hidden && !pop.contains(e.target) && !shell.contains(e.target)) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', () => { if (!pop.hidden) place(); }, true);
+    updateText();
+  })();
+
+  function getDateMode(){ return document.querySelector('input[name="dateMode"]:checked').value; }
+  function setDateMode(mode){
+    const r = document.querySelector(`input[name="dateMode"][value="${mode}"]`);
+    r.checked = true;
+    r.dispatchEvent(new Event('change'));
+  }
+
+  // ---------- Supplier (บริษัทในเครือ) ----------
+  // ---------- ประเภทพืช (เฉพาะพืชที่มีใน PO ในเครือของบริษัทที่เลือก) ----------
+  // โหลดใหม่ทุกครั้งที่เปลี่ยนบริษัท / พืชที่เลือกไว้ยังมีในบริษัทใหม่ = คงไว้ ไม่มี = กลับเป็นทุกประเภท
+  async function loadCrops(){
+    const keep = cropSelect.value;
+    cropSelect.innerHTML = '<option value="">ทุกประเภทพืช</option>';
+    if (!companySelect.value) return;
+    try {
+      const res = await fetch('/api/po-receive-affiliate/crops?' + new URLSearchParams({ companyId: companySelect.value }));
+      const data = await res.json();
+      if (!data.success) return;
+      cropSelect.innerHTML += data.data.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('')
+        + (data.otherCount ? `<option value="other">ไม่ระบุประเภทพืช</option>` : '');
+      if ([...cropSelect.options].some(o => o.value === keep)) cropSelect.value = keep;
+    } catch (err) {
+      console.error('โหลดประเภทพืชไม่สำเร็จ:', err);
+    }
+  }
+
+  async function loadSuppliers(){
+    try {
+      const res = await fetch('/api/po-receive-affiliate/suppliers');
+      const data = await res.json();
+      if (!data.success) return;
+      data.data.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        supplierSelect.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('โหลดรายชื่อผู้ขายไม่สำเร็จ:', err);
+    }
+  }
+
+  // ---------- render ----------
+  function renderState(html, isError){
+    allPos = [];
+    kpiRow.hidden = true;
+    resultArea.innerHTML = `<div class="state-box${isError ? ' error' : ''}">${html}</div>`;
+    exportBtn.disabled = true;
+  }
+
+  // PO ที่นับ/แสดง: ติ๊ก "ซ่อน PO ที่สิ้นสุดแล้ว" = ตัด PO ที่สิ้นสุดออกก่อน (KPI นับตามนี้ด้วย)
+  function basePos(){ return hideEnded ? allPos.filter(p => !p.completed) : allPos; }
+  function filteredPos(){
+    const base = basePos();
+    if (statusFilter === 'all') return base;
+    if (statusFilter === 'ended') return base.filter(p => p.completed);
+    return base.filter(p => p.status === statusFilter);
+  }
+
+  function renderKpis(){
+    const base = basePos();
+    const counts = { all: base.length, pending: 0, partial: 0, complete: 0, excess: 0, over: 0, ended: 0 };
+    base.forEach(p => { counts[p.status] = (counts[p.status] || 0) + 1; if (p.completed) counts.ended++; });
+    kpiRow.querySelectorAll('[data-k]').forEach(el => { el.textContent = counts[el.dataset.k].toLocaleString('th-TH'); });
+    kpiRow.querySelectorAll('.kpi').forEach(el => el.classList.toggle('active', el.dataset.status === statusFilter));
+    kpiRow.hidden = false;
+  }
+
+  function poCardHtml(po){
+    const t = poTotals(po);
+    const first = po.lines[0];
+    const product = first
+      ? escHtml(first.invName || '(ไม่ระบุสินค้า)') + (po.lines.length > 1 ? ` <small>และอีก ${po.lines.length - 1} รายการ</small>` : '')
+      : '-';
+    return `<button type="button" class="po-card st-${po.status}" data-po="${escHtml(po.poCode)}">
+      <div class="pc-top">
+        <div>
+          <div class="pc-code"><small>PO No.</small>${escHtml(po.poCode)}</div>
+          <div class="pc-line"><small>วันที่ออก PO</small>${fmtDate(po.dateBuy)}</div>
+          <div class="pc-line"><small>Supplier</small>${supTag(po)}</div>
+        </div>
+        <div class="pc-badges">${badge(po.status)}${po.completed ? badge('ended') : ''}</div>
+      </div>
+      <div class="pc-product">${product}</div>
+      ${progressHtml(po.pct, po.status)}
+      <div class="pc-meta">
+        ${t ? `<span>จำนวน PO : <b>${fmtQty(t.po)}</b></span><span> จำนวนรับ : <b>${fmtQty(t.received)}</b></span><span>คงเหลือ : <b>${fmtQty(t.balance)}</b> ${escHtml(t.unit)}</span>`
+            : `<span>${po.lines.length} รายการสินค้า (หน่วยต่างกัน)</span>`}
+      </div>
+      ${po.unitErrors ? `<div class="pc-alerts">${unitBadge(po.unitErrors)}</div>` : ''}
+      <div class="pc-foot">
+        <span>รับแล้ว <b>${po.receiptCount}</b> ครั้ง${po.lastDateRec ? ' · รับล่าสุด ' + fmtDate(po.lastDateRec) : ''}</span>
+        <span class="open-hint">ดูรายละเอียด ›</span>
+      </div>
+    </button>`;
+  }
+
+  function renderList(){
+    const list = filteredPos();
+    const endedCount = allPos.filter(p => p.completed).length;
+    // หัวรายการ: จำนวน PO + checkbox ซ่อน PO ที่สิ้นสุดแล้ว (แสดงแม้ไม่มีรายการ เพื่อให้ติ๊กออกได้)
+    let html = `<div class="list-head">
+        <label class="check-opt"><input type="checkbox" id="hideEndedChk" ${hideEnded ? 'checked' : ''}> ซ่อน PO ที่สิ้นสุดแล้ว (${endedCount.toLocaleString('th-TH')})</label>
+      </div>`;
+    if (!list.length) {
+      resultArea.innerHTML = html + `<div class="state-box">ไม่พบ PO ${statusFilter === 'all' ? 'ตามเงื่อนไขที่ระบุ' : 'สถานะ "' + STATUS_LABEL[statusFilter] + '"'}</div>`;
+      return;
+    }
+    html += `<div class="po-list">${list.slice(0, shown).map(poCardHtml).join('')}</div>`;
+    if (list.length > shown) {
+      html += `<div class="pager"><div class="pager-info">แสดง <b>${shown}</b> จาก <b>${list.length}</b> รายการ</div>
+        <button type="button" class="pager-btn" id="moreBtn">แสดงเพิ่ม ${Math.min(PAGE_STEP, list.length - shown)} รายการ</button></div>`;
+    }
+    resultArea.innerHTML = html;
+  }
+
+  resultArea.addEventListener('change', (e) => {
+    if (e.target.id !== 'hideEndedChk') return;
+    hideEnded = e.target.checked;
+    if (hideEnded && statusFilter === 'ended') statusFilter = 'all'; // ซ่อนแล้วการ์ด "สิ้นสุด PO" จะว่าง
+    shown = PAGE_STEP;
+    renderKpis();
+    renderList();
+  });
+
+  kpiRow.addEventListener('click', (e) => {
+    const k = e.target.closest('.kpi');
+    if (!k) return;
+    statusFilter = k.dataset.status;
+    if (statusFilter === 'ended') hideEnded = false; // กดดู "สิ้นสุด PO" = ต้องไม่ซ่อน
+    shown = PAGE_STEP;
+    renderKpis();
+    renderList();
+  });
+
+  resultArea.addEventListener('click', (e) => {
+    if (e.target.closest('#moreBtn')) { shown += PAGE_STEP; renderList(); return; }
+    const card = e.target.closest('.po-card');
+    if (card) openDrawer(card.dataset.po);
+  });
+
+  // ---------- DRAWER ----------
+  const drawer = document.getElementById('drawer');
+  let lastFocus = null;
+
+  function receiptHtml(r, line){
+    const st = r.cumPct === null ? '' : (pct1(r.cumPct) > overPct ? 'over' : (pct1(r.cumPct) >= 101 ? 'excess' : (pct1(r.cumPct) >= 100 ? 'complete' : '')));
+    const lots = r.lots.map(l => `<div class="lot-row${l.unitError ? ' err' : ''}">
+        <span>Lot No. <span class="lot-no">${escHtml(l.lotNo || '-')}</span></span>
+        <span class="lot-amt">${fmtQty(l.amountRec)} ${escHtml(l.unitRec)}</span>
+      </div>`).join('');
+    const unitAlert = r.unitErrors ? `<div class="alert unit">${ICON_WARN}<div>หน่วย PO (${escHtml(line.unitPO)}) กับหน่วยรับไม่ตรงกัน และไม่สามารถคำนวณได้ — ${r.unitErrors} Lot ที่ขีดฆ่าไว้ไม่ถูกนำมาคำนวณยอดคงเหลือ</div></div>` : '';
+    const overAlert = st === 'over' ? `<div class="alert over">${ICON_WARN}<div>รับสะสมถึงครั้งนี้ ${fmtPct(r.cumPct)} เกิน ${overPct}% ของจำนวน PO</div></div>` : '';
+    const negBal = r.balance !== null && r.balance < 0;
+    return `<div class="rc ${st}">
+      <div class="rc-dot">${r.seq}</div>
+      <div class="rc-card">
+        <div class="rc-top">
+          <div>
+            <div class="rc-title">ครั้งที่ ${r.seq} · <small>เลขที่เอกสารรับ</small> <span>${escHtml(r.docRec)}</span> · <small>เลขที่อ้างอิง</small> <span>${r.docRef && String(r.docRef).trim() ? escHtml(r.docRef) : '-'}</span></div>
+            <div class="rc-date">วันที่รับ ${fmtDate(r.dateRec)} · จำนวน ${r.lots.length} Lot No.</div>
+          </div>
+          <div class="rc-amount">
+            <div class="amt">${r.hasAmount ? fmtQty(r.amount) : '-'} <small>${escHtml(r.unit)}</small></div>
+            <div class="of">${fmtPct(r.pct)} ของ PO</div>
+          </div>
+        </div>
+        <div class="rc-grid">
+          <div class="rc-cell"><div class="s-label">รับสะสม</div><div class="s-value ${st === 'over' ? 'over' : ''}">${fmtPct(r.cumPct)}</div></div>
+          <div class="rc-cell"><div class="s-label">PO คงเหลือหลังรับ</div><div class="s-value ${negBal ? 'neg' : 'bal'}">${fmtQty(r.balance)} ${escHtml(r.unit)}</div></div>
+        </div>
+        <div class="lots">${lots}</div>
+        ${unitAlert}${overAlert}
+      </div>
+    </div>`;
+  }
+
+  function lineHtml(line){
+    const negBal = line.balance < 0;
+    const unitNote = line.unit !== line.unitPO ? ` <span style="color:var(--steel-500)">(PO ${fmtQty(line.amountPO)} ${escHtml(line.unitPO)})</span>` : '';
+    return `<div class="line-block">
+      <div class="line-head">
+        <div class="line-name"><span>${escHtml(line.invName || '(ไม่ระบุสินค้า)')}</span>${badge(line.status)}</div>
+        <div class="line-nums">
+          <span>จำนวน PO <b>${fmtQty(line.amountPOInUnit)}</b> ${escHtml(line.unit)}${unitNote}</span>
+          <span>รับแล้ว <b>${fmtQty(line.received)}</b> ${escHtml(line.unit)}</span>
+          <span>คงเหลือ <b class="${negBal ? 'neg' : 'bal'}">${fmtQty(line.balance)}</b> ${escHtml(line.unit)}</span>
+          <span>(จำนวนรับ <b>${line.receipts.length}</b> ครั้ง)</span>
+        </div>
+        ${progressHtml(line.pct, line.status)}
+        ${line.status === 'over' ? `<div class="alert over" style="margin-top:0">${ICON_WARN}<div>ยอดรับสะสม ${fmtPct(line.pct)} เกิน ${overPct}% ของจำนวน PO (รับเกิน ${fmtQty(-line.balance)} ${escHtml(line.unit)})</div></div>` : ''}
+      </div>
+      ${line.receipts.length
+        ? `<div class="timeline">${line.receipts.map(r => receiptHtml(r, line)).join('')}</div>`
+        : '<div class="empty-line">ยังไม่มีการรับสินค้าสำหรับรายการนี้</div>'}
+    </div>`;
+  }
+
+  function openDrawer(poCode){
+    const po = allPos.find(p => p.poCode === poCode);
+    if (!po) return;
+    const t = poTotals(po);
+    document.getElementById('drCode').textContent = po.poCode;
+    document.getElementById('drSub').innerHTML = `${supTag(po)} · วันที่ PO ${fmtDate(po.dateBuy)} · ${po.lines.length} รายการสินค้า · รับแล้ว ${po.receiptCount} ครั้ง`;
+    document.getElementById('drStats').innerHTML = t ? `
+      <div class="dr-stat ds-po"><div class="s-label">จำนวน PO</div><div class="s-value">${fmtQty(t.po)} <small>${escHtml(t.unit)}</small></div></div>
+      <div class="dr-stat ds-rec"><div class="s-label">รับแล้ว</div><div class="s-value">${fmtQty(t.received)} <small>${escHtml(t.unit)}</small></div></div>
+      <div class="dr-stat ds-bal${t.balance < 0 ? ' neg' : ''}"><div class="s-label">PO คงเหลือ</div><div class="s-value" style="color:${t.balance < 0 ? '#ff8a75' : 'var(--amber-500)'}">${fmtQty(t.balance)} <small>${escHtml(t.unit)}</small></div></div>`
+      : '<div class="dr-stat" style="grid-column:1/-1"><div class="s-label">ยอดรวม</div><div class="s-value" style="font-size:12.5px">รายการสินค้ามีหน่วยต่างกัน ดูยอดแยกตามรายการด้านล่าง</div></div>';
+    document.getElementById('drProgress').innerHTML = `<div style="display:flex; align-items:center; gap:10px;">${badge(po.status)}${po.completed ? badge('ended') : ''}${unitBadge(po.unitErrors)}<div style="flex:1">${progressHtml(po.pct, po.status)}</div></div>`
+      + (po.completed ? `<div class="ended-note"><b>🔒 สิ้นสุด PO</b>${po.dateComplete ? ' เมื่อ ' + fmtDate(po.dateComplete) : ''}${po.completeNote ? ' · หมายเหตุ: ' + escHtml(po.completeNote) : ''}</div>` : '');
+    document.getElementById('drBody').innerHTML = po.lines.map(lineHtml).join('');
+    document.getElementById('drBody').scrollTop = 0;
+
+    lastFocus = document.activeElement;
+    drawer.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('drawer-open');
+    document.getElementById('drClose').focus();
+  }
+  function closeDrawer(){
+    if (!document.body.classList.contains('drawer-open')) return;
+    document.body.classList.remove('drawer-open');
+    drawer.setAttribute('aria-hidden', 'true');
+    if (lastFocus) lastFocus.focus();
+  }
+  document.getElementById('drClose').addEventListener('click', closeDrawer);
+  document.getElementById('drawerBackdrop').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+
+  // ---------- Export Excel (1 แถว = 1 Lot ที่รับ / บรรทัด PO ที่ยังไม่รับ = 1 แถว) ----------
+  exportBtn.addEventListener('click', () => {
+    if (!allPos.length) return;
+    const list = filteredPos();
+    const header = ['เลขที่ PO', 'วันที่ PO', 'ผู้ขาย', 'สิ้นสุด PO', 'สินค้า', 'จำนวน PO', 'หน่วย PO', 'สถานะ',
+      'ครั้งที่รับ', 'เลขที่ใบรับ', 'วันที่รับ', 'Lot No.', 'จำนวนรับ', 'หน่วยรับ',
+      'รับครั้งนี้ (% PO)', 'รับสะสม (% PO)', 'PO คงเหลือหลังรับ', 'หน่วยคงเหลือ', 'หมายเหตุ'];
+    const rows = [];
+    list.forEach(po => po.lines.forEach(line => {
+      const ended = po.completed ? 'สิ้นสุด' + (po.dateComplete ? ' ' + fmtDate(po.dateComplete) : '') : '';
+      const base = [po.poCode, fmtDate(po.dateBuy), po.supName || '', ended, line.invName || '', line.amountPO, line.unitPO, STATUS_LABEL[line.status]];
+      if (!line.receipts.length) { rows.push([...base, '', '', '', '', '', '', '', '', line.balance, line.unit, 'ยังไม่รับ']); return; }
+      line.receipts.forEach(r => r.lots.forEach((l, i) => rows.push([
+        ...base, r.seq, r.docRec, fmtDate(r.dateRec), l.lotNo || '', l.amountRec, l.unitRec,
+        i === 0 ? r.pct : '', i === 0 ? r.cumPct : '', i === 0 ? r.balance : '', i === 0 ? r.unit : '',
+        l.unitError ? 'หน่วย PO กับหน่วยรับไม่ตรงกัน ไม่สามารถคำนวณได้' : (i === 0 && r.cumPct > overPct ? `รับสะสมเกิน ${overPct}%` : '')
+      ])));
+    }));
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'รับเมล็ดพันธุ์');
+    XLSX.writeFile(wb, `po_receive_affiliate_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  });
+
+  // ---------- โหลดรายงาน ----------
+  const VIEW_BTN_HTML = viewBtn.innerHTML;
+  let reqSeq = 0; // เลขลำดับคำขอ: ผลที่ตอบกลับช้ากว่าคำขอล่าสุดจะถูกทิ้ง (กันข้อมูลเก่าทับข้อมูลใหม่)
+
+  // explicit = ผู้ใช้สั่งเอง (กดปุ่ม / Enter / ลิงก์ตรง) → ค้นเจอ PO ตรงตัวจะเปิด popup ให้
+  // โหลดอัตโนมัติจากการเปลี่ยนเงื่อนไข/พิมพ์ค้นหา จะไม่เปิด popup เอง
+  async function loadReport(openPoCode, explicit = true){
+    const companyId = companySelect.value;
+    if (!companyId) { renderState('กรุณาเลือกบริษัทก่อน'); return; }
+    const seq = ++reqSeq;
+
+    // มีคำค้นหา (เช่น เลขที่ PO) = ค้นทุกช่วงเวลา ไม่สนเงื่อนไขเดือน/ปี กันกรณีหาไม่เจอเพราะลืมเปลี่ยนปี
+    const dateMode = keywordInput.value.trim() ? 'all' : getDateMode();
+    const params = new URLSearchParams({ companyId, dateMode });
+    if (dateMode === 'month') {
+      params.set('month', monthSelect.value);
+      params.set('year', monthYearSelect.value);
+    } else if (dateMode === 'year') {
+      params.set('year', yearOnlySelect.value);
+    }
+    if (supplierSelect.value) params.set('supplierId', supplierSelect.value);
+    if (cropSelect.value) params.set('cropId', cropSelect.value);
+    if (keywordInput.value.trim()) params.set('keyword', keywordInput.value.trim());
+
+    viewBtn.disabled = true;
+    viewBtn.innerHTML = '<span class="spinner"></span> กำลังโหลด…';
+    resultPanel.classList.add('is-loading');
+    listLoading.hidden = false;
+
+    try {
+      const res = await fetch('/api/po-receive-affiliate?' + params.toString());
+      const data = await res.json();
+      if (seq !== reqSeq) return; // มีคำขอใหม่กว่าแล้ว
+      if (!data.success) {
+        const detail = data.detail ? `<div style="margin-top:8px; font-size:12px; opacity:.8;">สาเหตุ: ${escHtml(data.detail)}</div>` : '';
+        renderState(escHtml(data.message || 'ดึงข้อมูลไม่สำเร็จ') + detail, true);
+        return;
+      }
+      allPos = data.data || [];
+      overPct = data.overPct || 120;
+      statusFilter = 'all';
+      shown = PAGE_STEP;
+      if (!allPos.length) { renderState('ไม่พบ PO ตามเงื่อนไขที่ระบุ'); return; }
+      renderKpis();
+      renderList();
+      exportBtn.disabled = false;
+      // ค้นด้วยเลขที่ PO ตรงตัว (หรือค้นแล้วเหลือใบเดียว) = เปิดรายละเอียดให้เลย / โหลดอัตโนมัติตอนเปิดหน้าไม่เปิด popup
+      const kw = openPoCode || keywordInput.value.trim();
+      const exact = explicit && kw && allPos.find(p => p.poCode === kw);
+      if (exact) openDrawer(exact.poCode);
+      else if (explicit && kw && allPos.length === 1) openDrawer(allPos[0].poCode);
+    } catch (err) {
+      if (seq !== reqSeq) return;
+      renderState(escHtml(err.message || 'เชื่อมต่อ server ไม่ได้ กรุณาลองใหม่'), true);
+    } finally {
+      if (seq !== reqSeq) return; // คำขอใหม่ยังโหลดอยู่ ไม่ปิด loading
+      listLoading.hidden = true;
+      resultPanel.classList.remove('is-loading');
+      viewBtn.disabled = false;
+      viewBtn.innerHTML = VIEW_BTN_HTML;
+    }
+  }
+
+  viewBtn.addEventListener('click', () => { clearTimeout(kwTimer); loadReport(); });
+  keywordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(kwTimer); loadReport(); } });
+
+  // ---------- เปลี่ยนเงื่อนไข = โหลดข้อมูลใหม่อัตโนมัติ (ไม่ต้องกด "แสดงข้อมูล") ----------
+  let autoReady = false; // เปิดหลังโหลดครั้งแรก กันโหลดซ้ำระหว่างตั้งค่าเริ่มต้น
+  let kwTimer = null;
+  const autoLoad = () => { if (autoReady) { clearTimeout(kwTimer); loadReport(null, false); } };
+  [supplierSelect, cropSelect, monthSelect, monthYearSelect, yearOnlySelect]
+    .forEach(el => el.addEventListener('change', autoLoad));
+  // เปลี่ยนบริษัท: โหลดรายชื่อประเภทพืชของบริษัทนั้นก่อน แล้วค่อยโหลดข้อมูล
+  companySelect.addEventListener('change', async () => { await loadCrops(); autoLoad(); });
+  document.querySelectorAll('input[name="dateMode"]').forEach(r => r.addEventListener('change', autoLoad));
+  // ช่องค้นหา: รอหยุดพิมพ์ 0.6 วินาทีแล้วค่อยโหลด
+  // มีคำค้นหา = ทำให้เงื่อนไขเดือน/ปีจางลง บอกผู้ใช้ว่ากำลังค้นทุกช่วงเวลา
+  const dateModeGrid = document.querySelector('.date-mode-grid');
+  function syncDateIgnored(){
+    const on = !!keywordInput.value.trim();
+    dateModeGrid.classList.toggle('date-ignored', on);
+    dateModeGrid.title = on ? 'มีคำค้นหา: ค้นทุกช่วงเวลา (ล้างช่องค้นหาเพื่อใช้เงื่อนไขเดือน/ปี)' : '';
+  }
+  keywordInput.addEventListener('input', () => {
+    syncDateIgnored();
+    if (!autoReady) return;
+    clearTimeout(kwTimer);
+    kwTimer = setTimeout(() => loadReport(null, false), 600);
+  });
+
+
+  // ==================================================================
+  // ---------- แท็บ ----------
+  // ==================================================================
+  function switchTab(name){
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      const on = b.dataset.tab === name;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.getElementById('tabOverview').hidden = name !== 'overview';
+    document.getElementById('tabStockcard').hidden = name !== 'stockcard';
+    document.getElementById('tabAnalysis').hidden = name !== 'analysis';
+    if (name === 'analysis') ensureAnalysis();   // โหลดครั้งแรกเมื่อเปิดแท็บ
+  }
+  document.querySelector('.tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('.tab-btn');
+    if (b) switchTab(b.dataset.tab);
+  });
+
+  // ==================================================================
+  // ---------- แท็บ 2: Stock Card ราย PO ----------
+  // ==================================================================
+  // เลือก PO (พิมพ์เลขที่ PO + Enter หรือเลือกจากรายการแนะนำ) → ดึง /api/po-receive-affiliate?poCode= (ตรงตัว ทุกช่วงเวลา)
+  // server ส่ง ledger ราย Lot พร้อมคงเหลือ PO สะสมมาให้ แยกตารางตามสินค้าใน PO
+  const scCompanySelect = document.getElementById('scCompanySelect');
+  const scPoInput = document.getElementById('scPoInput');
+  const scSuggest = document.getElementById('scSuggest');
+  const scViewBtn = document.getElementById('scViewBtn');
+  const scExportBtn = document.getElementById('scExportBtn');
+  const scPrintBtn = document.getElementById('scPrintBtn');
+  const scResult = document.getElementById('scResult');
+  const scPanel = document.getElementById('scPanel');
+  const scLoading = document.getElementById('scLoading');
+  const SC_VIEW_HTML = scViewBtn.innerHTML;
+
+  let scPo = null;          // PO ที่แสดงอยู่ (โครงสร้างเดียวกับแท็บ 1 + lines[].ledger)
+  let sgItems = [];         // รายการแนะนำปัจจุบัน
+  let sgIndex = -1;         // รายการที่เลือกด้วยปุ่มลูกศร
+  let sgTimer = null;
+  let sgSeq = 0;
+  let scSeq = 0;
+
+  function scState(html, isError){
+    scPo = null;
+    scResult.innerHTML = `<div class="state-box${isError ? ' error' : ''}">${html}</div>`;
+    scExportBtn.disabled = true;
+    scPrintBtn.disabled = true;
+  }
+
+  // ---------- รายการแนะนำ PO ----------
+  function hideSuggest(){
+    scSuggest.hidden = true;
+    scPoInput.setAttribute('aria-expanded', 'false');
+    sgIndex = -1;
+  }
+  function renderSuggest(){
+    if (!sgItems.length) {
+      scSuggest.innerHTML = '<div class="sg-empty">ไม่พบ PO ที่ตรงกับคำค้นหา</div>';
+    } else {
+      scSuggest.innerHTML = sgItems.map((p, i) => `
+        <div class="sg-item${i === sgIndex ? ' active' : ''}" role="option" data-i="${i}" aria-selected="${i === sgIndex}">
+          <span class="sg-code">${escHtml(p.poCode)}</span>
+          <span class="sg-date">วันที่ออก PO ${fmtDate(p.dateBuy)}</span>
+          <span class="sg-right">${supTag(p)}${p.completed ? badge('ended') : ''}</span>
+          <span class="sg-prod">${escHtml(p.invName || '-')}${p.lineCount > 1 ? ` <small>และอีก ${p.lineCount - 1} รายการ</small>` : ''}</span>
+        </div>`).join('');
+      const act = scSuggest.querySelector('.sg-item.active');
+      if (act) act.scrollIntoView({ block: 'nearest' });
+    }
+    scSuggest.hidden = false;
+    scPoInput.setAttribute('aria-expanded', 'true');
+  }
+  async function fetchSuggest(){
+    const q = scPoInput.value.trim();
+    if (!scCompanySelect.value || q.length < 2) { hideSuggest(); return; }
+    const seq = ++sgSeq;
+    try {
+      const res = await fetch('/api/po-receive-affiliate/po-suggest?' + new URLSearchParams({ companyId: scCompanySelect.value, q }));
+      const data = await res.json();
+      if (seq !== sgSeq || document.activeElement !== scPoInput) return;
+      sgItems = data.success ? data.data : [];
+      sgIndex = -1;
+      renderSuggest();
+    } catch (err) {
+      console.error('ค้นหา PO ไม่สำเร็จ:', err);
+    }
+  }
+  scPoInput.addEventListener('input', () => {
+    clearTimeout(sgTimer);
+    sgTimer = setTimeout(fetchSuggest, 300);
+  });
+  scPoInput.addEventListener('focus', () => { if (scPoInput.value.trim().length >= 2) fetchSuggest(); });
+  scPoInput.addEventListener('keydown', (e) => {
+    const open = !scSuggest.hidden && sgItems.length;
+    if (e.key === 'ArrowDown' && open) { e.preventDefault(); sgIndex = Math.min(sgIndex + 1, sgItems.length - 1); renderSuggest(); }
+    else if (e.key === 'ArrowUp' && open) { e.preventDefault(); sgIndex = Math.max(sgIndex - 1, 0); renderSuggest(); }
+    else if (e.key === 'Escape') { hideSuggest(); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      // เลือกจากรายการ (ถ้ากดลูกศรเลือกไว้) ไม่งั้นใช้เลขที่ PO ที่พิมพ์เอง
+      if (open && sgIndex >= 0) scPoInput.value = sgItems[sgIndex].poCode;
+      clearTimeout(sgTimer);
+      hideSuggest();
+      loadStockcard(scPoInput.value.trim());
+    }
+  });
+  // mousedown (ไม่ใช่ click) เพื่อให้เลือกได้ก่อนช่องเสีย focus
+  scSuggest.addEventListener('mousedown', (e) => {
+    const it = e.target.closest('.sg-item');
+    if (!it) return;
+    e.preventDefault();
+    scPoInput.value = sgItems[+it.dataset.i].poCode;
+    hideSuggest();
+    loadStockcard(scPoInput.value);
+  });
+  scPoInput.addEventListener('blur', () => setTimeout(hideSuggest, 120));
+  scViewBtn.addEventListener('click', () => { hideSuggest(); loadStockcard(scPoInput.value.trim()); });
+  scCompanySelect.addEventListener('change', () => { if (scPoInput.value.trim()) loadStockcard(scPoInput.value.trim()); });
+
+  // ---------- ดึง + แสดง Stock Card ----------
+  async function loadStockcard(poCode){
+    if (!scCompanySelect.value) { scState('กรุณาเลือกบริษัทก่อน'); return; }
+    if (!poCode) { scState('กรุณาระบุเลขที่ PO'); scPoInput.focus(); return; }
+    const seq = ++scSeq;
+    scViewBtn.disabled = true;
+    scViewBtn.innerHTML = '<span class="spinner"></span> กำลังโหลด…';
+    scPanel.classList.add('is-loading');
+    scLoading.hidden = false;
+    try {
+      const res = await fetch('/api/po-receive-affiliate?' + new URLSearchParams({ companyId: scCompanySelect.value, poCode }));
+      const data = await res.json();
+      if (seq !== scSeq) return;
+      if (!data.success) { scState(escHtml(data.message || 'ดึงข้อมูลไม่สำเร็จ'), true); return; }
+      if (!data.data.length) {
+        scState(`ไม่พบ PO <b>${escHtml(poCode)}</b> ของบริษัทที่เลือก (เฉพาะ PO จากบริษัทในเครือ)<div style="margin-top:6px; font-size:12.5px;">ลองพิมพ์บางส่วนของเลขที่ PO หรือชื่อสินค้า แล้วเลือกจากรายการแนะนำ</div>`);
+        return;
+      }
+      overPct = data.overPct || overPct;
+      scPo = data.data[0];
+      renderStockcard();
+    } catch (err) {
+      if (seq !== scSeq) return;
+      scState(escHtml(err.message || 'เชื่อมต่อ server ไม่ได้ กรุณาลองใหม่'), true);
+    } finally {
+      if (seq !== scSeq) return;
+      scLoading.hidden = true;
+      scPanel.classList.remove('is-loading');
+      scViewBtn.disabled = false;
+      scViewBtn.innerHTML = SC_VIEW_HTML;
+    }
+  }
+
+  // ตารางของสินค้า 1 รายการ: เปิด PO → รับราย Lot (ไล่คงเหลือ) → สิ้นสุด PO (ถ้ามี) → รวม
+  function scLineHtml(po, line){
+    const u = escHtml(line.unit);
+    const negCls = (v) => v < 0 ? ' neg' : '';
+    let rows = `<tr class="open-row">
+        <td>${fmtDate(po.dateBuy)}</td><td><span class="tag-type open">เปิด PO</span></td>
+        <td>${escHtml(po.poCode)}</td><td>-</td><td>-</td>
+        <td class="num">${fmtQty(line.amountPOInUnit)}</td><td class="num">-</td>
+        <td class="num bal" style="color:#8ccbff">${fmtQty(line.amountPOInUnit)}</td><td class="num">0.0%</td>
+      </tr>`;
+    // แบ่งกลุ่มตามการรับแต่ละครั้ง (ใบรับ): เปลี่ยนใบรับ = ครั้งใหม่ → เส้นคั่นหนา
+    let recNo = 0, prevDoc = null;
+    (line.ledger || []).forEach(r => {
+      const neg = r.balance < 0;
+      const docKey = `${r.docRec}|${r.dateRec}`;
+      const isNewRec = docKey !== prevDoc;
+      if (isNewRec) { recNo++; prevDoc = docKey; }
+      rows += `<tr class="rec-row${isNewRec ? ' rec-start' : ''}${r.unitError ? ' err-row' : ''}${neg ? ' neg-row' : ''}">
+        <td>${fmtDate(r.dateRec)}</td><td><span class="tag-type rec">รับครั้งที่ ${recNo}</span></td>
+        <td class="mono">${escHtml(r.docRec || '-')}</td>
+        <td class="mono">${r.docRef && String(r.docRef).trim() ? escHtml(r.docRef) : '-'}</td>
+        <td class="mono">${escHtml(r.lotNo || '-')}</td>
+        <td class="num">-</td>
+        <td class="num qty" ${r.unitError ? `title="หน่วย PO (${escHtml(line.unitPO)}) กับหน่วยรับไม่ตรงกัน ไม่สามารถคำนวณได้ — ไม่หักยอด"` : ''}>
+          ${r.unitError ? `${fmtQty(r.amountRec)} ${escHtml(r.unitRec)} ⚠` : fmtQty(r.qty)}</td>
+        <td class="num bal${negCls(r.balance)}">${fmtQty(r.balance)}</td>
+        <td class="num">${fmtPct(r.cumPct)}</td>
+      </tr>`;
+    });
+    if (po.completed) {
+      rows += `<tr class="end-row">
+        <td>${po.dateComplete ? fmtDate(po.dateComplete) : '-'}</td><td><span class="tag-type end">${LOCK_SVG}สิ้นสุด PO</span></td>
+        <td colspan="3">${po.completeNote ? 'หมายเหตุ: ' + escHtml(po.completeNote) : 'ปิด PO แล้ว (ไม่รับเพิ่ม)'}</td>
+        <td class="num">-</td><td class="num">-</td>
+        <td class="num bal${negCls(line.balance)}">${fmtQty(line.balance)}</td><td class="num">${fmtPct(line.pct)}</td>
+      </tr>`;
+    }
+    const hasErr = line.unitErrors > 0;
+    return `<div class="sc-line">
+      <div class="sc-line-head">
+        <div>
+          <div class="sc-prod">${escHtml(line.invName || '(ไม่ระบุสินค้า)')}</div>
+          <div class="sc-prod-sub">
+            ${badge(line.status)}
+            <span>จำนวน PO <b>${fmtQty(line.amountPOInUnit)}</b> ${u}</span>
+            <span>รับแล้ว <b>${fmtQty(line.received)}</b> ${u}</span>
+            <span>คงเหลือ <b style="color:${line.balance < 0 ? '#ff6b57' : 'var(--amber-500)'}">${fmtQty(line.balance)}</b> ${u}</span>
+            <span>(จำนวนรับ <b>${line.receipts.length}</b> ครั้ง)</span>
+          </div>
+        </div>
+        ${progressHtml(line.pct, line.status)}
+      </div>
+      ${line.status === 'over' ? `<div class="alert over" style="margin:0 0 10px">${ICON_WARN}<div>ยอดรับสะสม ${fmtPct(line.pct)} เกิน ${overPct}% ของจำนวน PO (รับเกิน ${fmtQty(-line.balance)} ${u})</div></div>` : ''}
+      ${hasErr ? `<div class="alert unit" style="margin:0 0 10px">${ICON_WARN}<div>มี ${line.unitErrors} Lot ที่หน่วย PO (${escHtml(line.unitPO)}) กับหน่วยรับไม่ตรงกัน ไม่สามารถคำนวณได้ จึงไม่นำมาหักยอดคงเหลือ</div></div>` : ''}
+      <div class="sc-table-wrap">
+        <table class="sc-table">
+          <thead><tr>
+            <th>วันที่</th><th>รายการ</th><th>เลขที่เอกสาร</th><th>เลขที่อ้างอิง</th><th>Lot No.</th>
+            <th class="num">จำนวน PO (${u})</th><th class="num">จำนวนรับ (${u})</th><th class="num">คงเหลือ PO (${u})</th><th class="num">% รับสะสม</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr>
+            <td colspan="5">รวมรับ ${line.receipts.length} ครั้ง · ${(line.ledger || []).length} Lot No.</td>
+            <td class="num">${fmtQty(line.amountPOInUnit)}</td>
+            <td class="num">${fmtQty(line.received)}</td>
+            <td class="num bal${negCls(line.balance)}">${fmtQty(line.balance)}</td>
+            <td class="num">${fmtPct(line.pct)}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  function renderStockcard(){
+    const po = scPo;
+    scResult.innerHTML = `
+      <div class="sc-print-head">
+        <div class="t">Stock Card การรับเมล็ดจากบริษัทในเครือ</div>
+        <div class="s">${escHtml(scCompanySelect.selectedOptions[0]?.text || '')} · พิมพ์เมื่อ ${fmtDate(new Date())} ${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</div>
+      </div>
+      <div class="sc-head">
+        <div>
+          <div class="sc-po"><small>PO No.</small>${escHtml(po.poCode)}</div>
+          <div class="sc-meta">
+            <span><small>วันที่ออก PO</small>${fmtDate(po.dateBuy)}</span>
+            <span><small>Supplier</small>${supTag(po)}</span>
+            <span><small>สินค้า</small>${po.lines.length} รายการ</span>
+            <span><small>รับแล้ว</small>${po.receiptCount} ครั้ง</span>
+          </div>
+        </div>
+        <div class="pc-badges">${badge(po.status)}${po.completed ? badge('ended') : ''}</div>
+      </div>
+      ${po.lines.map(l => scLineHtml(po, l)).join('')}`;
+    scExportBtn.disabled = false;
+    scPrintBtn.disabled = false;
+  }
+
+  // ---------- Export Excel (ทุกสินค้าใน PO ต่อกันใน sheet เดียว) ----------
+  scExportBtn.addEventListener('click', () => {
+    if (!scPo) return;
+    const po = scPo;
+    const aoa = [
+      ['Stock Card การรับเมล็ดจากบริษัทในเครือ'],
+      ['PO No.', po.poCode, 'วันที่ออก PO', fmtDate(po.dateBuy), 'Supplier', po.supName || '', 'สถานะ', STATUS_LABEL[po.status] + (po.completed ? ' / สิ้นสุด PO' : '')],
+      []
+    ];
+    po.lines.forEach(line => {
+      aoa.push(['สินค้า', line.invName || '', 'สถานะ', STATUS_LABEL[line.status], '% รับ', line.pct === null ? '' : Number(line.pct.toFixed(2)), 'หน่วย', line.unit]);
+      aoa.push(['วันที่', 'รายการ', 'เลขที่เอกสาร', 'เลขที่อ้างอิง', 'Lot No.', 'จำนวน PO', 'จำนวนรับ', 'คงเหลือ PO', '% รับสะสม', 'หมายเหตุ']);
+      aoa.push([fmtDate(po.dateBuy), 'เปิด PO', po.poCode, '', '', line.amountPOInUnit, '', line.amountPOInUnit, 0, '']);
+      let recNo = 0, prevDoc = null;
+      (line.ledger || []).forEach(r => {
+        const docKey = `${r.docRec}|${r.dateRec}`;
+        if (docKey !== prevDoc) { recNo++; prevDoc = docKey; }
+        aoa.push([
+          fmtDate(r.dateRec), 'รับครั้งที่ ' + recNo, r.docRec || '', r.docRef || '', r.lotNo || '', '',
+          r.unitError ? r.amountRec : r.qty, r.balance, r.cumPct === null ? '' : Number(r.cumPct.toFixed(2)),
+          r.unitError ? `หน่วยไม่ตรงกัน (${r.unitRec}) ไม่นำมาคำนวณ` : (r.balance < 0 ? 'รับเกิน PO' : '')
+        ]);
+      });
+      if (po.completed) aoa.push([po.dateComplete ? fmtDate(po.dateComplete) : '', 'สิ้นสุด PO', '', '', '', '', '', line.balance, line.pct === null ? '' : Number(line.pct.toFixed(2)), po.completeNote || '']);
+      aoa.push(['รวม', '', '', '', '', line.amountPOInUnit, line.received, line.balance, line.pct === null ? '' : Number(line.pct.toFixed(2)), '']);
+      aoa.push([]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock Card PO');
+    XLSX.writeFile(wb, `stockcard_po_${po.poCode.replace(/[\\/:*?"<>|]/g, '-')}.xlsx`);
+  });
+  // พิมพ์: ใส่ class ชั่วคราวให้ CSS พิมพ์เฉพาะ Stock Card (กด Ctrl+P ปกติจะไม่โดน)
+  scPrintBtn.addEventListener('click', () => {
+    if (!scPo) return;
+    document.body.classList.add('print-sc');
+    window.print();
+  });
+  window.addEventListener('afterprint', () => document.body.classList.remove('print-sc'));
+
+  // ---------- ปุ่มใน popup แท็บ 1 → เปิด PO นี้ในแท็บ Stock Card ----------
+  document.getElementById('drStockcardBtn').addEventListener('click', () => {
+    const code = document.getElementById('drCode').textContent.trim();
+    if (!code) return;
+    closeDrawer();
+    scCompanySelect.value = companySelect.value;
+    scPoInput.value = code;
+    switchTab('stockcard');
+    loadStockcard(code);
+  });
+  // ---------- เริ่มต้น: รองรับลิงก์ตรง ?po=S68/07/0002&companyId=4 (แท็บภาพรวม) / ?sc=S68/07/0002 (แท็บ Stock Card) ----------
+  document.addEventListener('DOMContentLoaded', async () => {
+    loadSidebar();
+    await Promise.all([loadCompanies(), loadSuppliers()]);
+    await loadCrops();
+    // แท็บ Stock Card ใช้รายชื่อบริษัทชุดเดียวกับแท็บภาพรวม
+    scCompanySelect.innerHTML = companySelect.innerHTML;
+    scCompanySelect.value = companySelect.value;
+    if (!companySelect.value) return;
+    const scPoParam = new URLSearchParams(location.search).get('sc');
+    if (scPoParam) {
+      scPoInput.value = scPoParam;
+      switchTab('stockcard');
+      loadStockcard(scPoParam);
+    }
+    // ลิงก์ตรง ?po= : ใส่ในช่องค้นหา (มีคำค้นหา = ค้นทุกช่วงเวลาอยู่แล้ว) แล้วเปิดรายละเอียด / ปกติ: โหลด PO ปีปัจจุบันทันที
+    const po = new URLSearchParams(location.search).get('po');
+    if (po) {
+      keywordInput.value = po;
+      syncDateIgnored();
+      loadReport(po);
+    } else {
+      loadReport(null, false);
+    }
+    autoReady = true;
+  });
+
+  // ==================================================================
+  // ---------- แท็บ 3: วิเคราะห์การรับเทียบ PO ----------
+  // ==================================================================
+  // ข้อมูลคำนวณฝั่ง server (/api/po-receive-affiliate/analysis) — หน้านี้แสดงการ์ดสรุป / กราฟ (Chart.js) / ตาราง
+  // นับเป็นจำนวน PO / รายการสินค้า (กิโลกรัมกับซองรวมกันไม่ได้ / ไม่ใช้มูลค่าเงิน)
+  const anCompanySelect = document.getElementById('anCompanySelect');
+  const anYearSelect = document.getElementById('anYearSelect');
+  const anResult = document.getElementById('anResult');
+  const anLoading = document.getElementById('anLoading');
+  const AN_STATUS_COLOR = { pending: '#7d8da0', partial: '#f5c542', complete: '#b197fc', excess: '#ff922b', over: '#e5533d' };
+  const AN_TICK = '#b9b4a5', AN_GRID = 'rgba(255,255,255,.07)';
+  // โหมดรับเกิน (พืช / สินค้า): คิดตามปริมาณ — ส่วนเกินรวม ÷ ยอด PO ของรายการที่รับแล้ว (คำนวณฝั่ง server)
+  const AN_OVER_TABLE_SUB = '10 อันดับแรก เรียงตาม % ปริมาณที่รับเกิน = ส่วนที่รับเกินรวม ÷ ยอด PO ของรายการที่รับแล้ว (ไม่นำรายการที่รับขาดมาหักลบ)';
+  let anData = null, anSeq = 0, anReady = false, anProdAll = false;
+  const anMode = { crop: 'over', product: 'over' };   // โหมดกราฟ/ตาราง: over = รับเกิน / short = ปิด PO-รับไม่ครบ
+  const anCharts = {};
+
+  const fmtInt = (n) => Number(n || 0).toLocaleString('th-TH');
+
+  function ensureAnalysis(){
+    if (anReady) return;
+    anReady = true;
+    anCompanySelect.innerHTML = companySelect.innerHTML;
+    anCompanySelect.value = companySelect.value;
+    const thisYear = new Date().getFullYear();
+    anYearSelect.innerHTML = '<option value="">ทุกปี</option>' +
+      Array.from({ length: thisYear - 2019 + 1 }, (_, i) => thisYear - i).map(y => `<option value="${y}">${y + 543}</option>`).join('');
+    anYearSelect.value = String(thisYear);
+    [anCompanySelect, anYearSelect].forEach(el => el.addEventListener('change', loadAnalysis));
+    loadAnalysis();
+  }
+
+  async function loadAnalysis(){
+    if (!anCompanySelect.value) { anResult.innerHTML = '<div class="state-box">กรุณาเลือกบริษัท</div>'; return; }
+    const seq = ++anSeq;
+    const params = new URLSearchParams({ companyId: anCompanySelect.value });
+    if (anYearSelect.value) params.set('year', anYearSelect.value);
+    anLoading.hidden = false;
+    try {
+      const res = await fetch('/api/po-receive-affiliate/analysis?' + params);
+      const data = await res.json();
+      if (seq !== anSeq) return;
+      if (!data.success) { anResult.innerHTML = `<div class="state-box error">${escHtml(data.message || 'วิเคราะห์ข้อมูลไม่สำเร็จ')}</div>`; return; }
+      anData = data.data;
+      renderAnalysis();
+    } catch (err) {
+      if (seq !== anSeq) return;
+      anResult.innerHTML = `<div class="state-box error">${escHtml(err.message || 'เชื่อมต่อ server ไม่ได้')}</div>`;
+    } finally {
+      if (seq === anSeq) anLoading.hidden = true;
+    }
+  }
+
+  function destroyCharts(){ Object.keys(anCharts).forEach(k => { anCharts[k].destroy(); delete anCharts[k]; }); }
+  const chartBase = (extra = {}) => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: AN_TICK, boxWidth: 12, font: { family: 'Inter', size: 12 } } } },
+    scales: {
+      x: { ticks: { color: AN_TICK, font: { family: 'Inter', size: 12 } }, grid: { color: AN_GRID } },
+      y: { ticks: { color: AN_TICK, font: { family: 'Inter', size: 12 } }, grid: { color: AN_GRID } }
+    },
+    ...extra
+  });
+
+  function renderAnalysis(){
+    destroyCharts();
+    const d = anData, T = d.total;
+    if (!T.poCount) { anResult.innerHTML = '<div class="state-box">ไม่พบ PO ตามเงื่อนไขที่ระบุ</div>'; return; }
+    const yearTxt = anYearSelect.value ? 'ปี ' + anYearSelect.selectedOptions[0].text : 'ทุกปี';
+    const overMode = anMode.crop === 'over', prodOver = anMode.product === 'over';
+
+    anResult.innerHTML = `
+      <div class="an-kpis">
+        <div class="an-kpi" style="--k:var(--amber-500)"><div class="l">จำนวน PO (${escHtml(yearTxt)})</div><div class="v">${fmtInt(T.poCount)}</div><div class="s">${fmtInt(T.lineCount)} รายการสินค้า · สิ้นสุด PO แล้ว ${fmtInt(T.endedCount)} PO</div></div>
+        <div class="an-kpi" style="--k:#8ccbff"><div class="l">รายการที่เริ่มรับแล้ว</div><div class="v">${fmtInt(T.receivedLines)}</div><div class="s">${T.receivedLinePct ?? 0}% ของรายการทั้งหมด · รับครบ/เกิน ${fmtInt(T.fullLines)} รายการ</div></div>
+        <div class="an-kpi" style="--k:${AN_STATUS_COLOR.pending}"><div class="l">PO ยังไม่เริ่มรับ</div><div class="v">${fmtInt(T.status.pending)}</div><div class="s">บางส่วน ${fmtInt(T.status.partial)} · ครบ ${fmtInt(T.status.complete)} PO</div></div>
+        <div class="an-kpi bad" style="--k:${AN_STATUS_COLOR.excess}"><div class="l">รายการที่รับเกิน PO</div><div class="v">${fmtInt(T.overLines)}</div><div class="s">${T.overLinePct ?? 0}% ของรายการที่รับแล้ว · ${fmtInt(T.status.excess + T.status.over)} PO</div></div>
+        <div class="an-kpi bad" style="--k:var(--st-ended)"><div class="l">ปิด PO ทั้งที่ยังรับไม่ครบ</div><div class="v">${fmtInt(T.shortEndedLines)}</div><div class="s">รายการสินค้า (สิ้นสุด PO แต่รับไม่ถึง 100%)</div></div>
+      </div>
+
+      <div class="an-grid">
+        <div class="an-card" style="margin-bottom:0">
+          <h3>สถานะ PO แยกตาม Supplier</h3>
+          <div class="sub">จำนวน PO ในแต่ละสถานะ</div>
+          <div class="an-chart"><canvas id="anSupChart"></canvas></div>
+        </div>
+        <div class="an-card" style="margin-bottom:0">
+          <div class="an-head">
+            <div><h3>ประเภทพืช</h3><div class="sub" id="anCropSub"></div></div>
+            ${dimSegHtml('crop')}
+          </div>
+          <div class="an-chart"><canvas id="anCropChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="an-card" style="margin-top:14px">
+        <div class="an-head">
+          <div><h3>สินค้า</h3><div class="sub" id="anProdSub"></div></div>
+          ${dimSegHtml('product')}
+        </div>
+        <div class="an-chart an-chart-tall"><canvas id="anProdChart"></canvas></div>
+      </div>
+
+      <div class="an-card">
+        <h3>สรุปราย Supplier</h3>
+        <div class="an-table-wrap">${supplierTableHtml(d)}</div>
+      </div>
+
+      <div class="an-card">
+        <h3>ประเภทพืช — ${overMode ? 'รับเกินจำนวน PO' : 'ปิด PO-รับไม่ครบ'}</h3>
+        <div class="sub">${overMode ? AN_OVER_TABLE_SUB : 'เรียงตามจำนวนรายการที่ปิด PO ทั้งที่ยังรับไม่ครบ'}</div>
+        ${dimTableHtml('crop', d)}
+      </div>
+
+      <div class="an-card" style="margin-bottom:0">
+        <h3>สินค้า — ${prodOver ? 'รับเกินจำนวน PO' : 'ปิด PO-รับไม่ครบ'}</h3>
+        <div class="sub">${prodOver ? AN_OVER_TABLE_SUB : 'เรียงตามจำนวนรายการที่ปิด PO ทั้งที่ยังรับไม่ครบ'}</div>
+        <div id="anProdTable">${dimTableHtml('product', d)}</div>
+      </div>`;
+
+    renderSupplierChart(d);
+    renderDimChart('crop', d);
+    renderDimChart('product', d);
+  }
+
+  // แบ่งคอลัมน์ 2 กลุ่ม: สรุปราย PO (นับใบ PO ตามสถานะรวมของ PO) / สรุปรายการสินค้า (นับบรรทัดสินค้าใน PO)
+  function supplierTableHtml(d){
+    const row = (s, label) => `
+      <td class="num g-start">${fmtInt(s.poCount)}</td>
+      <td class="num">${fmtInt(s.status.pending)}</td>
+      <td class="num">${fmtInt(s.status.partial)}</td>
+      <td class="num">${fmtInt(s.status.complete)}</td>
+      <td class="num">${fmtInt(s.status.excess + s.status.over)}</td>
+      <td class="num g-start">${fmtInt(s.lineCount)}</td>
+      <td class="num">${fmtInt(s.receivedLines)}</td>
+      <td class="num ${!label && s.overLinePct >= 20 ? 'bad' : ''}">${fmtInt(s.overLines)} (${s.overLinePct ?? 0}%)</td>
+      <td class="num ${!label && s.shortEndedLines ? 'bad' : ''}">${fmtInt(s.shortEndedLines)}</td>`;
+    return `<table class="an-table an-table-grouped">
+      <colgroup><col class="c-sup">${'<col>'.repeat(9)}</colgroup>
+      <thead>
+        <tr class="an-group-row">
+          <th rowspan="2">Supplier</th>
+          <th colspan="5" class="g-start g-po">สรุปราย PO <span>(จำนวนเอกสาร PO ตามสถานะ)</span></th>
+          <th colspan="4" class="g-start g-dt">สรุปรายการสินค้า <span>(จำนวนรายการสินค้าใน PO)</span></th>
+        </tr>
+        <tr>
+          <th class="num g-start">PO ทั้งหมด</th><th class="num">ยังไม่รับ</th><th class="num">รับบางส่วน</th><th class="num">รับครบ</th><th class="num">รับเกิน</th>
+          <th class="num g-start">รายการทั้งหมด</th><th class="num">รับแล้ว</th><th class="num">รับเกิน<span class="th-note">(% ของที่รับแล้ว)</span></th><th class="num">ปิด PO-รับไม่ครบ</th>
+        </tr>
+      </thead>
+      <tbody>${d.suppliers.map(s => `<tr><td>${supTag(s)}</td>${row(s)}</tr>`).join('')}</tbody>
+      <tfoot><tr><td>รวม</td>${row(d.total, true)}</tr></tfoot>
+    </table>`;
+  }
+
+  // ---------- สรุปตามมิติ: ประเภทพืช (idSeed) / สินค้า (idInvMain) ----------
+  // โหมดรับเกิน = เรียงตาม % ปริมาณที่รับเกิน (excessPct) / โหมดปิด PO-รับไม่ครบ = จำนวนรายการ
+  // server แยกพืช/สินค้าตามหน่วยด้วย (กิโลกรัม / ซอง) จึงรวมปริมาณได้ — ถ้าชื่อซ้ำหลายหน่วย server ต่อท้ายชื่อด้วยหน่วย
+  const AN_DIMS = {
+    crop: {
+      title: 'ประเภทพืช', list: (d) => d.crops, label: (c) => c.cropName,
+      seg: 'anCropSeg', chart: 'anCropChart', sub: 'anCropSub', colors: { over: AN_STATUS_COLOR.excess, short: '#3b5bdb' }
+    },
+    product: {
+      title: 'สินค้า', list: (d) => d.products, label: (c) => c.invName,
+      seg: 'anProdSeg', chart: 'anProdChart', sub: 'anProdSub', colors: { over: '#22b8cf', short: '#94d82d' }   // สีแยกจากกราฟพืช (ฟ้าอมเขียว / เขียวมะนาว)
+    }
+  };
+  const AN_PROD_STEP = 20;
+  const AN_TOP_OVER = 10;
+  const shortInvName = (s) => String(s || '').replace(/^เมล็ดพันธุ์\s*/, '');   // ตัดคำนำหน้าเพื่อให้ป้ายกราฟสั้นลง
+
+  function dimRows(kind, d){
+    const cfg = AN_DIMS[kind], list = cfg.list(d) || [];
+    if (anMode[kind] === 'over') {
+      return list.filter(c => c.excessQty > 0)
+        .sort((a, b) => b.excessPct - a.excessPct || b.excessQty - a.excessQty);
+    }
+    return list.filter(c => c.shortEndedLines > 0).sort((a, b) => b.shortEndedLines - a.shortEndedLines || b.lineCount - a.lineCount);
+  }
+
+  function dimSubText(kind){
+    if (anMode[kind] !== 'over') return '10 อันดับจำนวนรายการที่ปิด PO ทั้งที่ยังรับไม่ครบ';
+    return `10 อันดับ${AN_DIMS[kind].title}ที่รับเกิน PO (% ปริมาณที่รับเกิน เทียบยอด PO ที่รับแล้ว)`;
+  }
+
+  function dimSegHtml(kind){
+    const over = anMode[kind] === 'over';
+    return `<div class="an-seg" id="${AN_DIMS[kind].seg}" data-kind="${kind}">
+      <button type="button" data-mode="over" class="${over ? 'active' : ''}">รับเกิน</button>
+      <button type="button" data-mode="short" class="${over ? '' : 'active'}">ปิด PO-รับไม่ครบ</button>
+    </div>`;
+  }
+
+  function dimTableHtml(kind, d){
+    const cfg = AN_DIMS[kind], over = anMode[kind] === 'over';
+    let rows = dimRows(kind, d);
+    if (!rows.length) {
+      const msg = over ? `ไม่มี${cfg.title}ที่รับเกิน PO` : 'ไม่มีรายการที่ปิด PO ทั้งที่ยังรับไม่ครบ';
+      return `<div class="an-empty">${msg}</div>`;
+    }
+    const isProd = kind === 'product';
+    if (over) rows = rows.slice(0, AN_TOP_OVER);   // โหมดรับเกิน: แสดงแค่ 10 อันดับแรก (ตรงกับกราฟ)
+    const total = rows.length;
+    if (isProd && !anProdAll) rows = rows.slice(0, AN_PROD_STEP);
+    const more = isProd && total > AN_PROD_STEP
+      ? `<div class="an-more"><button type="button" class="pager-btn" data-prod-toggle>${anProdAll ? 'แสดงน้อยลง' : `แสดงทั้งหมด (${fmtInt(total)} รายการ)`}</button></div>` : '';
+    // โหมดรับเกิน: เพิ่มกลุ่มคอลัมน์ "ปริมาณ" (ยอด PO ที่รับแล้ว / ส่วนที่รับเกินรวม / % เกิน / หน่วย)
+    const qtyHead = over ? `<th colspan="4" class="g-start g-qty">ปริมาณ <span>(เฉพาะรายการที่รับแล้ว)</span></th>` : '';
+    const qtySub = over ? `<th class="num g-start">ยอด PO</th><th class="num">รับเกินรวม</th><th class="num">% เกิน<span class="th-note">(ของยอด PO)</span></th><th class="num">หน่วย</th>` : '';
+    const qtyCells = (c) => over ? `<td class="num g-start">${fmtQty(c.poRecQty)}</td><td class="num bad">${fmtQty(c.excessQty)}</td>
+          <td class="num ${c.excessPct >= 20 ? 'bad' : ''}">${c.excessPct ?? 0}%</td><td>${escHtml(c.unit)}</td>` : '';
+    return `<div class="an-table-wrap"><table class="an-table an-table-grouped an-dim-table${isProd ? ' an-prod-table' : ''}${over ? ' an-has-qty' : ''}">
+      <colgroup><col class="c-sup">${isProd ? '<col class="c-crop">' : ''}${'<col>'.repeat(over ? 9 : 5)}</colgroup>
+      <thead>
+        <tr class="an-group-row">
+          <th rowspan="2">${cfg.title}</th>
+          ${isProd ? '<th rowspan="2">ประเภทพืช</th>' : ''}
+          <th rowspan="2" class="g-start g-po">จำนวน PO</th>
+          <th colspan="4" class="g-start g-dt">สรุปรายการสินค้า <span>(จำนวนรายการสินค้าใน PO)</span></th>
+          ${qtyHead}
+        </tr>
+        <tr>
+          <th class="num g-start">รายการทั้งหมด</th><th class="num">รับแล้ว</th><th class="num">รับเกิน<span class="th-note">(% ของที่รับแล้ว)</span></th><th class="num">ปิด PO-รับไม่ครบ</th>
+          ${qtySub}
+        </tr>
+      </thead>
+      <tbody>${rows.map(c => `
+        <tr><td${isProd ? ' class="an-name"' : ''}>${escHtml(cfg.label(c))}</td>${isProd ? `<td>${escHtml(c.cropName || '-')}</td>` : ''}<td class="num g-start">${fmtInt(c.poCount)}</td>
+          <td class="num g-start">${fmtInt(c.lineCount)}</td><td class="num">${fmtInt(c.receivedLines)}</td>
+          <td class="num">${fmtInt(c.overLines)} (${c.overLinePct ?? 0}%)</td>
+          <td class="num ${c.shortEndedLines ? 'bad' : ''}">${fmtInt(c.shortEndedLines)}</td>
+          ${qtyCells(c)}</tr>`).join('')}
+      </tbody></table></div>${more}`;
+  }
+
+  function renderSupplierChart(d){
+    const sups = d.suppliers;
+    const labels = sups.map(s => (SUPPLIER_TAG[s.idSup] || [null, s.supName])[1]);
+    const ds = [['pending', 'ยังไม่รับ'], ['partial', 'รับบางส่วน'], ['complete', 'รับครบ'], ['excess', 'รับเกิน 1–20%'], ['over', 'รับเกิน 20%']]
+      .map(([k, label]) => ({ label, data: sups.map(s => s.status[k]), backgroundColor: AN_STATUS_COLOR[k], borderWidth: 0, maxBarThickness: 46 }));
+    const base = chartBase({ indexAxis: 'y' });
+    base.scales.x.stacked = true; base.scales.y.stacked = true;
+    base.scales.x.title = { display: true, text: 'จำนวน PO', color: AN_TICK };
+    anCharts.sup = new Chart(document.getElementById('anSupChart'), { type: 'bar', data: { labels, datasets: ds }, options: base });
+  }
+
+  function renderDimChart(kind, d){
+    const cfg = AN_DIMS[kind];
+    const rows = dimRows(kind, d).slice(0, 10);
+    const over = anMode[kind] === 'over';
+    document.getElementById(cfg.sub).textContent = dimSubText(kind);
+    if (anCharts[kind]) { anCharts[kind].destroy(); delete anCharts[kind]; }
+    const base = chartBase({ indexAxis: 'y' });
+    base.plugins.legend = { display: false };
+    base.plugins.tooltip = { callbacks: {
+      title: (items) => cfg.label(rows[items[0].dataIndex]),
+      label: (ctx) => {
+        const c = rows[ctx.dataIndex];
+        return over ? [` รับเกิน ${fmtQty(c.excessQty)} ${c.unit} จากยอด PO ${fmtQty(c.poRecQty)} ${c.unit} (${c.excessPct}%)`,
+                       ` รายการที่รับเกิน ${c.overLines}/${c.receivedLines} รายการ`]
+                    : ` ปิด PO-รับไม่ครบ ${c.shortEndedLines} จาก ${c.lineCount} รายการ`;
+      }
+    } };
+    base.scales.x.title = { display: true, text: over ? '% ปริมาณที่รับเกิน (เทียบยอด PO ที่รับแล้ว)' : 'จำนวนรายการ', color: AN_TICK };
+    if (!over) base.scales.x.ticks.precision = 0;
+    // ค่าโดดมาก (เช่น PO เล็ก สั่ง 10 ได้ 70 = 601%) ทำให้แท่งอื่นแบนจนอ่านไม่ออก
+    // → ตัดแกนที่ 2 เท่าของอันดับ 3 (ปัดขึ้นหลักสิบ, อย่างน้อย 20%) แท่งที่ยาวเกินแสดง % จริงต่อท้ายชื่อ
+    let cap = null;
+    if (over && rows.length >= 3) {
+      const c = Math.max(20, Math.ceil(rows[2].excessPct * 2 / 10) * 10);
+      if (rows[0].excessPct > c) { cap = c; base.scales.x.max = cap; }
+    }
+    base.scales.y.ticks.callback = function(v){
+      const c = rows[v];
+      let s = kind === 'product' ? shortInvName(this.getLabelForValue(v)) : this.getLabelForValue(v);
+      if (kind === 'product' && s.length > 34) s = s.slice(0, 33) + '…';
+      return cap !== null && c && c.excessPct > cap ? `${s} ▸ ${c.excessPct}%` : s;
+    };
+    anCharts[kind] = new Chart(document.getElementById(cfg.chart), {
+      type: 'bar',
+      data: { labels: rows.map(c => cfg.label(c)), datasets: [{
+        data: rows.map(c => over ? c.excessPct : c.shortEndedLines),
+        backgroundColor: over ? cfg.colors.over : cfg.colors.short, borderWidth: 0, maxBarThickness: 22
+      }] },
+      options: base
+    });
+  }
+
+  anResult.addEventListener('click', (e) => {
+    const btn = e.target.closest('.an-seg[data-kind] button');
+    if (btn) {
+      const kind = btn.closest('.an-seg').dataset.kind;
+      if (btn.dataset.mode !== anMode[kind]) {
+        anMode[kind] = btn.dataset.mode;
+        if (kind === 'product') anProdAll = false;
+        renderAnalysis();
+      }
+      return;
+    }
+    if (e.target.closest('[data-prod-toggle]')) {
+      anProdAll = !anProdAll;
+      document.getElementById('anProdTable').innerHTML = dimTableHtml('product', anData);
+    }
+  });
+</script>
+
+</body>
+</html>

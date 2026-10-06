@@ -2,3 +2,6 @@ node_modules/
 .env
 .env.*
 npm-debug.log
+
+# ไฟล์ session ของผู้ใช้ (server สร้างเอง) — ห้ามขึ้น git
+sessions/

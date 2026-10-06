@@ -285,8 +285,26 @@
   .result-panel{
     background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
     border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
-    overflow:hidden;
+    overflow:hidden; position:relative;
   }
+  .result-panel.is-loading{min-height:300px;}
+
+  /* Loading (แบบเดียวกับหน้าร้องขอเมล็ดพันธุ์): คลุมกล่องผลลัพธ์ + โลโก้ + วงแหวนหมุน + ข้อความ Loading . . . */
+  .list-loading{position:absolute; inset:0; z-index:5; display:flex; align-items:flex-start; justify-content:center;
+    padding-top:min(110px, 14vh); border-radius:inherit; background:rgba(16,20,26,.72); backdrop-filter:blur(2px);}
+  .list-loading[hidden]{display:none;}
+  .ld-box{display:flex; flex-direction:column; align-items:center; gap:8px; position:sticky; top:120px;}
+  .ld-ring{position:relative; width:66px; height:66px; display:flex; align-items:center; justify-content:center;}
+  .ld-ring::before{content:""; position:absolute; inset:0; border-radius:50%;
+    border:2.5px solid rgba(242,169,28,.15); border-top-color:var(--amber-500); border-right-color:var(--amber-500);
+    animation:ldSpin .9s linear infinite;}
+  .ld-logo{width:48px; height:48px; filter:drop-shadow(0 4px 10px rgba(242,120,28,.3));}
+  .ld-text{font-family:'Inter',sans-serif; font-size:14px; font-weight:500; letter-spacing:.32em; padding-left:.32em; color:#f5c66b;}
+  .ld-sub{font-size:12.5px; color:var(--concrete-400);}
+  @keyframes ldSpin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){ .ld-ring::before{animation-duration:2.5s;} }
+  @media print{ .list-loading{display:none !important;} }
+
   .result-head{
     display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
     padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.08);
@@ -423,6 +441,9 @@
   .lot-modal-close svg{width:15px; height:15px;}
 
   .lot-modal-search{padding:14px 20px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0;}
+  .lot-modal-filters{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .lot-modal-filters > *{min-width:0;}
+  @media (max-width:520px){ .lot-modal-filters{grid-template-columns:1fr;} }
 
   .lot-modal-body{overflow-y:auto; flex:1;}
   .lot-modal-row{
@@ -438,6 +459,11 @@
   .lot-modal-row .info .product{
     font-size:12.5px; color:var(--concrete-400); margin-top:2px;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .lot-modal-row .info .group-tag{
+    display:inline-block; margin-top:5px; padding:2px 8px; border-radius:5px;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.03em;
+    color:var(--amber-500); background:rgba(242,169,28,.08); border:1px solid rgba(242,169,28,.25);
   }
   .lot-modal-row .choose-btn{
     flex-shrink:0; border:1px solid rgba(242,169,28,.4); background:rgba(242,169,28,.08);
@@ -463,6 +489,7 @@
 </style>
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="session-guard.js"></script>
+<script src="sidebar.js"></script>
 </head>
 <body>
 
@@ -484,7 +511,7 @@
     </div>
 
     <main>
-      <div class="eyebrow">รายงานสต๊อก</div>
+      <div class="eyebrow">รายงาน · รายงานสต๊อก</div>
       <h1>Stock Card (รายล็อต)</h1>
       <p class="sub">เลือกบริษัท และระบุ Lot No. เพื่อดูข้อมูล Stock Card</p>
 
@@ -540,6 +567,14 @@
 
       <!-- ---------- RESULT PANEL ---------- -->
       <div class="result-panel" id="resultPanel">
+        <!-- แสดงระหว่างดึงข้อมูล Stock Card -->
+        <div class="list-loading" id="listLoading" hidden role="status" aria-live="polite">
+          <div class="ld-box">
+            <div class="ld-ring"><img src="images/WIM_LoadingLogo.png" alt="" class="ld-logo" width="48" height="48"></div>
+            <div class="ld-text" aria-label="กำลังโหลด">Loading . . .</div>
+            <div class="ld-sub">กำลังดึงข้อมูล Stock Card</div>
+          </div>
+        </div>
         <div class="result-head">
           <div class="title">รายการ STOCK CARD</div>
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -578,10 +613,22 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
+    <!-- เงื่อนไขการกรอง (ไม่บังคับ): ช่องที่กรอกจะกรองร่วมกัน -->
     <div class="lot-modal-search">
-      <div class="input-shell">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <input type="text" id="lotModalFilter" placeholder="พิมพ์เพื่อกรองรายการในหน้าต่างนี้..." autocomplete="off">
+      <div class="input-shell" style="margin-bottom:10px;">
+        <select id="lotModalGroup" style="width:100%;" aria-label="ประเภทสินค้า/วัสดุ">
+          <option value="">— ทุกประเภทสินค้า/วัสดุ —</option>
+        </select>
+      </div>
+      <div class="lot-modal-filters">
+        <div class="input-shell">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="lotModalFilterLot" placeholder="กรอง Lot No." autocomplete="off" aria-label="กรอง Lot No.">
+        </div>
+        <div class="input-shell">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="lotModalFilterProduct" placeholder="กรองชื่อสินค้า/วัสดุ" autocomplete="off" aria-label="กรองชื่อสินค้า/วัสดุ">
+        </div>
       </div>
     </div>
     <div class="lot-modal-body" id="lotModalBody">
@@ -592,153 +639,10 @@
 
 <script>
   // ==================================================================
-  // ---------- โหลด Sidebar จากไฟล์กลาง (sidebar.html) ----------
-  // ==================================================================
-  async function loadSidebar() {
-    try {
-      const res = await fetch('/sidebar.html');
-      const html = await res.text();
-      document.getElementById('sidebar').innerHTML = html;
-
-      initSidebarEvents();
-      initAuthAndPermissions();
-      initActiveSidebarMenu();
-      
-    } catch (err) {
-      console.error('โหลด Sidebar ไม่สำเร็จ:', err);
-    }
-  }
-
-  // ---------- ตรวจสอบว่า login มาแล้วหรือยัง และจัดการแสดงชื่อผู้ใช้ ----------
-  function initAuthAndPermissions() {
-    const raw = sessionStorage.getItem('wim_user');
-    if (!raw) {
-      window.location.href = '/index.html';
-      return;
-    }
-    
-    const user = JSON.parse(raw);
-    const fullName = [user.PsNameF, user.PsNameS].filter(Boolean).join(' ').trim();
-    const displayName = user.PsName || fullName || user.Username || user.username || user.UN || 'ผู้ใช้งาน';
-    
-    const userLabelEl = document.getElementById('userLabel');
-    if (userLabelEl) userLabelEl.textContent = displayName;
-
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        sessionStorage.removeItem('wim_user');
-        window.location.href = '/index.html';
-      });
-    }
-
-    applyMenuPermissions(user.idPs);
-  }
-
-  // ---------- ควบคุมการเปิด/ปิด Accordion Sidebar แบบถูกต้อง (ไม่บล็อกการคลิก) ----------
-  function initActiveSidebarMenu() {
-    const currentPath = window.location.pathname;
-
-    // 1. ไฮไลต์เมนูย่อยที่ตรงกับหน้าปัจจุบัน และกางกลุ่มแม่ของมันค้างไว้
-    const subItems = document.querySelectorAll(".nav-subitem");
-    subItems.forEach((item) => {
-      if (item.getAttribute("href") === currentPath) {
-        item.classList.add("active");
-        const parentGroup = item.closest(".nav-group");
-        if (parentGroup) {
-          parentGroup.classList.add("open");
-          const parentToggle = parentGroup.querySelector(".nav-parent");
-          if (parentToggle) parentToggle.setAttribute("aria-expanded", "true");
-        }
-      }
-    });
-
-    // 2. จัดการคลิกปุ่มแม่ (Accordion Behavior) โดยใช้ Event Delegation ที่ตัว .side-nav ครั้งเดียวจบ
-    const sideNav = document.querySelector(".side-nav");
-    if (sideNav && !sideNav.dataset.listenerAttached) {
-      sideNav.dataset.listenerAttached = "true";
-
-      sideNav.addEventListener("click", function (e) {
-        const button = e.target.closest(".nav-parent");
-        if (!button) return; // ถ้าไม่ได้คลิกปุ่มแม่ ให้ข้ามไป
-
-        const parentGroup = button.closest(".nav-group");
-        if (!parentGroup) return;
-
-        const isOpen = parentGroup.classList.contains("open");
-
-        // ปิดทุกกลุ่มเมนูก่อน
-        document.querySelectorAll(".nav-group").forEach((group) => {
-          group.classList.remove("open");
-          const toggle = group.querySelector(".nav-parent");
-          if (toggle) toggle.setAttribute("aria-expanded", "false");
-        });
-
-        // ถ้ากลุ่มที่คลิกยังไม่ได้เปิด ให้สั่งเปิดกลุ่มนี้กลุ่มเดียว
-        if (!isOpen) {
-          parentGroup.classList.add("open");
-          button.setAttribute("aria-expanded", "true");
-        }
-      });
-    }
-  }
-
-  // ---------- Sidebar Mobile Drawer ----------
-  function initSidebarEvents() {
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-    function closeSidebar(){ document.body.classList.remove('sidebar-open'); }
-    if (sidebarToggle && sidebarOverlay) {
-      sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
-      sidebarOverlay.addEventListener('click', closeSidebar);
-    }
-  }
-
-  // ==================================================================
-  // ---------- ระบบตรวจสอบสิทธิ์การเข้าถึงเมนู ----------
+  // ---------- Sidebar: ใช้ไฟล์กลาง sidebar.js (โหลดเมนู / ชื่อผู้ใช้ / ไฮไลต์ / เปิด-ปิดกลุ่ม / ล็อกตามสิทธิ์) ----------
   // ==================================================================
   const CURRENT_PAGE_MENU_CODE = 'stockcard_lot';
-
-  function showAccessDeniedOverlay(){
-    document.body.innerHTML = `
-      <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:#0c1420; color:#e7e4da; font-family:'Inter',sans-serif; text-align:center; padding:20px;">
-        <div>
-          <div style="font-size:48px; margin-bottom:16px;">🔒</div>
-          <div style="font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; text-transform:uppercase; margin-bottom:10px; color:#fff;">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
-          <p style="color:#b9b4a5; margin-bottom:24px;">กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์การใช้งาน</p>
-          <a href="/main-menu.html" style="display:inline-block; background:#f2a91c; color:#0c1420; padding:12px 24px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:700; text-decoration:none; text-transform:uppercase;">กลับหน้าเมนูหลัก</a>
-        </div>
-      </div>`;
-  }
-
-  async function applyMenuPermissions(idPs){
-    if (!idPs) return;
-
-    try {
-      const res = await fetch('/api/permissions/my?' + new URLSearchParams({ idPs }));
-      const data = await res.json();
-      if (!data.success) return;
-      if (data.unrestricted) return;
-
-      const allowed = new Set(data.allowedMenuCodes);
-
-      document.querySelectorAll('[data-menu]').forEach(el => {
-        const code = el.getAttribute('data-menu');
-        if (!allowed.has(code)) {
-          el.classList.add('menu-locked');
-          el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
-          el.addEventListener('click', (e) => e.preventDefault());
-        }
-      });
-
-      if (CURRENT_PAGE_MENU_CODE && !allowed.has(CURRENT_PAGE_MENU_CODE)) {
-        showAccessDeniedOverlay();
-      }
-    } catch (err) {
-      console.error('เช็คสิทธิ์การใช้งานไม่สำเร็จ:', err);
-    }
-  }
+  function loadSidebar() { return WIMSidebar.load({ menuCode: CURRENT_PAGE_MENU_CODE }); }
 
   // ==================================================================
   // ---------- โหลดรายชื่อบริษัทลง combobox ----------
@@ -918,9 +822,37 @@
   const lotModalOverlay = document.getElementById('lotModalOverlay');
   const lotModalBody = document.getElementById('lotModalBody');
   const lotModalClose = document.getElementById('lotModalClose');
-  const lotModalFilter = document.getElementById('lotModalFilter');
+  const lotModalGroup = document.getElementById('lotModalGroup');
+  const lotModalFilterLot = document.getElementById('lotModalFilterLot');
+  const lotModalFilterProduct = document.getElementById('lotModalFilterProduct');
+  let invGroupsLoaded = false;
 
-  let allLotsCache = [];
+  // โหลดประเภทสินค้า/วัสดุลง combobox ครั้งเดียว (ชุดเดียวกับหน้า Stock Card รายสินค้า)
+  async function loadInvGroupsOnce(){
+    if (invGroupsLoaded) return;
+    invGroupsLoaded = true;
+    try {
+      const res = await fetch('/api/inv-groups');
+      const data = await res.json();
+      if (!data.success) {
+        console.error('โหลดกลุ่มสินค้าไม่สำเร็จ:', data.message, data.detail);
+        const opt = document.createElement('option');
+        opt.value = ''; opt.textContent = '⚠ โหลดประเภทไม่สำเร็จ (ดู console)';
+        lotModalGroup.appendChild(opt);
+        return;
+      }
+      (data.data || []).forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.id; opt.textContent = g.name;
+        lotModalGroup.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('โหลดกลุ่มสินค้าไม่สำเร็จ (network):', err);
+      invGroupsLoaded = false;
+    }
+  }
+
+  // server ส่งกลับไม่เกินจำนวนนี้ ถ้าได้ครบเท่านี้แปลว่ายังมีรายการอื่นอีก ให้ผู้ใช้พิมพ์ค้นหาให้แคบลง
   const MAX_RENDER = 200;
 
   function renderLotModalRows(rows){
@@ -938,13 +870,14 @@
           <div class="info">
             <div class="lot-no">${item.lotNo ?? ''}</div>
             <div class="product">${item.productName ?? '- ไม่มีชื่อสินค้า -'}</div>
+            ${item.groupName ? `<span class="group-tag">${item.groupName}</span>` : ''}
           </div>
           <button type="button" class="choose-btn">เลือก</button>
         </div>`;
     });
 
-    if (rows.length > MAX_RENDER) {
-      html += `<div class="state-box">แสดง ${MAX_RENDER} จากทั้งหมด ${rows.length} รายการ — พิมพ์เพื่อกรองให้แคบลง</div>`;
+    if (rows.length >= MAX_RENDER) {
+      html += `<div class="state-box">แสดง ${MAX_RENDER} รายการแรก — เลือกประเภท หรือกรอง Lot No. / ชื่อสินค้าด้านบนเพื่อค้นหาให้แคบลง</div>`;
     }
 
     lotModalBody.innerHTML = html;
@@ -965,24 +898,61 @@
   function openLotModal(){ lotModalOverlay.classList.add('show'); }
   function closeLotModal(){
     lotModalOverlay.classList.remove('show');
-    lotModalFilter.value = '';
+    clearTimeout(modalFilterDebounce);
+    lotModalGroup.value = '';
+    lotModalFilterLot.value = '';
+    lotModalFilterProduct.value = '';
   }
 
   lotModalClose.addEventListener('click', closeLotModal);
   lotModalOverlay.addEventListener('click', (e) => { if (e.target === lotModalOverlay) closeLotModal(); });
 
+  // ค้นที่ server ทุกครั้ง (ไม่ดึงทุก Lot มาไว้ในเครื่อง) + ยกเลิก request เก่าที่ยังค้างอยู่ กันผลลัพธ์เก่าทับผลใหม่
+  let modalFetchCtrl = null;
+
+  async function fetchModalLots(){
+    const companyId = companySelect.value;
+    if (modalFetchCtrl) modalFetchCtrl.abort();
+    const ctrl = new AbortController();
+    modalFetchCtrl = ctrl;
+
+    lotModalBody.innerHTML = '<div class="state-box">กำลังโหลดรายการ…</div>';
+
+    try {
+      const params = new URLSearchParams({
+        companyId, limit: MAX_RENDER,
+        keyword: lotModalFilterLot.value.trim(),
+        productName: lotModalFilterProduct.value.trim(),
+        groupId: lotModalGroup.value
+      });
+      const res = await fetch('/api/lots/search?' + params.toString(), { signal: ctrl.signal });
+      const data = await res.json();
+      if (ctrl !== modalFetchCtrl) return;
+
+      if (!data.success) {
+        lotModalBody.innerHTML = `<div class="state-box error">${data.message || 'โหลดรายการไม่สำเร็จ'}</div>`;
+        return;
+      }
+      renderLotModalRows(data.data || []);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      lotModalBody.innerHTML = '<div class="state-box error">เชื่อมต่อ server ไม่ได้</div>';
+    } finally {
+      if (ctrl === modalFetchCtrl) modalFetchCtrl = null;
+    }
+  }
+
+  // พิมพ์ในช่องกรอง -> รอหยุดพิมพ์แล้วค้น / เปลี่ยนประเภท -> ค้นทันที
   let modalFilterDebounce = null;
-  lotModalFilter.addEventListener('input', () => {
+  function scheduleModalSearch(){
     clearTimeout(modalFilterDebounce);
-    modalFilterDebounce = setTimeout(() => {
-      const kw = lotModalFilter.value.trim().toLowerCase();
-      const filtered = kw
-        ? allLotsCache.filter(item =>
-            (item.lotNo || '').toLowerCase().includes(kw) ||
-            (item.productName || '').toLowerCase().includes(kw))
-        : allLotsCache;
-      renderLotModalRows(filtered);
-    }, 200);
+    modalFilterDebounce = setTimeout(fetchModalLots, 350);
+  }
+  lotModalFilterLot.addEventListener('input', scheduleModalSearch);
+  lotModalFilterProduct.addEventListener('input', scheduleModalSearch);
+  lotModalGroup.addEventListener('change', () => {
+    clearTimeout(modalFilterDebounce);
+    fetchModalLots();
   });
 
   async function browseAllLots(){
@@ -993,22 +963,8 @@
     }
 
     openLotModal();
-    lotModalBody.innerHTML = '<div class="state-box">กำลังโหลดรายการ…</div>';
-
-    try {
-      const params = new URLSearchParams({ keyword: '', companyId });
-      const res = await fetch('/api/lots/search?' + params.toString());
-      const data = await res.json();
-
-      if (!data.success) {
-        lotModalBody.innerHTML = `<div class="state-box error">${data.message || 'โหลดรายการไม่สำเร็จ'}</div>`;
-        return;
-      }
-      allLotsCache = data.data || [];
-      renderLotModalRows(allLotsCache);
-    } catch (err) {
-      lotModalBody.innerHTML = '<div class="state-box error">เชื่อมต่อ server ไม่ได้</div>';
-    }
+    loadInvGroupsOnce();
+    await fetchModalLots();
   }
 
   lotSearchBtn.addEventListener('click', searchLots);
@@ -1024,6 +980,8 @@
   // ---------- ดึงข้อมูล Stock Card จาก stored procedure ----------
   // ==================================================================
   const viewBtn = document.getElementById('viewBtn');
+  const resultPanel = document.getElementById('resultPanel');
+  const listLoading = document.getElementById('listLoading');
   const resultArea = document.getElementById('resultArea');
   const resultCount = document.getElementById('resultCount');
 
@@ -1196,7 +1154,9 @@
 
     viewBtn.disabled = true;
     viewBtn.innerHTML = '<span class="spinner"></span> กำลังโหลด…';
-    renderState('กำลังดึงข้อมูล…');
+    renderState('');
+    resultPanel.classList.add('is-loading');
+    listLoading.hidden = false;
 
     try {
       let idLot;
@@ -1225,6 +1185,8 @@
     } catch (err) {
       renderError(err.message || 'เชื่อมต่อ server ไม่ได้ กรุณาลองใหม่');
     } finally {
+      listLoading.hidden = true;
+      resultPanel.classList.remove('is-loading');
       viewBtn.disabled = false;
       viewBtn.innerHTML = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
