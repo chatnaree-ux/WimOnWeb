@@ -5,7 +5,7 @@
    ย้ายมาไว้ที่เดียว — หน้าเว็บเรียกแค่:
 
      <aside class="sidebar" id="sidebar"></aside>
-     <script src="sidebar.js"></script>
+     <script src="/js/sidebar.js"></script>
      WIMSidebar.load({ menuCode: 'stockcard_lot' });   // menuCode = MenuCode ของหน้านี้ (null = ไม่บังคับสิทธิ์)
      WIMSidebar.load({ manageUser: false });           // หน้า Home: จัดการผู้ใช้ + สิทธิ์เอง (ใช้แค่เมนู/ไฮไลต์/เปิด-ปิดกลุ่ม)
 
