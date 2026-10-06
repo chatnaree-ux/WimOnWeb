@@ -5,3 +5,6 @@ npm-debug.log
 
 # ไฟล์ session ของผู้ใช้ (server สร้างเอง) — ห้ามขึ้น git
 sessions/
+
+# สคริปต์ SQL ใช้ในเครื่องเท่านั้น — ไม่ขึ้น git
+sql/
