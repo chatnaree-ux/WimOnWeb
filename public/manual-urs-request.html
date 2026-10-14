@@ -410,6 +410,11 @@
     .mock-grid{grid-template-columns:1fr;}
     .mdash-card.follow{grid-column:span 1;}
   }
+
+  /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
+     และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
+  select, input, textarea{max-width:100%; min-width:0;}
+  .mfilters > *, .mgrid-2 > *, .mchoice > *, .mock-grid > *{min-width:0;}
 </style>
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>
@@ -438,7 +443,7 @@
       <h1>คู่มือการใช้งาน: ร้องขอเมล็ดพันธุ์เร่งด่วน</h1> 
 
       <div class="hero-actions">
-        <a class="btn btn-primary" href="/urs-request.html">
+        <a class="btn btn-primary" href="/urs-request">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
           ไปหน้าร้องขอเมล็ดพันธุ์เร่งด่วน
         </a>
@@ -504,7 +509,7 @@
             <p>เปิดเมนู <span class="ui">ร้องขอเมล็ดพันธุ์เร่งด่วน</span> จากแถบเมนูด้านซ้าย หรือจากการ์ดในหน้า Home (กด <span class="kbd">Ctrl</span> + <span class="kbd">K</span> ที่หน้า Home เพื่อค้นหาเมนูก็ได้) หน้านี้มี 2 แท็บ</p>
 
             <div class="mock" aria-hidden="true">
-              <div class="mock-bar"><i></i><i></i><i></i><span>/urs-request.html</span></div>
+              <div class="mock-bar"><i></i><i></i><i></i><span>/urs-request</span></div>
               <div class="mock-body">
                 <div class="eyebrow" style="font-size:10.5px; margin-bottom:4px;">Urgent Seed Request</div>
                 <div style="font-family:'Oswald',sans-serif; font-size:19px; font-weight:700; color:#fff; margin-bottom:12px;">ร้องขอเมล็ดพันธุ์เร่งด่วน</div>
@@ -762,7 +767,7 @@
                   <div class="mmodal">
                     <div class="mmodal-h">ลิงก์ตอบกลับ URQ6910/0004<span class="x">✕</span></div>
                     <div class="mmodal-b">
-                      <div class="mlink" style="position:relative"><div class="mi">https://…/urs-reply.html?id=123</div><span class="mbtn sec">คัดลอกลิงก์</span><span class="pin tr">1</span></div>
+                      <div class="mlink" style="position:relative"><div class="mi">https://…/urs-reply?id=123</div><span class="mbtn sec">คัดลอกลิงก์</span><span class="pin tr">1</span></div>
                       <div class="mmsg">📌 คำร้องขอเมล็ดพันธุ์เร่งด่วน URQ6910/0004
 จาก: บริษัท แอ๊ดว้านซ์ซีดส์ จำกัด
 ถึง: บริษัท กรีนซีดส์ จำกัด
@@ -772,7 +777,7 @@
 1. ข้าวโพดหวาน ตัวอย่าง A — 200.00 กก. (ต้องการ 15/10/2569)
 …
 กรุณาตอบกลับสถานะ (พร้อมส่ง / ไม่พร้อมส่ง) ที่ลิงก์นี้:
-https://…/urs-reply.html?id=123<span class="pin tr">2</span></div>
+https://…/urs-reply?id=123<span class="pin tr">2</span></div>
                       <div class="mrow" style="margin-top:0; position:relative"><span class="mbtn line">คัดลอกข้อความ + ลิงก์ (ไปวางใน LINE)</span><span class="pin tr">3</span></div>
                     </div>
                   </div>
@@ -888,7 +893,7 @@ https://…/urs-reply.html?id=123<span class="pin tr">2</span></div>
             </ol>
 
             <div class="mock" aria-hidden="true" style="max-width:560px">
-              <div class="mock-bar"><i></i><i></i><i></i><span>/urs-reply.html?id=123</span></div>
+              <div class="mock-bar"><i></i><i></i><i></i><span>/urs-reply?id=123</span></div>
               <div class="mock-body">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                   <div style="font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; color:#fff;">รายการเมล็ดพันธุ์ (2)</div>

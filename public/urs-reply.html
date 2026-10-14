@@ -135,6 +135,11 @@
     .item-status{width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; padding-left:40px;}
     .replied-by{margin-top:0;}
   }
+
+  /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
+     และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
+  select, input, textarea{max-width:100%; min-width:0;}
+  .fields > *, .choice > *, .info-grid > *{min-width:0;}
 </style>
 </head>
 <body>
@@ -143,7 +148,7 @@
   <div class="brand-mark">WIM</div>
   <div class="brand-text">WIM<small>ตอบกลับคำร้องขอเมล็ดพันธุ์</small></div>
   <div class="spacer"></div>
-  <a class="top-link" href="/urs-request.html">รายการร้องขอ</a>
+  <a class="top-link" href="/urs-request">รายการร้องขอ</a>
   <div class="user-chip"><i class="dot"></i><span id="userLabel">…</span></div>
 </header>
 

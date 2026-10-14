@@ -18,14 +18,41 @@
   #sidebar .nav-group-sub > .nav-submenu > .nav-submenu-inner{padding-left:18px; margin:2px 0 4px;}
   /* กลุ่มย่อยที่มีหน้าปัจจุบันอยู่ข้างใน: ตัวหนังสือสีส้มทอง */
   #sidebar .nav-group-sub:has(.nav-subitem.active) > .nav-parent{color:var(--amber-500, #f2a91c);}
+  /* เมนู On process (WIMWebMenu.stWip): ผู้ใช้ทั่วไป = ซ่อน (hidden) / กลุ่มระบบ = เห็นพร้อมป้าย WIP */
+  #sidebar [hidden]{display:none !important;}
+  #sidebar .menu-wip::after{
+    content:"WIP"; margin-left:auto; padding:1px 6px; border-radius:4px; flex-shrink:0;
+    font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.05em;
+    color:#c4b5fd; background:rgba(167,139,250,.14); border:1px dashed rgba(167,139,250,.5);
+  }
 </style>
-<a href="/main-menu.html" class="sidebar-head" style="text-decoration: none; display: flex; align-items: center; gap: 12px; cursor: pointer;">
+<a href="/main-menu" class="sidebar-head" style="text-decoration: none; display: flex; align-items: center; gap: 12px; cursor: pointer;">
   <div class="brand-mark">W</div>
   <div class="brand-text">WIM<small>WAREHOUSE &amp; INVENTORY MANAGEMENT</small></div>
 </a>
 
 <nav class="side-nav">
   <div class="nav-section-label">เมนูหลัก</div>
+
+  <!-- คลังวัสดุและสินค้า: ตอนนี้มีเมนูเดียว (ถ้ามีเมนูเพิ่มค่อยแบ่งกลุ่มย่อยแบบเมนูรายงาน) -->
+  <div class="nav-group" id="invGroup">
+    <button class="nav-item nav-parent" id="invToggle" type="button" aria-expanded="false" aria-controls="invSubmenu">
+      <span class="nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 21V8l9-5 9 5v13"></path>
+          <path d="M7 21v-8h10v8"></path>
+          <path d="M7 17h10"></path>
+        </svg>
+      </span>
+      <span class="nav-label">คลังวัสดุและสินค้า</span>
+      <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    </button>
+    <div class="nav-submenu" id="invSubmenu">
+      <div class="nav-submenu-inner">
+        <a class="nav-subitem" href="/supplier-return" data-menu="supplier_return">ส่งคืนสินค้า/ลดหนี้ Supplier</a>
+      </div>
+    </div>
+  </div>
 
   <div class="nav-group" id="seedGroup">
     <button class="nav-item nav-parent" id="seedToggle" type="button" aria-expanded="false" aria-controls="seedSubmenu">
@@ -40,13 +67,13 @@
     </button>
     <div class="nav-submenu" id="seedSubmenu">
       <div class="nav-submenu-inner">
-        <a class="nav-subitem" href="/coating.html" data-menu="coating">การลงเวลาเคลือบเมล็ด</a>
-        <a class="nav-subitem" href="/moisture.html" data-menu="moisture">การลงเวลาลดความชื้น</a>
+        <a class="nav-subitem" href="/coating" data-menu="coating">การลงเวลาเคลือบเมล็ด</a>
+        <a class="nav-subitem" href="/moisture" data-menu="moisture">การลงเวลาลดความชื้น</a>
       </div>
     </div>
   </div>
 
-  <a class="nav-item" href="/urs-request.html" data-menu="urs_request">
+  <a class="nav-item" href="/urs-request" data-menu="urs_request">
     <span class="nav-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
@@ -78,8 +105,8 @@
           <div class="nav-submenu">
             <div class="nav-submenu-inner">
               <!-- <a class="nav-subitem" href="#" data-menu="stock_report_onhand">รายงานสต๊อกคงคลัง</a> -->
-              <a class="nav-subitem" href="/stockcard.html" data-menu="stockcard_lot">Stock Card (รายล็อต)</a>
-              <a class="nav-subitem" href="/stockcard-item.html" data-menu="stockcard_item">Stock Card (รายสินค้า)</a>
+              <a class="nav-subitem" href="/stockcard" data-menu="stockcard_lot">Stock Card (รายล็อต)</a>
+              <a class="nav-subitem" href="/stockcard-item" data-menu="stockcard_item">Stock Card (รายสินค้า)</a>
               <!-- <a class="nav-subitem" href="#" data-menu="stock_movement">รายงานความเคลื่อนไหวสต๊อก</a> -->
             </div>
           </div>
@@ -91,8 +118,8 @@
           </button>
           <div class="nav-submenu">
             <div class="nav-submenu-inner">
-              <a class="nav-subitem" href="/po-receive-affiliate.html" data-menu="po_receive_affiliate">รายงานรับเมล็ดจากบริษัทในเครือ</a>
-              <a class="nav-subitem" href="/stockreturn.html" data-menu="stock_return">รายงานสินค้ารับคืน</a>
+              <a class="nav-subitem" href="/po-receive-affiliate" data-menu="po_receive_affiliate">รายงานรับเมล็ดจากบริษัทในเครือ</a>
+              <a class="nav-subitem" href="/stockreturn" data-menu="stock_return">รายงานสินค้ารับคืน</a>
             </div>
           </div>
         </div>
@@ -113,7 +140,7 @@
     </button>
     <div class="nav-submenu" id="systemSubmenu">
       <div class="nav-submenu-inner">
-        <a class="nav-subitem" href="/permissions.html" data-menu="menu_permission">กำหนดสิทธิ์การใช้งาน</a>
+        <a class="nav-subitem" href="/permissions" data-menu="menu_permission">กำหนดสิทธิ์การใช้งาน</a>
       </div>
     </div>
   </div>
@@ -132,7 +159,7 @@
     </button>
     <div class="nav-submenu" id="manualSubmenu">
       <div class="nav-submenu-inner">
-        <a class="nav-subitem" href="/manual-urs-request.html" data-menu="urs_request">ร้องขอเมล็ดพันธุ์เร่งด่วน</a>
+        <a class="nav-subitem" href="/manual-urs-request" data-menu="urs_request">ร้องขอเมล็ดพันธุ์เร่งด่วน</a>
       </div>
     </div>
   </div>

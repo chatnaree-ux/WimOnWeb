@@ -192,9 +192,12 @@
     border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
     padding:22px; margin-bottom:26px;
   }
-  .filter-grid{display:grid; grid-template-columns:1fr 1fr auto auto; gap:16px; align-items:end;}
-  @media (max-width:900px){ .filter-grid{grid-template-columns:1fr 1fr;} }
-  @media (max-width:520px){ .filter-grid{grid-template-columns:1fr;} }
+  /* minmax(0, 1fr) + min-width:0 = คอลัมน์หดตามจอได้เสมอ (1fr เฉยๆ ไม่ยอมแคบกว่าเนื้อหา — Safari บน iPhone
+     คิดความกว้างขั้นต่ำของช่องกรอก / รายการ Lot มากกว่า Chrome กล่องเงื่อนไขเลยล้นขวาจอ) */
+  .filter-grid{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) auto auto; gap:16px; align-items:end;}
+  .filter-grid > *, .filter-grid .field, .filter-grid input, .filter-grid select{min-width:0;}
+  @media (max-width:900px){ .filter-grid{grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);} }
+  @media (max-width:520px){ .filter-grid{grid-template-columns:minmax(0, 1fr);} }
 
   .field{display:flex; flex-direction:column; gap:7px;}
   .field label{
@@ -237,7 +240,7 @@
   .lot-option:last-child{border-bottom:none;}
   .lot-option:hover{background:rgba(242,169,28,.1);}
   .lot-option .lot-no{color:#fff; font-family:'JetBrains Mono',monospace; font-weight:600; font-size:14px;}
-  .lot-option .lot-product{color:var(--concrete-400); font-size:12px;}
+  .lot-option .lot-product{color:var(--concrete-400); font-size:12px; overflow-wrap:anywhere;}
   .lot-empty{padding:14px; text-align:center; color:var(--concrete-400); font-size:13px;}
 
   .browse-all-btn{
@@ -486,6 +489,11 @@
     .main-wrap{margin-left:0;}
     .topbar-mobile{display:flex;}
   }
+
+  /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
+     และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
+  select, input, textarea{max-width:100%; min-width:0;}
+  .lot-modal-filters > *{min-width:0;}
 </style>
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>

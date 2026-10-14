@@ -264,6 +264,10 @@
   .menu-card svg{width:20px; height:20px; color:var(--amber-500); stroke-width:1.8;}
   .menu-card .text{min-width:0; flex:1;}
   .menu-card .title{font-size:14px; font-weight:600; color:#fff;}
+  /* เมนู On process (เห็นเฉพาะกลุ่มระบบ) */
+  .wip-tag{display:inline-block; margin-left:8px; padding:0 6px; border-radius:4px; vertical-align:2px;
+    font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.05em;
+    color:#c4b5fd; background:rgba(167,139,250,.14); border:1px dashed rgba(167,139,250,.5);}
   .menu-card .desc{font-size:12.3px; color:var(--concrete-400); margin-top:2px; line-height:1.45;}
   .menu-card .arrow{color:var(--steel-500); transition:transform .15s, color .15s;}
   .menu-card:hover .arrow{transform:translateX(3px); color:var(--amber-500);}
@@ -409,6 +413,7 @@
   const RECENT_KEY = 'wim_recent_menus';
   const RECENT_MAX = 4;
 
+  let wipCodes = new Set();  // เมนู On process (WIMWebMenu.stWip)
   let myMenus = [];          // เมนูที่ผู้ใช้มีสิทธิ์ (จาก WIM_MENUS)
   let allowedCodes = null;   // null = ใช้ได้ทุกเมนู
 
@@ -428,7 +433,7 @@
       const data = await res.json();
 
       if (!data.success) {
-        window.location.href = '/index.html';
+        window.location.href = '/';
         return;
       }
 
@@ -456,7 +461,7 @@
       setInterval(() => { if (!document.hidden) loadSummary(); }, SUMMARY_REFRESH_MS);
     } catch (err) {
       console.error('Auth check error:', err);
-      window.location.href = '/index.html';
+      window.location.href = '/';
     }
   }
 
@@ -476,7 +481,10 @@
       try {
         const res = await fetch('/api/permissions/my');
         const data = await res.json();
-        if (data.success) setAllowed(data.unrestricted ? null : data.allowedMenuCodes, data.menuOrder);
+        if (data.success) {
+          setAllowed(data.unrestricted ? null : data.allowedMenuCodes, data.menuOrder, data.wipMenuCodes);
+          applyWip(data);
+        }
       } catch (e) { console.error('โหลดสิทธิ์ไม่สำเร็จ:', e); }
     }
     renderMenus();
@@ -485,8 +493,10 @@
 
   // order = { MenuCode: SortOrder } จาก WIMWebMenu — เรียงเมนูภายในแต่ละกลุ่มตาม DB (ลำดับกลุ่มคงตาม menu-config.js)
   // เมนูที่ไม่มีใน DB ต่อท้ายกลุ่มตามลำดับเดิม
-  function setAllowed(codes, order) {
+  // wip = เมนู On process (ผู้ใช้ทั่วไปไม่มีใน codes อยู่แล้ว / กลุ่มระบบเห็นการ์ดพร้อมป้าย WIP)
+  function setAllowed(codes, order, wip) {
     allowedCodes = codes ? new Set(codes) : null;
+    wipCodes = new Set(wip || []);
     const groupIdx = new Map();
     WIM_MENUS.forEach(m => { if (!groupIdx.has(m.group)) groupIdx.set(m.group, groupIdx.size); });
     const key = (m) => (order && order[m.code] != null ? order[m.code] : Number.MAX_SAFE_INTEGER);
@@ -496,6 +506,13 @@
       .sort((a, b) => groupIdx.get(a.m.group) - groupIdx.get(b.m.group) || key(a.m) - key(b.m) || a.i - b.i)
       .map(({ m }) => m);
     lockSidebar();
+  }
+
+  // ซ่อนเมนู On process ใน sidebar — แยก try ไว้ ถ้า sidebar.js เป็นตัวเก่า (browser cache) ตัวเลขสรุปยังแสดงได้
+  function applyWip(data) {
+    try {
+      if (window.WIMSidebar && WIMSidebar.applyWipMenus) WIMSidebar.applyWipMenus(document, data.wipMenuCodes, data.unrestricted);
+    } catch (e) { console.error('ซ่อนเมนู On process ไม่สำเร็จ:', e); }
   }
 
   // ล็อกเมนูใน sidebar ที่ไม่มีสิทธิ์ (เหมือนหน้าอื่น)
@@ -514,11 +531,12 @@
     const grid = document.getElementById('kpiGrid');
     try {
       const res = await fetch('/api/home/summary');
-      if (res.status === 401) { window.location.href = '/index.html'; return false; }
+      if (res.status === 401) { window.location.href = '/'; return false; }
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
 
-      setAllowed(data.unrestricted ? null : data.allowedMenuCodes, data.menuOrder);
+      setAllowed(data.unrestricted ? null : data.allowedMenuCodes, data.menuOrder, data.wipMenuCodes);
+      applyWip(data);
 
       const cards = buildKpiCards(data.data || {});
       document.getElementById('kpiSection').hidden = cards.length === 0;
@@ -552,7 +570,7 @@
     const cards = [];
     if (d.coating) {
       cards.push(kpiCard({
-        href: '/coating.html', icon: 'seed', label: 'เคลือบเมล็ด',
+        href: '/coating', icon: 'seed', label: 'เคลือบเมล็ด',
         value: d.coating.inprogress, unit: 'รายการกำลังเคลือบ', live: d.coating.inprogress > 0,
         subs: [`<span>รอคิว <b>${nf(d.coating.waiting)}</b> รายการ</span>`],
         cta: 'ไปลงเวลาเคลือบเมล็ด'
@@ -560,7 +578,7 @@
     }
     if (d.moisture) {
       cards.push(kpiCard({
-        href: '/moisture.html', icon: 'drop', label: 'ลดความชื้น',
+        href: '/moisture', icon: 'drop', label: 'ลดความชื้น',
         value: d.moisture.inprogress, unit: 'รายการกำลังลดความชื้น', live: d.moisture.inprogress > 0,
         subs: [
           `<span>ห้องใช้งาน <b>${nf(d.moisture.roomsBusy)}/${nf(d.moisture.roomsTotal)}</b></span>`,
@@ -571,7 +589,7 @@
     }
     if (d.urs) {
       cards.push(kpiCard({
-        href: '/urs-request.html', icon: 'bolt', label: 'ร้องขอเมล็ดพันธุ์เร่งด่วน',
+        href: '/urs-request', icon: 'bolt', label: 'ร้องขอเมล็ดพันธุ์เร่งด่วน',
         value: d.urs.awaitingReply, unit: 'รายการรอตอบกลับ', live: false,
         subs: [
           `<span class="${d.urs.notReady ? 'warn' : ''}">ไม่พร้อมส่ง <b>${nf(d.urs.notReady)}</b></span>`,
@@ -588,7 +606,7 @@
       <a class="menu-card" href="${m.href}" data-go="${m.href}">
         <div class="icon-shell">${svg(m.icon)}</div>
         <div class="text">
-          <div class="title">${m.title}</div>
+          <div class="title">${m.title}${wipCodes.has(m.code) ? '<span class="wip-tag">WIP</span>' : ''}</div>
           <div class="desc">${m.desc}</div>
         </div>
         <span class="arrow">→</span>

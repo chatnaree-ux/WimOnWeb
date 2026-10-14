@@ -143,10 +143,11 @@
     background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
     border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:22px; margin-bottom:26px;
   }
-  .filter-grid{display:grid; grid-template-columns:1fr 1.3fr .85fr .85fr auto; gap:16px; align-items:end;}
-  .filter-grid > *{min-width:0;}
-  @media (max-width:1080px){ .filter-grid{grid-template-columns:1fr 1fr;} }
-  @media (max-width:520px){ .filter-grid{grid-template-columns:1fr;} }
+  /* minmax(0, ...) + min-width:0 = คอลัมน์หดตามจอได้เสมอ (กันกล่องเงื่อนไขล้นขวาจอบน Safari / iPhone — แบบเดียวกับหน้า Stock Card รายล็อต) */
+  .filter-grid{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, .85fr) minmax(0, .85fr) auto; gap:16px; align-items:end;}
+  .filter-grid > *, .filter-grid .field, .filter-grid input, .filter-grid select{min-width:0;}
+  @media (max-width:1080px){ .filter-grid{grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);} }
+  @media (max-width:520px){ .filter-grid{grid-template-columns:minmax(0, 1fr);} }
 
   .field{display:flex; flex-direction:column; gap:7px;}
   .field label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em; color:var(--concrete-400); text-transform:uppercase;}
@@ -361,6 +362,10 @@
     .main-wrap{margin-left:0;}
     .topbar-mobile{display:flex;}
   }
+
+  /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
+     และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
+  select, input, textarea{max-width:100%; min-width:0;}
 </style>
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>
@@ -846,7 +851,7 @@
 
     rows.forEach(r => {
       const lotLink = r.lotNo
-        ? `<a href="/stockcard.html?companyId=${encodeURIComponent(companyId)}&lotNo=${encodeURIComponent(r.lotNo)}" target="_blank">${r.lotNo}</a>`
+        ? `<a href="/stockcard?companyId=${encodeURIComponent(companyId)}&lotNo=${encodeURIComponent(r.lotNo)}" target="_blank">${r.lotNo}</a>`
         : '';
       html += `<tr>
         <td>${r.date}</td>
