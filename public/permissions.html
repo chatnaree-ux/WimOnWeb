@@ -280,6 +280,13 @@
   }
   .perm-item:hover{background:rgba(255,255,255,.03);}
   .perm-checkbox{width:17px; height:17px; accent-color:var(--amber-500); cursor:pointer; flex-shrink:0;}
+  /* เมนู On process (WIMWebMenu.stWip) — ติ๊กสิทธิ์ไม่ได้ */
+  .perm-item.is-wip{cursor:not-allowed;}
+  .perm-item.is-wip > span:not(.wip-tag){opacity:.55;}
+  .perm-item.is-wip .perm-checkbox{cursor:not-allowed;}
+  .wip-tag{display:inline-block; margin-left:8px; padding:0 7px; border-radius:4px; white-space:nowrap; vertical-align:1px;
+    font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:none;
+    color:#c4b5fd; background:rgba(167,139,250,.14); border:1px dashed rgba(167,139,250,.5);}
   .perm-children{padding-left:14px; display:flex; flex-direction:column;}
   /* หัวข้อกลุ่มย่อย (ชั้นที่ 2 ขึ้นไป) — ไม่มี checkbox เมนูข้างใต้เยื้องเข้าไป */
   .perm-subhead{font-size:12px; font-weight:600; color:var(--amber-500); letter-spacing:.02em; padding:8px 6px 4px; border-top:1px dashed rgba(255,255,255,.08); margin-top:4px;}
@@ -365,6 +372,11 @@
   }
 
 
+
+  /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
+     และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
+  select, input, textarea{max-width:100%; min-width:0;}
+  .perm-columns > *{min-width:0;}
 </style>
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>
@@ -828,10 +840,12 @@
     // เมนูซ้อนได้หลายชั้น (idParentMenu): กลุ่มย่อย = หัวข้อย่อย (ไม่มี checkbox) / เมนูปลายทาง = ติ๊กสิทธิ์ได้
     // data-parent = กลุ่มบนสุดเสมอ (ใช้นับ badge ของกลุ่ม)
     const kids = (id) => allMenus.filter(m => m.idParentMenu === id);
+    // เมนู On process (stWip): ติ๊กสิทธิ์ไม่ได้ จนกว่าจะพัฒนาเสร็จ (server ก็ไม่บันทึกให้)
+    const wipTag = '<span class="wip-tag" title="กำลังพัฒนา — ยังกำหนดสิทธิ์ไม่ได้">On process</span>';
     const itemHtml = (m, topId, depth) => `
-              <label class="perm-item" style="margin-left:${depth * 14}px">
-                <input type="checkbox" class="perm-checkbox" data-idmenu="${m.idMenu}" data-parent="${topId}">
-                <span>${esc(m.MenuName)}</span>
+              <label class="perm-item ${m.stWip ? 'is-wip' : ''}" style="margin-left:${depth * 14}px">
+                <input type="checkbox" class="perm-checkbox" data-idmenu="${m.idMenu}" data-parent="${topId}" ${m.stWip ? 'data-wip="1" disabled' : ''}>
+                <span>${esc(m.MenuName)}</span>${m.stWip ? wipTag : ''}
               </label>`;
     const nodeHtml = (m, topId, depth) => {
       const ch = kids(m.idMenu);
@@ -848,7 +862,7 @@
       return `
         <div class="perm-group">
           <div class="perm-group-head" data-idmenu="${parent.idMenu}">
-            <span class="name">${esc(parent.MenuName)}</span>
+            <span class="name">${esc(parent.MenuName)}${parent.stWip ? wipTag : ''}</span>
             <span class="g-badge">0</span>
           </div>
           <div class="perm-children">
@@ -879,7 +893,7 @@
       if (!data.success) return;
       const allowedIds = new Set(data.data.map(String));
       permTree.querySelectorAll('.perm-checkbox[data-idmenu]').forEach(cb => {
-        cb.checked = allowedIds.has(cb.dataset.idmenu);
+        cb.checked = !cb.dataset.wip && allowedIds.has(cb.dataset.idmenu);
       });
       updateSelectedCount();
     } catch (err) {

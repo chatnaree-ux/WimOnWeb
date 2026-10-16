@@ -23,11 +23,23 @@
     if (btn) btn.setAttribute('aria-expanded', on ? 'true' : 'false');
   }
 
-  // ---------- ชื่อผู้ใช้ (sessionStorage wim_user) / ไม่มี = กลับหน้า login ----------
-  function initUser() {
-    const raw = sessionStorage.getItem('wim_user');
+  // ---------- ชื่อผู้ใช้ (sessionStorage wim_user) ----------
+  // เปิดลิงก์ในแท็บใหม่ / จาก LINE: sessionStorage ของแท็บว่าง แต่ server ยังจำ login (cookie) → ดึงผู้ใช้จาก session
+  // ยังไม่ login จริง → ไป login แล้วกลับมาหน้านี้ (เดิมพาไปหน้าแรก แล้วจบที่ main-menu ลิงก์เอกสารที่แนบมาเลยหาย)
+  async function initUser() {
+    let raw = sessionStorage.getItem('wim_user');
     if (!raw) {
-      window.location.href = '/index.html';
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          raw = JSON.stringify(data.user);
+          sessionStorage.setItem('wim_user', raw);
+        }
+      } catch (err) { /* ไปหน้า login ด้านล่าง */ }
+    }
+    if (!raw) {
+      window.location.href = '/auth/sso/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search);
       return null;
     }
     const user = JSON.parse(raw);
@@ -50,9 +62,16 @@
 
   // ---------- ไฮไลต์เมนูของหน้านี้ + เปิดกลุ่มที่ครอบทุกชั้น / accordion ----------
   function initActiveAndAccordion(root) {
-    const path = window.location.pathname;
+    const norm = (p) => p.replace(/\.html$/, ''); // /coating กับ /coating.html = หน้าเดียวกัน
+    const path = norm(window.location.pathname);
+    const here = new URLSearchParams(window.location.search);
+    // ลิงก์ที่มี query (เช่น /supplier-return-approve?step=ack) ต้องตรงทั้ง path และค่า query ที่ระบุในลิงก์
+    const sameLink = (href) => {
+      const u = new URL(href || '', window.location.origin);
+      return norm(u.pathname) === path && [...u.searchParams].every(([k, v]) => here.get(k) === v);
+    };
     root.querySelectorAll('a.nav-item, a.nav-subitem').forEach(a => {
-      if (a.getAttribute('href') !== path) return;
+      if (!sameLink(a.getAttribute('href'))) return;
       a.classList.add('active');
       for (let g = a.closest('.nav-group'); g; g = g.parentElement && g.parentElement.closest('.nav-group')) {
         setOpen(g, true);
@@ -83,9 +102,31 @@
           <div style="font-size:48px; margin-bottom:16px;">🔒</div>
           <div style="font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; text-transform:uppercase; margin-bottom:10px; color:#fff;">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
           <p style="color:#b9b4a5; margin-bottom:24px;">กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์การใช้งาน</p>
-          <a href="/main-menu.html" style="display:inline-block; background:#f2a91c; color:#0c1420; padding:12px 24px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:700; text-decoration:none; text-transform:uppercase;">กลับหน้าเมนูหลัก</a>
+          <a href="/main-menu" style="display:inline-block; background:#f2a91c; color:#0c1420; padding:12px 24px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:700; text-decoration:none; text-transform:uppercase;">กลับหน้าเมนูหลัก</a>
         </div>
       </div>`;
+  }
+
+  // ---------- เมนู On process (WIMWebMenu.stWip) ----------
+  // ผู้ใช้ทั่วไป: ซ่อนเมนู (ไม่ใช่ล็อก 🔒) + ซ่อนกลุ่มที่ไม่เหลือเมนู / กลุ่มระบบ: เห็นได้ มีป้าย WIP กำกับ
+  function applyWipMenus(root, wipCodes, unrestricted) {
+    const wip = new Set(wipCodes || []);
+    if (!wip.size) return;
+    root.querySelectorAll('[data-menu]').forEach(el => {
+      if (!wip.has(el.getAttribute('data-menu'))) return;
+      if (unrestricted) {
+        el.classList.add('menu-wip');
+        el.setAttribute('title', 'On process — กำลังพัฒนา ผู้ใช้ทั่วไปยังไม่เห็นเมนูนี้');
+      } else {
+        el.hidden = true;
+      }
+    });
+    if (unrestricted) return;
+    // ไล่จากกลุ่มชั้นในสุดออกมา (querySelectorAll เรียงแม่ก่อนลูก → กลับลำดับ)
+    [...root.querySelectorAll('.nav-group')].reverse().forEach(g => {
+      const visible = [...g.querySelectorAll('a.nav-subitem, a.nav-item')].some(a => !a.hidden && !a.closest('.nav-group[hidden]'));
+      if (!visible) g.hidden = true;
+    });
   }
 
   // ---------- ล็อกเมนูที่ไม่มีสิทธิ์ / หน้านี้ไม่มีสิทธิ์ = แสดงหน้าแจ้ง ----------
@@ -94,7 +135,9 @@
     try {
       const res = await fetch('/api/permissions/my?' + new URLSearchParams({ idPs }));
       const data = await res.json();
-      if (!data.success || data.unrestricted) return;
+      if (!data.success) return;
+      applyWipMenus(document, data.wipMenuCodes, data.unrestricted);
+      if (data.unrestricted) return;
 
       const allowed = new Set(data.allowedMenuCodes);
       document.querySelectorAll('[data-menu]').forEach(el => {
@@ -111,22 +154,56 @@
   }
 
   // ---------- โหลด sidebar.html มาแปะใน #sidebar แล้วเริ่มทำงาน ----------
+  // แสดงเมนูชุดล่าสุดที่จำไว้ (localStorage) ทันที ไม่ต้องรอ server — บน server จริง /sidebar.html บางครั้งช้า
+  // (เรียงเมนูตาม DB ระหว่างที่หน้าหลักกำลังดึงข้อมูลหนัก ๆ) เมนูเลยหายไปจนหน้าหลักโหลดเสร็จ
+  // แล้วค่อยดึงฉบับล่าสุดมาเก็บไว้ ถ้าเมนูเปลี่ยน (เพิ่ม/ย้ายเมนู) ค่อยแปะใหม่
+  const SIDEBAR_CACHE_KEY = 'wim_sidebar_html';
   async function load({ menuCode = null, manageUser = true } = {}) {
     const host = document.getElementById('sidebar');
     if (!host) return;
-    try {
-      const res = await fetch('/sidebar.html');
-      host.innerHTML = await res.text();
-    } catch (err) {
-      console.error('โหลด Sidebar ไม่สำเร็จ:', err);
-      return;
+    let cached = null;
+    try { cached = localStorage.getItem(SIDEBAR_CACHE_KEY); } catch (err) { /* เปิดแบบ private / ปิด storage */ }
+    const fresh = fetch('/sidebar.html').then(res => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    });
+    if (cached) {
+      host.innerHTML = cached;
+    } else {
+      try {
+        host.innerHTML = await fresh;
+      } catch (err) {
+        console.error('โหลด Sidebar ไม่สำเร็จ:', err);
+        return;
+      }
     }
     initMobileDrawer();
     initActiveAndAccordion(host);
-    if (!manageUser) return;
-    const user = initUser();
-    if (user) await applyMenuPermissions(user.idPs, menuCode);
+
+    const ready = manageUser
+      ? initUser().then(user => (user ? applyMenuPermissions(user.idPs, menuCode).then(() => user) : null))
+      : Promise.resolve(null);
+
+    fresh.then(async (html) => {
+      try { localStorage.setItem(SIDEBAR_CACHE_KEY, html); } catch (err) { /* ไม่เป็นไร รอบหน้าโหลดจาก server */ }
+      // หน้า Home จัดการชื่อผู้ใช้ / ล็อกเมนูเอง → ไม่แปะทับ (ใช้ฉบับใหม่ตั้งแต่ครั้งถัดไป)
+      if (!cached || html === cached || !manageUser) return;
+      const user = await ready;
+      const scroll = (host.querySelector('.side-nav') || {}).scrollTop || 0;
+      host.innerHTML = html;
+      initActiveAndAccordion(host);
+      const nav = host.querySelector('.side-nav');
+      if (nav) nav.scrollTop = scroll;
+      if (user) {
+        await initUser();
+        await applyMenuPermissions(user.idPs, null);
+      }
+    }).catch(err => {
+      if (cached) console.warn('อัปเดต Sidebar ไม่สำเร็จ ใช้เมนูชุดเดิม:', err);
+    });
+
+    await ready;
   }
 
-  window.WIMSidebar = { load, showAccessDeniedOverlay };
+  window.WIMSidebar = { load, showAccessDeniedOverlay, applyWipMenus };
 })();

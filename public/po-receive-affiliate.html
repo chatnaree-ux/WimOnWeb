@@ -428,12 +428,20 @@
     .filter-grid .filter-block > :last-child{grid-column:2 !important; grid-row:auto !important;}
     .fb-crop > .filter-block-title, .fb-search > .filter-block-title, .fb-date > .filter-block-title{margin-left:0; padding-left:0; border-left:0;}
     .filter-grid .search-shell{max-width:none;}
-    .filter-grid .date-mode-grid{display:flex; flex-wrap:wrap; gap:8px 14px;}
-    .filter-grid .fb-date > .filter-block-title{align-items:center; line-height:normal;}
-    .filter-grid .date-mode-line{display:inline-flex; flex-wrap:wrap; row-gap:8px;}
+    /* วันที่ออก PO: ใช้ตาราง 2 แถวแบบจอใหญ่ (○ทั้งหมด ○ปี [ปี] / ○เดือน [เดือน]) — เดิมเป็น flex ไหลตัดบรรทัดเอง
+       แต่ตำแหน่ง grid ของจอใหญ่ค้างอยู่ ทำให้ ปี / ช่องปี / เดือน กระจัดกระจาย */
+    .filter-grid .date-mode-grid{display:grid; grid-template-columns:max-content max-content minmax(0, 1fr); gap:10px 14px;}
+    .filter-grid .date-mode-line{display:contents;}
+    .filter-grid .dm-month > .month-picker-shell{width:100%; min-width:0;}   /* ขอบขวาตรงกับช่องปีด้านบน */
+    .filter-grid .fb-date > .filter-block-title{align-items:flex-start; line-height:38px;}
     /* จอแคบ: ปุ่มเรียงคู่กันเป็นแถวสุดท้าย */
     .filter-actions{display:grid; grid-template-columns:1fr 1fr; gap:10px; grid-column:1 / -1;}
     #viewBtn, #exportBtn{grid-column:auto; grid-row:auto;}
+  }
+  /* มือถือ: ป้าย "วันที่ออก PO" ขึ้นบรรทัดของตัวเอง ตัวเลือกวันที่ได้เต็มความกว้าง */
+  @media (max-width:640px){
+    .filter-grid .fb-date > :first-child{grid-column:1 / -1 !important; line-height:normal; margin-bottom:-4px;}
+    .filter-grid .fb-date > :last-child{grid-column:1 / -1 !important;}
   }
 
   /* ---------- ป้ายผู้ขาย (ตัวย่อ + ชื่อ มีสีเฉพาะที่ป้าย — กรอบ/แถบการ์ดใช้สีสถานะ) ---------- */
@@ -640,6 +648,16 @@
   .rc-cell .s-value.bal{color:var(--amber-500);}
   .rc-cell .s-value.neg{color:#ff8a75;}
   .rc-cell .s-value.over{color:#ff8a75;}
+  /* จอเล็ก: จำนวนที่รับครั้งนี้ตกลงมาใต้หัวกล่อง → ทำเป็นช่องเต็มแถว มีป้าย "รับครั้งนี้" (หน้าตาเดียวกับ รับสะสม / PO คงเหลือหลังรับ)
+     ตัวเลข + % ชิดขวาแนวเดียวกัน — จอใหญ่ยังอยู่มุมขวาบนเหมือนเดิม */
+  @media (max-width:640px){
+    .rc-amount{flex:1 1 100%; display:grid; grid-template-columns:1fr auto; grid-template-areas:"lbl amt" "lbl of"; column-gap:10px;
+      background:rgba(0,0,0,.18); border-radius:7px; padding:7px 10px; text-align:right;}
+    .rc-amount::before{content:"รับครั้งนี้"; grid-area:lbl; align-self:start; text-align:left;
+      font-family:'Inter',sans-serif; font-size:13px; font-weight:600; color:var(--concrete-200);}
+    .rc-amount .amt{grid-area:amt; font-size:17px;}
+    .rc-amount .of{grid-area:of;}
+  }
   .lots{margin-top:10px; border-top:1px dashed rgba(255,255,255,.1); padding-top:8px; display:flex; flex-direction:column; gap:6px;}
   .lot-row{display:flex; justify-content:space-between; gap:10px; font-size:13.5px; color:var(--concrete-200);}
   /* Lot No.: ฟอนต์ Inter น้ำหนักปกติ + ตัวเลขกว้างเท่ากัน อ่านง่ายกว่า Mono ตัวหนา */
@@ -694,6 +712,12 @@
     .sc-po-label{margin-left:0; padding-left:0; border-left:0;}
     .sc-actions{grid-column:1 / -1; display:grid; grid-template-columns:repeat(3, 1fr);}
     .sc-actions .filter-btn{width:100%;}
+  }
+  /* จอเล็ก: 3 ปุ่มแถวเดียวไม่พอ (ปุ่มพิมพ์หลุดกรอบ) → แสดงข้อมูล เต็มแถว / Export Excel + พิมพ์ แบ่งครึ่งแถวล่าง */
+  @media (max-width:640px){
+    .sc-actions{grid-template-columns:repeat(2, minmax(0, 1fr));}
+    .sc-actions #scViewBtn{grid-column:1 / -1;}
+    .sc-actions .filter-btn{min-width:0; padding:0 10px;}
   }
 
   /* รายการแนะนำ PO (เด้งใต้ช่อง) */
@@ -874,6 +898,11 @@
     body.print-sc #scResult .progress{display:none !important;}
     body.print-sc #scResult .sc-line-head{grid-template-columns:1fr;}
   }
+
+  /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
+     และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
+  select, input, textarea{max-width:100%; min-width:0;}
+  .sc-filter > *, .an-grid > *{min-width:0;}
 </style>
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>
@@ -949,7 +978,7 @@
           <div class="filter-block-title">ค้นหา : </div>
           <div class="input-shell search-shell">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--steel-500); flex-shrink:0;"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input type="text" id="keywordInput" placeholder="เลขที่ PO / ชื่อสินค้า / Lot No. / เลขที่ใบรับ">
+            <input type="text" id="keywordInput" placeholder="PO No./ ชื่อสินค้า / Lot No.">
           </div>
         </div>
         <div class="filter-block fb-date">
@@ -2112,15 +2141,35 @@
   }
 
   function destroyCharts(){ Object.keys(anCharts).forEach(k => { anCharts[k].destroy(); delete anCharts[k]; }); }
+  // ความกว้างข้อความวัดจาก DOM (ไม่ใช้ canvas measureText) — Safari บน iPhone วัดภาษาไทยบน canvas ผิด (Inter ไม่มีตัวไทย)
+  //   ทำให้ Chart.js กันช่องชื่อแกน Y แคบเกิน แท่งกราฟทับชื่อ Supplier / ประเภทพืช / สินค้า
+  let labelMeasureEl = null;
+  function measureLabelPx(text){
+    if (!labelMeasureEl) {
+      labelMeasureEl = document.createElement('span');
+      labelMeasureEl.style.cssText = "position:absolute; visibility:hidden; white-space:pre; left:-9999px; top:0; font:12px 'Inter',sans-serif;";
+      document.body.appendChild(labelMeasureEl);
+    }
+    labelMeasureEl.textContent = text;
+    return labelMeasureEl.getBoundingClientRect().width;
+  }
+  // กราฟแนวนอน: กันช่องชื่อแกน Y ให้พอกับชื่อที่ยาวที่สุด (ไม่เกิน 45% ของกราฟ — ชื่อยาวเกินจะตัดด้วย … ตามปกติ)
+  function fitCategoryAxis(scale){
+    const longest = Math.max(0, ...scale.ticks.map(t => Math.max(0, ...[].concat(t.label ?? '').map(s => measureLabelPx(String(s))))));
+    scale.width = Math.min(Math.max(scale.width, Math.ceil(longest) + 16), Math.floor(scale.chart.width * 0.45));
+  }
   const chartBase = (extra = {}) => ({
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { labels: { color: AN_TICK, boxWidth: 12, font: { family: 'Inter', size: 12 } } } },
     scales: {
       x: { ticks: { color: AN_TICK, font: { family: 'Inter', size: 12 } }, grid: { color: AN_GRID } },
-      y: { ticks: { color: AN_TICK, font: { family: 'Inter', size: 12 } }, grid: { color: AN_GRID } }
+      y: { ticks: { color: AN_TICK, font: { family: 'Inter', size: 12 } }, grid: { color: AN_GRID },
+           ...(extra.indexAxis === 'y' ? { afterFit: fitCategoryAxis } : {}) }
     },
     ...extra
   });
+  // ฟอนต์โหลดเสร็จหลังวาดกราฟ → วัดช่องชื่อใหม่
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => Object.values(anCharts || {}).forEach(c => c && c.update()));
 
   function renderAnalysis(){
     destroyCharts();
@@ -2334,7 +2383,9 @@
     base.scales.y.ticks.callback = function(v){
       const c = rows[v];
       let s = kind === 'product' ? shortInvName(this.getLabelForValue(v)) : this.getLabelForValue(v);
-      if (kind === 'product' && s.length > 34) s = s.slice(0, 33) + '…';
+      // ชื่อสินค้ายาว: ตัดสั้นตามความกว้างกราฟ (จอเล็กตัดเหลือ ~16 ตัว) — ชี้ที่แท่งเห็นชื่อเต็มใน tooltip
+      const maxLen = this.chart.width < 500 ? 16 : 34;
+      if (kind === 'product' && s.length > maxLen) s = s.slice(0, maxLen - 1) + '…';
       return cap !== null && c && c.excessPct > cap ? `${s} ▸ ${c.excessPct}%` : s;
     };
     anCharts[kind] = new Chart(document.getElementById(cfg.chart), {

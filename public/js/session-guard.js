@@ -118,7 +118,7 @@
     const btn = e.target.closest('[data-sg]');
     if (!btn) return;
     if (btn.dataset.sg === 'login') {
-      window.open(loginUrl('/session-ok.html'), '_blank');
+      window.open(loginUrl('/session-ok'), '_blank');
       setMsg('กำลังรอเข้าสู่ระบบในแท็บใหม่…', '');
       return;
     }
