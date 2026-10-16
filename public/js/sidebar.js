@@ -23,11 +23,23 @@
     if (btn) btn.setAttribute('aria-expanded', on ? 'true' : 'false');
   }
 
-  // ---------- ชื่อผู้ใช้ (sessionStorage wim_user) / ไม่มี = กลับหน้า login ----------
-  function initUser() {
-    const raw = sessionStorage.getItem('wim_user');
+  // ---------- ชื่อผู้ใช้ (sessionStorage wim_user) ----------
+  // เปิดลิงก์ในแท็บใหม่ / จาก LINE: sessionStorage ของแท็บว่าง แต่ server ยังจำ login (cookie) → ดึงผู้ใช้จาก session
+  // ยังไม่ login จริง → ไป login แล้วกลับมาหน้านี้ (เดิมพาไปหน้าแรก แล้วจบที่ main-menu ลิงก์เอกสารที่แนบมาเลยหาย)
+  async function initUser() {
+    let raw = sessionStorage.getItem('wim_user');
     if (!raw) {
-      window.location.href = '/';
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          raw = JSON.stringify(data.user);
+          sessionStorage.setItem('wim_user', raw);
+        }
+      } catch (err) { /* ไปหน้า login ด้านล่าง */ }
+    }
+    if (!raw) {
+      window.location.href = '/auth/sso/login?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search);
       return null;
     }
     const user = JSON.parse(raw);
@@ -52,8 +64,14 @@
   function initActiveAndAccordion(root) {
     const norm = (p) => p.replace(/\.html$/, ''); // /coating กับ /coating.html = หน้าเดียวกัน
     const path = norm(window.location.pathname);
+    const here = new URLSearchParams(window.location.search);
+    // ลิงก์ที่มี query (เช่น /supplier-return-approve?step=ack) ต้องตรงทั้ง path และค่า query ที่ระบุในลิงก์
+    const sameLink = (href) => {
+      const u = new URL(href || '', window.location.origin);
+      return norm(u.pathname) === path && [...u.searchParams].every(([k, v]) => here.get(k) === v);
+    };
     root.querySelectorAll('a.nav-item, a.nav-subitem').forEach(a => {
-      if (norm(a.getAttribute('href') || '') !== path) return;
+      if (!sameLink(a.getAttribute('href'))) return;
       a.classList.add('active');
       for (let g = a.closest('.nav-group'); g; g = g.parentElement && g.parentElement.closest('.nav-group')) {
         setOpen(g, true);
@@ -149,7 +167,7 @@
     initMobileDrawer();
     initActiveAndAccordion(host);
     if (!manageUser) return;
-    const user = initUser();
+    const user = await initUser();
     if (user) await applyMenuPermissions(user.idPs, menuCode);
   }
 

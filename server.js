@@ -3246,14 +3246,25 @@ app.post('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN)
 // สถานะเอกสารไม่มีคอลัมน์ — คิดจากวันที่แต่ละขั้น (ยกเลิก > อนุมัติ > ตรวจสอบ 2 > ตรวจสอบ 1 > รับทราบ)
 //   1 รอรับทราบ / 2 รอตรวจสอบ 1 / 3 รอตรวจสอบ 2 / 4 รออนุมัติ / 5 อนุมัติแล้ว / 9 ยกเลิก
 const MENU_RTS = 'supplier_return';
+// /supplier-return-approve?step=ack|check|approve = หน้าเดียวกับ /supplier-return แต่เปิดเป็นโหมดรับทราบ / ตรวจสอบ / อนุมัติ
+app.get('/supplier-return-approve', (req, res) => res.sendFile(path.join(__dirname, 'public', 'supplier-return.html')));
+// /supplier-return-doc?id= = หน้าเอกสารใบเดียว (ลิงก์ที่ส่งตามรับทราบ / ตรวจสอบ / อนุมัติ) — ไฟล์เดียวกัน หน้าเว็บสลับโหมดเอง
+app.get('/supplier-return-doc', (req, res) => res.sendFile(path.join(__dirname, 'public', 'supplier-return.html')));
 const MENU_RTS_CANCEL = 'supplier_return_cancel';   // สิทธิ์ยกเลิกเอกสาร (สิทธิ์ย่อย ไม่มีหน้าแยก)
 const MENU_RTS_CAUSE = 'supplier_return_cause';     // สิทธิ์จัดการสาเหตุการคืน (สิทธิ์ย่อย ไม่มีหน้าแยก)
-const rtsStatus = (r) => r.DateCancel ? 9 : r.DateApv ? 5 : r.DateCheck2 ? 4 : r.DateCheck ? 3 : r.DateAccept ? 2 : 1;
-const rtsStep = (by, at) => (at ? { by: by || '-', at } : null);
+// เมนูรับทราบ / ตรวจสอบ / อนุมัติ (ผู้ใช้เมนูเหล่านี้อาจไม่มีสิทธิ์เมนูทำเอกสาร — เปิดข้อมูลตั้งต้น / เอกสารใบเดียวได้)
+const MENU_RTS_ACK = 'supplier_return_ack';
+const MENU_RTS_CHECK = 'supplier_return_check';
+const MENU_RTS_APPROVE = 'supplier_return_approve';
+const MENU_RTS_VIEW = [MENU_RTS, MENU_RTS_ACK, MENU_RTS_CHECK, MENU_RTS_APPROVE];
+// 0 = ส่งกลับแก้ไข (DateSendBack ยังอยู่): รอผู้ทำเอกสารแก้ไขแล้วบันทึก จึงกลับไปรอรับทราบ (กันกดรับทราบซ้ำทันทีหลังส่งกลับ)
+const rtsStatus = (r) => r.DateCancel ? 9 : r.DateApv ? 5 : r.DateCheck2 ? 4 : r.DateCheck ? 3 : r.DateAccept ? 2 : r.DateSendBack ? 0 : 1;
+// ขั้นตอนอนุมัติ: ชื่อ + เวลา / ใบเอกสาร (ช่องลงนาม) ใช้ idPs (รูปลายเซ็น) + ตำแหน่งปัจจุบันในระบบ เพิ่ม
+const rtsStep = (by, at, id, pos, full) => (at ? { by: by || '-', at, ...(id ? { id, pos: pos || '', full: (full || '').trim() } : {}) } : null);
 
 // ข้อมูลตั้งต้นของหน้า: ประเภทการคืน / สาเหตุการคืน / บริษัทที่มีสิทธิ์ (พร้อม CompCode ไว้แสดงแบบสั้น)
 //   สาเหตุส่งทั้งที่ปิดใช้งาน (stDel) ไปด้วย ให้เอกสารเก่ายังแสดงชื่อได้
-app.get('/api/supplier-return/meta', requireMenu(MENU_RTS), async (req, res) => {
+app.get('/api/supplier-return/meta', requireMenu(MENU_RTS_VIEW), async (req, res) => {
   try {
     const pool = await poolPromise;
     const request = pool.request();
@@ -3281,8 +3292,10 @@ app.get('/api/supplier-return/meta', requireMenu(MENU_RTS), async (req, res) => 
       })),
       causes: r.recordsets[1].map(c => ({ id: c.idBuyRtCause, name: c.BuyRtCause, inactive: !!c.inactive })),
       companies: r.recordsets[2].map(c => ({ id: c.idComp, code: c.CompCode || c.CompName, name: c.CompName })),
-      canCancel: hasMenu(req.access, MENU_RTS_CANCEL),
-      canManageCause: hasMenu(req.access, MENU_RTS_CAUSE)
+      canCancel: hasMenu(req.access, MENU_RTS_CANCEL), canEdit: hasMenu(req.access, MENU_RTS),
+      canManageCause: hasMenu(req.access, MENU_RTS_CAUSE),
+      canAck: hasMenu(req.access, MENU_RTS_ACK), canCheck: hasMenu(req.access, MENU_RTS_CHECK), canApprove: hasMenu(req.access, MENU_RTS_APPROVE),
+      me: req.idPs
     });
   } catch (err) {
     console.error('Supplier return meta error:', err);
@@ -3415,7 +3428,7 @@ app.get('/api/supplier-return/lots', requireMenu(MENU_RTS, { companyParam: 'idCo
              s.idRecDt, rm.DocCode AS RecCode, NULLIF(LTRIM(RTRIM(rm.DocRef)), '') AS DocRef, CONVERT(varchar(10), rm.DateRec, 23) AS DateRec,
              s.AmountRec AS RcvQty, s.OnHand, s.idUnit, u.UnitName, lm.CostPerUnit,
              q.PureGene, q.GrowPaper, q.GrowMedia, q.GrowAA,
-             ISNULL(pend.Qty, 0) AS PendingQty, ISNULL(pend.UsedQty, 0) AS UsedQty
+             ISNULL(pend.Qty, 0) AS PendingQty, ISNULL(pend.UsedQty, 0) AS UsedQty, adj.AdjFrom, adj.AdjTo, adj.AdjDoc
       FROM #stk s
       JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = s.idLot AND lm.stDel IS NULL
       LEFT JOIN devsk.PKPOBuyDt bd WITH (NOLOCK) ON bd.idPODt = s.idPODt
@@ -3434,6 +3447,9 @@ app.get('/api/supplier-return/lots', requireMenu(MENU_RTS, { companyParam: 'idCo
                    LEFT JOIN devsk.PkBuyRTType ty WITH (NOLOCK) ON ty.idTypeRT = mt.TypeRT
                    WHERE dt.idRefLot = s.idRefLot AND dt.stDel IS NULL AND mt.DateCancel IS NULL
                      AND (@excludeId IS NULL OR mt.idBuyRT <> @excludeId)) pend
+      OUTER APPLY (SELECT TOP 1 CAST(lc.Cost_Old AS decimal(18,4)) AS AdjFrom, CAST(lc.Cost_New AS decimal(18,4)) AS AdjTo, mx.DocCode AS AdjDoc
+                   FROM devsk.WimLogCost lc WITH (NOLOCK) JOIN devsk.PkBuyRTMt mx WITH (NOLOCK) ON mx.idBuyRT = lc.RefId
+                   WHERE lc.idLot = s.idLot AND lc.RefTb = 'PkBuyRTMt' AND ISNULL(lc.Cost_Old, -1) <> ISNULL(lc.Cost_New, -1) ORDER BY lc.idLog DESC) adj
       WHERE ISNULL(w.idParent0, 0) <> ${RTS_EXCLUDED_WH_PARENT}
         AND (@soldOut = 0 OR i.InvName LIKE @kw OR lm.LotNo LIKE @kw OR bm.DocCode LIKE @kw OR rm.DocCode LIKE @kw OR rm.DocRef LIKE @kw)
       ORDER BY rm.DateRec DESC, lm.LotNo;
@@ -3450,7 +3466,8 @@ app.get('/api/supplier-return/lots', requireMenu(MENU_RTS, { companyParam: 'idCo
       idPODt: x.idPODt, po: x.POCode, poQty: num(x.POQty), idRecDt: x.idRecDt, rec: x.RecCode, inv: x.DocRef, rcvDate: x.DateRec,
       rcvQty: num(x.RcvQty) || 0, onHand: num(x.OnHand) || 0, pendingQty: num(x.PendingQty) || 0, usedQty: num(x.UsedQty) || 0,
       idUnit: x.idUnit, unit: x.UnitName, cost: num(x.CostPerUnit),
-      gp: num(x.PureGene), gpPaper: num(x.GrowPaper), gpMedia: num(x.GrowMedia), aa: num(x.GrowAA)
+      gp: num(x.PureGene), gpPaper: num(x.GrowPaper), gpMedia: num(x.GrowMedia), aa: num(x.GrowAA),
+      creditAdj: x.AdjDoc ? { doc: x.AdjDoc, from: num(x.AdjFrom), to: num(x.AdjTo) } : null
     }));
     const warehouses = r.recordsets[1].map(w => ({ id: w.idWh, name: w.WhName }));
     res.json({ success: true, data, warehouses, truncated: data.length >= maxRows, maxRows });
@@ -3649,7 +3666,8 @@ function rtsParseBody(b) {
   const head = {
     idComp: int(b.idComp), typeId: int(b.typeId), idSup: int(b.idSup), idPsRT: int(b.idPsRT),
     returnDate: /^\d{4}-\d{2}-\d{2}$/.test(String(b.returnDate || '')) ? b.returnDate : null,
-    note: String(b.note || '').trim().slice(0, 1000) || null
+    note: String(b.note || '').trim().slice(0, 1000) || null,
+    noCostAdj: b.noCostAdj === true || b.noCostAdj === '1'
   };
   const items = Array.isArray(b.items) ? b.items : [];
   if (!head.idComp || !head.typeId || !head.idSup || !head.idPsRT || !head.returnDate) return { error: 'ข้อมูลหัวเอกสารไม่ครบ (บริษัท / ประเภท / Supplier / ผู้ดำเนินการ / วันที่คืนสินค้า)' };
@@ -3850,6 +3868,7 @@ app.post('/api/supplier-return', requireMenu(MENU_RTS, { companyParam: 'idComp' 
       .input('idSup', sql.Int, head.idSup).input('idPsRT', sql.Int, head.idPsRT)
       .input('totalValue', sql.Decimal(18, 2), t.value).input('totalBuy', sql.Decimal(18, 2), t.buy).input('totalDiff', sql.Decimal(18, 2), t.diff)
       .input('note', sql.VarChar(1000), head.note).input('idPs', sql.Int, req.idPs)
+      .input('noCostAdj', sql.Char(1), head.noCostAdj && meta.credit && !meta.returnGoods ? '1' : null)
       .query(`
         DECLARE @now datetime = GETDATE();
         DECLARE @prefix varchar(8) = 'RTS' + RIGHT(CAST(YEAR(@now) + 543 AS varchar(4)), 2) + RIGHT('0' + CAST(MONTH(@now) AS varchar(2)), 2) + '/';
@@ -3857,8 +3876,8 @@ app.post('/api/supplier-return', requireMenu(MENU_RTS, { companyParam: 'idComp' 
                                    FROM devsk.PkBuyRTMt WITH (UPDLOCK, HOLDLOCK)
                                    WHERE idComp = @idComp AND DocCode LIKE @prefix + '[0-9][0-9][0-9][0-9]'), 0) + 1;
         DECLARE @docCode varchar(12) = @prefix + RIGHT('0000' + CAST(@seq AS varchar(4)), 4);
-        INSERT INTO devsk.PkBuyRTMt (DocCode, DateDoc, DateRetrun, TypeRT, idSup, idPsRT, idComp, TotalValue, TotalBuy, TotalDiff, Note, idPsTs, DateTs)
-        VALUES (@docCode, @now, @returnDate, @typeId, @idSup, @idPsRT, @idComp, @totalValue, @totalBuy, @totalDiff, @note, @idPs, @now);
+        INSERT INTO devsk.PkBuyRTMt (DocCode, DateDoc, DateRetrun, TypeRT, idSup, idPsRT, idComp, TotalValue, TotalBuy, TotalDiff, Note, idPsTs, DateTs, stNoCostAdj)
+        VALUES (@docCode, @now, @returnDate, @typeId, @idSup, @idPsRT, @idComp, @totalValue, @totalBuy, @totalDiff, @note, @idPs, @now, @noCostAdj);
         SELECT CAST(SCOPE_IDENTITY() AS int) AS idBuyRT, @docCode AS DocCode;`);
     const { idBuyRT, DocCode } = mt.recordset[0];
 
@@ -3918,11 +3937,13 @@ app.put('/api/supplier-return/doc/:id', requireMenu(MENU_RTS, { companyParam: 'i
 
     // หัวรอเบิกของเอกสาร — คลังเริ่มเบิกแล้วห้ามแก้
     const wc = (await tq().input('id', sql.Int, idBuyRT).query(`
-      SELECT TOP 1 wm.IdWaitCutMt, wm.stUseCut,
-             (SELECT COUNT(*) FROM devsk.WimWaitCutDt wd WHERE wd.IdWaitCutMt = wm.IdWaitCutMt AND wd.stDel IS NULL AND wd.stWait = 1) AS CutRows
+      SELECT TOP 1 wm.IdWaitCutMt,
+             (SELECT COUNT(*) FROM devsk.WimWaitCutDt wd WHERE wd.IdWaitCutMt = wm.IdWaitCutMt AND wd.stDel IS NULL
+                AND (wd.stWait = 1 OR EXISTS (SELECT 1 FROM devsk.WimCutStockDtMain c WHERE c.idWaitCutDt = wd.idWaitCutDt AND c.DateCancel IS NULL AND c.stDel IS NULL))) AS CutRows
       FROM devsk.WimWaitCutMt wm WITH (UPDLOCK, ROWLOCK)
       WHERE ${RTS_ACTIVE_WAITCUT} AND wm.IdMt = @id ORDER BY wm.IdWaitCutMt DESC`)).recordset[0] || null;
-    if (wc && (wc.stUseCut != null || wc.CutRows > 0)) return fail(400, { message: 'คลังเริ่มเบิกสินค้าของเอกสารนี้แล้ว — แก้ไขไม่ได้' });
+    // คลังตัดเบิกแล้ว = มี Dt ที่ stWait = 1 หรือมีใบตัดเบิกที่ยังไม่ยกเลิก (ไม่ดู stUseCut ของหัว — ยกเลิกตัดแล้วไม่ถูกล้าง) / หัวที่ stCancel = Dt ทุกตัวยกเลิกตาม (RTS_ACTIVE_WAITCUT กรองออกแล้ว)
+    if (wc && wc.CutRows > 0) return fail(400, { message: 'คลังเริ่มเบิกสินค้าของเอกสารนี้แล้ว — แก้ไขไม่ได้' });
 
     // รายการเดิมในเอกสาร: รายการที่ส่งมาพร้อม idBuyRTDt ต้องเป็นของเอกสารนี้ / Lot ใช้ค่าจาก DB (ไม่เชื่อค่าจากหน้าเว็บ)
     const oldRows = (await tq().input('id', sql.Int, idBuyRT).query(`
@@ -3952,9 +3973,10 @@ app.put('/api/supplier-return/doc/:id', requireMenu(MENU_RTS, { companyParam: 'i
       .input('idPsRT', sql.Int, head.idPsRT)
       .input('totalValue', sql.Decimal(18, 2), t.value).input('totalBuy', sql.Decimal(18, 2), t.buy).input('totalDiff', sql.Decimal(18, 2), t.diff)
       .input('note', sql.VarChar(1000), head.note).input('idPs', sql.Int, req.idPs)
-      .query(`UPDATE devsk.PkBuyRTMt SET DateRetrun = @returnDate, TypeRT = @typeId, idPsRT = @idPsRT,
+      .input('noCostAdj', sql.Char(1), head.noCostAdj && meta.credit && !meta.returnGoods ? '1' : null)
+      .query(`UPDATE devsk.PkBuyRTMt SET DateRetrun = @returnDate, TypeRT = @typeId, idPsRT = @idPsRT, stNoCostAdj = @noCostAdj,
                      TotalValue = @totalValue, TotalBuy = @totalBuy, TotalDiff = @totalDiff, Note = @note,
-                     idPsEdit = @idPs, DateEdit = GETDATE()
+                     idPsEdit = @idPs, DateEdit = GETDATE(), DateSendBack = NULL
               WHERE idBuyRT = @id`);
 
     // รายการ: แก้ไขรายการเดิม / ลบ (stDel) รายการที่ไม่ส่งมา / เพิ่มรายการใหม่
@@ -4016,7 +4038,7 @@ app.put('/api/supplier-return/doc/:id', requireMenu(MENU_RTS, { companyParam: 'i
 // ---------- ยกเลิกเอกสาร (สิทธิ์ supplier_return_cancel) ----------
 // body: { reason (> 5 ตัวอักษร, ไม่เกิน 500), stamp }
 //   ยกเลิกได้ทุกสถานะ จนกว่าคลังจะเริ่มตัดสต๊อกจริง (ประเภทคืนของ) / ประเภทไม่คืนของยกเลิกได้ตลอด (จนกว่าจะมีการดึงยอดลดหนี้ไปใช้ — rtsCreditUsed)
-//   อนุมัติแล้วยังยกเลิกไม่ได้: ต้องคืนยอด PO / ยอดลดหนี้ที่ขั้นอนุมัติทำไว้ด้วย (ทำพร้อมเมนูอนุมัติ)
+//   อนุมัติแล้ว (คลังยังไม่ตัดสต๊อก): ประเภทรับสินค้าทดแทน คืนยอดรับ PO ที่ขั้นอนุมัติหักไว้ (rtsAdjustPo -1)
 //   ยกเลิกแล้วกู้คืนไม่ได้ — รายการ (PkBuyRTDt) ไม่ต้องแก้ ถือว่ายกเลิกตามหัวเอกสาร
 const RTS_CANCEL_NOTE_MAX = 500;
 app.post('/api/supplier-return/doc/:id/cancel', requireMenu(MENU_RTS_CANCEL), async (req, res) => {
@@ -4036,7 +4058,8 @@ app.post('/api/supplier-return/doc/:id/cancel', requireMenu(MENU_RTS_CANCEL), as
     const fail = async (status, body) => { await transaction.rollback(); transaction = null; return res.status(status).json({ success: false, ...body }); };
 
     const doc = (await tq().input('id', sql.Int, idBuyRT).query(`
-      SELECT mt.DocCode, mt.idComp, mt.DateApv, mt.DateCancel,
+      SELECT mt.DocCode, mt.idComp, mt.DateApv, mt.DateCancel, (SELECT stReplace FROM devsk.PkBuyRTType WHERE idTypeRT = mt.TypeRT) AS stReplace,
+             (SELECT stCredit FROM devsk.PkBuyRTType WHERE idTypeRT = mt.TypeRT) AS stCredit,
              CONVERT(varchar(23), ISNULL(mt.DateEdit, mt.DateTs), 121) AS Stamp,
              CONVERT(varchar(16), ISNULL(mt.DateEdit, mt.DateTs), 120) AS StampText,
              (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = ISNULL(mt.idPsEdit, mt.idPsTs)) AS StampBy
@@ -4044,18 +4067,25 @@ app.post('/api/supplier-return/doc/:id/cancel', requireMenu(MENU_RTS_CANCEL), as
     if (!doc) return fail(404, { message: 'ไม่พบเอกสาร' });
     if (!hasComp(req.access, doc.idComp)) return fail(403, { message: 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้' });
     if (doc.DateCancel) return fail(409, { code: 'DOC_CHANGED', message: `เอกสาร ${doc.DocCode} ถูกยกเลิกไปแล้ว` });
-    if (doc.DateApv) return fail(400, { message: `เอกสาร ${doc.DocCode} อนุมัติแล้ว — การยกเลิกเอกสารที่อนุมัติแล้วจะทำได้เมื่อมีเมนูอนุมัติ (ต้องคืนยอด PO / ยอดลดหนี้ด้วย)` });
     if (doc.Stamp !== stamp) {
       return fail(409, { code: 'DOC_CHANGED', message: `เอกสาร ${doc.DocCode} ถูกแก้ไขโดย ${doc.StampBy || '-'} เมื่อ ${doc.StampText} หลังจากที่เปิดหน้าจอนี้ — กรุณาตรวจสอบเอกสารอีกครั้ง` });
     }
 
     const wc = (await tq().input('id', sql.Int, idBuyRT).query(`
-      SELECT wm.IdWaitCutMt, wm.stUseCut,
-             (SELECT COUNT(*) FROM devsk.WimWaitCutDt wd WHERE wd.IdWaitCutMt = wm.IdWaitCutMt AND wd.stDel IS NULL AND wd.stWait = 1) AS CutRows
+      SELECT wm.IdWaitCutMt,
+             (SELECT COUNT(*) FROM devsk.WimWaitCutDt wd WHERE wd.IdWaitCutMt = wm.IdWaitCutMt AND wd.stDel IS NULL
+                AND (wd.stWait = 1 OR EXISTS (SELECT 1 FROM devsk.WimCutStockDtMain c WHERE c.idWaitCutDt = wd.idWaitCutDt AND c.DateCancel IS NULL AND c.stDel IS NULL))) AS CutRows
       FROM devsk.WimWaitCutMt wm WITH (UPDLOCK, ROWLOCK)
       WHERE ${RTS_ACTIVE_WAITCUT} AND wm.IdMt = @id`)).recordset;
-    if (wc.some(w => w.stUseCut != null || w.CutRows > 0)) return fail(400, { message: 'เอกสารนี้ยกเลิกไม่ได้ เนื่องจากมีการเบิกสินค้าออกจากคลังไปแล้ว' });
+    // คลังตัดเบิกแล้ว (ราย Dt) — ยกเลิกการตัดเบิกแล้วกลับมายกเลิกเอกสารได้
+    if (wc.some(w => w.CutRows > 0)) return fail(400, { message: 'เอกสารนี้ยกเลิกไม่ได้ เนื่องจากมีการเบิกสินค้าออกจากคลังไปแล้ว' });
     if (await rtsCreditUsed(tq, idBuyRT)) return fail(400, { message: 'เอกสารนี้ยกเลิกไม่ได้ เนื่องจากยอดลดหนี้ถูกนำไปใช้แล้ว' });
+    // ลดหนี้ที่อนุมัติแล้ว = ปรับต้นทุน Lot แล้ว (ไม่มีการคืนต้นทุน) — ถ้าผิดให้ฝ่ายบัญชีแก้ต้นทุนเอง
+    if (doc.DateApv && doc.stCredit === '1') return fail(400, { message: `เอกสาร ${doc.DocCode} อนุมัติแล้วและปรับปรุงต้นทุน Lot แล้ว — ยกเลิกไม่ได้ (ถ้าต้นทุนผิดให้ฝ่ายบัญชีแก้ไขต้นทุน)` });
+    if (doc.DateApv && doc.stReplace === '1') {
+      try { await rtsAdjustPo(tq, idBuyRT, -1); }
+      catch (e) { if (e instanceof RtsUnitError) return fail(400, { message: `ยกเลิกไม่ได้ — คืนยอด PO ไม่ได้: ${e.message}` }); throw e; }
+    }
 
     await tq().input('id', sql.Int, idBuyRT).input('idPs', sql.Int, req.idPs).input('note', sql.VarChar(RTS_CANCEL_NOTE_MAX), reason)
       .query(`UPDATE devsk.PkBuyRTMt SET idPsCancel = @idPs, DateCancel = GETDATE(), CancelNote = @note WHERE idBuyRT = @id`);
@@ -4074,18 +4104,39 @@ app.post('/api/supplier-return/doc/:id/cancel', requireMenu(MENU_RTS_CANCEL), as
 // ---------- เปิดเอกสารใบเดียว: หัว + รายการ พร้อมยอดล่าสุดของแต่ละ Lot ----------
 //   onHand = คงเหลือ (view) + ยอดรอเบิกของเอกสารนี้ (ให้แก้จำนวนได้ถึงยอดที่มีจริง) / usedQty = ยอดลดหนี้ของเอกสารอื่น
 //   stamp = DateEdit (ว่าง = DateTs) ใช้ตรวจว่ามีคนแก้ไปก่อนตอนบันทึก
-app.get('/api/supplier-return/doc/:id', requireMenu(MENU_RTS), async (req, res) => {
+app.get('/api/supplier-return/doc/:id', requireMenu(MENU_RTS_VIEW), async (req, res) => {
   const idBuyRT = parseInt(req.params.id, 10);
   if (!idBuyRT) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
   try {
     const pool = await poolPromise;
     const r = await pool.request().input('id', sql.Int, idBuyRT).query(`
-      SELECT mt.idBuyRT, mt.DocCode, mt.idComp, mt.idSup, LTRIM(RTRIM(s.SupName)) AS SupName, mt.TypeRT, mt.idPsRT, pRT.PsName AS PsNameRT,
-             CONVERT(varchar(10), mt.DateRetrun, 23) AS DateRetrun, mt.Note, mt.DateAccept, mt.DateCheck, mt.DateCheck2, mt.DateApv, mt.DateCancel,
-             CONVERT(varchar(23), ISNULL(mt.DateEdit, mt.DateTs), 121) AS Stamp
+      SELECT mt.idBuyRT, mt.DocCode, mt.idComp, mt.idSup, LTRIM(RTRIM(s.SupName)) AS SupName, mt.TypeRT, mt.idPsRT, pRT.PsName AS PsNameRT, pRT.PsFullName AS PsFullRT,
+             CONVERT(varchar(10), mt.DateRetrun, 23) AS DateRetrun, mt.Note, mt.DateAccept, mt.DateCheck, mt.DateCheck2, mt.DateApv, mt.DateCancel, mt.DateSendBack,
+             CONVERT(varchar(23), ISNULL(mt.DateEdit, mt.DateTs), 121) AS Stamp, mt.idPsCheck, mt.CancelNote, mt.SendBackNote, mt.stNoCostAdj,
+             CONVERT(varchar(10), mt.DateDoc, 23) AS DateDoc, c.CompName, c.CompCode,
+             c.CompNameEng, c.Address AS CompAddress, c.AddressEng AS CompAddressEng, c.PostCode AS CompPostCode, c.Tel AS CompTel, c.Fax AS CompFax,
+             c.TaxCode AS CompTaxCode, LTRIM(RTRIM(pvc.ProvinceName)) AS CompProvince,
+             LTRIM(RTRIM(s.SupAddress)) AS SupAddress, LTRIM(RTRIM(s.ProvinceName)) AS SupProvince, LTRIM(RTRIM(s.SupPhone)) AS SupPhone, LTRIM(RTRIM(s.TaxID)) AS SupTaxID,
+             CONVERT(varchar(16), mt.DateTs, 120) AS TxTs, pTs.PsName AS PsTs, CONVERT(varchar(16), mt.DateEdit, 120) AS TxEdit, pEd.PsName AS PsEdit,
+             CONVERT(varchar(16), mt.DateAccept, 120) AS TxAccept, pAc.PsName AS PsAccept, CONVERT(varchar(16), mt.DateCheck, 120) AS TxCheck, pC1.PsName AS PsCheck,
+             CONVERT(varchar(16), mt.DateCheck2, 120) AS TxCheck2, pC2.PsName AS PsCheck2, CONVERT(varchar(16), mt.DateApv, 120) AS TxApv, pAp.PsName AS PsApv,
+             CONVERT(varchar(16), mt.DateCancel, 120) AS TxCancel, pCa.PsName AS PsCancel, CONVERT(varchar(16), mt.DateSendBack, 120) AS TxSendBack, pSb.PsName AS PsSendBack,
+             pTs.PsFullName AS FullTs, pAc.PsFullName AS FullAccept, pC1.PsFullName AS FullCheck, pC2.PsFullName AS FullCheck2, pAp.PsFullName AS FullApv,
+             mt.idPsTs, mt.idPsAccept, mt.idPsCheck2, mt.idPsApv, pTs.PositionName AS PosTs, pAc.PositionName AS PosAccept, pC1.PositionName AS PosCheck,
+             pC2.PositionName AS PosCheck2, pAp.PositionName AS PosApv
       FROM devsk.PkBuyRTMt mt WITH (NOLOCK)
       LEFT JOIN PchInvAndProject.dbo.vSupplier s WITH (NOLOCK) ON s.idSup = mt.idSup
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsRT) pRT
+      LEFT JOIN PchInvAndProject.dbo.dCompany c WITH (NOLOCK) ON c.idComp = mt.idComp
+      LEFT JOIN PchInvAndProject.dbo.dProvinceFix pvc WITH (NOLOCK) ON pvc.idProvince = c.idProvince
+      OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsRT) pRT
+      OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName, v.PositionName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsTs) pTs
+      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsEdit) pEd
+      OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName, v.PositionName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsAccept) pAc
+      OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName, v.PositionName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsCheck) pC1
+      OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName, v.PositionName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsCheck2) pC2
+      OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName, v.PositionName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsApv) pAp
+      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsCancel) pCa
+      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsSendBack) pSb
       WHERE mt.idBuyRT = @id;
 
       SELECT dt.idBuyRTDt, dt.idRefLot, whr.idLot, lm.LotNo, dt.idInvMain, i.InvName, g.InvGroupName,
@@ -4095,7 +4146,13 @@ app.get('/api/supplier-return/doc/:id', requireMenu(MENU_RTS), async (req, res) 
              whr.AmountRec AS RcvQty, ISNULL(rs.Amount, 0) + ISNULL(own.Qty, 0) AS OnHand,
              ISNULL(oth.Pending, 0) AS PendingQty, ISNULL(oth.Used, 0) AS UsedQty,
              dt.AmountRT, dt.idUnit, u.UnitName, dt.CostPerUnit, dt.CostUnitNew, dt.idBuyRtCause, cs.BuyRtCause,
-             dt.PureGene, dt.GrowPaper, dt.GrowMedia, dt.GrowAA
+             dt.PureGene, dt.GrowPaper, dt.GrowMedia, dt.GrowAA, lm.CostPerUnit AS LotCost, adj.AdjFrom, adj.AdjTo, adj.AdjDoc,
+             STUFF((SELECT DISTINCT ', ' + m3.DocCode FROM devsk.PkBuyRTDt d3 WITH (NOLOCK)
+                    JOIN devsk.dInvLotRefWh w3 WITH (NOLOCK) ON w3.idRefLot = d3.idRefLot
+                    JOIN devsk.PkBuyRTMt m3 WITH (NOLOCK) ON m3.idBuyRT = d3.idBuyRT
+                    JOIN devsk.PkBuyRTType t3 WITH (NOLOCK) ON t3.idTypeRT = m3.TypeRT AND t3.stCredit = '1'
+                    WHERE w3.idLot = whr.idLot AND d3.stDel IS NULL AND m3.DateCancel IS NULL AND m3.DateApv IS NULL AND m3.idBuyRT <> dt.idBuyRT
+                    FOR XML PATH('')), 1, 2, '') AS OtherCredit
       FROM devsk.PkBuyRTDt dt WITH (NOLOCK)
       LEFT JOIN devsk.dInvLotRefWh whr WITH (NOLOCK) ON whr.idRefLot = dt.idRefLot
       LEFT JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = whr.idLot
@@ -4118,6 +4175,9 @@ app.get('/api/supplier-return/doc/:id', requireMenu(MENU_RTS), async (req, res) 
                    JOIN devsk.PkBuyRTMt m2 WITH (NOLOCK) ON m2.idBuyRT = d2.idBuyRT
                    LEFT JOIN devsk.PkBuyRTType t2 WITH (NOLOCK) ON t2.idTypeRT = m2.TypeRT
                    WHERE d2.idRefLot = dt.idRefLot AND d2.stDel IS NULL AND m2.DateCancel IS NULL AND m2.idBuyRT <> dt.idBuyRT) oth
+      OUTER APPLY (SELECT TOP 1 CAST(lc.Cost_Old AS decimal(18,4)) AS AdjFrom, CAST(lc.Cost_New AS decimal(18,4)) AS AdjTo, mx.DocCode AS AdjDoc
+                   FROM devsk.WimLogCost lc WITH (NOLOCK) JOIN devsk.PkBuyRTMt mx WITH (NOLOCK) ON mx.idBuyRT = lc.RefId
+                   WHERE lc.idLot = whr.idLot AND lc.RefTb = 'PkBuyRTMt' AND ISNULL(lc.Cost_Old, -1) <> ISNULL(lc.Cost_New, -1) ORDER BY lc.idLog DESC) adj
       WHERE dt.idBuyRT = @id AND dt.stDel IS NULL
       ORDER BY dt.idBuyRTDt;`);
     const m = r.recordsets[0][0];
@@ -4128,8 +4188,19 @@ app.get('/api/supplier-return/doc/:id', requireMenu(MENU_RTS), async (req, res) 
       success: true,
       data: {
         id: m.idBuyRT, docNo: m.DocCode, comp: m.idComp, sup: m.idSup, supName: m.SupName, type: m.TypeRT,
-        operator: m.idPsRT, operatorName: m.PsNameRT, returnDate: m.DateRetrun, remark: m.Note || '',
-        status: rtsStatus(m), stamp: m.Stamp,
+        operator: m.idPsRT, operatorName: m.PsNameRT, operatorFull: (m.PsFullRT || '').trim(), noCostAdj: m.stNoCostAdj === '1', returnDate: m.DateRetrun, remark: m.Note || '',
+        status: rtsStatus(m), stamp: m.Stamp, docDate: m.DateDoc, compName: m.CompName, compCode: m.CompCode,
+        // หัวใบเอกสาร: บริษัท (ไทย / อังกฤษ / ที่อยู่ / โทร / แฟกซ์ / เลขผู้เสียภาษี) + Supplier (ที่อยู่ / โทร / เลขผู้เสียภาษี)
+        compInfo: { nameEn: m.CompNameEng || '', address: m.CompAddress || '', addressEn: m.CompAddressEng || '', province: m.CompProvince || '',
+                    postCode: m.CompPostCode || '', tel: m.CompTel || '', fax: m.CompFax || '', taxId: m.CompTaxCode || '' },
+        supInfo: { address: m.SupAddress || '', province: m.SupProvince || '', phone: m.SupPhone || '', taxId: m.SupTaxID || '' },
+        steps: { create: rtsStep(m.PsTs, m.TxTs, m.idPsTs, m.PosTs, m.FullTs), ack: rtsStep(m.PsAccept, m.TxAccept, m.idPsAccept, m.PosAccept, m.FullAccept),
+                 chk1: rtsStep(m.PsCheck, m.TxCheck, m.idPsCheck, m.PosCheck, m.FullCheck), chk2: rtsStep(m.PsCheck2, m.TxCheck2, m.idPsCheck2, m.PosCheck2, m.FullCheck2),
+                 appr: rtsStep(m.PsApv, m.TxApv, m.idPsApv, m.PosApv, m.FullApv) },
+        edit: rtsStep(m.PsEdit, m.TxEdit),
+        cancel: m.TxCancel ? { by: m.PsCancel || '-', at: m.TxCancel, reason: m.CancelNote || '' } : null,
+        sendBack: m.SendBackNote ? { by: m.PsSendBack || '-', at: m.TxSendBack || null, reason: m.SendBackNote, pending: !!m.TxSendBack } : null,
+        check1By: m.idPsCheck,
         items: r.recordsets[1].map(x => ({
           idBuyRTDt: x.idBuyRTDt, key: `${x.idRefLot}-${x.idPoDt}`, idRefLot: x.idRefLot, idLot: x.idLot, lot: x.LotNo, idInvMain: x.idInvMain,
           name: x.InvName, type: x.InvGroupName || '-', idWh: x.idWh, mainWh: x.idParent0, store: x.StoreName,
@@ -4137,7 +4208,9 @@ app.get('/api/supplier-return/doc/:id', requireMenu(MENU_RTS), async (req, res) 
           rcvQty: num(x.RcvQty) || 0, onHand: num(x.OnHand) || 0, pendingQty: num(x.PendingQty) || 0, usedQty: num(x.UsedQty) || 0,
           idUnit: x.idUnit, unit: x.UnitName, cost: num(x.CostPerUnit),
           gp: num(x.PureGene), gpPaper: num(x.GrowPaper), gpMedia: num(x.GrowMedia), aa: num(x.GrowAA),
-          qty: num(x.AmountRT) || 0, price: num(x.CostUnitNew) || 0, causeId: x.idBuyRtCause, reason: x.BuyRtCause || ''
+          qty: num(x.AmountRT) || 0, price: num(x.CostUnitNew) || 0, causeId: x.idBuyRtCause, reason: x.BuyRtCause || '',
+          lotCost: num(x.LotCost), otherCredit: x.OtherCredit || '',
+          creditAdj: x.AdjDoc ? { doc: x.AdjDoc, from: num(x.AdjFrom), to: num(x.AdjTo) } : null
         }))
       }
     });
@@ -4147,110 +4220,449 @@ app.get('/api/supplier-return/doc/:id', requireMenu(MENU_RTS), async (req, res) 
   }
 });
 
-// รายการเอกสารส่งคืนตามช่วงวันที่เอกสาร (from / to = yyyy-mm-dd) — เฉพาะบริษัทที่มีสิทธิ์ / idComp = กรองบริษัทเดียว
+// ---------- รายการเอกสาร (ใช้ร่วม: หน้ารายการตามช่วงวันที่ / หน้ารับทราบ-ตรวจสอบ-อนุมัติ) ----------
+// setup(request) ผูก parameter แล้วคืนเงื่อนไข SQL เพิ่มเติม (ขึ้นต้นด้วย AND) — จำกัดบริษัทตามสิทธิ์ (compFilter) เสมอ
 // ส่งหัวเอกสาร + รายการสินค้าไปพร้อมกัน (หน้าเว็บกรอง Supplier / เลขที่ / PO / Lot เอง และขยายดูรายการได้ทันที)
+async function rtsDocList(access, setup) {
+  const pool = await poolPromise;
+  const request = pool.request();
+  const where = setup(request) || '';
+  const compSql = compFilter(access, request, 'mt.idComp');
+
+  const r = await request.query(`
+    SELECT mt.idBuyRT
+    INTO #rt
+    FROM devsk.PkBuyRTMt mt WITH (NOLOCK)
+    WHERE 1 = 1 ${where}
+      ${compSql};
+
+    SELECT mt.idBuyRT, mt.DocCode, CONVERT(varchar(10), mt.DateDoc, 23) AS DateDoc, CONVERT(varchar(10), mt.DateRetrun, 23) AS DateRetrun, mt.TypeRT, mt.idComp, c.CompName, c.CompCode,
+           mt.idSup, LTRIM(RTRIM(s.SupName)) AS SupName, mt.idPsRT, pRT.PsName AS PsNameRT, mt.Note,
+           mt.TotalValue, mt.TotalBuy, mt.TotalDiff,
+           CONVERT(varchar(16), mt.DateTs, 120) AS DateTs, pTs.PsName AS PsNameTs, CONVERT(varchar(16), mt.DateEdit, 120) AS DateEdit, pEd.PsName AS PsNameEdit,
+           CONVERT(varchar(16), mt.DateAccept, 120) AS DateAccept, pAc.PsName AS PsNameAccept, CONVERT(varchar(16), mt.DateCheck, 120) AS DateCheck, pC1.PsName AS PsNameCheck,
+           CONVERT(varchar(16), mt.DateCheck2, 120) AS DateCheck2, pC2.PsName AS PsNameCheck2, CONVERT(varchar(16), mt.DateApv, 120) AS DateApv, pAp.PsName AS PsNameApv,
+           CONVERT(varchar(16), mt.DateCancel, 120) AS DateCancel, pCa.PsName AS PsNameCancel, mt.CancelNote,
+           CONVERT(varchar(23), ISNULL(mt.DateEdit, mt.DateTs), 121) AS Stamp, mt.idPsCheck,
+           mt.SendBackNote, CONVERT(varchar(16), mt.DateSendBack, 120) AS DateSendBack, pSb.PsName AS PsNameSendBack, mt.stNoCostAdj
+    FROM devsk.PkBuyRTMt mt WITH (NOLOCK)
+    LEFT JOIN PchInvAndProject.dbo.dCompany c WITH (NOLOCK) ON c.idComp = mt.idComp
+    LEFT JOIN PchInvAndProject.dbo.vSupplier s WITH (NOLOCK) ON s.idSup = mt.idSup
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsRT) pRT
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsTs) pTs
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsEdit) pEd
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsAccept) pAc
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsCheck) pC1
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsCheck2) pC2
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsApv) pAp
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsCancel) pCa
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsSendBack) pSb
+    WHERE mt.idBuyRT IN (SELECT idBuyRT FROM #rt)
+    ORDER BY mt.DateDoc DESC, mt.DocCode DESC;
+
+    -- รายการ: Lot / คลัง จาก idRefLot (dInvLotRefWh) — ชื่อคลังเต็ม (รวมคลังแม่ทุกชั้น) จาก ssWarehouse.short_lock / PO จาก idPoDt / ใบรับ (เลขที่รับ + ใบส่งของ) จาก idRecDt หรือใบรับแรกของ PO + Lot นั้น
+    SELECT dt.idBuyRTDt, dt.idBuyRT, dt.idRefLot, dt.idInvMain, i.InvName, lm.LotNo,
+           ISNULL(NULLIF(LTRIM(RTRIM(w.short_lock)), ''), w.WareHouseName) AS StoreName,
+           po.DocCode AS POCode, rec.DocCode AS RecCode, NULLIF(LTRIM(RTRIM(rec.DocRef)), '') AS DocRef,
+           dt.AmountRT, u.UnitName, dt.CostPerUnit, dt.Total, dt.CostUnitNew, dt.ToTalNew, dt.TotalDiff,
+           dt.idBuyRtCause, cs.BuyRtCause, dt.PureGene, dt.GrowPaper, dt.GrowMedia, dt.GrowAA
+    FROM devsk.PkBuyRTDt dt WITH (NOLOCK)
+    LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = dt.idInvMain
+    LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = dt.idUnit
+    LEFT JOIN devsk.dInvLotRefWh wh WITH (NOLOCK) ON wh.idRefLot = dt.idRefLot
+    LEFT JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = wh.idLot
+    LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = wh.idWh
+    LEFT JOIN devsk.PkBuyRTCause cs WITH (NOLOCK) ON cs.idBuyRtCause = dt.idBuyRtCause
+    OUTER APPLY (SELECT TOP 1 b.DocCode FROM devsk.PKPOBuyDt bd WITH (NOLOCK)
+                 JOIN devsk.PKPOBuyMt b WITH (NOLOCK) ON b.idPOTs = bd.idPOTs
+                 WHERE bd.idPODt = dt.idPoDt) po
+    OUTER APPLY (SELECT TOP 1 rm.DocCode, rm.DocRef FROM devsk.PKPoRecDt rd WITH (NOLOCK)
+                 JOIN devsk.PKPoRecMt rm WITH (NOLOCK) ON rm.idPkPORec = rd.idPkPORec AND rm.idPsCancel IS NULL
+                 WHERE (dt.idRecDt IS NOT NULL AND rd.idPkPORecDt = dt.idRecDt)
+                    OR (dt.idRecDt IS NULL AND rd.idPODt = dt.idPoDt AND rd.idLotMain = wh.idLot)
+                 ORDER BY CASE WHEN rd.idPkPORecDt = dt.idRecDt THEN 0 ELSE 1 END, rm.DateRec) rec
+    WHERE dt.idBuyRT IN (SELECT idBuyRT FROM #rt) AND dt.stDel IS NULL
+    ORDER BY dt.idBuyRT, dt.idBuyRTDt;`);
+
+  const items = new Map();
+  r.recordsets[1].forEach(d => {
+    if (!items.has(d.idBuyRT)) items.set(d.idBuyRT, []);
+    items.get(d.idBuyRT).push({
+      id: d.idBuyRTDt, idRefLot: d.idRefLot, idInvMain: d.idInvMain, name: d.InvName, lot: d.LotNo, store: d.StoreName,
+      po: d.POCode, rec: d.RecCode, inv: d.DocRef,
+      qty: Number(d.AmountRT) || 0, unit: d.UnitName, cost: Number(d.CostPerUnit) || 0,
+      price: Number(d.CostUnitNew) || 0, causeId: d.idBuyRtCause, reason: d.BuyRtCause || '',
+      gp: d.PureGene, gpPaper: d.GrowPaper, gpMedia: d.GrowMedia, aa: d.GrowAA
+    });
+  });
+
+  return r.recordsets[0].map(m => ({
+    id: m.idBuyRT, docNo: m.DocCode, docDate: m.DateDoc, returnDate: m.DateRetrun, type: m.TypeRT,
+    comp: m.idComp, compName: m.CompName, compCode: m.CompCode,
+    sup: m.idSup, supName: m.SupName, operator: m.idPsRT, operatorName: m.PsNameRT, remark: m.Note || '', noCostAdj: m.stNoCostAdj === '1',
+    totalValue: m.TotalValue, totalBuy: m.TotalBuy, totalDiff: m.TotalDiff,
+    status: rtsStatus(m),
+    steps: {
+      create: rtsStep(m.PsNameTs, m.DateTs),
+      ack: rtsStep(m.PsNameAccept, m.DateAccept),
+      chk1: rtsStep(m.PsNameCheck, m.DateCheck),
+      chk2: rtsStep(m.PsNameCheck2, m.DateCheck2),
+      appr: rtsStep(m.PsNameApv, m.DateApv)
+    },
+    edit: rtsStep(m.PsNameEdit, m.DateEdit),
+    cancel: m.DateCancel ? { by: m.PsNameCancel || '-', at: m.DateCancel, reason: m.CancelNote || '' } : null,
+    sendBack: m.SendBackNote ? { by: m.PsNameSendBack || '-', at: m.DateSendBack || null, reason: m.SendBackNote, pending: !!m.DateSendBack } : null,
+    check1By: m.idPsCheck,
+    stamp: m.Stamp,
+    items: items.get(m.idBuyRT) || []
+  }));
+}
+
+// รายการเอกสารส่งคืนตามช่วงวันที่เอกสาร (from / to = yyyy-mm-dd) — เฉพาะบริษัทที่มีสิทธิ์ / idComp = กรองบริษัทเดียว
 app.get('/api/supplier-return/list', requireMenu(MENU_RTS, { companyParam: 'idComp' }), async (req, res) => {
   const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
   const { from, to } = req.query;
   const idComp = parseInt(req.query.idComp, 10) || null;
   if (!isDate(from) || !isDate(to)) return res.status(400).json({ success: false, message: 'ช่วงวันที่ไม่ถูกต้อง' });
-
   try {
-    const pool = await poolPromise;
-    const request = pool.request()
-      .input('from', sql.Date, from)
-      .input('to', sql.Date, to);
-    if (idComp) request.input('idComp', sql.Int, idComp);
-    const compSql = compFilter(req.access, request, 'mt.idComp');
-
-    const r = await request.query(`
-      SELECT mt.idBuyRT
-      INTO #rt
-      FROM devsk.PkBuyRTMt mt WITH (NOLOCK)
-      WHERE mt.DateDoc >= @from AND mt.DateDoc < DATEADD(day, 1, @to)
-        ${idComp ? 'AND mt.idComp = @idComp' : ''}
-        ${compSql};
-
-      SELECT mt.idBuyRT, mt.DocCode, CONVERT(varchar(10), mt.DateDoc, 23) AS DateDoc, CONVERT(varchar(10), mt.DateRetrun, 23) AS DateRetrun, mt.TypeRT, mt.idComp, c.CompName, c.CompCode,
-             mt.idSup, LTRIM(RTRIM(s.SupName)) AS SupName, mt.idPsRT, pRT.PsName AS PsNameRT, mt.Note,
-             mt.TotalValue, mt.TotalBuy, mt.TotalDiff,
-             CONVERT(varchar(16), mt.DateTs, 120) AS DateTs, pTs.PsName AS PsNameTs, CONVERT(varchar(16), mt.DateEdit, 120) AS DateEdit, pEd.PsName AS PsNameEdit,
-             CONVERT(varchar(16), mt.DateAccept, 120) AS DateAccept, pAc.PsName AS PsNameAccept, CONVERT(varchar(16), mt.DateCheck, 120) AS DateCheck, pC1.PsName AS PsNameCheck,
-             CONVERT(varchar(16), mt.DateCheck2, 120) AS DateCheck2, pC2.PsName AS PsNameCheck2, CONVERT(varchar(16), mt.DateApv, 120) AS DateApv, pAp.PsName AS PsNameApv,
-             CONVERT(varchar(16), mt.DateCancel, 120) AS DateCancel, pCa.PsName AS PsNameCancel, mt.CancelNote,
-             CONVERT(varchar(23), ISNULL(mt.DateEdit, mt.DateTs), 121) AS Stamp
-      FROM devsk.PkBuyRTMt mt WITH (NOLOCK)
-      LEFT JOIN PchInvAndProject.dbo.dCompany c WITH (NOLOCK) ON c.idComp = mt.idComp
-      LEFT JOIN PchInvAndProject.dbo.vSupplier s WITH (NOLOCK) ON s.idSup = mt.idSup
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsRT) pRT
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsTs) pTs
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsEdit) pEd
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsAccept) pAc
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsCheck) pC1
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsCheck2) pC2
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsApv) pAp
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsCancel) pCa
-      WHERE mt.idBuyRT IN (SELECT idBuyRT FROM #rt)
-      ORDER BY mt.DateDoc DESC, mt.DocCode DESC;
-
-      -- รายการ: Lot / คลัง จาก idRefLot (dInvLotRefWh) — ชื่อคลังเต็ม (รวมคลังแม่ทุกชั้น) จาก ssWarehouse.short_lock / PO จาก idPoDt / ใบรับ (เลขที่รับ + ใบส่งของ) จาก idRecDt หรือใบรับแรกของ PO + Lot นั้น
-      SELECT dt.idBuyRTDt, dt.idBuyRT, dt.idRefLot, dt.idInvMain, i.InvName, lm.LotNo,
-             ISNULL(NULLIF(LTRIM(RTRIM(w.short_lock)), ''), w.WareHouseName) AS StoreName,
-             po.DocCode AS POCode, rec.DocCode AS RecCode, NULLIF(LTRIM(RTRIM(rec.DocRef)), '') AS DocRef,
-             dt.AmountRT, u.UnitName, dt.CostPerUnit, dt.Total, dt.CostUnitNew, dt.ToTalNew, dt.TotalDiff,
-             dt.idBuyRtCause, cs.BuyRtCause, dt.PureGene, dt.GrowPaper, dt.GrowMedia, dt.GrowAA
-      FROM devsk.PkBuyRTDt dt WITH (NOLOCK)
-      LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = dt.idInvMain
-      LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = dt.idUnit
-      LEFT JOIN devsk.dInvLotRefWh wh WITH (NOLOCK) ON wh.idRefLot = dt.idRefLot
-      LEFT JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = wh.idLot
-      LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = wh.idWh
-      LEFT JOIN devsk.PkBuyRTCause cs WITH (NOLOCK) ON cs.idBuyRtCause = dt.idBuyRtCause
-      OUTER APPLY (SELECT TOP 1 b.DocCode FROM devsk.PKPOBuyDt bd WITH (NOLOCK)
-                   JOIN devsk.PKPOBuyMt b WITH (NOLOCK) ON b.idPOTs = bd.idPOTs
-                   WHERE bd.idPODt = dt.idPoDt) po
-      OUTER APPLY (SELECT TOP 1 rm.DocCode, rm.DocRef FROM devsk.PKPoRecDt rd WITH (NOLOCK)
-                   JOIN devsk.PKPoRecMt rm WITH (NOLOCK) ON rm.idPkPORec = rd.idPkPORec AND rm.idPsCancel IS NULL
-                   WHERE (dt.idRecDt IS NOT NULL AND rd.idPkPORecDt = dt.idRecDt)
-                      OR (dt.idRecDt IS NULL AND rd.idPODt = dt.idPoDt AND rd.idLotMain = wh.idLot)
-                   ORDER BY CASE WHEN rd.idPkPORecDt = dt.idRecDt THEN 0 ELSE 1 END, rm.DateRec) rec
-      WHERE dt.idBuyRT IN (SELECT idBuyRT FROM #rt) AND dt.stDel IS NULL
-      ORDER BY dt.idBuyRT, dt.idBuyRTDt;`);
-
-    const items = new Map();
-    r.recordsets[1].forEach(d => {
-      if (!items.has(d.idBuyRT)) items.set(d.idBuyRT, []);
-      items.get(d.idBuyRT).push({
-        id: d.idBuyRTDt, idRefLot: d.idRefLot, idInvMain: d.idInvMain, name: d.InvName, lot: d.LotNo, store: d.StoreName,
-        po: d.POCode, rec: d.RecCode, inv: d.DocRef,
-        qty: Number(d.AmountRT) || 0, unit: d.UnitName, cost: Number(d.CostPerUnit) || 0,
-        price: Number(d.CostUnitNew) || 0, causeId: d.idBuyRtCause, reason: d.BuyRtCause || '',
-        gp: d.PureGene, gpPaper: d.GrowPaper, gpMedia: d.GrowMedia, aa: d.GrowAA
-      });
+    const data = await rtsDocList(req.access, (request) => {
+      request.input('from', sql.Date, from).input('to', sql.Date, to);
+      if (idComp) request.input('idComp', sql.Int, idComp);
+      // เอกสารที่ยังไม่จบ (ส่งกลับแก้ไข / รอรับทราบ / ตรวจสอบ / อนุมัติ) แสดงเสมอไม่ว่าเลือกช่วงวันที่ไหน — ช่วงวันที่ใช้กับเอกสารที่จบแล้ว (อนุมัติ / ยกเลิก)
+      return `AND ((mt.DateDoc >= @from AND mt.DateDoc < DATEADD(day, 1, @to)) OR (mt.DateApv IS NULL AND mt.DateCancel IS NULL)) ${idComp ? 'AND mt.idComp = @idComp' : ''}`;
     });
-
-    const data = r.recordsets[0].map(m => ({
-      id: m.idBuyRT, docNo: m.DocCode, docDate: m.DateDoc, returnDate: m.DateRetrun, type: m.TypeRT,
-      comp: m.idComp, compName: m.CompName, compCode: m.CompCode,
-      sup: m.idSup, supName: m.SupName, operator: m.idPsRT, operatorName: m.PsNameRT, remark: m.Note || '',
-      totalValue: m.TotalValue, totalBuy: m.TotalBuy, totalDiff: m.TotalDiff,
-      status: rtsStatus(m),
-      steps: {
-        create: rtsStep(m.PsNameTs, m.DateTs),
-        ack: rtsStep(m.PsNameAccept, m.DateAccept),
-        chk1: rtsStep(m.PsNameCheck, m.DateCheck),
-        chk2: rtsStep(m.PsNameCheck2, m.DateCheck2),
-        appr: rtsStep(m.PsNameApv, m.DateApv)
-      },
-      edit: rtsStep(m.PsNameEdit, m.DateEdit),
-      cancel: m.DateCancel ? { by: m.PsNameCancel || '-', at: m.DateCancel, reason: m.CancelNote || '' } : null,
-      stamp: m.Stamp,
-      items: items.get(m.idBuyRT) || []
-    }));
     res.json({ success: true, data });
   } catch (err) {
     console.error('Supplier return list error:', err);
     res.status(500).json({ success: false, message: 'โหลดรายการส่งคืนสินค้าไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ==================================================================
+// ---------- รับทราบ / ตรวจสอบ / อนุมัติ เอกสารส่งคืน ----------
+// ==================================================================
+// 3 เมนู ใช้หน้าเว็บเดียวกัน (/supplier-return-approve?step=ack|check|approve) — สิทธิ์แยกกัน
+//   check = ตรวจสอบ 1 + 2: คนแรกที่กดลงตรวจสอบ 1 / คนถัดไป (ต้องคนละคน) ลงตรวจสอบ 2
+//   คนเดียวทำหลายขั้นได้ (ตามหน้างาน) ยกเว้นตรวจสอบ 1 กับ 2 ต้องคนละคน / ทุกประเภทต้องผ่านครบ 4 ขั้น
+//   เช็คสถานะซ้ำที่ server ทุกครั้งที่กด (2 คนกดพร้อมกัน / เปิดหน้าค้าง / กดจากลิงก์เก่า)
+const RTS_STEPS = {
+  ack:     { menu: MENU_RTS_ACK,     name: 'รับทราบ', waits: (st) => st === 1,
+             pending: 'AND mt.DateCancel IS NULL AND mt.DateAccept IS NULL AND mt.DateSendBack IS NULL' },
+  check:   { menu: MENU_RTS_CHECK,   name: 'ตรวจสอบ', waits: (st) => st === 2 || st === 3,
+             pending: 'AND mt.DateCancel IS NULL AND mt.DateAccept IS NOT NULL AND mt.DateCheck2 IS NULL' },
+  approve: { menu: MENU_RTS_APPROVE, name: 'อนุมัติ', waits: (st) => st === 4,
+             pending: 'AND mt.DateCancel IS NULL AND mt.DateCheck2 IS NOT NULL AND mt.DateApv IS NULL' }
+};
+const RTS_STATUS_NAME = { 0: 'ส่งกลับแก้ไข', 1: 'รอรับทราบ', 2: 'รอตรวจสอบ 1', 3: 'รอตรวจสอบ 2', 4: 'รออนุมัติ', 5: 'อนุมัติแล้ว', 9: 'ยกเลิกแล้ว' };
+const rtsStepOf = (req) => RTS_STEPS[String((req.query.step || (req.body && req.body.step) || '')).trim()] ? String(req.query.step || req.body.step).trim() : null;
+
+// เอกสารที่รอขั้นนี้ (เฉพาะบริษัทที่มีสิทธิ์)
+app.get('/api/supplier-return/pending', requireMenu([MENU_RTS_ACK, MENU_RTS_CHECK, MENU_RTS_APPROVE]), async (req, res) => {
+  const step = rtsStepOf(req);
+  if (!step) return res.status(400).json({ success: false, message: 'ขั้นตอนไม่ถูกต้อง' });
+  if (!hasMenu(req.access, RTS_STEPS[step].menu)) return res.status(403).json({ success: false, message: `ไม่มีสิทธิ์${RTS_STEPS[step].name}เอกสารส่งคืนสินค้า Supplier` });
+  try {
+    // รอตรวจสอบ: ไม่แสดงใบที่ผู้ใช้คนนี้ตรวจสอบไปแล้ว (รอผู้ตรวจสอบอีกท่าน ไม่ใช่งานของเขาแล้ว)
+    const data = await rtsDocList(req.access, (request) => {
+      if (step !== 'check') return RTS_STEPS[step].pending;
+      request.input('me', sql.Int, req.idPs);
+      return `${RTS_STEPS[step].pending} AND NOT (mt.DateCheck IS NOT NULL AND mt.idPsCheck = @me)`;
+    });
+    res.json({ success: true, data, me: req.idPs });
+  } catch (err) {
+    console.error('Supplier return pending error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการรอดำเนินการไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- แปลงหน่วย (หักยอดรับ PO ตอนอนุมัติ / คืนยอดตอนยกเลิกเอกสารที่อนุมัติแล้ว) ----------
+//   ยอดคืนเก็บเป็นหน่วยของ Lot → แปลงเป็นหน่วยของ PO (PKPOBuyDt.idUnitNew) / หน่วยของรายการรอรับ (WimWaitRecDt.idUnitNew)
+//   ผ่านหน่วยหลักของสินค้า (dInventoryMain.idUnit): กรัม ↔ กิโลกรัม แปลงได้เสมอ / หน่วยอื่นใช้ dInvUnitSub
+//   (idUnit = หน่วยหลัก, idSubUnit = หน่วยรอง, AmtMainperSub = จำนวนหน่วยหลักต่อ 1 หน่วยรอง)
+//   แปลงไม่ได้ = null → ไม่ให้อนุมัติ (ให้ตั้งค่าหน่วยรองก่อน)
+function rtsConvertUnit(qty, from, to, main, subs) {
+  if (from === to) return qty;
+  const perMain = (u) => {   // จำนวนหน่วยหลักต่อ 1 หน่วย u
+    if (u === main) return 1;
+    if (GRAM_FACTOR[u] && GRAM_FACTOR[main]) return GRAM_FACTOR[u] / GRAM_FACTOR[main];
+    const s = subs.get(u);
+    return s > 0 ? s : null;
+  };
+  const a = perMain(from), b = perMain(to);
+  if (a != null && b != null) return qty * a / b;
+  if (GRAM_FACTOR[from] && GRAM_FACTOR[to]) return qty * GRAM_FACTOR[from] / GRAM_FACTOR[to];
+  return null;
+}
+class RtsUnitError extends Error {}
+class RtsCostError extends Error {}
+
+// ปรับปรุงต้นทุน Lot ตอนอนุมัติเอกสารที่มีลดหนี้ (ไม่ส่งคืน-ลดหนี้ / ส่งคืน-ลดหนี้) — ต้นทุนเฉลี่ยตามหลัก ERP
+//   H = จำนวนในคลังจริงของ Lot (ทุกคลัง รวมของที่จองเบิกไว้แต่ยังไม่ตัก — ตักเบิกใช้ต้นทุน Lot ณ ตอนตัก) หักของที่เอกสารใบนี้ส่งคืน
+//   Q = จำนวนลดหนี้ของ Lot, C = ต้นทุนปัจจุบัน, P = ราคาใหม่, ยอดลดหนี้ = Σ จำนวน × (ต้นทุนในเอกสาร − P)
+//     H ≤ 0 หรือ Q ≥ H → ต้นทุนใหม่ = P (ลดหนี้ครอบคลุมของที่เหลือ / ของหมดแล้ว)
+//     Q < H           → ต้นทุนใหม่ = (C × H − ยอดลดหนี้) ÷ H (เฉลี่ยถ่วงน้ำหนัก)
+//   ไม่ปรับ: ส่งคืน-ลดหนี้ราคาใหม่ 0 (คืนเงินเต็ม) / เลือก "ลดหนี้เฉพาะส่วนที่ใช้ไปแล้ว" / ต้นทุนเท่าเดิม
+//   ผลติดลบ / มากกว่าต้นทุนเดิม = ไม่ให้อนุมัติ / Lot เดียวกันราคาใหม่ไม่เท่ากัน = ไม่ให้อนุมัติ
+//   ทุก Lot บันทึก WimLogCost (RefTb / RefId = เอกสาร, RefNote = C / H / Q / P + สูตร) — RefNote เป็น varchar ใช้ -> แทนลูกศร
+async function rtsAdjustCost(tq, idBuyRT, docCode, returnGoods, noCostAdj, idPs) {
+  const rows = (await tq().input('id', sql.Int, idBuyRT).query(`
+    SELECT whr.idLot, lm.LotNo, lm.CostPerUnit AS CostNow, lm.NoteCost, dt.CostUnitNew, dt.CostPerUnit AS DocCost, dt.AmountRT, u.UnitName,
+           (SELECT SUM(w2.Amount) FROM devsk.dInvLotRefWh w2 WHERE w2.idLot = whr.idLot) AS LotStock
+    FROM devsk.PkBuyRTDt dt
+    JOIN devsk.dInvLotRefWh whr ON whr.idRefLot = dt.idRefLot
+    JOIN devsk.dInvLotMain lm WITH (UPDLOCK, ROWLOCK) ON lm.idLot = whr.idLot
+    LEFT JOIN devsk.dInvUnit u ON u.idUnit = dt.idUnit
+    WHERE dt.idBuyRT = @id AND dt.stDel IS NULL`)).recordset;
+  const r4 = (v) => Math.round(Number(v) * 10000) / 10000;
+  const n6 = (v) => Number(Number(v).toFixed(6));
+  const lots = new Map();
+  for (const x of rows) {
+    const k = String(x.idLot);
+    const g = lots.get(k) || { idLot: x.idLot, lot: (x.LotNo || '').trim(), costNow: x.CostNow == null ? null : r4(x.CostNow), note: x.NoteCost,
+                               stock: Number(x.LotStock) || 0, prices: new Set(), qty: 0, credit: 0, unit: x.UnitName || '' };
+    const p = r4(x.CostUnitNew || 0), q = Number(x.AmountRT) || 0;
+    g.prices.add(p);
+    g.qty += q;
+    g.credit += q * ((x.DocCost == null ? Number(g.costNow) || 0 : Number(x.DocCost)) - p);
+    lots.set(k, g);
+  }
+  const mixed = [...lots.values()].filter(g => g.prices.size > 1);
+  if (mixed.length) throw new RtsCostError(`Lot ${mixed.map(g => g.lot).join(', ')} มีหลายรายการแต่ราคาใหม่ไม่เท่ากัน — แก้ให้ราคาใหม่เท่ากันก่อน (ต้นทุน Lot มีได้ค่าเดียว)`);
+  const plans = [...lots.values()].map(g => {
+    const p = [...g.prices][0];
+    const h = n6(Math.max(0, g.stock - (returnGoods ? g.qty : 0)));
+    const q = n6(g.qty);
+    const base = `C ${g.costNow == null ? '-' : g.costNow} H ${h} Q ${q} P ${p}`;
+    if (noCostAdj) return { g, p, next: g.costNow, why: `ลดหนี้เฉพาะส่วนที่ใช้ไปแล้ว — ไม่ปรับต้นทุน (${base})` };
+    if (returnGoods && p === 0) return { g, p, next: g.costNow, why: `ส่งคืนรับเงินคืนเต็มจำนวน (ราคาใหม่ 0) — ไม่ปรับต้นทุน (${base})` };
+    let next, rule;
+    if (g.costNow == null || h <= 0 || q >= h) { next = p; rule = h <= 0 ? 'ไม่มีของเหลือในคลัง = ราคาใหม่' : 'ลดหนี้ครอบคลุมของที่เหลือ = ราคาใหม่'; }
+    else { next = r4((g.costNow * h - g.credit) / h); rule = `ลดหนี้บางส่วน เฉลี่ย (C x H - ยอดลดหนี้ ${r4(g.credit)}) / H`; }
+    if (next < 0 || (g.costNow != null && next > g.costNow)) {
+      throw new RtsCostError(`Lot ${g.lot} คำนวณต้นทุนใหม่ได้ ${next} (ต้นทุนเดิม ${g.costNow}) — ผิดปกติ ตรวจสอบต้นทุน / ราคาใหม่ก่อนอนุมัติ`);
+    }
+    if (g.costNow != null && next === g.costNow) return { g, p, next, why: `ต้นทุนเท่าเดิม — ไม่เปลี่ยน (${base}, ${rule})` };
+    return { g, p, next, why: `ปรับต้นทุน ${g.costNow == null ? '-' : g.costNow} -> ${next} (${base}, ${rule})` };
+  });
+  let changed = 0;
+  for (const { g, p, next, why } of plans) {
+    if (next !== g.costNow) {
+      await tq().input('lot', sql.BigInt, g.idLot).input('c', sql.Decimal(18, 4), next)
+        .query('UPDATE devsk.dInvLotMain SET CostPerUnit = @c WHERE idLot = @lot');
+      changed++;
+    }
+    const refNote = `${docCode} ลดหนี้ ${n6(g.qty)} ${g.unit} ราคาใหม่ ${p} — ${why}`.slice(0, 500);
+    await tq().input('lot', sql.Int, Number(g.idLot)).input('old', sql.Float, g.costNow).input('new', sql.Float, next)
+      .input('note', sql.VarChar(sql.MAX), g.note == null ? null : String(g.note)).input('idPs', sql.Int, idPs)
+      .input('refId', sql.Int, idBuyRT).input('refNote', sql.VarChar(500), refNote)
+      .query(`INSERT INTO devsk.WimLogCost (idLot, Cost_Old, Cost_New, Note_Old, Note_New, idPsUpdate, DateUpdate, RefTb, RefId, RefNote)
+              VALUES (@lot, @old, @new, @note, @note, @idPs, GETDATE(), 'PkBuyRTMt', @refId, @refNote)`);
+  }
+  return { lots: lots.size, changed };
+}
+
+// หักยอดรับของ PO (sign = 1 ตอนอนุมัติ / -1 ตอนยกเลิกเอกสารที่อนุมัติแล้ว) — เฉพาะประเภทรับสินค้าทดแทน (stReplace)
+//   ตามขั้นตอน ReturnPOAmount / CancelReturnPO ของ Win form แต่แก้ให้ถูก:
+//   แปลงหน่วย / รวมยอดต่อบรรทัด PO / คำนวณสถานะรับครบจริง (ไม่ตั้งเป็นยังไม่ครบทุกครั้ง) / ไม่แตะรายการรอรับที่ยกเลิกแล้ว
+async function rtsAdjustPo(tq, idBuyRT, sign) {
+  const r = await tq().input('id', sql.Int, idBuyRT).query(`
+    SELECT dt.idBuyRTDt, dt.idPoDt, dt.AmountRT, dt.idUnit AS LotUnit, dt.idInvMain, i.idUnit AS MainUnit, i.InvName, lm.LotNo,
+           bd.idUnitNew AS PoUnit, bm.DocCode AS POCode, ul.UnitName AS LotUnitName, up.UnitName AS PoUnitName
+    FROM devsk.PkBuyRTDt dt
+    JOIN devsk.dInventoryMain i ON i.idInvMain = dt.idInvMain
+    LEFT JOIN devsk.dInvLotRefWh wh ON wh.idRefLot = dt.idRefLot
+    LEFT JOIN devsk.dInvLotMain lm ON lm.idLot = wh.idLot
+    LEFT JOIN devsk.PKPOBuyDt bd ON bd.idPODt = dt.idPoDt
+    LEFT JOIN devsk.PKPOBuyMt bm ON bm.idPOTs = bd.idPOTs
+    LEFT JOIN devsk.dInvUnit ul ON ul.idUnit = dt.idUnit
+    LEFT JOIN devsk.dInvUnit up ON up.idUnit = bd.idUnitNew
+    WHERE dt.idBuyRT = @id AND dt.stDel IS NULL;
+    SELECT us.idInvMain, us.idSubUnit, us.AmtMainperSub FROM devsk.dInvUnitSub us
+    WHERE us.idInvMain IN (SELECT idInvMain FROM devsk.PkBuyRTDt WHERE idBuyRT = @id AND stDel IS NULL);
+    SELECT w.idWaitRecDt, w.idDt, w.idUnitNew, uw.UnitName FROM devsk.WimWaitRecDt w
+    JOIN devsk.WimWaitRecMt wm ON wm.IdWaitRecMt = w.IdWaitRecMt
+    LEFT JOIN devsk.dInvUnit uw ON uw.idUnit = w.idUnitNew
+    WHERE wm.ProcessID = 1 AND wm.stCancel IS NULL
+      AND w.idDt IN (SELECT idPoDt FROM devsk.PkBuyRTDt WHERE idBuyRT = @id AND stDel IS NULL);`);
+  const lines = r.recordsets[0];
+  const subs = new Map();
+  r.recordsets[1].forEach(s => { if (!subs.has(s.idInvMain)) subs.set(s.idInvMain, new Map()); subs.get(s.idInvMain).set(s.idSubUnit, Number(s.AmtMainperSub)); });
+  const waitRows = r.recordsets[2];
+  const poQty = new Map(), waitQty = new Map(), bad = [];
+  for (const l of lines) {
+    if (!l.idPoDt) continue;
+    const sb = subs.get(l.idInvMain) || new Map();
+    const q = Number(l.AmountRT);
+    const toPo = rtsConvertUnit(q, l.LotUnit, l.PoUnit, l.MainUnit, sb);
+    if (toPo == null) { bad.push(`${l.InvName} (Lot ${l.LotNo || '-'}, PO ${l.POCode || '-'}): หน่วยคืน ${l.LotUnitName || l.LotUnit} → หน่วย PO ${l.PoUnitName || l.PoUnit}`); continue; }
+    poQty.set(l.idPoDt, (poQty.get(l.idPoDt) || 0) + toPo);
+    for (const w of waitRows.filter(x => x.idDt === l.idPoDt)) {
+      const toWait = rtsConvertUnit(q, l.LotUnit, w.idUnitNew, l.MainUnit, sb);
+      if (toWait == null) { bad.push(`${l.InvName} (Lot ${l.LotNo || '-'}, PO ${l.POCode || '-'}): หน่วยคืน ${l.LotUnitName || l.LotUnit} → หน่วยรอรับ ${w.UnitName || w.idUnitNew}`); continue; }
+      waitQty.set(w.idWaitRecDt, (waitQty.get(w.idWaitRecDt) || 0) + toWait);
+    }
+  }
+  if (bad.length) throw new RtsUnitError(`แปลงหน่วยไม่ได้ — ให้โปรแกรมเมอร์ตั้งค่าหน่วยหลัก / หน่วยรองของสินค้าก่อน:\n${[...new Set(bad)].join('\n')}`);
+
+  const round6 = (n) => Math.round(n * 1e6) / 1e6;
+  for (const [idPoDt, q] of poQty) {
+    await tq().input('po', sql.Int, idPoDt).input('q', sql.Decimal(18, 6), round6(q * sign))
+      .query(`UPDATE devsk.PKPOBuyDt
+              SET AmountRT = ISNULL(AmountRT, 0) + @q,
+                  stRec = CASE WHEN ISNULL(Amount, 0) > ISNULL(AmountRec, 0) - (ISNULL(AmountRT, 0) + @q) THEN NULL ELSE 1 END
+              WHERE idPODt = @po`);
+  }
+  for (const [idWaitRecDt, q] of waitQty) {
+    await tq().input('w', sql.Int, idWaitRecDt).input('q', sql.Decimal(18, 6), round6(q * sign))
+      .query(`UPDATE devsk.WimWaitRecDt
+              SET AmountWaitRT = ISNULL(AmountWaitRT, 0) + @q,
+                  stRecDt = CASE WHEN ISNULL(AmountWait, 0) > ISNULL(AmountRec, 0) - (ISNULL(AmountWaitRT, 0) + @q) THEN NULL ELSE 1 END
+              WHERE idWaitRecDt = @w`);
+  }
+  const poIds = [...poQty.keys()].map(Number).filter(Number.isInteger);
+  if (poIds.length) {
+    const inList = poIds.join(',');
+    // สถานะหัว PO / หัวรอรับ คำนวณใหม่จากทุกบรรทัด (เงื่อนไขเดียวกับ Win form)
+    await tq().query(`
+      WITH SummaryStatus AS (
+        SELECT mt.idPOTs,
+               CASE WHEN COUNT(CASE WHEN dt.stRec = 1 THEN 1 END) = 0 THEN 0
+                    WHEN COUNT(CASE WHEN dt.stRec IS NULL OR dt.stRec = 0 THEN 1 END) > 0 THEN 2
+                    ELSE 1 END AS New_stPO
+        FROM devsk.PKPOBuyMt mt
+        JOIN devsk.PKPOBuyDt dt ON mt.idPOTs = dt.idPOTs
+        WHERE mt.idPOTs IN (SELECT DISTINCT idPOTs FROM devsk.PKPOBuyDt WHERE idPODt IN (${inList}))
+        GROUP BY mt.idPOTs)
+      UPDATE mt SET mt.stPO = s.New_stPO FROM devsk.PKPOBuyMt mt JOIN SummaryStatus s ON mt.idPOTs = s.idPOTs;
+
+      WITH SummaryWaitStatus AS (
+        SELECT wm.IdWaitRecMt,
+               CASE WHEN COUNT(w.stRecDt) = 0 THEN NULL
+                    WHEN COUNT(CASE WHEN w.stRecDt IS NULL THEN 1 END) > 0 THEN 2
+                    ELSE 1 END AS New_stRec
+        FROM devsk.WimWaitRecMt wm
+        JOIN devsk.WimWaitRecDt w ON wm.IdWaitRecMt = w.IdWaitRecMt
+        WHERE wm.ProcessID = 1 AND wm.stCancel IS NULL
+          AND wm.IdWaitRecMt IN (SELECT DISTINCT ws.IdWaitRecMt FROM devsk.WimWaitRecDt ws WHERE ws.idDt IN (${inList}))
+        GROUP BY wm.IdWaitRecMt)
+      UPDATE wm SET wm.StRec = s.New_stRec FROM devsk.WimWaitRecMt wm JOIN SummaryWaitStatus s ON wm.IdWaitRecMt = s.IdWaitRecMt;`);
+  }
+  return { poLines: poQty.size, waitLines: waitQty.size };
+}
+
+// กดผ่านขั้นนี้ 1 ใบ — body: { step, stamp } (หน้าเว็บส่งทีละใบ ถ้าเลือกหลายใบ แต่ละใบบันทึกแยกกัน)
+//   ack: idPsAccept / DateAccept (ล้างเหตุผลส่งกลับเดิม) / check: ลง Check ก่อน ถ้ามีแล้วลง Check2 (ต้องคนละคน)
+//   approve: idPsApv / DateApv + ปลดล็อกรายการรอเบิก (stNoApprove = NULL) + หักยอดรับ PO (ประเภทรับสินค้าทดแทน)
+app.post('/api/supplier-return/doc/:id/step', requireMenu([MENU_RTS_ACK, MENU_RTS_CHECK, MENU_RTS_APPROVE]), async (req, res) => {
+  const idBuyRT = parseInt(req.params.id, 10);
+  const step = rtsStepOf(req);
+  const stamp = String((req.body || {}).stamp || '');
+  if (!idBuyRT || !step) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ถูกต้อง' });
+  const S = RTS_STEPS[step];
+  if (!hasMenu(req.access, S.menu)) return res.status(403).json({ success: false, message: `ไม่มีสิทธิ์${S.name}เอกสารส่งคืนสินค้า Supplier` });
+
+  let transaction;
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const tq = () => new sql.Request(transaction);
+    const fail = async (status, body) => { await transaction.rollback(); transaction = null; return res.status(status).json({ success: false, ...body }); };
+
+    const doc = (await tq().input('id', sql.Int, idBuyRT).query(`
+      SELECT mt.DocCode, mt.idComp, mt.TypeRT, mt.DateAccept, mt.DateCheck, mt.DateCheck2, mt.DateApv, mt.DateCancel, mt.DateSendBack, mt.idPsCheck,
+             CONVERT(varchar(23), ISNULL(mt.DateEdit, mt.DateTs), 121) AS Stamp, ty.stReplace, ty.stCredit, ty.stReturnGoods, mt.stNoCostAdj
+      FROM devsk.PkBuyRTMt mt WITH (UPDLOCK, ROWLOCK)
+      LEFT JOIN devsk.PkBuyRTType ty ON ty.idTypeRT = mt.TypeRT
+      WHERE mt.idBuyRT = @id`)).recordset[0];
+    if (!doc) return fail(404, { message: 'ไม่พบเอกสาร' });
+    if (!hasComp(req.access, doc.idComp)) return fail(403, { message: 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้' });
+    const st = rtsStatus(doc);
+    if (!S.waits(st)) return fail(409, { code: 'DOC_CHANGED', docStatus: st, message: `เอกสาร ${doc.DocCode} อยู่ในสถานะ "${RTS_STATUS_NAME[st]}" — ไม่ได้รอ${S.name}แล้ว` });
+    // รับทราบ: เอกสารแก้ไขได้จนถึงขั้นนี้ — ถูกแก้หลังจากเปิดดู ให้ดูใหม่ก่อน
+    if (step === 'ack' && stamp && stamp !== doc.Stamp) return fail(409, { code: 'DOC_CHANGED', docStatus: st, message: `เอกสาร ${doc.DocCode} ถูกแก้ไขหลังจากที่เปิดดู — กรุณาตรวจสอบเอกสารอีกครั้ง` });
+
+    let done = step, po = null, cost = null;
+    if (step === 'ack') {
+      await tq().input('id', sql.Int, idBuyRT).input('idPs', sql.Int, req.idPs)
+        .query(`UPDATE devsk.PkBuyRTMt SET idPsAccept = @idPs, DateAccept = GETDATE(), SendBackNote = NULL, idPsSendBack = NULL, DateSendBack = NULL
+                WHERE idBuyRT = @id`);
+    } else if (step === 'check') {
+      if (!doc.DateCheck) {
+        await tq().input('id', sql.Int, idBuyRT).input('idPs', sql.Int, req.idPs)
+          .query('UPDATE devsk.PkBuyRTMt SET idPsCheck = @idPs, DateCheck = GETDATE() WHERE idBuyRT = @id');
+        done = 'check1';
+      } else {
+        if (doc.idPsCheck === req.idPs) return fail(400, { message: `คุณตรวจสอบ 1 ของเอกสาร ${doc.DocCode} ไปแล้ว — ตรวจสอบ 2 ต้องเป็นผู้ตรวจสอบคนอื่น` });
+        await tq().input('id', sql.Int, idBuyRT).input('idPs', sql.Int, req.idPs)
+          .query('UPDATE devsk.PkBuyRTMt SET idPsCheck2 = @idPs, DateCheck2 = GETDATE() WHERE idBuyRT = @id');
+        done = 'check2';
+      }
+    } else {
+      if (doc.stReplace === '1') {
+        try { po = await rtsAdjustPo(tq, idBuyRT, 1); }
+        catch (e) { if (e instanceof RtsUnitError) return fail(400, { message: `อนุมัติเอกสาร ${doc.DocCode} ไม่ได้ — ${e.message}` }); throw e; }
+      }
+      if (doc.stCredit === '1') {
+        try { cost = await rtsAdjustCost(tq, idBuyRT, doc.DocCode, doc.stReturnGoods === '1', doc.stNoCostAdj === '1', req.idPs); }
+        catch (e) { if (e instanceof RtsCostError) return fail(400, { message: `อนุมัติเอกสาร ${doc.DocCode} ไม่ได้ — ${e.message}` }); throw e; }
+      }
+      // ปลดล็อกรายการรอเบิก ให้คลังเบิกได้ (ทุกหัวที่ยังใช้งาน — เอกสารเก่าจาก Win form อาจมีค้างมากกว่า 1 ชุด)
+      await tq().input('id', sql.Int, idBuyRT)
+        .query(`UPDATE wm SET stNoApprove = NULL FROM devsk.WimWaitCutMt wm WHERE ${RTS_ACTIVE_WAITCUT} AND wm.IdMt = @id`);
+      await tq().input('id', sql.Int, idBuyRT).input('idPs', sql.Int, req.idPs)
+        .query('UPDATE devsk.PkBuyRTMt SET idPsApv = @idPs, DateApv = GETDATE() WHERE idBuyRT = @id');
+    }
+
+    await transaction.commit();
+    transaction = null;
+    res.json({ success: true, id: idBuyRT, docNo: doc.DocCode, done, po: typeof po === 'undefined' ? null : po, cost });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('Supplier return step error:', err);
+    res.status(500).json({ success: false, message: `บันทึก${S.name}ไม่สำเร็จ — ระบบไม่ได้เปลี่ยนแปลงข้อมูล`, detail: err.message });
+  }
+});
+
+// ส่งกลับแก้ไข — body: { step, reason (> 5 ตัวอักษร, ไม่เกิน 500), stamp }
+//   ล้างการรับทราบ / ตรวจสอบ 1-2 ที่ผ่านมา เอกสารกลับไปรอรับทราบ (ผู้ทำเอกสารแก้ไขได้) + เก็บเหตุผลล่าสุด
+//   ส่งกลับได้ทุกขั้นที่ยังไม่อนุมัติ (ผู้ส่งกลับต้องมีสิทธิ์ขั้นที่เอกสารรออยู่)
+app.post('/api/supplier-return/doc/:id/send-back', requireMenu([MENU_RTS_ACK, MENU_RTS_CHECK, MENU_RTS_APPROVE]), async (req, res) => {
+  const idBuyRT = parseInt(req.params.id, 10);
+  const step = rtsStepOf(req);
+  const reason = String((req.body || {}).reason || '').trim();
+  if (!idBuyRT || !step) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ถูกต้อง' });
+  const S = RTS_STEPS[step];
+  if (!hasMenu(req.access, S.menu)) return res.status(403).json({ success: false, message: `ไม่มีสิทธิ์${S.name}เอกสารส่งคืนสินค้า Supplier` });
+  if (reason.length <= 5 || reason === '0' || reason === '-') return res.status(400).json({ success: false, message: 'กรุณาระบุเหตุผลการส่งกลับแก้ไขให้ชัดเจน (มากกว่า 5 ตัวอักษร)' });
+  if (reason.length > 500) return res.status(400).json({ success: false, message: 'เหตุผลการส่งกลับยาวได้ไม่เกิน 500 ตัวอักษร' });
+
+  let transaction;
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const tq = () => new sql.Request(transaction);
+    const fail = async (status, body) => { await transaction.rollback(); transaction = null; return res.status(status).json({ success: false, ...body }); };
+    const doc = (await tq().input('id', sql.Int, idBuyRT).query(`
+      SELECT DocCode, idComp, DateAccept, DateCheck, DateCheck2, DateApv, DateCancel, DateSendBack
+      FROM devsk.PkBuyRTMt WITH (UPDLOCK, ROWLOCK) WHERE idBuyRT = @id`)).recordset[0];
+    if (!doc) return fail(404, { message: 'ไม่พบเอกสาร' });
+    if (!hasComp(req.access, doc.idComp)) return fail(403, { message: 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้' });
+    const st = rtsStatus(doc);
+    if (!S.waits(st)) return fail(409, { code: 'DOC_CHANGED', docStatus: st, message: `เอกสาร ${doc.DocCode} อยู่ในสถานะ "${RTS_STATUS_NAME[st]}" — ไม่ได้รอ${S.name}แล้ว` });
+    await tq().input('id', sql.Int, idBuyRT).input('idPs', sql.Int, req.idPs).input('note', sql.VarChar(500), reason)
+      .query(`UPDATE devsk.PkBuyRTMt
+              SET idPsAccept = NULL, DateAccept = NULL, idPsCheck = NULL, DateCheck = NULL, idPsCheck2 = NULL, DateCheck2 = NULL,
+                  SendBackNote = @note, idPsSendBack = @idPs, DateSendBack = GETDATE()
+              WHERE idBuyRT = @id`);
+    await transaction.commit();
+    transaction = null;
+    res.json({ success: true, id: idBuyRT, docNo: doc.DocCode });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('Supplier return send-back error:', err);
+    res.status(500).json({ success: false, message: 'ส่งกลับแก้ไขไม่สำเร็จ — ระบบไม่ได้เปลี่ยนแปลงข้อมูล', detail: err.message });
   }
 });
 

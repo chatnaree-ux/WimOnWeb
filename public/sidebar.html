@@ -49,7 +49,21 @@
     </button>
     <div class="nav-submenu" id="invSubmenu">
       <div class="nav-submenu-inner">
-        <a class="nav-subitem" href="/supplier-return" data-menu="supplier_return">ส่งคืนสินค้า/ลดหนี้ Supplier</a>
+        <!-- ชั้นที่ 2: กลุ่มย่อย / ชั้นที่ 3: เมนู (ชื่อสั้น — ชั้นแม่บอกบริบทแล้ว / หน้ากำหนดสิทธิ์ + หน้าหลักใช้ชื่อเต็ม) -->
+        <div class="nav-group nav-group-sub" data-group="supplier_return_group">
+          <button class="nav-item nav-parent" type="button" aria-expanded="false">
+            <span class="nav-label">ส่งคืนสินค้า/ลดหนี้ Supplier</span>
+            <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="nav-submenu">
+            <div class="nav-submenu-inner">
+              <a class="nav-subitem" href="/supplier-return" data-menu="supplier_return">รายการส่งคืนสินค้า/ลดหนี้</a>
+              <a class="nav-subitem" href="/supplier-return-approve?step=ack" data-menu="supplier_return_ack">รับทราบเอกสาร</a>
+              <a class="nav-subitem" href="/supplier-return-approve?step=check" data-menu="supplier_return_check">ตรวจสอบเอกสาร</a>
+              <a class="nav-subitem" href="/supplier-return-approve?step=approve" data-menu="supplier_return_approve">อนุมัติเอกสาร</a>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

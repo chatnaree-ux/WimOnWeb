@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WIM — ส่งคืนสินค้า/ลดหนี้ Supplier</title>
+<title>WIM — รายการส่งคืนสินค้า/ลดหนี้ Supplier</title>
 <link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -195,6 +195,14 @@
   /* ยอดรวมเหนือตารางรายการ */
   .doc-totals{margin:14px 0 0 auto; width:min(420px, 100%); display:grid; grid-template-columns:1fr auto; column-gap:18px; row-gap:6px; align-items:baseline;}
   .doc-totals[hidden]{display:none;}
+  .ds-link{margin-left:auto;}
+  .ds-sendback{flex-basis:100%; margin-top:4px; padding:8px 12px; border-radius:8px; font-size:13px; line-height:1.55;
+    background:rgba(255,138,61,.1); border:1px solid rgba(255,138,61,.45); color:#ffc49b;}
+  .ds-sendback b{color:#ff9d5c;}
+  .apv-chk{width:16px; height:16px; margin:0 2px; accent-color:var(--amber-500); cursor:pointer;}
+  .apv-chk:disabled{cursor:not-allowed; opacity:.35;}
+  .apv-all{display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--concrete-200); cursor:pointer;}
+  .apv-all input{width:16px; height:16px; accent-color:var(--amber-500);}
   .items-table tbody tr.stock-changed td{background:rgba(242,169,28,.13) !important;}
   .items-table tbody tr.stock-changed td:first-child{box-shadow:inset 3px 0 0 var(--amber-500);}
   .chg-list{margin:8px 0 0; padding-left:18px; font-size:13px; line-height:1.7;}
@@ -356,6 +364,11 @@
   .qty-err{display:block; font-size:11px; color:#ff8a75; margin-top:3px; text-align:right; white-space:nowrap;}
   .qty-err:empty{display:none;}
   #itemsNote{font-size:14.5px; font-weight:600; color:#e8edf3;}
+  .nocost-opt{display:flex; gap:10px; align-items:flex-start; margin-top:12px; padding:10px 12px; border-radius:9px; cursor:pointer;
+    border:1px dashed rgba(242,169,28,.45); background:rgba(242,169,28,.06); font-size:13px; color:var(--concrete-200);}
+  .nocost-opt input{width:17px; height:17px; margin-top:2px; accent-color:var(--amber-500); flex-shrink:0;}
+  .nocost-opt small{display:block; font-size:12px; color:var(--concrete-400); margin-top:2px;}
+  .adj-pill{display:inline-block; padding:1px 7px; border-radius:999px; font-size:10.5px; font-weight:700; background:rgba(242,169,28,.15); color:var(--amber-500); margin-left:6px; font-family:'Inter',sans-serif; cursor:help;}
   .nocost-pill{display:inline-block; padding:1px 7px; border-radius:999px; font-size:10.5px; font-weight:700; background:rgba(229,83,61,.15); color:#ff8a75; margin-left:6px; font-family:'Inter',sans-serif;}
   .items-table td.nocost{color:#ff8a75; background:rgba(229,83,61,.06);}
   .pend-hint{display:block; font-size:10.5px; font-weight:500; color:var(--amber-500); margin-top:2px; font-family:'Inter',sans-serif;}
@@ -389,7 +402,7 @@
   .effect .ef-desc{font-size:12px; color:var(--concrete-400); margin-top:3px; line-height:1.5;}
   .effect .ef-desc b{color:var(--concrete-200); font-family:'JetBrains Mono',monospace; font-weight:600;}
   .effect.off{opacity:.38;}
-  .effect.off .ef-title::after{content:" — ไม่เกิดขึ้นกับประเภทนี้"; font-weight:400; color:var(--concrete-400); font-size:12px;}
+  .effect.off .ef-title::after{content:"ไม่เกิดขึ้นกับประเภทนี้"; display:block; margin-top:3px; font-weight:400; color:var(--concrete-400); font-size:12px;}
 
   /* ---------- LIST: ตัวกรอง ---------- */
   /* ตัวกรองแถวเดียว: วันที่ (กว้างตามเนื้อหา) | บริษัท | ประเภท | ค้นหา (ยืดเต็มที่เหลือ) — จอแคบตัดบรรทัดเอง */
@@ -432,6 +445,14 @@
 
   /* ---------- LIST: Dashboard สถานะ ---------- */
   .dash{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:16px;}
+  /* 3 กลุ่ม: อยู่ระหว่างกระบวนการ (ไม่ใช้วันที่) | สิ้นสุดกระบวนการ / รายงาน (ใช้ช่วงวันที่) */
+  .dash-wrap{display:grid; grid-template-columns:minmax(0,6fr) minmax(0,2fr) minmax(0,1fr); gap:12px 16px; margin-bottom:16px;}
+  .dash-wrap .dash{margin-bottom:0; grid-template-columns:repeat(auto-fit, minmax(118px, 1fr));}
+  .dash-glbl{display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; font-size:13px; font-weight:600; color:var(--concrete-200); margin:0 0 7px 2px;}
+  /* ป้ายช่วงข้อมูล (ทุกช่วงวันที่ / เดือนที่เลือก): ตัวใหญ่ขึ้น พื้นจาง อ่านง่าย */
+  .dash-glbl small{font-size:12px; font-weight:600; color:var(--amber-500); padding:1px 8px; border-radius:999px; background:rgba(242,169,28,.12); border:1px solid rgba(242,169,28,.35);}
+  @media (max-width:1200px){ .dash-wrap{grid-template-columns:minmax(0,2fr) minmax(0,1fr);} .dash-wrap .dash-group:first-child{grid-column:1 / -1;} }
+  @media (max-width:640px){ .dash-wrap{grid-template-columns:minmax(0,1fr);} }
   .dash-card{
     position:relative; display:flex; flex-direction:column; text-align:left; cursor:pointer; padding:10px 14px; border-radius:9px; font:inherit; color:inherit;
     background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.08); border-top:3px solid var(--c);
@@ -484,7 +505,7 @@
   .doc-table td.doc-no{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500);}
   .doc-table tr.cancelled td{color:var(--concrete-400);}
   .doc-table tr.cancelled td.doc-no{text-decoration:line-through; color:var(--concrete-400);}
-  .doc-table td.act{padding-left:3px; padding-right:3px; text-align:center;}
+  .doc-table td.act{padding-left:3px; padding-right:3px; text-align:left;}   /* ชิดซ้าย: แถวที่ไอคอนไม่ครบ ไอคอนยังตรงคอลัมน์กับแถวอื่น */
   .doc-table td.act .icon-btn{width:28px; height:28px;}
   .expander{width:24px; height:24px; border-radius:6px; border:1px solid rgba(255,255,255,.14); background:none; color:var(--concrete-400); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; transition:transform .2s, color .15s;}
   .expander svg{width:13px; height:13px;}
@@ -516,6 +537,7 @@
   .co-pill{display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.22); color:var(--concrete-200);}
 
   /* ---------- MODAL ---------- */
+  [hidden]{display:none !important;}
   .modal-overlay{display:none; position:fixed; inset:0; z-index:60; background:rgba(6,10,16,.7); backdrop-filter:blur(2px); align-items:center; justify-content:center; padding:20px;}
   .modal-overlay.show{display:flex;}
   .modal-box{
@@ -668,6 +690,173 @@
   .print-doc .pd-co{display:flex; flex-direction:column; gap:4px; align-items:flex-start;}
   .print-doc .pd-logo{display:block; height:46px; max-width:200px; object-fit:contain; object-position:left center;}
   .print-doc .pd-co-name{font-size:11px; font-weight:600; color:#333;}
+  /* ---------- ใบเอกสาร (ดูบนจอ + พิมพ์ A4 แนวตั้ง ใช้ template เดียวกัน) ---------- */
+  .paper-wrap{margin-bottom:16px;}
+  .rp{position:relative; width:210mm; max-width:100%; margin:0 auto; padding:12mm; background:#fff; color:#111; text-align:left; white-space:normal;
+    font-family:'Inter',Tahoma,sans-serif; font-size:10.5px; line-height:1.45; border-radius:4px; box-shadow:0 20px 50px -20px rgba(0,0,0,.7); overflow:hidden;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+    display:flex; flex-direction:column;}
+  /* 1 หน้า A4: พื้นที่เนื้อหา 269 มม. ทั้งบนจอและตอนพิมพ์ (ใช้แบ่งหน้า) */
+  .rp.rp-page{height:297mm; padding:12mm 12mm 16mm;}
+  .rp.rp-page + .rp.rp-page{margin-top:16px;}
+  .rp.rp-measure{height:auto; min-height:0;}
+  .rp .rp-title .pg{font-size:10px; color:#555; margin-top:3px;}
+  .rp .rp-cont{margin-top:4px; text-align:right; font-size:9.5px; font-style:italic; color:#555;}
+  /* ตารางยืดเต็มพื้นที่ที่เหลือ: แถวว่างท้ายตารางรับความสูงส่วนเกิน (เส้นคอลัมน์ต่อถึงล่าง) + เส้นปิดล่าง — รายการเกิน 1 หน้า = แถวว่างสูง 0 */
+  .rp .rp-tbl{flex:1 1 auto; min-height:0;}
+  .rp .rp-tbl > table{border-bottom:1px solid #999;}
+  .rp .rp-items tbody.rp-fill td{padding:0; height:0;}
+  .rp .rp-head{display:flow-root; padding-bottom:8px; border-bottom:2px solid #222;}
+  .rp .rp-co{position:relative; min-height:58px;}
+  .rp .rp-logo{position:absolute; left:0; top:0; display:block; height:58px; width:96px; object-fit:contain; object-position:left top;}
+  .rp .rp-co-txt{margin-left:108px; line-height:1.4;}
+  .rp .rp-co.nologo .rp-co-txt{margin-left:0;}
+  .rp .rp-co-name{font-size:13.5px; font-weight:700;}
+  .rp .rp-co-en{font-size:11px; font-weight:600; color:#333;}
+  .rp .rp-co-l{font-size:9.5px; color:#444;}
+  .rp .rp-title{float:right; text-align:right; margin:0 0 4px 16px;}
+  .rp .rp-title .th{font-size:18px; font-weight:700; line-height:1.25;}
+  .rp .rp-title .en{font-size:12.5px; font-weight:600; color:#333; letter-spacing:.03em; margin-top:1px;}
+  .rp .rp-info{display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:8px; margin:10px 0;}
+  .rp .rp-box{border:1px solid #999; border-radius:3px; padding:6px 9px; display:flex; flex-direction:column; gap:3px;}
+  .rp .rp-box .k{color:#555;}
+  .rp .rp-box .v{font-weight:600; overflow-wrap:anywhere;}
+  .rp .rp-box .v.rp-n{font-weight:400;}
+  .rp table{width:100%; min-width:0; border-collapse:collapse; font-size:inherit;}
+  .rp .rp-items{table-layout:fixed;}
+  .rp .rp-items th{position:static; background:#ececec; color:#111; border:1px solid #999; padding:4px 3px; font-family:inherit; font-size:9.5px; font-weight:700;
+    text-align:center; white-space:normal; line-height:1.3;}
+  /* ไม่มีเส้นคั่นแต่ละรายการ (เฉพาะเส้นคอลัมน์) — เส้นปิดล่างอยู่ที่ช่องว่างใต้ตาราง (.rp-fill) */
+  .rp .rp-items td{border:0; border-left:1px solid #999; border-right:1px solid #999; padding:5px 4px 6px; color:#111; background:none; font-family:inherit;
+    font-size:9.5px; text-align:left; vertical-align:top; white-space:normal; overflow-wrap:anywhere;}
+  .rp .rp-items tbody.pi{break-inside:avoid;}
+  .rp .rp-items td.num{text-align:right; white-space:nowrap; overflow-wrap:normal;}
+  .rp .rp-items td.ctr{text-align:center;}
+  .rp .rp-items .nm{font-weight:600;}
+  .rp .rp-items .s{display:block; color:#444; font-size:9px;}
+  .rp .rp-items .s b{font-weight:600; color:#111;}
+  .rp .rp-items .s .lb{color:#777;}
+  .rp .rp-items .s .kv{white-space:nowrap; margin-right:8px;}   /* คู่หัวข้อ-ค่าไม่ถูกตัดแยกบรรทัด */
+  .rp .rp-items .ref > span{display:block; font-size:9px; color:#444;}
+  .rp .rp-items .ref .lb, .rp .rp-items tr.sub .lb{color:#777;}
+  .rp .rp-items tr.sub td{padding:0 4px 4px; font-size:9px; color:#333;}
+  .rp .rp-items .mno, .rp .rp-items .mu{display:none;}
+  .rp .rp-foot{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; margin-top:8px; break-inside:avoid;}
+  .rp .rp-note .k{font-weight:700;}
+  .rp .rp-words{margin-top:6px; padding:5px 8px; background:#f1f1f1; border-radius:3px; font-weight:600; text-align:center;}
+  .rp .rp-tot{width:auto; min-width:66mm;}
+  .rp .rp-tot td{border:0; padding:2px 6px; color:#111; background:none; font-family:inherit; font-size:10px; text-align:left; white-space:nowrap;}
+  .rp .rp-tot td.num{text-align:right;}
+  .rp .rp-tot tr.g td{border-top:1.5px solid #222; border-bottom:3px double #222; font-weight:700; font-size:11px; padding:4px 6px;}
+  .rp .rp-signs{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px 18px; margin-top:8mm; break-inside:avoid;}
+  .rp .rp-sign{text-align:center; font-size:9.5px; line-height:1.4;}
+  .rp .rp-sign .t{font-weight:700; font-size:10.5px; margin:1px 0;}
+  .rp .rp-sign .sg{height:11mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:0 14px 3px;}
+  .rp .rp-sign .sg img{max-height:11mm; max-width:100%; object-fit:contain;}
+  .rp .rp-sign .n{font-weight:600;}
+  .rp .rp-sign .p, .rp .rp-sign .d{color:#444;}
+  .rp .rp-sign .p{font-size:8.5px; line-height:1.3;}   /* ตำแหน่ง: ตัวเล็กใต้ชื่อ */
+  .rp .rp-sign .blank{color:#999; font-weight:400;}
+  .rp .rp-void{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:2;}
+  .rp .rp-void span{transform:rotate(-30deg); font-size:110px; font-weight:800; letter-spacing:.12em; color:rgba(220,38,38,.17);
+    border:10px solid rgba(220,38,38,.17); border-radius:18px; padding:0 34px;}
+  /* หน้าเอกสาร (/supplier-return-doc?id=): แถบสถานะ + ใบเอกสาร + ผลเมื่ออนุมัติ + ปุ่ม (ติดล่างจอ) */
+  /* หน้าเอกสาร: หัวข้อเล็กลง ไล่ขนาด หัวข้อ (กระบวนการ) > เลขที่เอกสาร > ป้ายกำกับ */
+  main.doc-mode > h1{font-size:clamp(19px,2.3vw,23px); margin-bottom:4px;}
+  .doc-sub{margin:0 0 16px; font-size:13.5px; color:var(--concrete-400);}
+  .doc-sub b{font-family:'JetBrains Mono',monospace; color:var(--amber-500); font-size:17px; margin-left:4px;}
+  /* แถบเดียว: ปุ่ม (บน) + สถานะ / ขั้นตอน (ล่าง) — ติดด้านบนตอนเลื่อนดูเอกสาร */
+  #docView .vw-bar{position:sticky; top:0; z-index:12; display:flex; flex-direction:column; gap:10px; max-width:210mm; margin:0 auto 16px; padding:10px 14px;
+    border-radius:10px; background:rgba(17,29,46,.96); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.1); border-left:3px solid var(--c, var(--steel-500));
+    box-shadow:0 16px 32px -18px rgba(0,0,0,.85);}
+  #docView .vw-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  #docView .vw-right{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto;}
+  #docView .vw-status{display:flex; align-items:center; gap:8px 16px; flex-wrap:wrap;}
+  #docView .vw-steps{margin-left:10px;}
+  #docView .vw-status .ds-hint{margin-left:0;}
+  #docView .vw-status .vw-why, #docView .vw-row .vw-why{font-size:12.5px; color:var(--amber-500);}
+  /* เหตุผลที่ไม่มีปุ่ม อยู่แถวเดียวกับปุ่ม (พื้นที่ไม่พอ = ขึ้นบรรทัดใหม่เอง) */
+  #docView .vw-row .vw-why{flex:1 1 200px; min-width:0; text-align:right;}
+  @media (max-width:900px){ #docView .vw-bar{top:71px;} }
+  @media (max-width:640px){
+    #docView .vw-row .btn{padding-left:10px; padding-right:10px;}
+    #docView .vw-steps{order:3; flex-basis:100%; margin-left:0;}
+    #docView .vw-row .vw-why{order:4; flex-basis:100%; text-align:left;}
+    #docView .vw-right{flex:1 1 auto; margin-left:0;}
+    #docView .vw-right .btn{flex:1;}
+  }
+  /* ปุ่มพื้นสีทึบ (หน้าเอกสาร) */
+  .btn-fill-gray{background:#4b5566; color:#fff;}
+  .btn-fill-slate{background:#3b6687; color:#fff;}
+  .btn-fill-red{background:#d9473a; color:#fff;}
+  .btn-fill-blue{background:#2d8bd0; color:#fff;}
+  .btn-fill-violet{background:#b19cf5; color:#1d1340;}
+  .btn-fill-orange{background:#f08c2e; color:#fff;}
+  .btn-fill-green{background:#1f9e66; color:#fff;}
+  /* หน้ารอรับทราบ / ตรวจสอบ / อนุมัติ: ปุ่มเปิดเอกสารในแถว = ไอคอนเช็ค พื้นสีกระบวนการ (ขนาดเท่าไอคอนอื่น / ชี้ดูชื่อกระบวนการ) */
+  /*   แบบจาง (พื้นโปร่ง + ขอบ + ไอคอนสีกระบวนการ) ให้เข้ากับไอคอนอื่นในคอลัมน์ / ชี้แล้วเป็นสีเต็ม */
+  .icon-btn.apv-open svg{width:16px; height:16px;}
+  .icon-btn.apv-open.btn-fill-violet{background:rgba(177,156,245,.14); border-color:rgba(177,156,245,.55); color:#c4b5fd;}
+  .icon-btn.apv-open.btn-fill-orange{background:rgba(240,140,46,.14); border-color:rgba(240,140,46,.55); color:#f6a55a;}
+  .icon-btn.apv-open.btn-fill-green{background:rgba(52,194,127,.14); border-color:rgba(52,194,127,.55); color:#5fd69c;}
+  .icon-btn.apv-open.btn-fill-violet:hover{background:#b19cf5; border-color:#b19cf5; color:#1d1340;}
+  .icon-btn.apv-open.btn-fill-orange:hover{background:#f08c2e; border-color:#f08c2e; color:#fff;}
+  .icon-btn.apv-open.btn-fill-green:hover{background:#1f9e66; border-color:#1f9e66; color:#fff;}
+  /* popup ติดตามเอกสาร (หน้ารายการหลัก) */
+  .fl-steps{list-style:none; margin:0 0 14px; padding:0; display:flex; flex-direction:column; gap:6px;}
+  .fl-steps li{display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px; font-size:13px;
+    background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);}
+  .fl-steps .ic{width:20px; height:20px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,.2);}
+  .fl-steps .ic svg{width:12px; height:12px;}
+  .fl-steps .nm{font-weight:600; color:var(--concrete-200);}
+  .fl-steps .who{margin-left:auto; text-align:right; font-size:12.5px; color:var(--concrete-400);}
+  .fl-steps li.done .ic{background:var(--ok-green); border-color:var(--ok-green); color:var(--navy-950);}
+  .fl-steps li.wait{background:rgba(242,169,28,.08); border-color:rgba(242,169,28,.55);}
+  .fl-steps li.wait .ic{border-color:var(--amber-500);}
+  .fl-steps li.wait .who{color:var(--amber-500); font-weight:600;}
+  .fl-steps li.todo .nm, .fl-steps li.todo .who{color:var(--steel-500);}
+  #flText{width:100%; min-height:150px; font-size:13px; line-height:1.55;}
+  #followModal .fl-no{font-family:'JetBrains Mono',monospace; color:var(--amber-500); margin-left:4px;}
+  #followModal .m-sub{color:var(--concrete-200);}
+  #followModal .fl-k{color:var(--concrete-400);}
+  .fl-lbl{display:block; font-size:12.5px; color:var(--concrete-400); margin:0 0 6px;}
+  #docView .vw-effects{margin:16px auto 0; max-width:210mm;}
+  #docView .vw-effects h2{font-size:14px; margin:0 0 10px;}
+  #docView .vw-state{max-width:210mm; margin:0 auto; padding:40px 20px; text-align:center; color:var(--concrete-400); font-size:14px;}
+  /* พิมพ์: ช่องว่างบน / ล่างทุกหน้า (ขอบกระดาษบน = 0 จะได้ไม่มีหัวกระดาษของ browser) / ลายน้ำยกเลิกซ้ำทุกหน้า */
+  #printArea.rp-print .rp-layout{width:100%; border-collapse:collapse;}
+  #printArea.rp-print .rp-layout > thead > tr > td, #printArea.rp-print .rp-layout > tbody > tr > td, #printArea.rp-print .rp-layout > tfoot > tr > td{
+    padding:0 12mm; border:0; background:none; white-space:normal; text-align:left;}
+  #printArea.rp-print .rp-space-top{height:10mm;}
+  #printArea.rp-print .rp-space-bottom{height:3mm;}
+  /* พิมพ์: 1 แผ่น = 1 หน้า (ขอบล่าง 10 มม. เป็นท้ายกระดาษ) — สูง 286.5 มม. (เนื้อหา 269 มม. เท่าบนจอ) */
+  #printArea.rp-print .rp.rp-page{width:210mm; max-width:none; height:286.5mm; margin:0; padding:12mm 12mm 5.5mm; border-radius:0; box-shadow:none; break-after:page;}
+  #printArea.rp-print .rp.rp-page:last-child{break-after:auto;}
+  /* มือถือ: รายการเป็นการ์ด (ตาราง A4 อ่านบนจอเล็กไม่ได้) */
+  @media screen and (max-width:760px){
+    .paper-wrap .rp{padding:14px 12px; font-size:12px; min-height:0;}
+    .paper-wrap .rp .rp-items tbody.rp-fill{display:none;}
+    .paper-wrap .rp .rp-tbl > table{border-bottom:0;}
+    .paper-wrap .rp .rp-title{float:none; text-align:left; margin:0 0 8px;}
+    .paper-wrap .rp .rp-info{grid-template-columns:minmax(0,1fr);}
+    .paper-wrap .rp .rp-items colgroup, .paper-wrap .rp .rp-items thead, .paper-wrap .rp .rp-items td.no, .paper-wrap .rp .rp-items td.unit{display:none;}
+    .paper-wrap .rp .rp-items, .paper-wrap .rp .rp-items tbody, .paper-wrap .rp .rp-items tr, .paper-wrap .rp .rp-items td{display:block; width:auto;}
+    .paper-wrap .rp .rp-items tbody.pi{border:1px solid #bbb; border-radius:4px; margin-bottom:8px; padding:7px 9px;}
+    .paper-wrap .rp .rp-items td, .paper-wrap .rp .rp-items tr.sub td{border:0; padding:1px 0; font-size:11.5px;}
+    .paper-wrap .rp .rp-items .s, .paper-wrap .rp .rp-items .ref > span{font-size:11px;}
+    .paper-wrap .rp .rp-items .ref{display:flex; flex-wrap:wrap; gap:0 12px; margin:2px 0 4px;}
+    .paper-wrap .rp .rp-items td[data-l]{display:flex; justify-content:space-between; gap:10px; text-align:right;}
+    .paper-wrap .rp .rp-items td[data-l]::before{content:attr(data-l); color:#666;}
+    .paper-wrap .rp .rp-items .mno, .paper-wrap .rp .rp-items .mu{display:inline;}
+    .paper-wrap .rp .rp-items tr.sub td{margin-top:4px; padding-top:4px; border-top:1px dashed #ccc;}
+    .paper-wrap .rp .rp-foot{grid-template-columns:minmax(0,1fr);}
+    .paper-wrap .rp .rp-tot{width:100%;}
+    .paper-wrap .rp .rp-tot td{font-size:12px;}
+    .paper-wrap .rp .rp-tot tr.g td{font-size:13px;}
+    .paper-wrap .rp .rp-signs{grid-template-columns:repeat(2, minmax(0,1fr));}
+    .paper-wrap .rp .rp-void span{font-size:60px; border-width:6px;}
+  }
+
   @media print{
     body.printing{background:#fff;}
     body.printing #app, body.printing .modal-overlay, body.printing .toast{display:none !important;}
@@ -753,7 +942,7 @@
 
     <main>
       <div class="eyebrow">Purchase Return</div>
-      <h1>ส่งคืนสินค้า/ลดหนี้ Supplier</h1>
+      <h1>รายการส่งคืนสินค้า/ลดหนี้ Supplier</h1>
 
       <div class="tab-bar">
         <button type="button" class="nav-btn active" id="tabListBtn">
@@ -772,7 +961,7 @@
 
       <div class="mock-note">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-        <span><b>กำลังพัฒนา</b> — หน้ารายการดึงข้อมูลจริงแล้ว / ฟอร์ม (Supplier, ผู้ดำเนินการ, เลือกรายการคืน) ยังเป็นข้อมูลตัวอย่าง และยังบันทึก / อนุมัติ / ยกเลิกลง DB ไม่ได้</span>
+        <span><b>กำลังพัฒนา</b> — บันทึก / แก้ไข / ยกเลิก / รับทราบ / ตรวจสอบ / อนุมัติ ใช้ข้อมูลจริงแล้ว · พิมพ์ใบเอกสาร A4 ได้แล้ว</span>
       </div>
 
       <!-- ============ PAGE 1: LIST ============ -->
@@ -785,6 +974,8 @@
             </div>
           </div>
           <!-- ตัวกรองแถวเดียว: วันที่เอกสาร | บริษัท | ประเภทการคืน | ช่องค้นหา (ยืดเต็มพื้นที่ที่เหลือ) — จอแคบตัดบรรทัดเอง -->
+          <!-- กล่องสถานะ (อยู่บนสุด): งานค้าง = ไม่มีตัวกรองวันที่ / จบแล้ว-รายงาน = แสดงตัวกรองวันที่ -->
+          <div class="dash-wrap" id="statusDash"></div>
           <div class="filter-bar">
             <div class="flt-item flt-date">
               <label>วันที่เอกสาร</label>
@@ -814,11 +1005,9 @@
             </div>
           </div>
 
-          <div class="dash" id="statusDash"></div>
 
           <div class="list-toolbar">
             <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
-              <label class="switch"><input type="checkbox" id="hideCancelled" checked><span class="trk"></span><span>ไม่แสดงรายการที่ยกเลิก</span></label>
               <span class="flt-count" id="fltCount"></span>
             </div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
@@ -921,6 +1110,12 @@
         <div class="card">
           <h2>ประเภทการคืน<span class="req">*</span></h2>
           <div class="type-cards" id="typeCards"></div>
+          <!-- ไม่ส่งคืน-ลดหนี้: ลดหนี้ให้ของที่ใช้ไปแล้วเท่านั้น (ของที่เหลือยังราคาเดิม) = ไม่ปรับต้นทุน Lot -->
+          <label class="nocost-opt" id="noCostWrap" hidden>
+            <input type="checkbox" id="fNoCostAdj">
+            <span><b>ลดหนี้เฉพาะส่วนที่ใช้ไปแล้ว — ไม่ปรับต้นทุน Lot</b>
+              <small>ติ๊กเมื่อของที่ยังเหลือในคลังไม่ได้ลดราคา (ไม่ติ๊ก = ระบบปรับต้นทุน Lot ตอนอนุมัติ)</small></span>
+          </label>
         </div>
 
         <!-- รายการคืน -->
@@ -948,7 +1143,7 @@
 
         <!-- ผลเมื่ออนุมัติ: แสดงเฉพาะตอนรออนุมัติ / อนุมัติแล้ว (ให้ผู้อนุมัติเห็นก่อนกด) -->
         <div class="card" id="effectsCard" hidden>
-          <h2>สิ่งที่ระบบจะทำเมื่ออนุมัติ</h2>
+          <h2>เมื่อรายการผ่านกระบวนการอนุมัติ</h2>
           <div class="effects" id="effects"></div>
         </div>
 
@@ -956,6 +1151,18 @@
         <div class="sum-bar">
           <span class="sum-hint" id="sumHint"></span>
           <div class="sum-actions" id="sumActions"></div>
+        </div>
+      </section>
+      <!-- ============ หน้าเอกสาร (/supplier-return-doc?id=) : ดู / พิมพ์ / รับทราบ / ตรวจสอบ / อนุมัติ / ส่งกลับแก้ไข / ยกเลิก ============ -->
+      <section id="docView" class="page">
+        <div class="vw-bar" id="vwBar">
+          <div class="vw-row" id="vwActions"></div>
+          <div class="vw-status" id="vwStrip" hidden></div>
+        </div>
+        <div class="paper-wrap" id="vwPaper"><div class="vw-state">กำลังโหลดเอกสาร...</div></div>
+        <div class="card vw-effects" id="vwEffects" hidden>
+          <h2>เมื่อรายการผ่านกระบวนการอนุมัติ</h2>
+          <div class="effects" id="vwEffectsList"></div>
         </div>
       </section>
     </main>
@@ -1033,6 +1240,31 @@
 </div>
 
 <!-- ============ Popup ยืนยัน / ดำเนินการ (เนื้อหาสร้างจาก JS) ============ -->
+<!-- ============ Popup ติดตามเอกสาร: ขั้นตอน + ข้อความพร้อมส่ง LINE ให้ขั้นที่ค้างอยู่ (หน้ารายการหลัก) ============ -->
+<div class="modal-overlay" id="followModal">
+  <div class="modal-box modal-narrow" style="max-width:600px;">
+    <div class="modal-header">
+      <div>
+        <h3 id="flTitle">ติดตามเอกสาร</h3>
+        <p class="m-sub" id="flSub"></p>
+      </div>
+      <button type="button" class="modal-close" data-close="followModal" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <ol class="fl-steps" id="flSteps"></ol>
+      <label class="fl-lbl" for="flText">ข้อความแจ้งผู้ที่ต้องดำเนินการ (วางส่งใน LINE)</label>
+      <textarea id="flText" readonly></textarea>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-secondary" data-close="followModal">ปิด</button>
+      <button type="button" class="btn btn-neutral-soft" id="flCopyLink">คัดลอกเฉพาะลิงก์</button>
+      <button type="button" class="btn btn-primary" id="flCopyText">คัดลอกข้อความ</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="actModal">
   <div class="modal-box modal-narrow" style="max-width:580px;">
     <div class="modal-header">
@@ -1080,7 +1312,18 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  const CURRENT_PAGE_MENU_CODE = 'supplier_return';
+  // ลิงก์เก่า (/supplier-return-approve?step=..&doc=..) → หน้าเอกสาร
+  (function(){
+    const q = new URLSearchParams(location.search);
+    if(/^\/supplier-return-approve/.test(location.pathname) && Number(q.get('doc'))) location.replace('/supplier-return-doc?id=' + Number(q.get('doc')));
+  })();
+  // /supplier-return-doc?id= = หน้าเอกสารใบเดียว (ลิงก์ที่ส่งตามงาน / กดเปิดจากรายการ) — สิทธิ์เช็คที่ server (ทุกเมนูของส่งคืนสินค้าเปิดดูได้)
+  const RTS_DOC_ID = /^\/supplier-return-doc/.test(location.pathname) ? (Number(new URLSearchParams(location.search).get('id')) || 0) : null;
+  // /supplier-return-approve?step=ack|check|approve = หน้าเดียวกัน เปิดเป็นโหมดรับทราบ / ตรวจสอบ / อนุมัติ (เมนู + สิทธิ์แยกกัน)
+  const RTS_APV_STEP = /^\/supplier-return-approve/.test(location.pathname)
+    ? (['ack', 'check', 'approve'].includes(new URLSearchParams(location.search).get('step')) ? new URLSearchParams(location.search).get('step') : 'ack')
+    : null;
+  const CURRENT_PAGE_MENU_CODE = RTS_DOC_ID != null ? null : RTS_APV_STEP ? 'supplier_return_' + RTS_APV_STEP : 'supplier_return';
   document.addEventListener('DOMContentLoaded', () => WIMSidebar.load({ menuCode: CURRENT_PAGE_MENU_CODE }));
 </script>
 
@@ -1104,11 +1347,13 @@
 
   // สถานะเอกสาร (9 = ยกเลิก)
   const STATUS = {
-    1: { name:'รอรับทราบ',     c:'var(--sky-blue)' },
-    2: { name:'รอตรวจสอบ 1',   c:'var(--violet)' },
-    3: { name:'รอตรวจสอบ 2',   c:'var(--pink)' },
-    4: { name:'รออนุมัติ',      c:'var(--amber-500)' },
-    5: { name:'อนุมัติแล้ว',    c:'var(--ok-green)' },
+    // สีเข้าชุดกับปุ่มกระบวนการ (ตาม WinForm): รอรับทราบ = ม่วงอ่อน / รอตรวจสอบ = ส้ม / รออนุมัติ = เขียว / อนุมัติแล้ว = น้ำเงิน (ไม่ซ้ำรออนุมัติ)
+    0: { name:'ส่งกลับแก้ไข',  c:'var(--safety-red)' },
+    1: { name:'รอรับทราบ',     c:'#b19cf5' },
+    2: { name:'รอตรวจสอบ 1',   c:'#f08c2e' },
+    3: { name:'รอตรวจสอบ 2',   c:'#f08c2e' },
+    4: { name:'รออนุมัติ',      c:'#34c27f' },
+    5: { name:'อนุมัติแล้ว',    c:'var(--sky-blue)' },
     9: { name:'ยกเลิก',        c:'var(--concrete-400)' }
   };
   // ขั้นตอน: key ใน doc.steps / สถานะที่รอขั้นนี้
@@ -1122,18 +1367,80 @@
 
   // สาเหตุการคืน: ต้องเลือกจากรายการเท่านั้น (ไม่ให้พิมพ์เอง เพื่อนำไปวิเคราะห์รายงานได้) — devsk.PkBuyRTCause ที่เปิดใช้งาน
   let REASONS = [];
-  // บันทึกเอกสารใหม่ = เขียนลง DB แล้ว / แก้ไข / รับทราบ / ตรวจสอบ / อนุมัติ / ยกเลิก ยังไม่เขียนลง DB (ทำในขั้นถัดไป) — false = แจ้งเตือนแทน
-  const DB_WRITE_READY = false;
   // สาเหตุการคืน: ชื่อ → id (ส่งไปบันทึก)
   let CAUSE_ID = {};
   // สิทธิ์ยกเลิกเอกสาร (supplier_return_cancel) — ไม่มีสิทธิ์ = ไม่แสดงปุ่มยกเลิก
   let CAN_CANCEL = false;
   // สิทธิ์จัดการสาเหตุการคืน (supplier_return_cause)
   let CAN_MANAGE_CAUSE = false;
+  // โหมดรับทราบ / ตรวจสอบ / อนุมัติ (null = หน้าทำเอกสาร) — สิทธิ์แต่ละขั้น / ผู้ใช้ปัจจุบัน (ตรวจสอบ 2 ต้องคนละคนกับตรวจสอบ 1)
+  const APV = RTS_APV_STEP;
+  // หน้าเอกสารใบเดียว (null = หน้ารายการ) / สิทธิ์ทำเอกสาร (supplier_return) = ปุ่มแก้ไขในหน้าเอกสาร
+  const DOC = RTS_DOC_ID;
+  let CAN_EDIT = false;
+  const APV_INFO = {
+    ack:     { name:'รับทราบ', btn:'รับทราบ',     cls:'btn-fill-violet',    menu:'รายการรอรับทราบ เอกสารส่งคืนสินค้า' },
+    check:   { name:'ตรวจสอบ', btn:'ตรวจสอบผ่าน', cls:'btn-fill-orange',    menu:'รายการรอตรวจสอบ เอกสารส่งคืนสินค้า' },
+    approve: { name:'อนุมัติ',  btn:'อนุมัติ',      cls:'btn-fill-green', menu:'รายการรออนุมัติ เอกสารส่งคืนสินค้า' }
+  };
+  const stepForStatus = (st) => st === 1 ? 'ack' : (st === 2 || st === 3) ? 'check' : st === 4 ? 'approve' : null;
+  let CAN_STEP = {}, ME = null;
+  const APV_SEL = new Set();
+  // กดผ่านขั้นนี้ได้ไหม (มีสิทธิ์ + เอกสารรอขั้นนี้ + ตรวจสอบ 2 ต้องไม่ใช่คนที่ตรวจสอบ 1)
+  const apvCanAct = (d, step = APV) => !!(step && CAN_STEP[step] && d && stepForStatus(d.status) === step && !(step === 'check' && d.status === 3 && d.check1By === ME));
+  // ลิงก์ส่งให้ผู้รับทราบ / ตรวจสอบ / อนุมัติ (ขั้นตามสถานะเอกสารตอนนี้)
+  const docLink = (d) => `${location.origin}/supplier-return-doc?id=${d.id}${stepForStatus(d.status) ? '&step=' + stepForStatus(d.status) : ''}`;
+  // ข้อความตามงาน (ส่ง LINE ให้ผู้รับทราบ / ตรวจสอบ / อนุมัติ) — ผู้รับรู้ว่าเรื่องอะไร มูลค่าเท่าไร ก่อนกดลิงก์
+  const SHARE_VERB = { 1:'รับทราบ', 2:'ตรวจสอบ', 3:'ตรวจสอบ', 4:'อนุมัติ' };
+  function shareText(d, items){
+    const ty = typeOf(d.type), t = docTotals(items || d.items || [], d.type);
+    return [`กรุณา${SHARE_VERB[d.status]}เอกสารส่งคืนสินค้า Supplier`,
+      `เลขที่เอกสาร: ${d.docNo}`,
+      `Supplier: ${d.supName || '-'}`,
+      `ประเภทการคืน: ${ty.short || ty.name}`,
+      `มูลค่าต้นทุน: ${fmtMoney(t.cost)} บาท${ty.credit ? ` · ยอดลดหนี้: ${fmtMoney(t.diff)} บาท` : ''}`,
+      `ลิงก์เอกสาร: ${docLink(d)}`].join('\n');
+  }
+  // คัดลอกลง clipboard — เบราว์เซอร์ไม่ให้ใช้ clipboard API (http / LINE in-app) = คัดลอกแบบเดิม
+  async function copyText(text, okMsg){
+    try { await navigator.clipboard.writeText(text); }
+    catch(err) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed; top:0; left:0; opacity:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      if(!ok) return showToast('คัดลอกอัตโนมัติไม่ได้ — เลือกข้อความแล้วคัดลอกเอง', true);
+    }
+    showToast(okMsg);
+  }
+  // popup ติดตามเอกสาร (ผู้ทำเอกสาร): ขั้นตอนทั้งหมด (ใครทำ / เมื่อไร) + ขั้นที่ค้าง + ข้อความพร้อมส่งให้ผู้ต้องดำเนินการ
+  const FL = { doc:null };
+  function openFollow(d, items){
+    FL.doc = { ...d, items: items || d.items || [] };
+    const ty = typeOf(d.type);
+    $('flTitle').innerHTML = `ติดตามเอกสาร <span class="fl-no">${esc(d.docNo)}</span>`;
+    $('flSub').innerHTML = `<span class="fl-k">Supplier:</span> ${esc(d.supName || '-')} &nbsp;·&nbsp; <span class="fl-k">ประเภทการคืน:</span> ${esc(ty.short || ty.name)}`;
+    // ขั้นตอนอนุมัติ (ไม่แสดงขั้นบันทึกรายการ)
+    $('flSteps').innerHTML = FLOW.slice(1).map(f => {
+      const x = (d.steps || {})[f.key];
+      const cls = x ? 'done' : d.status === f.waitSt ? 'wait' : 'todo';
+      return `<li class="${cls}"><span class="ic">${x ? svgIcon(ICON.check, 3.4) : ''}</span><span class="nm">${f.name}</span>
+        <span class="who">${x ? `${esc(x.by)} · ${thStamp(x.at)}` : cls === 'wait' ? 'รอดำเนินการ' : '-'}</span></li>`;
+    }).join('');
+    const pending = !!stepForStatus(d.status);
+    $('flText').value = pending ? shareText(FL.doc, FL.doc.items) : d.status === 0 ? 'เอกสารถูกส่งกลับแก้ไข — แก้ไขแล้วบันทึกก่อน จึงจะส่งข้อความตามรับทราบได้' : 'เอกสารนี้ไม่มีขั้นตอนที่รอดำเนินการแล้ว';
+    $('flCopyText').disabled = $('flCopyLink').disabled = !pending;
+    openModal('followModal');
+  }
+  const stLabel = (st) => (APV === 'check' || DOC) && (st === 2 || st === 3) ? 'รอตรวจสอบ' : STATUS[st].name;
   const CANCEL_NOTE_MAX = 500;
   // ยกเลิกได้ทุกสถานะจนกว่าคลังจะตัดสต๊อก (server เช็คการเบิกจริง) — อนุมัติแล้วยังยกเลิกไม่ได้จนกว่าจะมีเมนูอนุมัติ
-  const cancellable = (d) => CAN_CANCEL && d && d.status !== 9 && d.status !== 5;
-  const notReady = () => showToast('ส่วนนี้ยังไม่เชื่อมต่อฐานข้อมูล (จะทำในขั้นตอนถัดไป)', true);
+  //   (อนุมัติแล้วก็ยกเลิกได้ถ้าคลังยังไม่ตัดสต๊อก — server คืนยอด PO ให้) / หน้ารับทราบ-ตรวจสอบ-อนุมัติไม่มีปุ่มยกเลิก
+  // เอกสารลดหนี้ที่อนุมัติแล้ว (ปรับต้นทุน Lot แล้ว) ยกเลิกไม่ได้
+  const cancellable = (d) => !APV && CAN_CANCEL && d && d.status !== 9 && !(d.status === 5 && typeOf(d.type).credit);
   const MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   const DATE_PLACEHOLDER = 'วว/ดด/ปปปป';
 
@@ -1142,7 +1449,6 @@
 
   // เอกสารจาก /api/supplier-return/list (ตามช่วงวันที่ที่เลือก)
   let DOCS = [];
-  const st = (by, at) => ({ by, at });   // ขั้นตอนเอกสาร (ใช้ตอนบันทึก — เชื่อม DB ในขั้นถัดไป)
 
   /* ==================================================================
      Helpers
@@ -1154,6 +1460,8 @@
   const fmtMoney = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
   // จำนวน: ปกติ 2 ตำแหน่ง / ถ้ามีทศนิยมเกิน 2 ตำแหน่ง (เช่น เมล็ดดอกไม้น้ำหนักเบา) แสดงตามค่าที่เก็บ สูงสุด 6 ตำแหน่ง
   const fmtQty = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:6 });
+  // ราคาต่อหน่วยในใบเอกสาร: แสดงทศนิยมตามที่เก็บ (สูงสุด 4 ตำแหน่ง) ให้คูณจำนวนแล้วตรงกับมูลค่า
+  const fmtUnitPrice = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:4 });
   // ค่าคุณภาพเมล็ด: -1 = NN, -2 = WW, null = ว่าง (ข้อมูลยังเก็บเป็นตัวเลขเดิม เพื่อบันทึกลง DB)
   const QC_CODE = { '-1':'NN', '-2':'WW' };
   const fmtPct = (n) => n == null ? '' : (QC_CODE[Number(n)] || Number(n).toFixed(2));
@@ -1215,6 +1523,7 @@
     trash:'<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path>',
     box:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line>',
     po:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15l2 2 4-4"></path>',
+    link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>',
     coin:'<circle cx="12" cy="12" r="9"></circle><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .9-3 2s1.3 1.7 3 2 3 .9 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5"></path><line x1="12" y1="6" x2="12" y2="8"></line><line x1="12" y1="16" x2="12" y2="18"></line>'
   };
 
@@ -1243,7 +1552,7 @@
     renderList();
   });
   $('tabFormBtn').addEventListener('click', () => {
-    if($('formPage').classList.contains('active')) return;
+    if(APV || $('formPage').classList.contains('active')) return;
     newDoc();
   });
   window.addEventListener('beforeunload', (e) => { if(F.dirty){ e.preventDefault(); e.returnValue = ''; } });
@@ -1278,7 +1587,16 @@
      LIST
   ================================================================== */
   // period เริ่มต้น = เดือนปัจจุบัน / page = หน้าที่แสดง / viewKey = เงื่อนไขที่ใช้อยู่ (เปลี่ยนเมื่อไหร่กลับไปหน้า 1)
-  const L = { statusFilter:null, period:'month', open:new Set(), page:1, viewKey:'' };
+  // statusFilter: 'open' = งานค้างทั้งหมด (ตั้งต้น) / 0-4 = งานค้างตามสถานะ / 5, 9 = จบแล้ว (ตามช่วงวันที่) / 'range' = ทุกสถานะในช่วงวันที่
+  const L = { statusFilter:'open', period:'month', open:new Set(), page:1, viewKey:'' };
+  const DATE_VIEWS = [5, 9, 'range'];
+  const needsDate = () => !APV && DATE_VIEWS.includes(L.statusFilter);
+  // เอกสารตามกล่องสถานะ (server ส่งงานค้างมาทั้งหมด + เอกสารที่จบแล้วเฉพาะในช่วงวันที่)
+  function matchView(d, view){
+    if(view === 'open') return d.status <= 4;
+    if(view === 'range'){ const [from, to] = periodRange(); return d.docDate >= from && d.docDate <= to; }
+    return d.status === view;
+  }
   const PAGE_SIZE = 20;   // เอกสารต่อหน้า (แถวขยายดูไม่นับ)
 
   // ตัวเลือกบริษัท / ประเภท (เรียกหลังโหลด /api/companies + meta)
@@ -1300,10 +1618,9 @@
       loadList();
     });
     renderPeriodFields();
-    $('hideCancelled').addEventListener('change', renderList);
     $('fltClearBtn').addEventListener('click', () => {
       $('fltComp').value = ''; $('fltType').value = ''; $('fltSearch').value = '';
-      L.statusFilter = null;
+      L.statusFilter = 'open';
       renderList();
     });
     $('listRefreshBtn').addEventListener('click', loadList);
@@ -1352,12 +1669,12 @@
   // โหลดเอกสารตามช่วงวันที่ (server กรองบริษัทตามสิทธิ์ให้แล้ว)
   let listReq = 0;
   async function loadList(){
-    const [from, to] = periodRange();
-    if(!from || !to) return showToast('กรุณาระบุช่วงวันที่ให้ครบ', true);
+    const [from, to] = APV ? [] : periodRange();
+    if(!APV && (!from || !to)) return showToast('กรุณาระบุช่วงวันที่ให้ครบ', true);
     const my = ++listReq;
     $('listLoading').hidden = false;
     try {
-      const res = await fetch('/api/supplier-return/list?' + new URLSearchParams({ from, to }));
+      const res = await fetch(APV ? '/api/supplier-return/pending?step=' + APV : '/api/supplier-return/list?' + new URLSearchParams({ from, to }));
       const data = await res.json();
       if(my !== listReq) return;                        // มีการโหลดรอบใหม่แล้ว ทิ้งผลเก่า
       if(!data.success) throw new Error(data.message || 'โหลดข้อมูลไม่สำเร็จ');
@@ -1365,6 +1682,7 @@
       L.loadedAt = new Date();
       L.open = new Set([...L.open].filter(id => DOCS.some(d => d.id === id)));
       renderList();
+      if(L.restoreScroll){ window.scrollTo({ top:L.restoreScroll }); L.restoreScroll = 0; }
     } catch(err) {
       if(my !== listReq) return;
       console.error(err);
@@ -1382,7 +1700,7 @@
     const type = Number($('fltType').value) || null;
     const q = $('fltSearch').value.trim().toLowerCase();
     // กรอบสีส้มที่ช่องที่กำลังกรอง
-    $('fltClearBtn').disabled = !comp && !type && !q && L.statusFilter == null;
+    $('fltClearBtn').disabled = !comp && !type && !q && L.statusFilter === 'open';
     $('fltComp').classList.toggle('active', !!comp);
     $('fltType').classList.toggle('active', !!type);
     $('fltSearch').parentElement.classList.toggle('active', !!q);
@@ -1395,24 +1713,38 @@
     );
   }
 
+  const APV_CARDS = {};
   function renderDash(base){
-    const hideCancel = $('hideCancelled').checked;
-    const cards = [{ k:null, name:'ทั้งหมด', c:'var(--concrete-200)' }]
-      .concat(Object.entries(STATUS).filter(([k]) => !(hideCancel && k === '9')).map(([k,s]) => ({ k:Number(k), ...s })));
-    $('statusDash').innerHTML = cards.map(card => {
-      const rows = base.filter(d => card.k == null ? !(hideCancel && d.status === 9) : d.status === card.k);
-      return `<button type="button" class="dash-card ${rows.length ? '' : 'zero'} ${L.statusFilter === card.k ? 'active' : ''}" style="--c:${card.c}" data-st="${card.k ?? ''}">
-        <span class="lbl"><i></i>${card.name}</span>
-        <span class="val">${rows.length}<span class="unit">เอกสาร</span></span>
+    // ตัวกรองวันที่: แสดงเฉพาะกล่องที่ใช้วันที่ (อนุมัติแล้ว / ยกเลิก / ทั้งหมดในช่วงวันที่)
+    if(!APV) document.querySelector('.flt-date').hidden = !needsDate();
+    $('statusDash').hidden = !!APV;
+    if(APV) return;
+    const card = (k, name, c) => {
+      const n = base.filter(d => matchView(d, k)).length;
+      return `<button type="button" class="dash-card ${n ? '' : 'zero'} ${L.statusFilter === k ? 'active' : ''}" style="--c:${c}" data-st="${k}">
+        <span class="lbl"><i></i>${name}</span>
+        <span class="val">${n}<span class="unit">เอกสาร</span></span>
       </button>`;
-    }).join('');
+    };
+    const st = (k) => card(k, STATUS[k].name, STATUS[k].c);
+    $('statusDash').innerHTML = `
+      <div class="dash-group">
+        <div class="dash-glbl">อยู่ระหว่างกระบวนการ <small>ทุกช่วงวันที่</small></div>
+        <div class="dash">${card('open', 'ทั้งหมด', 'var(--concrete-200)')}${[0, 1, 2, 3, 4].map(st).join('')}</div>
+      </div>
+      <div class="dash-group">
+        <div class="dash-glbl">สิ้นสุดกระบวนการ <small>${esc(periodText())}</small></div>
+        <div class="dash">${st(5)}${st(9)}</div>
+      </div>
+      <div class="dash-group">
+        <div class="dash-glbl">รายงาน <small>${esc(periodText())}</small></div>
+        <div class="dash">${card('range', 'ทุกสถานะในช่วงวันที่', 'var(--amber-500)')}</div>
+      </div>`;
   }
   $('statusDash').addEventListener('click', (e) => {
     const b = e.target.closest('.dash-card');
     if(!b) return;
-    const k = b.dataset.st === '' ? null : Number(b.dataset.st);
-    L.statusFilter = (L.statusFilter === k) ? null : k;
-    if(k === null) L.statusFilter = null;
+    L.statusFilter = /^\d+$/.test(b.dataset.st) ? Number(b.dataset.st) : b.dataset.st;
     renderList();
   });
 
@@ -1443,9 +1775,8 @@
 
   // เอกสารตามตัวกรองทั้งหมด + การ์ดสถานะ + ซ่อนที่ยกเลิก เรียงวันที่ล่าสุดก่อน (ทุกหน้า — ใช้กับตาราง / Excel / พิมพ์)
   function visibleRows(base){
-    const hideCancel = $('hideCancelled').checked;
     return (base || baseFiltered())
-      .filter(d => L.statusFilter == null ? !(hideCancel && d.status === 9) : d.status === L.statusFilter)
+      .filter(d => matchView(d, L.statusFilter))
       .sort((a, b) => b.docDate.localeCompare(a.docDate) || b.docNo.localeCompare(a.docNo));
   }
 
@@ -1476,12 +1807,14 @@
 
   function renderList(){
     syncDetailWidth();
+    if(APV) setTimeout(renderApvBar);
     const base = baseFiltered();
     renderDash(base);
     const all = visibleRows(base);
     // เงื่อนไขเปลี่ยน = กลับไปหน้า 1 / รีเฟรชด้วยเงื่อนไขเดิม = อยู่หน้าเดิม
-    const key = JSON.stringify([periodRange(), $('fltComp').value, $('fltType').value, $('fltSearch').value.trim(), L.statusFilter, $('hideCancelled').checked]);
+    const key = JSON.stringify([periodRange(), $('fltComp').value, $('fltType').value, $('fltSearch').value.trim(), L.statusFilter]);
     if(key !== L.viewKey){ L.viewKey = key; L.page = 1; }
+    if(L.restorePage && L.loadedAt){ L.page = L.restorePage; L.restorePage = 0; }
     const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
     L.page = Math.min(Math.max(1, L.page), pages);
     const start = (L.page - 1) * PAGE_SIZE;
@@ -1491,21 +1824,28 @@
     pager.innerHTML = pager.hidden ? '' : pagerHtml(L.page, pages, start + 1, start + rows.length, all.length);
     $('listExcelBtn').disabled = $('listPrintBtn').disabled = !all.length;
     const at = L.loadedAt ? ` · Update ${L.loadedAt.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' })} น.` : '';
-    $('fltCount').innerHTML = `แสดง <b>${all.length}</b> จาก ${DOCS.length} เอกสาร${at}`;
+    $('fltCount').innerHTML = APV && !APV_CARDS[APV] ? `รอ${APV_INFO[APV].name} <b>${all.length}</b> เอกสาร${all.length !== DOCS.length ? ` (จากทั้งหมด ${DOCS.length})` : ''}${at}`
+      : `แสดง <b>${all.length}</b> เอกสาร${at}`;
     $('noDocMsg').hidden = all.length > 0;
     $('docListBody').innerHTML = rows.map(d => {
       const t = docTotals(d.items, d.type);
       const s = STATUS[d.status], ty = typeOf(d.type);
-      const editable = d.status >= 1 && d.status <= 3;
+      const editable = d.status <= 1;
       const open = L.open.has(d.id);
       return `<tr class="doc-row ${open ? 'open' : ''} ${d.status === 9 ? 'cancelled' : ''} ${L.flashId === d.id ? 'flash' : ''}" data-id="${d.id}">
           <td class="act"><div class="act-group">
             <button type="button" class="expander" data-act="expand" title="ดูรายการสินค้า">${svgIcon(ICON.chev, 2.4)}</button>
-            <button type="button" class="icon-btn" data-act="open" title="${editable ? 'เปิด / แก้ไข' : 'เปิดดู'}">${svgIcon(editable ? ICON.edit : ICON.eye)}</button>
-            <button type="button" class="icon-btn" data-act="print" title="พิมพ์เอกสาร (ทำในขั้นตอนถัดไป)" disabled>${svgIcon(ICON.print)}</button>
-            ${CAN_CANCEL ? `<button type="button" class="icon-btn danger" data-act="cancel" title="${d.status === 5 ? 'อนุมัติแล้ว — ยกเลิกไม่ได้' : d.status === 9 ? 'ยกเลิกแล้ว' : 'ยกเลิกเอกสาร'}" ${cancellable(d) ? '' : 'disabled'}>${svgIcon(ICON.ban)}</button>` : ''}
+            ${APV ? `<input type="checkbox" class="apv-chk" data-act="select" ${apvCanAct(d) ? '' : 'disabled'} ${APV_SEL.has(d.id) ? 'checked' : ''}
+                title="${apvCanAct(d) ? 'เลือกเพื่อ' + APV_INFO[APV].name + 'หลายใบพร้อมกัน' : (d.check1By === ME ? 'คุณตรวจสอบเอกสารนี้แล้ว — รอผู้ตรวจสอบอีกท่าน' : 'ทำขั้นนี้ไม่ได้')}">` : ''}
+            ${APV ? `<button type="button" class="icon-btn apv-open ${APV_INFO[APV].cls}" data-act="open" title="${APV_INFO[APV].name}" aria-label="${APV_INFO[APV].name}เอกสาร ${esc(d.docNo)}">${svgIcon(ICON.check, 2.8)}</button>`
+              : `<button type="button" class="icon-btn" data-act="open" title="${editable ? 'เปิด / แก้ไข' : 'เปิดดู'}">${svgIcon(editable ? ICON.edit : ICON.eye)}</button>`}
+            <button type="button" class="icon-btn" data-act="print" title="พิมพ์ใบเอกสาร">${svgIcon(ICON.print)}</button>
+            ${APV ? '' : `<button type="button" class="icon-btn" data-act="share" ${stepForStatus(d.status)
+              ? `title="ติดตามเอกสาร / ส่งข้อความตามผู้${APV_INFO[stepForStatus(d.status)].name} (LINE)"`
+              : `disabled title="${d.status === 0 ? 'ส่งกลับแก้ไข — แก้ไขแล้วบันทึกก่อน จึงจะส่งข้อความตามรับทราบได้' : 'ไม่มีขั้นตอนที่รอดำเนินการ'}"`}>${svgIcon(ICON.link)}</button>`}
+            ${CAN_CANCEL && !APV ? `<button type="button" class="icon-btn danger" data-act="cancel" title="${d.status === 5 ? 'อนุมัติแล้ว — ยกเลิกไม่ได้' : d.status === 9 ? 'ยกเลิกแล้ว' : 'ยกเลิกเอกสาร'}" ${cancellable(d) ? '' : 'disabled'}>${svgIcon(ICON.ban)}</button>` : ''}
           </div></td>
-          <td class="ctr"><span class="badge" style="--c:${s.c}">${s.name}</span></td>
+          <td class="ctr"><span class="badge" style="--c:${s.c}">${stLabel(d.status)}</span></td>
           <td class="ctr"><span class="co-pill" title="${esc(d.compName)}">${esc(d.compCode || d.compName || '-')}</span></td>
           <td class="doc-no">${esc(d.docNo)}</td>
           <td class="ctr">${thDate(d.docDate)}</td>
@@ -1556,9 +1896,14 @@
     if(!tr) return;
     const d = DOCS.find(x => x.id === Number(tr.dataset.id));
     const act = e.target.closest('[data-act]')?.dataset.act || 'expand';
+    if(act === 'select'){
+      e.target.checked ? APV_SEL.add(d.id) : APV_SEL.delete(d.id);
+      return renderApvBar();
+    }
     if(act === 'open') return openDoc(d.id);
+    if(act === 'share') return openFollow(d);
     if(act === 'cancel') return cancelDoc(d);
-    if(act === 'print') return;
+    if(act === 'print') return printDocById(d.id);
     L.open.has(d.id) ? L.open.delete(d.id) : L.open.add(d.id);
     renderList();
   });
@@ -1597,11 +1942,12 @@
       data = { success:false, message:'เชื่อมต่อ server ไม่สำเร็จ — ยังไม่ได้ยกเลิก กรุณาลองใหม่' };
     }
     if(!data.success){
-      if(data.code === 'DOC_CHANGED') loadList();   // ข้อมูลในรายการเก่าแล้ว — โหลดใหม่ให้เห็นสถานะล่าสุด
+      if(data.code === 'DOC_CHANGED') DOC ? loadDocPage() : loadList();   // ข้อมูลในรายการเก่าแล้ว — โหลดใหม่ให้เห็นสถานะล่าสุด
       return confirmBox({ title:'ยกเลิกเอกสารไม่สำเร็จ', ok:'ตกลง', cancel:null, body:`<p class="confirm-note">${esc(data.message || 'ยกเลิกไม่สำเร็จ')}</p>` });
     }
     showToast(`ยกเลิกเอกสาร ${data.docNo} แล้ว${data.waitCutCancelled ? ' — ยกเลิกรายการรอเบิกแล้ว' : ''}`);
     IP.cache = null;
+    if(DOC) return loadDocPage();
     if(F.doc && F.doc.id === d.id){ F.dirty = false; showTab('list'); }
     L.flashId = d.id;
     setTimeout(() => { L.flashId = null; }, 6000);
@@ -1740,18 +2086,21 @@
   ================================================================== */
   const stepName = (d, key) => d.steps[key] ? `${d.steps[key].by} (${thStamp(d.steps[key].at)})` : '';
   // ข้อความเงื่อนไขที่ใช้อยู่ (หัวรายงาน / ชื่อไฟล์)
-  function filterSummary(){
+  // ช่วงวันที่ที่เลือก (ข้อความสั้น) — กล่องจบแล้ว / หัวรายงาน
+  function periodText(){
     const [from, to] = periodRange();
-    let period = '';
-    if(L.period === 'month') period = `${MONTHS[Number($('pMonth').value) - 1]} ${Number($('pYear').value) + 543}`;
-    else if(L.period === 'year') period = `ปี ${Number($('pYear').value) + 543}`;
-    else period = `${thDate(from)} – ${thDate(to)}`;
+    if(L.period === 'month') return `${MONTHS[Number($('pMonth').value) - 1]} ${Number($('pYear').value) + 543}`;
+    if(L.period === 'year') return `ปี ${Number($('pYear').value) + 543}`;
+    return `${thDate(from)} – ${thDate(to)}`;
+  }
+  function filterSummary(){
+    const period = needsDate() ? periodText() : 'ทุกช่วงวันที่ (อยู่ระหว่างกระบวนการ)';
     const sel = (id) => $(id).value ? $(id).options[$(id).selectedIndex].text : '';
     return {
       period,
       comp: sel('fltComp') || 'ทุกบริษัท',
       type: sel('fltType') || 'ทุกประเภท',
-      status: L.statusFilter == null ? ($('hideCancelled').checked ? 'ทุกสถานะ (ไม่รวมที่ยกเลิก)' : 'ทุกสถานะ') : STATUS[L.statusFilter].name,
+      status: L.statusFilter === 'open' ? 'อยู่ระหว่างกระบวนการทั้งหมด' : L.statusFilter === 'range' ? 'ทุกสถานะ' : STATUS[L.statusFilter].name,
       q: $('fltSearch').value.trim()
     };
   }
@@ -1799,9 +2148,9 @@
   // พิมพ์รายงาน (A4 แนวนอน): 1 บล็อก = 1 เอกสาร — หัวเอกสาร (ไม่มีสถานะ) + ตารางรายการสินค้า + รวมเอกสาร / ท้ายรายงาน = สรุปรวม
   //   เอกสารที่ยกเลิก (กรณีปิดสวิตช์ซ่อนที่ยกเลิก) แสดงไว้พร้อมป้ายยกเลิก แต่ไม่นับรวมยอด
   // โลโก้บริษัทตาม idComp (แหล่งเดียวกับใบร้องขอเมล็ดพันธุ์เร่งด่วน)
-  const LOGO_BASE_URL = 'http://seedsgroup.dyndns.org/spm/Center/Logo/';
+  const LOGO_BASE_URL = 'https://seedsgroup.dyndns.org/spm/Center/Logo/';
   function waitForImage(img){
-    if(!img || (img.complete && img.naturalWidth > 0)) return Promise.resolve();
+    if(!img || img.complete){ if(img && !img.naturalWidth) img.style.display = 'none'; return Promise.resolve(); }
     return new Promise(resolve => {
       let done = false;
       const finish = (ok) => { if(done) return; done = true; if(!ok) img.style.display = 'none'; resolve(); };
@@ -1812,12 +2161,12 @@
   }
   // ท้ายกระดาษทุกหน้า: ลิงก์ (ซ้าย) / พิมพ์เมื่อ + ผู้พิมพ์ (กลาง) / หน้า x / y (ขวา) — browser นับหน้าให้เอง (counter(page) / counter(pages))
   //   ใส่ในขอบกระดาษด้านล่าง: browser จะไม่พิมพ์ท้ายกระดาษของตัวเองทับ / ขอบบน = 0 จึงไม่มีหัวกระดาษของ browser
-  function setPrintFooter(left, center){
+  function setPrintFooter(left, center, orient = 'landscape'){
     const css = (t) => '"' + String(t).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
     let st = document.getElementById('pdPageStyle');
     if(!st){ st = document.createElement('style'); st.id = 'pdPageStyle'; document.head.appendChild(st); }
     const box = 'font-family:Inter,Tahoma,sans-serif; font-size:8.5pt; color:#555; vertical-align:middle; border-top:0.5pt solid #bbb;';
-    st.textContent = `@page{size:A4 landscape; margin:0 0 10mm 0;
+    st.textContent = `@page{size:A4 ${orient}; margin:0 0 10mm 0;
       @bottom-left{content:${css(left)}; ${box} text-align:left; padding-left:10mm;}
       @bottom-center{content:${css(center)}; ${box} text-align:center;}
       @bottom-right{content:"หน้า " counter(page) " / " counter(pages); ${box} text-align:right; padding-right:10mm;}}`;
@@ -1825,6 +2174,7 @@
   $('listPrintBtn').addEventListener('click', async () => {
     const rows = visibleRows();
     if(!rows.length) return;
+    $('printArea').className = 'print-doc';
     const fsum = filterSummary();
     let sumCost = 0, sumBuy = 0, sumCredit = 0, nCancel = 0;
     const blocks = rows.map((d, i) => {
@@ -1884,7 +2234,7 @@
         <h1 class="pd-title">รายงานการส่งคืนสินค้า/ลดหนี้ Supplier</h1>
       </div>
       <p class="pd-cond"><b>ช่วงวันที่เอกสาร:</b> ${esc(fsum.period)} &nbsp;·&nbsp; <b>บริษัท:</b> ${esc(fsum.comp)} &nbsp;·&nbsp; <b>ประเภทการคืน:</b> ${esc(fsum.type)}
-        ${L.statusFilter != null ? ` &nbsp;·&nbsp; <b>สถานะ:</b> ${esc(fsum.status)}` : ''}${fsum.q ? ` &nbsp;·&nbsp; <b>ค้นหา:</b> ${esc(fsum.q)}` : ''} &nbsp;·&nbsp; <b>จำนวน:</b> ${rows.length} เอกสาร</p>
+        &nbsp;·&nbsp; <b>สถานะ:</b> ${esc(fsum.status)}${fsum.q ? ` &nbsp;·&nbsp; <b>ค้นหา:</b> ${esc(fsum.q)}` : ''} &nbsp;·&nbsp; <b>จำนวน:</b> ${rows.length} เอกสาร</p>
       ${blocks}
       <table class="pd-grand">
         <thead><tr><th>สรุปรวม</th><th>จำนวนเอกสาร</th><th>มูลค่าต้นทุนรวม</th><th>มูลค่าตามราคาใหม่รวม</th><th>ยอดลดหนี้รวม</th></tr></thead>
@@ -1903,11 +2253,232 @@
   window.addEventListener('afterprint', () => document.body.classList.remove('printing'));
 
   /* ==================================================================
+     ใบเอกสาร (ดูบนจอ / พิมพ์ A4 แนวตั้ง) — template เดียวกัน
+       ไม่แสดงสถานะในใบ (สถานะ / ไทม์ไลน์ / ส่งกลับแก้ไข อยู่ในแถบด้านบน) ยกเว้นลายน้ำ "ยกเลิก"
+       ช่องลงนาม: ชื่อ / ตำแหน่ง (ตำแหน่งปัจจุบันในระบบ) / วันที่ ขึ้นเมื่อกดขั้นนั้นแล้ว + รูปลายเซ็นตาม idPs (ไม่มีรูป = ว่างไว้เซ็นเอง)
+  ================================================================== */
+  const ESIGN_URL = (idPs) => `https://seedsgroup.dyndns.org/spm/images/eSign/${encodeURIComponent(idPs)}.png`;
+  // ชื่อเอกสารตามประเภท: คืน-ทดแทน = ใบส่งคืนสินค้า / คืน-ลดหนี้ = ใบส่งคืนสินค้า/ใบขอลดหนี้ / ไม่คืน-ลดหนี้ = ใบขอลดหนี้
+  //   ไม่ใช้ "ใบลดหนี้" เพราะใบลดหนี้ (Credit Note) เป็นเอกสารที่ Supplier ออกให้เรา
+  function paperTitle(ty){
+    if(!ty.credit) return { th:'ใบส่งคืนสินค้า', en:'Purchase Return' };
+    return ty.returnGoods ? { th:'ใบส่งคืนสินค้า/ใบขอลดหนี้', en:'Purchase Return / Credit Note Request' } : { th:'ใบขอลดหนี้', en:'Credit Note Request' };
+  }
+  // ช่องลงนาม 6 ช่อง (2 แถว x 3) — ฝ่ายบัญชีไม่อยู่ในขั้นตอนของระบบ: เส้นว่างให้เซ็นบนกระดาษ
+  const SIGNS = [
+    { key:'create', name:'ผู้จัดทำ' }, { key:'ack', name:'ผู้รับทราบ' }, { key:null, name:'ฝ่ายบัญชี' },
+    { key:'chk1', name:'ผู้ตรวจสอบ 1' }, { key:'chk2', name:'ผู้ตรวจสอบ 2' }, { key:'appr', name:'ผู้อนุมัติ' }
+  ];
+  // จำนวนเงินเป็นตัวอักษร (บาท / สตางค์)
+  function bahtText(n){
+    const D = ['','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'], P = ['','สิบ','ร้อย','พัน','หมื่น','แสน'];
+    const read = (str) => {
+      str = str.replace(/^0+/, '');
+      if(!str) return '';
+      if(str.length > 6) return read(str.slice(0, -6)) + 'ล้าน' + read(str.slice(-6));
+      let out = '';
+      for(let i = 0; i < str.length; i++){
+        const dg = Number(str[i]), pos = str.length - i - 1;
+        if(!dg) continue;
+        out += (pos === 0 && dg === 1 && str.length > 1) ? 'เอ็ด' : (pos === 1 && dg === 2) ? 'ยี่' : (pos === 1 && dg === 1) ? '' : D[dg];
+        out += P[pos];
+      }
+      return out;
+    };
+    const st = Math.round(Math.abs(Number(n) || 0) * 100), baht = Math.floor(st / 100), sat = st % 100;
+    const txt = (baht ? read(String(baht)) + 'บาท' : (sat ? '' : 'ศูนย์บาท')) + (sat ? read(String(sat)) + 'สตางค์' : 'ถ้วน');
+    return (Number(n) < 0 ? 'ลบ' : '') + txt;
+  }
+  function paperHtml(d, items){
+    const ty = typeOf(d.type), credit = !!ty.credit, t = docTotals(items, d.type), title = paperTitle(ty);
+    const comp = COMPANIES.find(c => c.id === d.comp);
+    const ci = d.compInfo || {}, si = d.supInfo || {};
+    // จังหวัด: เติมเมื่อในที่อยู่ยังไม่มี "จ.xxx / จังหวัดxxx" (ชื่ออำเภออาจมีชื่อจังหวัดอยู่ เช่น อ.เมืองปทุมธานี) — กรุงเทพฯ ไม่ใส่ "จ."
+    const withProv = (addr, prov) => {
+      if(!prov) return addr;
+      const bkk = /กรุงเทพ/.test(prov);
+      const has = bkk ? addr.includes(prov) : (addr.includes('จ.' + prov) || addr.includes('จ. ' + prov) || addr.includes('จังหวัด' + prov));
+      return has ? addr : `${addr} ${bkk ? '' : 'จ.'}${prov}`;
+    };
+    const withPost = (addr, post) => !post || addr.includes(post) ? addr : `${addr} ${post}`;
+    const coAddr = ci.address ? withPost(withProv(ci.address.trim(), ci.province), ci.postCode) : '';
+    const coAddrEn = ci.addressEn ? withPost(ci.addressEn.trim(), ci.postCode) : '';
+    const coContact = [ci.tel ? `โทร ${esc(ci.tel)}` : '', ci.fax ? `แฟกซ์ ${esc(ci.fax)}` : '', ci.taxId ? `เลขประจำตัวผู้เสียภาษี ${esc(ci.taxId)}` : '']
+      .filter(Boolean).join(' &nbsp;·&nbsp; ');
+    const supAddr = si.address ? withProv(si.address, si.province) : '';
+    const units = [...new Set(items.map(it => it.unit || ''))];
+    const qcList = (it) => [['Genetic Purity', it.gp], ['AA-Test', it.aa], ['ความงอกกระดาษ', it.gpPaper], ['ความงอก Media', it.gpMedia]];
+    const cols = credit ? [4,36,9,6,9,9,9,9,9] : [5,48,11,8,13,15];
+    const qtyLbl = ty.returnGoods ? 'จำนวนคืน' : 'จำนวนลดหนี้';
+    const heads = ['#', 'รายการ', qtyLbl, 'หน่วย', 'ต้นทุน/หน่วย',
+      ...(credit ? ['มูลค่าต้นทุน', 'ราคาใหม่/หน่วย', 'มูลค่าตาม ราคาใหม่', 'ยอดลดหนี้'] : ['จำนวนเงิน'])];
+    const rows = items.map((it, i) => {
+      const c = lineCalc(it, d.type);
+      // คุณภาพเมล็ด: แสดงเฉพาะค่าที่มี (ไม่มีเลย = ไม่มีบรรทัดคุณภาพ เช่น สินค้าที่ไม่ใช่เมล็ด)
+      const qc = qcList(it).filter(([, v]) => v != null).map(([l, v]) => `${l} <b>${fmtPct(v)}</b>`).join(' · ');
+      return `<tbody class="pi"><tr>
+          <td class="ctr no">${i + 1}</td>
+          <td><span class="nm"><span class="mno">${i + 1}. </span>${esc(it.name)}</span>
+            <span class="s"><span class="kv"><span class="lb">Lot No.:</span> <b>${esc(it.lot || '-')}</b></span></span>
+            <span class="s"><span class="kv"><span class="lb">อ้างอิง PO No.:</span> <b>${esc(it.po || '-')}</b></span> <span class="kv"><span class="lb">อ้างอิง Invoice:</span> <b>${esc(it.inv || '-')}</b></span></span>
+            <span class="s"><span class="lb">สาเหตุ:</span> ${esc(it.reason || '-')}</span>
+            ${qc ? `<span class="s"><span class="lb">คุณภาพ:</span> ${qc}</span>` : ''}</td>
+          <td class="num" data-l="${qtyLbl}"><span>${fmtQty(it.qty)}<span class="mu"> ${esc(it.unit || '')}</span></span></td>
+          <td class="ctr unit">${esc(it.unit || '')}</td>
+          <td class="num" data-l="ต้นทุน/หน่วย">${it.cost == null ? '-' : fmtUnitPrice(it.cost)}</td>
+          ${credit ? `<td class="num" data-l="มูลค่าต้นทุน">${fmtMoney(c.cost)}</td><td class="num" data-l="ราคาใหม่/หน่วย">${fmtUnitPrice(it.price)}</td>
+            <td class="num" data-l="มูลค่าตามราคาใหม่">${fmtMoney(c.buy)}</td><td class="num" data-l="ยอดลดหนี้">${fmtMoney(c.diff)}</td>`
+            : `<td class="num" data-l="จำนวนเงิน">${fmtMoney(c.cost)}</td>`}
+        </tr></tbody>`;
+    });
+    const tr = (l, v, g) => `<tr class="${g ? 'g' : ''}"><td>${l}</td><td class="num">${v}</td></tr>`;
+    const grand = credit ? t.diff : t.cost;
+    const totals = (units.length === 1 && units[0] ? tr('รวมจำนวน', `${fmtQty(t.qty)} ${esc(units[0])}`) : '')
+      + (credit ? tr('รวมมูลค่าต้นทุน', fmtMoney(t.cost)) + tr('รวมมูลค่าตามราคาใหม่', fmtMoney(t.buy)) + tr('ยอดขอลดหนี้สุทธิ (บาท)', fmtMoney(t.diff), true)
+                : tr('รวมมูลค่าสินค้าส่งคืน (บาท)', fmtMoney(t.cost), true));
+    const sign = (sg) => {
+      const x = sg.key ? (d.steps || {})[sg.key] : null;
+      return `<div class="rp-sign">
+        <div class="sg">${x && x.id ? `<img src="${ESIGN_URL(x.id)}" alt="" onerror="this.remove()">` : ''}</div>
+        <div class="n">${x ? `(${esc(x.full || x.by)})` : '<span class="blank">(..........................................)</span>'}</div>
+        <div class="p">${x ? esc(x.pos || '-') : '<span class="blank">ตำแหน่ง ..................................</span>'}</div>
+        <div class="t">${sg.name}</div>
+        <div class="d">${x ? 'วันที่ ' + thDate(x.at) : '<span class="blank">วันที่ ........./........./.........</span>'}</div>
+      </div>`;
+    };
+    const pageNo = (p, n) => n > 1 ? `<div class="pg">หน้า ${p} / ${n}</div>` : '';
+    const head = (p, n) => `
+      <div class="rp-head">
+        <div class="rp-title"><div class="th">${title.th}</div><div class="en">${title.en}</div>${pageNo(p, n)}</div>
+        <div class="rp-co">
+          <img class="rp-logo" src="${LOGO_BASE_URL + encodeURIComponent(d.comp)}.jpg" alt="" onerror="this.parentNode.classList.add('nologo'); this.remove()">
+          <div class="rp-co-txt">
+            <div class="rp-co-name">${esc(comp ? comp.name : (d.compName || ''))}</div>
+            ${ci.nameEn ? `<div class="rp-co-en">${esc(ci.nameEn)}</div>` : ''}
+            ${coAddr ? `<div class="rp-co-l">${esc(coAddr)}</div>` : ''}
+            ${coAddrEn ? `<div class="rp-co-l">${esc(coAddrEn)}</div>` : ''}
+            ${coContact ? `<div class="rp-co-l">${coContact}</div>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="rp-info">
+        <div class="rp-box">
+          <div><span class="k">ชื่อผู้จำหน่าย (Supplier):</span> <span class="v">${esc(d.supName || '-')}</span></div>
+          <div><span class="k">ที่อยู่:</span> <span class="v rp-n">${esc(supAddr || '-')}</span></div>
+          ${si.phone ? `<div><span class="k">โทร:</span> <span class="v rp-n">${esc(si.phone)}</span></div>` : ''}
+          <div><span class="k">เลขประจำตัวผู้เสียภาษี:</span> <span class="v rp-n">${esc(si.taxId || '-')}</span></div>
+        </div>
+        <div class="rp-box">
+          <div><span class="k">เลขที่เอกสาร:</span> <span class="v">${esc(d.docNo)}</span></div>
+          <div><span class="k">${ty.returnGoods ? 'วันที่คืนสินค้า' : 'วันที่ขอลดหนี้'}:</span> <span class="v">${thDate(d.returnDate)}</span></div>
+          <div><span class="k">ประเภทการคืน:</span> <span class="v">${esc(ty.name)}${d.noCostAdj ? ' (ไม่ปรับต้นทุน)' : ''}</span></div>
+          <div><span class="k">ผู้ดำเนินการ:</span> <span class="v">${esc(d.operatorFull || d.operatorName || '-')}</span></div>
+        </div>
+      </div>`;
+    const table = (rowsHtml) => `<div class="rp-tbl"><table class="rp-items">
+        <colgroup>${cols.map(w => `<col style="width:${w}%">`).join('')}</colgroup>
+        <thead><tr>${heads.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+        ${rowsHtml}
+        <tbody class="rp-fill"><tr>${cols.map(() => '<td></td>').join('')}</tr></tbody>
+      </table></div>`;
+    const foot = `
+      <div class="rp-foot">
+        <div class="rp-note">
+          <div><span class="k">หมายเหตุ:</span> ${esc(d.remark || '-')}</div>
+          <div class="rp-words">(${bahtText(grand)})</div>
+        </div>
+        <table class="rp-tot">${totals}</table>
+      </div>
+      <div class="rp-signs">${SIGNS.map(sign).join('')}</div>`;
+    const cont = '<div class="rp-cont">มีต่อหน้าถัดไป</div>';
+    const voidMark = d.status === 9 ? '<div class="rp-void"><span>ยกเลิก</span></div>' : '';
+    if(!rows.length) rows.push(`<tbody class="pi"><tr><td colspan="${cols.length}" class="ctr">ไม่มีรายการ</td></tr></tbody>`);
+    // 1 หน้า: rows = รายการของหน้านั้น / last = หน้าสุดท้าย (มียอดรวม + ลายเซ็น) / p, n = เลขหน้า
+    const page = (pageRows, last, p, n, cls = '') => `<div class="rp ${cls}">${voidMark}${head(p, n)}${table(pageRows.join(''))}${last ? foot : cont}</div>`;
+    return { rows, page, all: page(rows, true, 1, 1) };
+  }
+
+  // แบ่งหน้าแบบฟอร์ม ERP: ทุกหน้ามีหัวเอกสาร + หัวตาราง / หน้าที่ไม่ใช่หน้าสุดท้าย = "มีต่อหน้าถัดไป" / หน้าสุดท้าย = ยอดรวม + ลายเซ็นชิดล่าง
+  //   วัดความสูงจริงที่ความกว้าง A4 (นอกจอ) แล้วใส่รายการทีละแถวจนเต็มพื้นที่ (269 มม. = A4 297 − ขอบบน 12 − ขอบล่าง 16)
+  const MM = 96 / 25.4;
+  async function paperPages(d, items){
+    const P = paperHtml(d, items);
+    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    const box = document.createElement('div');
+    box.style.cssText = 'position:absolute; left:-10000px; top:0; width:210mm; visibility:hidden;';
+    box.innerHTML = P.page(P.rows, true, 1, 2, 'rp-page rp-measure') + P.page(P.rows.slice(0, 1), false, 1, 2, 'rp-page rp-measure');
+    document.body.appendChild(box);
+    const [full, contPage] = box.children;
+    const rect = (el) => el.getBoundingClientRect();
+    const tbl = full.querySelector('.rp-tbl'), top = rect(full).top + parseFloat(getComputedStyle(full).paddingTop);
+    const headH = rect(tbl).top - top + rect(full.querySelector('thead')).height + 2;
+    const rowH = [...full.querySelectorAll('tbody.pi')].map(b => rect(b).height);
+    const footH = rect(full.querySelector('.rp-signs')).bottom - rect(tbl).bottom;
+    const contH = rect(contPage.querySelector('.rp-cont')).bottom - rect(contPage.querySelector('.rp-tbl')).bottom;
+    box.remove();
+    const avail = 269 * MM - 6;
+    const sum = (a, b) => rowH.slice(a, b).reduce((x, y) => x + y, 0);
+    const ranges = [];
+    for(let i = 0; i < rowH.length;){
+      if(headH + sum(i, rowH.length) + footH <= avail){ ranges.push([i, rowH.length]); break; }
+      let j = i, h = headH + contH;
+      while(j < rowH.length && h + rowH[j] <= avail){ h += rowH[j]; j++; }
+      if(j === i) j = i + 1;                                  // แถวเดียวสูงเกินหน้า: ให้ล้นไป (ดีกว่าวนไม่จบ)
+      if(j >= rowH.length){                                   // ที่เหลือใส่หน้านี้ได้ แต่ยอดรวม + ลายเซ็นไม่พอ → ย้ายแถวสุดท้ายไปหน้าถัดไป
+        if(j - 1 > i) j--;
+        else { ranges.push([i, j]); ranges.push([j, j]); break; }
+      }
+      ranges.push([i, j]);
+      i = j;
+    }
+    const n = ranges.length;
+    return ranges.map(([a, b], k) => P.page(P.rows.slice(a, b), k === n - 1, k + 1, n, 'rp-page')).join('');
+  }
+  // ใบเอกสารบนจอ / พิมพ์: จอกว้าง = แผ่น A4 แบ่งหน้าตามที่จะพิมพ์ / มือถือ = แผ่นเดียวยาว (รายการเป็นการ์ด)
+  const narrowPaper = () => window.matchMedia('(max-width:760px)').matches;
+  async function renderPaper(el, d, items, paged = !narrowPaper()){
+    el.innerHTML = paged ? await paperPages(d, items) : paperHtml(d, items).all;
+    fitPaper(el);
+  }
+  // พิมพ์ใบเอกสาร (A4 แนวตั้ง) — รอโลโก้ / ลายเซ็นโหลดก่อน (โหลดไม่ได้ = ว่างไว้)
+  // ยืดแถวว่างท้ายตาราง ให้ตาราง (เส้นคอลัมน์) ยาวถึงยอดรวมด้านล่าง — กล่อง .rp-tbl ยืดเต็มพื้นที่ที่เหลือของหน้าอยู่แล้ว
+  function fitPaper(root){
+    root.querySelectorAll('.rp-page .rp-tbl').forEach(box => {
+      const cell = box.querySelector('tbody.rp-fill td');
+      if(!cell) return;
+      cell.style.height = '0px';
+      const gap = box.getBoundingClientRect().height - box.querySelector('table').getBoundingClientRect().height;
+      cell.style.height = Math.max(0, Math.floor(gap) - 4) + 'px';
+    });
+  }
+  async function printDoc(d, items){
+    const pa = $('printArea');
+    pa.className = 'rp-print';
+    pa.innerHTML = await paperPages(d, items);
+    setPrintFooter(d.docNo, `พิมพ์เมื่อ ${thStamp(nowStamp())}  ·  ผู้พิมพ์ ${currentUserName()}`, 'portrait');
+    await Promise.all([...pa.querySelectorAll('img')].map(waitForImage));
+    document.body.classList.add('printing');
+    // ยืดตารางแต่ละหน้า: วัดตอนแสดงขนาด A4 นอกจอ (printArea ซ่อนอยู่บนจอ)
+    pa.style.cssText = 'display:block; position:absolute; left:-10000px; top:0; width:210mm;';
+    fitPaper(pa);
+    pa.style.cssText = '';
+    window.print();
+  }
+  async function printDocById(id){
+    try {
+      const doc = (await getJson('/api/supplier-return/doc/' + id)).data;
+      await printDoc({ ...(DOCS.find(x => x.id === id) || {}), ...doc }, doc.items);
+    } catch(err) {
+      showToast(err.message || 'โหลดเอกสารไม่สำเร็จ', true);
+    }
+  }
+
+  /* ==================================================================
      FORM
   ================================================================== */
   // F = สถานะของฟอร์ม (doc = null คือเอกสารใหม่)
-  const F = { doc:null, comp:null, sup:null, supName:'', returnDate:todayISO(), type:null, operator:null, remark:'', items:[], dirty:false };
-  const formEditable = () => !F.doc || F.doc.status === 1;
+  const F = { doc:null, comp:null, sup:null, supName:'', returnDate:todayISO(), type:null, operator:null, remark:'', items:[], noCostAdj:false, dirty:false };
+  const formEditable = () => !APV && (!F.doc || F.doc.status <= 1);
 
   function fillFormCompanies(){
     $('fCompany').innerHTML = COMPANIES.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
@@ -1933,6 +2504,7 @@
     $('fSupplierPick').addEventListener('click', pickSupplier);
     $('fOperatorPick').addEventListener('click', pickOperator);
     $('openItemPickerBtn').addEventListener('click', openItemPicker);
+    $('fNoCostAdj').addEventListener('change', (e) => { F.noCostAdj = e.target.checked; markDirty(); renderEffects(); });
     $('typeCards').addEventListener('click', (e) => {
       const b = e.target.closest('.type-card');
       if(b && !b.disabled) setType(Number(b.dataset.type));
@@ -1964,7 +2536,7 @@
   }
   // ฟอร์มเปล่าสำหรับเอกสารใหม่ (ไม่เปลี่ยนแท็บ)
   function resetForm(){
-    Object.assign(F, { doc:null, comp:defaultCompany(), sup:null, supName:'', returnDate:todayISO(), type:null, remark:'', items:[], dirty:false });
+    Object.assign(F, { doc:null, comp:defaultCompany(), sup:null, supName:'', returnDate:todayISO(), type:null, remark:'', items:[], noCostAdj:false, dirty:false });
     // ผู้ดำเนินการเริ่มต้น = ผู้ใช้ที่ login อยู่
     F.operator = null;
     try {
@@ -1974,8 +2546,14 @@
     IP.cache = null;
     renderForm();
   }
+  // ไปหน้าเอกสาร (จำตัวกรอง / หน้าของรายการไว้ กลับมาแล้วเหมือนเดิม)
+  function goDoc(id){
+    saveListState();
+    location.href = '/supplier-return-doc?id=' + id + (APV ? '&step=' + APV : '');
+  }
   async function openDoc(id){
     const listDoc = DOCS.find(x => x.id === id);
+    if(APV || (listDoc && listDoc.status > 1)) return goDoc(id);
     let doc;
     try {
       doc = (await getJson('/api/supplier-return/doc/' + id)).data;
@@ -1983,10 +2561,11 @@
       return showToast(err.message || 'เปิดเอกสารไม่สำเร็จ', true);
     }
     // ไทม์ไลน์ / ข้อมูลการยกเลิก ใช้จากหน้ารายการ / สถานะ + stamp ใช้ค่าล่าสุดจาก DB
-    const d = { ...(listDoc || {}), id:doc.id, docNo:doc.docNo, comp:doc.comp, sup:doc.sup, supName:doc.supName, type:doc.type, status:doc.status, stamp:doc.stamp };
+    const d = { ...(listDoc || {}), ...doc };
+    if(d.status > 1) return goDoc(id);
     Object.assign(F, { doc:d, comp:doc.comp, sup:doc.sup, supName:doc.supName || '', returnDate:doc.returnDate, type:doc.type, remark:doc.remark,
       operator:doc.operator ? { id:doc.operator, name:doc.operatorName || '-', nick:'' } : null,
-      items:doc.items, dirty:false });
+      items:doc.items, noCostAdj:!!doc.noCostAdj, dirty:false });
     IP.cache = null;
     renderForm();
     showTab('form');
@@ -2027,18 +2606,35 @@
     const d = F.doc, el = $('docStrip');
     el.hidden = !d;
     if(!d) return;
+    el.style.setProperty('--c', STATUS[d.status].c);
+    el.innerHTML = stripHtml(d);
+  }
+  // แถบแจ้งการส่งกลับแก้ไข: รอผู้ทำเอกสารแก้ (สถานะส่งกลับแก้ไข) / แก้แล้วส่งรับทราบใหม่ (ให้ผู้รับทราบรู้ว่าเคยถูกส่งกลับเพราะอะไร)
+  function sendBackHtml(d){
+    const b = d.sendBack;
+    if(!b || d.status > 1) return '';
+    return d.status === 0
+      ? `<div class="ds-sendback"><b>ถูกส่งกลับแก้ไข</b> โดย ${esc(b.by)}${b.at ? ` · ${thStamp(b.at)}` : ''} — ${esc(b.reason)}</div>`
+      : `<div class="ds-sendback"><b>แก้ไขแล้ว ส่งรับทราบใหม่</b> — เคยถูกส่งกลับโดย ${esc(b.by)}: ${esc(b.reason)}</div>`;
+  }
+  function stripHtml(d, { docNo = true, link = true } = {}){
     const st = STATUS[d.status];
     const step = FLOW.find(x => x.waitSt === d.status);
     const hint = d.status === 9 ? `ยกเลิกโดย ${esc(d.cancel.by)} · ${thStamp(d.cancel.at)}${d.cancel.reason ? ` — ${esc(d.cancel.reason)}` : ''}`
       : d.status === 5 ? 'อนุมัติแล้ว — ดูได้อย่างเดียว'
-      : d.status === 4 ? 'ตรวจดูข้อมูลแล้วกด "อนุมัติ" — แก้ไขข้อมูลไม่ได้ในขั้นนี้'
+      : DOC ? ''
+      : APV ? `รอ${step.name} — ดูได้อย่างเดียว (แก้ไขไม่ได้ ถ้าต้องแก้ให้ส่งกลับแก้ไข)`
+      : d.status === 4 ? 'รออนุมัติ — แก้ไขข้อมูลไม่ได้'
+      : d.status === 0 ? 'แก้ไขตามเหตุผลที่ส่งกลับ แล้วกดบันทึก — เอกสารจะกลับไปรอรับทราบ'
       : d.status === 1 ? 'แก้ไขได้จนกว่าจะมีการรับทราบ (บริษัท / Supplier เปลี่ยนไม่ได้)'
       : `รอ${step.name} — มีการรับทราบแล้ว แก้ไขข้อมูลไม่ได้`;
-    el.style.setProperty('--c', st.c);
-    el.innerHTML = `<b class="ds-no">${esc(d.docNo)}</b>
-      <span class="badge" style="--c:${st.c}">${st.name}</span>
+    const follow = link && stepForStatus(d.status) ? `<button type="button" class="btn btn-neutral-soft btn-sm ds-link" data-copy-link title="ดูขั้นตอน + คัดลอกข้อความ / ลิงก์ ส่งให้ผู้${APV_INFO[stepForStatus(d.status)].name}">${svgIcon(ICON.link, 2.2)} ติดตาม / ส่งข้อความตาม${APV_INFO[stepForStatus(d.status)].name}</button>` : '';
+    // ถูกส่งกลับแก้ไข (แสดงจนกว่าจะรับทราบรอบใหม่)
+    const back = sendBackHtml(d);
+    return `${docNo ? `<b class="ds-no">${esc(d.docNo)}</b>` : ''}
+      <span class="badge" style="--c:${st.c}">${stLabel(d.status)}</span>
       ${approvalCell(d)}
-      <span class="ds-hint">${hint}</span>`;
+      ${hint ? `<span class="ds-hint">${hint}</span>` : ''}${follow}${back}`;
   }
 
   // คำอธิบายประเภท (PkBuyRTType.TypeDesc): ขึ้นบรรทัดใหม่ตามข้อความใน DB / บรรทัดที่มี "=" (สูตร) แสดงสีเด่น
@@ -2047,8 +2643,12 @@
       .map(l => `<span class="${l.includes('=') ? 'tc-formula' : 'tc-line'}">${esc(l.trim())}</span>`).join('');
   }
 
+  const noCostAllowed = (type) => !!type && typeOf(type).credit && !typeOf(type).returnGoods;
   function renderTypeCards(){
     const ed = formEditable();
+    $('noCostWrap').hidden = !noCostAllowed(F.type);
+    $('fNoCostAdj').checked = !!F.noCostAdj;
+    $('fNoCostAdj').disabled = !ed;
     $('typeCards').innerHTML = Object.entries(TYPES).map(([k, t]) => `
       <button type="button" class="type-card ${F.type === Number(k) ? 'selected' : ''}" data-type="${k}" style="--c:${t.c}" ${ed ? '' : 'disabled'}>
         <span class="tc-ic">${svgIcon(t.icon)}</span>
@@ -2081,6 +2681,7 @@
       F.items.forEach(it => { if(it.onHand != null && it.qty > limitFor(it)) it.qty = limitFor(it); });
     }
     F.type = k;
+    if(!noCostAllowed(k)) F.noCostAdj = false;
     markDirty();
     renderTypeCards();
     renderItems();
@@ -2135,7 +2736,7 @@
           <div><span class="lbl">เลขที่เอกสารรับ</span><span class="v">${esc(it.rec) || '-'}</span></div>
           <div><span class="lbl">เลขที่ใบส่งของ</span><span class="v">${esc(it.inv) || '-'}</span></div>
         </div></td>
-        <td class="wrap">${esc(it.name)}${it.onHand != null && it.onHand <= 0 ? '<span class="soldout-pill">หมดแล้ว</span>' : ''}${it.cost == null ? '<span class="nocost-pill" title="Lot นี้ยังไม่มีต้นทุนต่อหน่วย — แก้ต้นทุนของ Lot ก่อนจึงจะบันทึกได้">ไม่มีต้นทุน</span>' : ''}
+        <td class="wrap">${esc(it.name)}${it.onHand != null && it.onHand <= 0 ? '<span class="soldout-pill">หมดแล้ว</span>' : ''}${it.cost == null ? '<span class="nocost-pill" title="Lot นี้ยังไม่มีต้นทุนต่อหน่วย — แก้ต้นทุนของ Lot ก่อนจึงจะบันทึกได้">ไม่มีต้นทุน</span>' : ''}${it.creditAdj ? `<span class="adj-pill" title="ต้นทุน Lot นี้ถูกปรับจากการลดหนี้ ${esc(it.creditAdj.doc)} (${fmtUnitPrice(it.creditAdj.from)} → ${fmtUnitPrice(it.creditAdj.to)}) — ตรวจสอบต้นทุน / ราคาใหม่ก่อนบันทึก">เคยลดหนี้ ${esc(it.creditAdj.doc)}</span>` : ''}
           <div class="it-sub"><span><span class="lbl">Lot No.</span><span class="lot">${esc(it.lot) || '-'}</span></span><span><span class="lbl">คลัง</span><span class="wh">${esc(it.store) || '-'}</span></span></div></td>
         <td class="num">${qtyStr(it.rcvQty)}</td>
         <td class="num onhand ${it.onHand != null && it.onHand <= 0 ? 'zero' : ''}">${qtyStr(it.onHand)}${it.pendingQty > 0 ? `<span class="pend-hint" title="จองในเอกสารส่งคืนอื่นที่ยังไม่อนุมัติ (หักจากคงเหลือแล้ว)">รอคืน ${fmtQty(it.pendingQty)}</span>` : ''}</td>
@@ -2237,17 +2838,13 @@
     if(!d){
       html = `<button type="button" class="btn btn-secondary" data-do="reset">ล้างฟอร์ม</button>
               <button type="button" class="btn btn-primary" data-do="save">${IC(ICON.check)} บันทึก</button>`;
-    } else if(d.status >= 1 && d.status <= 3){
-      const step = FLOW.find(f => f.waitSt === d.status);
+    } else if(d.status <= 1){
       html = `<button type="button" class="btn btn-secondary" data-do="close">ปิด</button>
-              ${d.status === 1 ? `<button type="button" class="btn btn-primary" data-do="save">${IC(ICON.check)} บันทึกแก้ไข</button>` : ''}
-              <button type="button" class="btn btn-info" data-do="step">${IC(ICON.check)} บันทึก${step.name}</button>`;
-    } else if(d.status === 4){
-      html = `<button type="button" class="btn btn-secondary" data-do="close">ปิด</button>
-              <button type="button" class="btn btn-success" data-do="step">${IC(ICON.check)} อนุมัติ</button>`;
+              <button type="button" class="btn btn-primary" data-do="save">${IC(ICON.check)} บันทึกแก้ไข</button>`;
     } else {
       html = `<button type="button" class="btn btn-secondary" data-do="close">ปิด</button>`;
     }
+    if(d) html = `<button type="button" class="btn btn-neutral-soft" data-do="print" title="พิมพ์ใบเอกสาร (A4)">${svgIcon(ICON.print, 2.2)} พิมพ์</button>` + html;
     if(d && cancellable(d)) html = `<button type="button" class="btn btn-danger" data-do="cancel" style="margin-right:auto">${svgIcon(ICON.ban, 2.2)} ยกเลิกเอกสาร</button>` + html;
     $('sumActions').innerHTML = html;
   }
@@ -2268,26 +2865,38 @@
       if(F.dirty && !(await confirmBox({ title:'ยกเลิกเอกสาร', body:'<p class="confirm-note">มีข้อมูลที่แก้ไขไว้แต่ยังไม่บันทึก — ต้องการยกเลิกเอกสารต่อหรือไม่?</p>', ok:'ดำเนินการต่อ', okClass:'btn-danger-solid' }))) return;
       cancelDoc(F.doc);
     }
-    if(act === 'step') doStep();
+    if(act === 'print'){
+      if(F.dirty) return showToast('มีข้อมูลที่แก้ไขแต่ยังไม่บันทึก — บันทึกก่อนพิมพ์', true);
+      return printDoc(F.doc, F.items);
+    }
   });
+  // ติดตามเอกสาร (ฟอร์มแก้ไข): popup ขั้นตอน + ข้อความพร้อมส่งให้ผู้รับทราบ
+  $('docStrip').addEventListener('click', (e) => {
+    if(e.target.closest('[data-copy-link]') && F.doc) openFollow(F.doc, F.items);
+  });
+  $('flCopyText').addEventListener('click', () => FL.doc && copyText($('flText').value, 'คัดลอกข้อความแล้ว — วางส่งใน LINE ได้เลย'));
+  $('flCopyLink').addEventListener('click', () => FL.doc && copyText(docLink(FL.doc), 'คัดลอกลิงก์แล้ว'));
 
   function renderEffects(){
-    const ty = F.type ? typeOf(F.type) : null;
-    const t = docTotals(F.items, F.type);
-    const pos = [...new Set(F.items.map(it => it.po))];
-    const stores = [...new Set(F.items.map(it => it.store))];
-    const eff = (on, c, icon, title, desc) => `<div class="effect ${on ? '' : 'off'}" style="--c:${c}"><span class="ef-ic">${svgIcon(icon)}</span><div><div class="ef-title">${title}</div><div class="ef-desc">${desc}</div></div></div>`;
-    if(!ty){
-      $('effects').innerHTML = `<p class="empty-msg" style="grid-column:1/-1; padding:14px">เลือกประเภทการคืน เพื่อดูว่าระบบจะทำอะไรบ้างเมื่ออนุมัติ</p>`;
-      return;
-    }
-    $('effects').innerHTML =
+    $('effects').innerHTML = effectsHtml(F.type, F.items, F.sup ? F.supName : '', F.noCostAdj);
+  }
+  function effectsHtml(type, items, supName, noCostAdj){
+    const ty = type ? typeOf(type) : null;
+    const t = docTotals(items, type);
+    const pos = [...new Set(items.map(it => it.po))];
+    const stores = [...new Set(items.map(it => it.store))];
+    // จำนวน Lot ที่ปรับปรุงต้นทุนตอนอนุมัติ (ไม่นับส่งคืน-ลดหนี้ราคาใหม่ 0 = คืนเงินเต็ม ไม่ปรับ)
+    const costLots = ty && ty.credit ? new Set(items.filter(it => !(ty.returnGoods && !Number(it.price))).map(it => it.idLot || it.lot)).size : 0;
+    // ไม่เกิดขึ้นกับประเภทนี้ = แสดงแค่หัวข้อ (ไม่มีรายละเอียด กันเข้าใจผิดว่าระบบจะทำ)
+    const eff = (on, c, icon, title, desc) => `<div class="effect ${on ? '' : 'off'}" style="--c:${c}"><span class="ef-ic">${svgIcon(icon)}</span><div><div class="ef-title">${title}</div>${on ? `<div class="ef-desc">${desc}</div>` : ''}</div></div>`;
+    if(!ty) return `<p class="empty-msg" style="grid-column:1/-1; padding:14px">เลือกประเภทการคืน เพื่อดูว่าระบบจะทำอะไรบ้างเมื่ออนุมัติ</p>`;
+    return (
       eff(ty.returnGoods, 'var(--safety-red)', ICON.box, 'ส่งรายการไปรอเบิกออกจากคลัง',
-        F.items.length ? `<b>${F.items.length}</b> รายการ จาก ${stores.length} คลัง (${stores.map(esc).join(', ')})` : 'ยังไม่มีรายการ') +
-      eff(ty.replace, 'var(--teal)', ICON.po, 'หักยอดรับของ PO → กลับไปรอรับสินค้าทดแทน',
+        items.length ? `<b>${items.length}</b> รายการ จาก ${stores.length} คลัง (${stores.map(esc).join(', ')})` : 'ยังไม่มีรายการ') +
+      eff(ty.replace, 'var(--teal)', ICON.po, 'คืนยอดรับของจาก PO → รอรับสินค้าทดแทน',
         pos.length ? `PO: <b>${pos.map(esc).join(', ')}</b>` : 'ยังไม่มีรายการ') +
-      eff(ty.credit, 'var(--amber-500)', ICON.coin, 'บันทึกยอดลดหนี้ Supplier',
-        `ยอดลดหนี้ <b>${fmtMoney(t.diff)}</b> บาท${F.sup ? ` · ${esc(F.supName)}` : ''}`);
+      eff(ty.credit, 'var(--amber-500)', ICON.coin, 'บันทึกยอดลดหนี้-ปรับปรุงต้นทุน',
+        `ยอดลดหนี้ <b>${fmtMoney(t.diff)}</b> บาท${supName ? ` · ${esc(supName)}` : ''}${noCostAdj ? '<br>ลดหนี้เฉพาะส่วนที่ใช้ไปแล้ว — <b>ไม่ปรับต้นทุน Lot</b>' : costLots ? `<br>ปรับปรุงต้นทุน <b>${costLots}</b> Lot No.` : ''}`));
   }
 
   /* ---------- ตรวจข้อมูลก่อนบันทึก ---------- */
@@ -2319,9 +2928,6 @@
     return !errs.length;
   }
 
-  function writeBack(d){
-    Object.assign(d, { comp:F.comp, sup:F.sup, returnDate:F.returnDate, type:F.type, remark:F.remark, operator:F.operator?.id, items:F.items.map(it => ({ ...it })) });
-  }
 
   async function saveDoc(){
     if(!validate()) return;
@@ -2361,7 +2967,7 @@
     const btn = document.querySelector('#sumActions [data-do="save"]');
     if(btn){ btn.disabled = true; btn.dataset.label = btn.innerHTML; btn.textContent = 'กำลังบันทึก...'; }
     const body = {
-      idComp:F.comp, typeId:F.type, idSup:F.sup, idPsRT:F.operator?.id, returnDate:F.returnDate, note:F.remark,
+      idComp:F.comp, typeId:F.type, idSup:F.sup, idPsRT:F.operator?.id, returnDate:F.returnDate, note:F.remark, noCostAdj:noCostAllowed(F.type) && !!F.noCostAdj,
       items:F.items.map(it => ({ idBuyRTDt:it.idBuyRTDt || null, idRefLot:it.idRefLot, idPODt:it.idPODt, idRecDt:it.idRecDt, qty:it.qty, price:it.price,
         idCause:CAUSE_ID[it.reason] || it.causeId || null, seenOnHand:it.onHand, seenUsedQty:it.usedQty }))
     };
@@ -2441,40 +3047,227 @@
     }).then(() => document.querySelector('#itemsBody tr.stock-changed')?.scrollIntoView({ behavior:'smooth', block:'center' }));
   }
 
-  // รับทราบ / ตรวจสอบ 1 / ตรวจสอบ 2 / อนุมัติ
-  async function doStep(){
-    const d = F.doc;
-    const step = FLOW.find(f => f.waitSt === d.status);
-    const isAppr = step.key === 'appr';
-    if(!isAppr && !validate()) return;
-    if(!DB_WRITE_READY) return notReady();
-    const t = docTotals(F.items, F.type);
-    const ty = F.type ? typeOf(F.type) : null;
+  /* ==================================================================
+     รับทราบ / ตรวจสอบ / อนุมัติ / ส่งกลับแก้ไข (โหมด /supplier-return-approve)
+     หลายใบ: ส่งทีละใบ แต่ละใบบันทึกแยกกัน ใบไหนไม่ผ่าน (เช่น มีคนกดไปก่อน / หน่วยแปลงไม่ได้) แจ้งเป็นรายใบ
+  ================================================================== */
+  function renderApvBar(){
+    if(!APV) return;
+    const can = DOCS.filter(d => apvCanAct(d));
+    [...APV_SEL].forEach(id => { if(!can.some(d => d.id === id)) APV_SEL.delete(id); });
+    const btn = $('apvBulkBtn');
+    btn.disabled = !APV_SEL.size;
+    btn.innerHTML = `${svgIcon(ICON.check, 2.4)} ${APV_INFO[APV].btn}ที่เลือก${APV_SEL.size ? ` (${APV_SEL.size})` : ''}`;
+    $('apvAll').checked = can.length > 0 && can.every(d => APV_SEL.has(d.id));
+    $('apvAll').disabled = !can.length;
+  }
+  async function apvRun(docs, step = APV){
+    const info = APV_INFO[step];
+    const single = docs.length === 1;
+    const t = docs.reduce((a, d) => { const x = docTotals(d.items || [], d.type); a.cost += x.cost; a.diff += x.diff; return a; }, { cost:0, diff:0 });
+    const replace = docs.filter(d => typeOf(d.type).replace);
     const ok = await confirmBox({
-      title:`${isAppr ? 'อนุมัติ' : 'บันทึก' + step.name} เอกสาร ${d.docNo}`,
-      ok: isAppr ? 'อนุมัติเอกสาร' : `ยืนยัน${step.name}`, okClass: isAppr ? 'btn-success' : 'btn-info',
-      body:`<dl class="confirm-sum">
-          <dt>Supplier</dt><dd>${esc(F.supName)}</dd>
-          <dt>ประเภทการคืน</dt><dd>${esc(ty.name)}</dd>
-          <dt>มูลค่าต้นทุน</dt><dd>${fmtMoney(t.cost)} บาท</dd>
-          ${ty.credit ? `<dt>ยอดลดหนี้</dt><dd style="color:var(--amber-500); font-weight:700">${fmtMoney(t.diff)} บาท</dd>` : ''}
-        </dl>
-        ${isAppr ? `<p class="confirm-note">เมื่ออนุมัติ ระบบจะดำเนินการต่อไปนี้ และแก้ไขเอกสารไม่ได้อีก:</p>
+      title: single ? `${info.name}เอกสาร ${docs[0].docNo}` : `${info.name}เอกสาร ${docs.length} ใบ`,
+      ok: single ? info.btn : `${info.btn} ${docs.length} ใบ`, okClass: info.cls,
+      body: `${single ? `<dl class="confirm-sum">
+            <dt>Supplier</dt><dd>${esc(docs[0].supName || '-')}</dd>
+            <dt>ประเภทการคืน</dt><dd>${esc(typeOf(docs[0].type).name)}</dd>
+            <dt>มูลค่าต้นทุน</dt><dd>${fmtMoney(t.cost)} บาท</dd>
+            ${typeOf(docs[0].type).credit ? `<dt>ยอดลดหนี้</dt><dd style="color:var(--amber-500); font-weight:700">${fmtMoney(t.diff)} บาท</dd>` : ''}
+          </dl>` : `<ul class="confirm-list">${docs.map(d => `<li><b>${esc(d.docNo)}</b> ${esc(d.supName || '')} — ${esc(typeOf(d.type).short || typeOf(d.type).name)}</li>`).join('')}</ul>`}
+        ${step === 'approve' ? `<p class="confirm-note">เมื่ออนุมัติ ระบบจะดำเนินการต่อไปนี้ และแก้ไขเอกสารไม่ได้อีก:</p>
           <ul class="confirm-list">
-            ${ty.returnGoods ? `<li>ส่ง ${F.items.length} รายการไปรอเบิกออกจากคลัง</li>` : ''}
-            ${ty.replace ? `<li>หักยอดรับของ PO ${[...new Set(F.items.map(it => it.po))].map(esc).join(', ')} ให้กลับไปรอรับสินค้าทดแทน</li>` : ''}
-            ${ty.credit ? `<li>บันทึกยอดลดหนี้ ${fmtMoney(t.diff)} บาท</li>` : ''}
-          </ul>`
-          : (F.dirty ? '<p class="confirm-note">การแก้ไขในฟอร์มจะถูกบันทึกไปพร้อมกัน</p>' : '')}`
+            ${docs.some(d => typeOf(d.type).returnGoods) ? '<li>ส่งรายการไปรอเบิกออกจากคลัง</li>' : ''}
+            ${replace.length ? `<li>คืนยอดรับของจาก PO → รอรับสินค้าทดแทน${single ? '' : ` (${replace.length} ใบ)`}</li>` : ''}
+            ${docs.some(d => typeOf(d.type).credit && !d.noCostAdj) ? '<li>บันทึกยอดลดหนี้-ปรับปรุงต้นทุน Lot (ต้นทุนเฉลี่ยตามคงเหลือในคลัง)</li>' : ''}
+            ${docs.some(d => d.noCostAdj) ? '<li>บันทึกยอดลดหนี้ — ลดหนี้เฉพาะส่วนที่ใช้ไปแล้ว ไม่ปรับต้นทุน Lot</li>' : ''}
+          </ul>` : ''}`
     });
     if(!ok) return;
-    if(!isAppr) writeBack(d);
-    d.steps[step.key] = st(currentUserName(), nowStamp());
-    d.status = d.status + 1;
-    F.dirty = false;
-    showToast(`${isAppr ? 'อนุมัติ' : 'บันทึก' + step.name} เอกสาร ${d.docNo} แล้ว`);
-    showTab('list');
-    renderList();
+    const fails = [];
+    let done = 0;
+    for(const d of docs){
+      try {
+        const res = await fetch(`/api/supplier-return/doc/${d.id}/step`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ step, stamp:d.stamp }) });
+        const data = await res.json();
+        if(data.success) done++; else fails.push({ d, msg:data.message || 'ไม่สำเร็จ' });
+      } catch(err) { fails.push({ d, msg:'เชื่อมต่อ server ไม่สำเร็จ' }); }
+    }
+    APV_SEL.clear();
+    afterApvAction(done ? `${info.name}เอกสาร${single ? ' ' + docs[0].docNo : ' ' + done + ' ใบ'} แล้ว` : '', fails);
+  }
+  async function sendBackDoc(d, step = APV){
+    const ok = await confirmBox({
+      title:`ส่งกลับแก้ไขเอกสาร ${d.docNo}`, ok:'ส่งกลับแก้ไข', okClass:'btn-danger-solid',
+      body:`<p class="confirm-note">เอกสารจะกลับไปรอรับทราบ ผู้ทำเอกสารแก้ไขแล้วเริ่มขั้นตอนใหม่ (การรับทราบ / ตรวจสอบที่ผ่านมาจะถูกล้าง)</p>
+        <label class="lbl" for="sendBackReason">เหตุผล / สิ่งที่ต้องแก้<span class="req">*</span></label>
+        <textarea id="sendBackReason" maxlength="500" placeholder="ระบุสิ่งที่ต้องแก้ไข (มากกว่า 5 ตัวอักษร)..."></textarea>`,
+      validate:() => {
+        const v = $('sendBackReason').value.trim();
+        const okv = v.length > 5 && v !== '0' && v !== '-';
+        $('sendBackReason').classList.toggle('field-err', !okv);
+        if(!okv) showToast('กรุณาระบุเหตุผลให้ชัดเจน (มากกว่า 5 ตัวอักษร)', true);
+        return okv;
+      }
+    });
+    if(!ok) return;
+    const reason = $('sendBackReason').value.trim();
+    let data;
+    try {
+      const res = await fetch(`/api/supplier-return/doc/${d.id}/send-back`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ step, reason }) });
+      data = await res.json();
+    } catch(err) { data = { success:false, message:'เชื่อมต่อ server ไม่สำเร็จ' }; }
+    afterApvAction(data.success ? `ส่งกลับแก้ไขเอกสาร ${d.docNo} แล้ว` : '', data.success ? [] : [{ d, msg:data.message || 'ไม่สำเร็จ' }]);
+  }
+  // หลังกด: แจ้งผล → หน้าเอกสาร = โหลดใบนั้นใหม่ (เห็นสถานะล่าสุด) / หน้ารายการรอ = โหลดรายการใหม่ (ใบที่ทำแล้วหายจากรายการ)
+  async function afterApvAction(okMsg, fails){
+    if(fails.length){
+      await confirmBox({ title: okMsg ? 'บางเอกสารทำไม่สำเร็จ' : 'ทำไม่สำเร็จ', ok:'ตกลง', cancel:null,
+        body:`${okMsg ? `<p class="confirm-note">${esc(okMsg)}</p>` : ''}<ul class="confirm-list">${fails.map(x => `<li><b>${esc(x.d.docNo)}</b> — ${esc(x.msg).replace(/\n/g, '<br>')}</li>`).join('')}</ul>` });
+    } else if(okMsg) showToast(okMsg);
+    if(DOC) return loadDocPage();
+    await loadList();
+  }
+
+  /* ==================================================================
+     หน้าเอกสาร (/supplier-return-doc?id=) — ที่เดียวสำหรับดู / พิมพ์ / รับทราบ / ตรวจสอบ / อนุมัติ / ส่งกลับแก้ไข / ยกเลิก
+       ลิงก์ไม่ระบุขั้น: ปุ่มขึ้นตามสถานะเอกสาร + สิทธิ์ของคนที่เปิด (ลิงก์เดิมใช้ได้ทุกขั้น)
+  ================================================================== */
+  const V = { doc:null };
+  function setupDocMode(){
+    document.title = 'WIM — เอกสารส่งคืนสินค้า/ลดหนี้ Supplier';
+    document.querySelector('main > h1').textContent = 'เอกสารส่งคืนสินค้า/ลดหนี้ Supplier';
+    document.querySelector('main > .eyebrow').textContent = 'Purchase Return · เอกสาร';
+    document.querySelector('main').classList.add('doc-mode');
+    document.querySelector('main > h1').insertAdjacentHTML('afterend', '<p class="doc-sub" id="docSub" hidden></p>');
+    document.querySelector('.tab-bar').hidden = true;
+    document.querySelector('.mock-note').hidden = true;
+    $('listPage').classList.remove('active');
+    $('formPage').classList.remove('active');
+    $('docView').classList.add('active');
+  }
+  async function loadDocPage(){
+    if(!DOC) return showDocState('ลิงก์เอกสารไม่ถูกต้อง (ไม่มีเลขที่เอกสาร)');
+    try {
+      const doc = (await getJson('/api/supplier-return/doc/' + DOC)).data;
+      V.doc = doc;
+      if(V.entryStep === undefined){
+        const q = new URLSearchParams(location.search).get('step');
+        V.entryStep = APV_INFO[q] ? q : stepForStatus(doc.status);
+        // จำขั้นไว้ใน URL: รีเฟรชแล้วยังเป็นขั้นเดิม (ไม่กลายเป็นปุ่มของขั้นถัดไป)
+        if(!APV_INFO[q] && V.entryStep){
+          const u = new URL(location.href);
+          u.searchParams.set('step', V.entryStep);
+          history.replaceState(null, '', u);
+        }
+      }
+      renderDocPage();
+    } catch(err) {
+      showDocState(err.message || 'โหลดเอกสารไม่สำเร็จ');
+    }
+  }
+  const BACK_BTN = `<button type="button" class="btn btn-fill-gray" data-vw="back">‹ กลับหน้ารายการ</button>`;
+  function showDocState(msg){
+    V.doc = null;
+    $('vwStrip').hidden = true;
+    $('vwEffects').hidden = true;
+    $('vwPaper').innerHTML = `<div class="vw-state">${esc(msg)}</div>`;
+    $('vwBar').style.removeProperty('--c');
+    $('vwActions').innerHTML = BACK_BTN;
+  }
+  function renderDocPage(){
+    const d = V.doc;
+    // หัวหน้า = กระบวนการที่เอกสารรออยู่ (รับทราบ / ตรวจสอบ / อนุมัติ) + เลขที่เอกสาร — อนุมัติแล้ว / ยกเลิก = เอกสารเฉยๆ
+    const verb = V.entryStep ? APV_INFO[V.entryStep].name : '';
+    document.querySelector('main > h1').textContent = verb + 'เอกสารส่งคืนสินค้า/ลดหนี้ Supplier';
+    document.querySelector('main > .eyebrow').textContent = 'Purchase Return · ' + (verb || 'เอกสาร');
+    $('docSub').hidden = false;
+    $('docSub').innerHTML = `เลขที่เอกสาร <b>${esc(d.docNo)}</b>`;
+    document.title = 'WIM — ' + (verb ? verb + ' ' : '') + d.docNo;
+    const step = stepForStatus(d.status), info = step ? APV_INFO[step] : null;
+    // ทำไมไม่มีปุ่มให้กด (ไม่มีสิทธิ์ / ตรวจสอบไปแล้ว / อนุมัติแล้ว / ยกเลิกแล้ว)
+    const why = d.status === 9 ? 'เอกสารนี้ยกเลิกแล้ว'
+      : d.status === 5 ? 'เอกสารนี้อนุมัติแล้ว'
+      : d.status === 0 ? 'ส่งกลับแก้ไขแล้ว — รอผู้ทำเอกสารแก้ไขแล้วบันทึก จึงจะกลับมารอรับทราบ'
+      : V.entryStep && step !== V.entryStep ? `ขั้น${APV_INFO[V.entryStep].name}เสร็จแล้ว — ตอนนี้เอกสาร${stLabel(d.status)}`
+      : !CAN_STEP[step] ? `คุณไม่มีสิทธิ์${info.name}เอกสารนี้`
+      : (step === 'check' && d.status === 3 && d.check1By === ME) ? 'คุณตรวจสอบเอกสารนี้แล้ว — รอผู้ตรวจสอบอีกท่าน'
+      : '';
+    $('vwBar').style.setProperty('--c', STATUS[d.status].c);
+    // แถวที่ 2 (มีเมื่อมีเรื่องต้องแจ้ง): เหตุผลที่ไม่มีปุ่ม / ยกเลิกโดย / ถูกส่งกลับแก้ไข
+    const notes = [
+      d.status === 9 && d.cancel ? `<span class="ds-hint">ยกเลิกโดย ${esc(d.cancel.by)} · ${thStamp(d.cancel.at)}${d.cancel.reason ? ` — ${esc(d.cancel.reason)}` : ''}</span>` : '',
+      sendBackHtml(d)
+    ].join('');
+    $('vwStrip').hidden = !notes;
+    $('vwStrip').innerHTML = notes;
+    renderPaper($('vwPaper'), d, d.items);
+    // ผลเมื่ออนุมัติ: ให้ผู้อนุมัติเห็นก่อนกด (รออนุมัติ / อนุมัติแล้ว)
+    const eff = d.status === 4 || d.status === 5;
+    $('vwEffects').hidden = !eff;
+    $('vwEffectsList').innerHTML = eff ? effectsHtml(d.type, d.items, d.supName, d.noCostAdj) : '';
+    // ปุ่ม: [กลับหน้ารายการ] ... [พิมพ์] [ส่งกลับแก้ไข] [ผ่าน] — แก้ไข / ยกเลิก ทำที่หน้ารายการหลัก (ตามสิทธิ์)
+    let right = `<button type="button" class="btn btn-fill-slate" data-vw="print" title="พิมพ์ใบเอกสาร (A4)">${svgIcon(ICON.print, 2.2)} พิมพ์</button>`;
+    if(step === V.entryStep && apvCanAct(d, step)){
+      right += `<button type="button" class="btn btn-fill-red" data-vw="sendback">ส่งกลับแก้ไข</button>
+        <button type="button" class="btn ${info.cls}" data-vw="apv">${svgIcon(ICON.check, 2.4)} ${info.btn}</button>`;
+    }
+    // แถวเดียว: [กลับ] จุดขั้นตอน (ไม่มีป้ายสถานะ — หัวข้อบอกขั้นอยู่แล้ว) ... ปุ่ม
+    $('vwActions').innerHTML = BACK_BTN + `<div class="vw-steps">${approvalCell(d)}</div>${why ? `<span class="vw-why">${esc(why)}</span>` : ''}<div class="vw-right">${right}</div>`;
+  }
+  window.matchMedia('(max-width:760px)').addEventListener('change', () => { if(V.doc) renderPaper($('vwPaper'), V.doc, V.doc.items); });
+  // กลับหน้ารายการ: มาจากหน้ารายการ = ย้อนกลับ (ตัวกรองเดิม) / เปิดจากลิงก์ = รายการรอขั้นที่เอกสารอยู่ (ถ้ามีสิทธิ์) → รายการหลัก → หน้าหลัก
+  function backToList(){
+    try {
+      const ref = new URL(document.referrer);
+      if(ref.origin === location.origin && /^\/supplier-return(-approve)?$/.test(ref.pathname) && history.length > 1) return history.back();
+    } catch(e) {}
+    const step = V.doc ? stepForStatus(V.doc.status) : null;
+    location.href = step && CAN_STEP[step] ? '/supplier-return-approve?step=' + step : CAN_EDIT ? '/supplier-return' : '/main-menu';
+  }
+  $('vwActions').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-vw]');
+    if(!b) return;
+    const act = b.dataset.vw, d = V.doc;
+    if(act === 'back') return backToList();
+    if(!d) return;
+    if(act === 'print') printDoc(d, d.items);
+    if(act === 'apv') apvRun([d], stepForStatus(d.status));
+    if(act === 'sendback') sendBackDoc(d, stepForStatus(d.status));
+  });
+
+  // จำตัวกรอง / หน้าของรายการ (ไปหน้าเอกสารแล้วกลับมา = เหมือนเดิม) — แยกตามหน้า (รายการหลัก / รอรับทราบ / รอตรวจสอบ / รออนุมัติ)
+  const LIST_STATE_KEY = 'rts_list_state:' + location.pathname + location.search;
+  function saveListState(){
+    if(DOC) return;
+    const v = (id) => $(id) ? $(id).value : '';
+    try {
+      sessionStorage.setItem(LIST_STATE_KEY, JSON.stringify({
+        period:L.period, pFrom:v('pFrom'), pTo:v('pTo'), pMonth:v('pMonth'), pYear:v('pYear'),
+        comp:v('fltComp'), type:v('fltType'), q:v('fltSearch'),
+        statusFilter:L.statusFilter, page:L.page, open:[...L.open], scrollY:window.scrollY
+      }));
+    } catch(e) {}
+  }
+  function readListState(){
+    try { return JSON.parse(sessionStorage.getItem(LIST_STATE_KEY) || 'null'); } catch(e) { return null; }
+  }
+  // ช่วงวันที่ / ค้นหา / การ์ด / หน้า — ก่อนโหลดรายการ (บริษัท / ประเภท รอ meta เติมตัวเลือกก่อน)
+  function restoreListState(st){
+    if(!st) return;
+    if(['range', 'month', 'year'].includes(st.period) && st.period !== L.period){
+      L.period = st.period;
+      $('periodSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.mode === st.period));
+      renderPeriodFields();
+    }
+    const set = (id, val) => { if($(id) && val) $(id).value = val; };
+    set('pFrom', st.pFrom); set('pTo', st.pTo); set('pMonth', st.pMonth); set('pYear', st.pYear);
+    $('periodFields').querySelectorAll('input[type=date]').forEach(inp => { inp.nextElementSibling.textContent = thDate(inp.value); });
+    $('fltSearch').value = st.q || '';
+    L.statusFilter = st.statusFilter === 'open' || st.statusFilter === 'range' || STATUS[st.statusFilter] ? st.statusFilter : 'open';
+    L.open = new Set(st.open || []);
+    L.restorePage = st.page || 1;
+    L.restoreScroll = st.scrollY || 0;
   }
 
   /* ==================================================================
@@ -2775,7 +3568,10 @@
       CAUSE_ID = Object.fromEntries(meta.causes.map(c => [c.name, c.id]));
       CAN_CANCEL = !!meta.canCancel;
       CAN_MANAGE_CAUSE = !!meta.canManageCause;
-      $('causeMgrBtn').hidden = !CAN_MANAGE_CAUSE;
+      CAN_EDIT = !!meta.canEdit;
+      $('causeMgrBtn').hidden = !CAN_MANAGE_CAUSE || !!APV;
+      CAN_STEP = { ack:!!meta.canAck, check:!!meta.canCheck, approve:!!meta.canApprove };
+      ME = meta.me ?? null;
       COMPANIES = meta.companies || [];
     } catch(err) {
       console.error(err);
@@ -2785,10 +3581,55 @@
     fillFormCompanies();
   }
 
+  // โหมดรับทราบ / ตรวจสอบ / อนุมัติ: หัวหน้า / แท็บ / ตัวกรอง / ปุ่ม ของหน้านี้
+  function setupApvMode(){
+    if(!APV) return;
+    const info = APV_INFO[APV];
+    document.title = 'WIM — ' + info.menu;
+    document.querySelector('main > h1').textContent = info.menu;
+    document.querySelector('main > .eyebrow').textContent = 'Purchase Return · ' + info.name;
+    $('tabListBtn').lastChild.textContent = ' รอ' + info.name;
+    $('tabFormBtn').hidden = true;
+    $('causeMgrBtn').hidden = true;
+    document.querySelector('.mock-note').hidden = true;
+    document.querySelector('.flt-date').hidden = true;
+    $('listNewBtn').hidden = true;
+    $('listExcelBtn').hidden = $('listPrintBtn').hidden = true;
+    // ปุ่มทำหลายใบ + เลือกทั้งหมด
+    $('listNewBtn').insertAdjacentHTML('afterend', `<button type="button" class="btn ${info.cls} btn-sm" id="apvBulkBtn" disabled></button>`);
+    $('fltCount').insertAdjacentHTML('beforebegin', '<label class="apv-all"><input type="checkbox" id="apvAll"> เลือกทั้งหมดที่ทำได้</label>');
+    $('apvBulkBtn').addEventListener('click', () => apvRun(DOCS.filter(d => APV_SEL.has(d.id))));
+    $('apvAll').addEventListener('change', (e) => {
+      DOCS.filter(d => apvCanAct(d)).forEach(d => e.target.checked ? APV_SEL.add(d.id) : APV_SEL.delete(d.id));
+      renderList();
+    });
+  }
+  setupApvMode();
   initListFilters();
   initForm();
-  renderList();
-  loadMeta().then(loadList);
+  if(DOC != null){
+    setupDocMode();
+    loadMeta().then(loadDocPage);
+  } else {
+    // หน้ารายการหลัก ?edit= (ปุ่มแก้ไขเอกสารจากหน้าเอกสาร) = เปิดฟอร์มแก้ไขใบนั้น
+    const editId = APV ? null : (Number(new URLSearchParams(location.search).get('edit')) || null);
+    const st = editId ? null : readListState();
+    restoreListState(st);
+    renderList();
+    loadMeta().then(() => {
+      if(st){
+        if(st.comp && COMPANIES.some(c => String(c.id) === st.comp)) $('fltComp').value = st.comp;
+        if(st.type && TYPES[st.type]) $('fltType').value = st.type;
+      }
+      if(editId){
+        openDoc(editId);
+        history.replaceState(null, '', location.pathname);
+      }
+      return loadList();
+    });
+    // กลับมาด้วยปุ่มย้อนกลับ (browser เก็บหน้าไว้ทั้งหน้า) = ข้อมูลอาจเก่า โหลดใหม่
+    window.addEventListener('pageshow', (e) => { if(e.persisted) loadList(); });
+  }
 })();
 </script>
 <script src="/js/thai-datepicker.js"></script>
