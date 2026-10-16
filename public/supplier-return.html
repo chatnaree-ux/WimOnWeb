@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WIM — รายการส่งคืนสินค้า/ลดหนี้ Supplier</title>
+<title>WIM — ส่งคืนสินค้า/ลดหนี้ Supplier</title>
 <link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -114,6 +114,8 @@
   .tab-bar .cause-btn{align-self:center; margin:0 0 6px 18px; position:relative;}
   .tab-bar .cause-btn::before{content:""; position:absolute; left:-12px; top:4px; bottom:4px; width:1px; background:rgba(255,255,255,.14);}
   .cause-btn[hidden], .th-gear[hidden]{display:none !important;}
+  .tab-bar .manual-btn{align-self:center; margin:0 0 6px auto; text-decoration:none;}
+  @media (max-width:1100px){ .tab-bar .cause-btn, .tab-bar .manual-btn{padding:6px 9px;} .tab-bar .cause-lbl{display:none;} }
   .th-gear{background:none; border:0; padding:0 0 0 6px; color:var(--concrete-400); cursor:pointer; vertical-align:middle; line-height:1;}
   .th-gear:hover{color:var(--amber-500);}
   .th-gear svg{width:14px; height:14px;}
@@ -868,8 +870,6 @@
   .toast.show{opacity:1; transform:translateY(0);}
   .toast.warn{border-color:rgba(229,83,61,.45); border-left-color:var(--safety-red);}
 
-  .mock-note{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--concrete-400); padding:8px 12px; border-radius:8px; border:1px dashed rgba(78,167,224,.4); background:rgba(78,167,224,.06); margin-bottom:16px;}
-  .mock-note b{color:var(--sky-blue);}
   footer{text-align:center; padding:20px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500);}
 
   /* ---------- RESPONSIVE ---------- */
@@ -901,6 +901,8 @@
     .nav-btn > svg{display:none;}
     .tab-bar .cause-btn{flex-shrink:0; margin-left:14px; padding:6px 9px;}
     .tab-bar .cause-btn .cause-lbl{display:none;}
+    .tab-bar .manual-btn{flex-shrink:0; padding:6px 9px;}
+    .tab-bar .manual-btn .cause-lbl{display:none;}
     /* แถบปุ่มล่าง (ติดขอบจอ) ไม่บังตาราง: ซ่อนคำแนะนำ เหลือแต่ปุ่ม */
     .sum-bar .sum-hint{display:none;}
     .sum-bar{padding:10px 12px;}
@@ -942,7 +944,7 @@
 
     <main>
       <div class="eyebrow">Purchase Return</div>
-      <h1>รายการส่งคืนสินค้า/ลดหนี้ Supplier</h1>
+      <h1>ส่งคืนสินค้า/ลดหนี้ Supplier</h1>
 
       <div class="tab-bar">
         <button type="button" class="nav-btn active" id="tabListBtn">
@@ -957,12 +959,12 @@
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           <span class="cause-lbl">จัดการสาเหตุการคืน</span>
         </button>
+        <a class="btn btn-neutral-soft btn-sm manual-btn" href="/manual-supplier-return" target="_blank" rel="noopener" title="คู่มือการใช้งาน">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+          <span class="cause-lbl">คู่มือ</span>
+        </a>
       </div>
 
-      <div class="mock-note">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-        <span><b>กำลังพัฒนา</b> — บันทึก / แก้ไข / ยกเลิก / รับทราบ / ตรวจสอบ / อนุมัติ ใช้ข้อมูลจริงแล้ว · พิมพ์ใบเอกสาร A4 ได้แล้ว</span>
-      </div>
 
       <!-- ============ PAGE 1: LIST ============ -->
       <section id="listPage" class="page active">
@@ -3141,7 +3143,6 @@
     document.querySelector('main').classList.add('doc-mode');
     document.querySelector('main > h1').insertAdjacentHTML('afterend', '<p class="doc-sub" id="docSub" hidden></p>');
     document.querySelector('.tab-bar').hidden = true;
-    document.querySelector('.mock-note').hidden = true;
     $('listPage').classList.remove('active');
     $('formPage').classList.remove('active');
     $('docView').classList.add('active');
@@ -3591,7 +3592,6 @@
     $('tabListBtn').lastChild.textContent = ' รอ' + info.name;
     $('tabFormBtn').hidden = true;
     $('causeMgrBtn').hidden = true;
-    document.querySelector('.mock-note').hidden = true;
     document.querySelector('.flt-date').hidden = true;
     $('listNewBtn').hidden = true;
     $('listExcelBtn').hidden = $('listPrintBtn').hidden = true;

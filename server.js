@@ -134,8 +134,19 @@ process.on('uncaughtException', (err) => {
 const MENU_ORDER_CACHE_MS = 60 * 1000;
 // stWip = 1 (On process): เมนูที่ยังพัฒนาไม่เสร็จ — ซ่อนจากผู้ใช้ทั่วไป / ให้สิทธิ์ไม่ได้ / กลุ่มระบบยังเห็น (ไว้ทดสอบ)
 let menuOrderCache = { exp: 0, map: null, wip: [] };
+let menuMetaRefresh = null;
+// cache หมดอายุแล้ว: ส่งค่าเดิมไปก่อน แล้วอ่าน DB ใหม่เบื้องหลัง (ไม่ให้ /sidebar.html ต้องรอคิว DB ตอนหน้าอื่นดึงข้อมูลหนัก ๆ)
+// รอ DB จริงเฉพาะครั้งแรกหลังเปิด server
 async function loadMenuMeta() {
   if (menuOrderCache.map && menuOrderCache.exp > Date.now()) return menuOrderCache;
+  if (!menuMetaRefresh) menuMetaRefresh = fetchMenuMeta().finally(() => { menuMetaRefresh = null; });
+  if (menuOrderCache.map) {
+    menuMetaRefresh.catch(err => console.error('Menu meta refresh error:', err.message));
+    return menuOrderCache;
+  }
+  return menuMetaRefresh;
+}
+async function fetchMenuMeta() {
   const pool = await poolPromise;
   const r = await pool.request().query(
     `SELECT MenuCode, MIN(SortOrder) AS SortOrder, MAX(CAST(ISNULL(stWip, 0) AS int)) AS stWip

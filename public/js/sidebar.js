@@ -154,21 +154,55 @@
   }
 
   // ---------- โหลด sidebar.html มาแปะใน #sidebar แล้วเริ่มทำงาน ----------
+  // แสดงเมนูชุดล่าสุดที่จำไว้ (localStorage) ทันที ไม่ต้องรอ server — บน server จริง /sidebar.html บางครั้งช้า
+  // (เรียงเมนูตาม DB ระหว่างที่หน้าหลักกำลังดึงข้อมูลหนัก ๆ) เมนูเลยหายไปจนหน้าหลักโหลดเสร็จ
+  // แล้วค่อยดึงฉบับล่าสุดมาเก็บไว้ ถ้าเมนูเปลี่ยน (เพิ่ม/ย้ายเมนู) ค่อยแปะใหม่
+  const SIDEBAR_CACHE_KEY = 'wim_sidebar_html';
   async function load({ menuCode = null, manageUser = true } = {}) {
     const host = document.getElementById('sidebar');
     if (!host) return;
-    try {
-      const res = await fetch('/sidebar.html');
-      host.innerHTML = await res.text();
-    } catch (err) {
-      console.error('โหลด Sidebar ไม่สำเร็จ:', err);
-      return;
+    let cached = null;
+    try { cached = localStorage.getItem(SIDEBAR_CACHE_KEY); } catch (err) { /* เปิดแบบ private / ปิด storage */ }
+    const fresh = fetch('/sidebar.html').then(res => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    });
+    if (cached) {
+      host.innerHTML = cached;
+    } else {
+      try {
+        host.innerHTML = await fresh;
+      } catch (err) {
+        console.error('โหลด Sidebar ไม่สำเร็จ:', err);
+        return;
+      }
     }
     initMobileDrawer();
     initActiveAndAccordion(host);
-    if (!manageUser) return;
-    const user = await initUser();
-    if (user) await applyMenuPermissions(user.idPs, menuCode);
+
+    const ready = manageUser
+      ? initUser().then(user => (user ? applyMenuPermissions(user.idPs, menuCode).then(() => user) : null))
+      : Promise.resolve(null);
+
+    fresh.then(async (html) => {
+      try { localStorage.setItem(SIDEBAR_CACHE_KEY, html); } catch (err) { /* ไม่เป็นไร รอบหน้าโหลดจาก server */ }
+      // หน้า Home จัดการชื่อผู้ใช้ / ล็อกเมนูเอง → ไม่แปะทับ (ใช้ฉบับใหม่ตั้งแต่ครั้งถัดไป)
+      if (!cached || html === cached || !manageUser) return;
+      const user = await ready;
+      const scroll = (host.querySelector('.side-nav') || {}).scrollTop || 0;
+      host.innerHTML = html;
+      initActiveAndAccordion(host);
+      const nav = host.querySelector('.side-nav');
+      if (nav) nav.scrollTop = scroll;
+      if (user) {
+        await initUser();
+        await applyMenuPermissions(user.idPs, null);
+      }
+    }).catch(err => {
+      if (cached) console.warn('อัปเดต Sidebar ไม่สำเร็จ ใช้เมนูชุดเดิม:', err);
+    });
+
+    await ready;
   }
 
   window.WIMSidebar = { load, showAccessDeniedOverlay, applyWipMenus };

@@ -16,7 +16,7 @@
   window.WIM_ICONS = icon;
 
   window.WIM_MENUS = [
-    { code: 'supplier_return', group: 'คลังวัสดุและสินค้า · ส่งคืนสินค้า/ลดหนี้ Supplier', title: 'รายการส่งคืนสินค้า/ลดหนี้ Supplier', desc: 'ส่งคืนสินค้า (RTS) / ลดหนี้ Supplier พร้อมขั้นตอนรับทราบ-ตรวจสอบ-อนุมัติ', href: '/supplier-return', icon: 'returnBox', keywords: 'supplier return rts purchase return ส่งคืน คืนสินค้า ลดหนี้ ทดแทน credit note po' },
+    { code: 'supplier_return', group: 'คลังวัสดุและสินค้า · ส่งคืนสินค้า/ลดหนี้ Supplier', title: 'ส่งคืนสินค้า/ลดหนี้ Supplier', desc: 'ส่งคืนสินค้า (RTS) / ลดหนี้ Supplier พร้อมขั้นตอนรับทราบ-ตรวจสอบ-อนุมัติ', href: '/supplier-return', icon: 'returnBox', keywords: 'supplier return rts purchase return ส่งคืน คืนสินค้า ลดหนี้ ทดแทน credit note po' },
     { code: 'supplier_return_ack', group: 'คลังวัสดุและสินค้า · ส่งคืนสินค้า/ลดหนี้ Supplier', title: 'รับทราบเอกสารส่งคืนสินค้า Supplier', desc: 'รับทราบเอกสารส่งคืนสินค้า / ลดหนี้ Supplier หรือส่งกลับแก้ไข', href: '/supplier-return-approve?step=ack', icon: 'book', keywords: 'supplier return rts รับทราบ ส่งคืน ลดหนี้ acknowledge' },
     { code: 'supplier_return_check', group: 'คลังวัสดุและสินค้า · ส่งคืนสินค้า/ลดหนี้ Supplier', title: 'ตรวจสอบเอกสารส่งคืนสินค้า Supplier', desc: 'ตรวจสอบ 1 / ตรวจสอบ 2 เอกสารส่งคืนสินค้า หรือส่งกลับแก้ไข', href: '/supplier-return-approve?step=check', icon: 'lot', keywords: 'supplier return rts ตรวจสอบ ส่งคืน ลดหนี้ check review' },
     { code: 'supplier_return_approve', group: 'คลังวัสดุและสินค้า · ส่งคืนสินค้า/ลดหนี้ Supplier', title: 'อนุมัติเอกสารส่งคืนสินค้า Supplier', desc: 'อนุมัติเอกสารส่งคืนสินค้า — ปลดให้คลังเบิก / หักยอดรับ PO', href: '/supplier-return-approve?step=approve', icon: 'shield', keywords: 'supplier return rts อนุมัติ ส่งคืน ลดหนี้ approve' },
@@ -29,6 +29,7 @@
     { code: 'po_receive_affiliate', group: 'รายงาน · รายงานการรับสินค้า', title: 'รายงานรับเมล็ดจากบริษัทในเครือ', desc: 'ติดตาม PO ว่ารับแล้วกี่ครั้ง ครั้งละเท่าไหร่ และยอด PO คงเหลือ', href: '/po-receive-affiliate', icon: 'truck', keywords: 'po purchase receive รับ เมล็ดพันธุ์ บริษัทในเครือ ใบสั่งซื้อ คงเหลือ' },
     { code: 'menu_permission', group: 'ระบบ', title: 'กำหนดสิทธิ์การใช้งาน', desc: 'จัดกลุ่มผู้ใช้ กำหนดสิทธิ์เมนูและบริษัท', href: '/permissions', icon: 'shield', keywords: 'permission สิทธิ์ กลุ่ม ผู้ใช้' },
     // คู่มือ: code = MenuCode ของเมนูที่อธิบาย (เห็นตามสิทธิ์เมนูนั้น)
-    { code: 'urs_request', group: 'คู่มือการใช้งาน', title: 'คู่มือ: ร้องขอเมล็ดพันธุ์เร่งด่วน', desc: 'ขั้นตอนสร้าง ส่ง ติดตาม และตอบกลับคำร้อง', href: '/manual-urs-request', icon: 'book', keywords: 'manual help คู่มือ วิธีใช้ urs ร้องขอ ด่วน ตอบกลับ' }
+    { code: 'urs_request', group: 'คู่มือการใช้งาน', title: 'คู่มือ: ร้องขอเมล็ดพันธุ์เร่งด่วน', desc: 'ขั้นตอนสร้าง ส่ง ติดตาม และตอบกลับคำร้อง', href: '/manual-urs-request', icon: 'book', keywords: 'manual help คู่มือ วิธีใช้ urs ร้องขอ ด่วน ตอบกลับ' },
+    { code: 'supplier_return', group: 'คู่มือการใช้งาน', title: 'คู่มือ: ส่งคืนสินค้า/ลดหนี้ Supplier', desc: 'สร้างเอกสาร รับทราบ ตรวจสอบ อนุมัติ พิมพ์ และการปรับต้นทุน', href: '/manual-supplier-return', icon: 'book', keywords: 'manual help คู่มือ วิธีใช้ supplier return rts ส่งคืน ลดหนี้ อนุมัติ' }
   ];
 })();
