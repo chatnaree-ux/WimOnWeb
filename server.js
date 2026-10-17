@@ -4691,8 +4691,8 @@ function summarizeByComp(rows, fields) {
 // ---------- ร้องขอขายเมล็ดพันธุ์เกิน PO (Over PO) — OPS ----------
 // ==================================================================
 // ฝั่งร้องขอ (ผู้ขาย เช่น FLO / GR) อ้างอิง PO ตั้งต้นที่บริษัทผู้ซื้อ (เช่น AV) เปิดให้ แล้วเสนอขายยอดที่ผลิตเกิน PO
-// เฟส 1: บันทึก / แก้ไข (ก่อนส่ง) / ยกเลิก / เอกสาร A4 / ส่งอีเมลแจ้งฝ่ายจัดซื้อผู้ซื้อ (ผู้รับกำหนดใน OverPoSaleMailTo)
-// เฟสถัดไป: ตรวจสอบ+ราคา / รับทราบ / อนุมัติ / ไม่รับซื้อ (เคสแดง) / Auto-PO — คอลัมน์มีรอไว้ใน OverPoSaleMt แล้ว
+// เฟส 1: บันทึก / แก้ไข (ก่อนส่ง) / ยกเลิก / เอกสาร A4 / ส่งอีเมลแจ้งฝ่ายจัดซื้อผู้ซื้อ (ผู้รับกำหนดใน SeedReqSaleMailTo)
+// เฟสถัดไป: ตรวจสอบ+ราคา / รับทราบ / อนุมัติ / ไม่รับซื้อ (เคสแดง) / Auto-PO — คอลัมน์มีรอไว้ใน SeedReqSaleMt แล้ว
 // ตาราง + เมนู: sql/over-po-sale-setup.sql
 const MENU_OPS = 'over_po_sale';
 const MENU_OPS_MAILTO = 'over_po_sale_mailto';     // สิทธิ์กำหนดผู้รับอีเมล (สิทธิ์ย่อย ไม่มีหน้าแยก)
@@ -4763,7 +4763,7 @@ async function getNextOpsDocCode(transaction, idCompReq, date) {
     .input('idComp', sql.Int, idCompReq)
     .input('pat', sql.VarChar, `OPQ${yy}__/%`)
     .query(`SELECT MAX(TRY_CAST(RIGHT(DocCode, 4) AS INT)) AS last
-            FROM devsk.OverPoSaleMt WITH (UPDLOCK, HOLDLOCK)
+            FROM devsk.SeedReqSaleMt WITH (UPDLOCK, HOLDLOCK)
             WHERE idCompReq = @idComp AND DocCode LIKE @pat`);
   return `OPQ${yy}${mm}/${String((r.recordset[0].last || 0) + 1).padStart(4, '0')}`;
 }
@@ -4806,8 +4806,8 @@ async function fetchOpsPoLines(runner, { idCompTarget, idSup, idPODts = null, ex
     WHERE dt.idPODt IN (SELECT idPODt FROM #pl);
 
     SELECT p.idPODt, m.DocCode
-    FROM devsk.OverPoSalePo p
-    JOIN devsk.OverPoSaleMt m ON m.idOps = p.idOps
+    FROM devsk.SeedReqSalePORef p
+    JOIN devsk.SeedReqSaleMt m ON m.idOps = p.idOps
     WHERE p.idPODt IN (SELECT idPODt FROM #pl) AND m.DateCancel IS NULL AND m.DateReject IS NULL AND m.idOps <> @exOps;
 
     DROP TABLE #pl;`);
@@ -4904,7 +4904,7 @@ async function insertOpsItems(transaction, idOps, items) {
       .input('po', sql.Decimal(18, 6), it.amountPO).input('rec', sql.Decimal(18, 6), it.amountRec)
       .input('pd', sql.Decimal(18, 6), it.amountProduce).input('of', sql.Decimal(18, 6), it.amountOffer)
       .input('note', sql.NVarChar(500), it.note || null)
-      .query(`INSERT INTO devsk.OverPoSaleDt (idOps, idInvMain, idUnit, AmountPO, AmountRec, AmountProduce, AmountOffer, NoteDt)
+      .query(`INSERT INTO devsk.SeedReqSaleDt (idOps, idInvMain, idUnit, AmountPO, AmountRec, AmountProduce, AmountOffer, NoteDt)
               VALUES (@idOps, @inv, @unit, @po, @rec, @pd, @of, @note);
               SELECT CAST(SCOPE_IDENTITY() AS int) AS id;`);
     const idOpsDt = d.recordset[0].id;
@@ -4913,7 +4913,7 @@ async function insertOpsItems(transaction, idOps, items) {
         .input('idOps', sql.Int, idOps).input('dt', sql.Int, idOpsDt).input('pots', sql.Int, p.idPOTs).input('podt', sql.Int, p.idPODt)
         .input('code', sql.NVarChar(30), p.poCode).input('date', sql.VarChar(10), p.datePO)
         .input('po', sql.Decimal(18, 6), p.amountPO).input('rec', sql.Decimal(18, 6), p.amountRec)
-        .query(`INSERT INTO devsk.OverPoSalePo (idOps, idOpsDt, idPOTs, idPODt, POCode, DatePO, AmountPO, AmountRec)
+        .query(`INSERT INTO devsk.SeedReqSalePORef (idOps, idOpsDt, idPOTs, idPODt, POCode, DatePO, AmountPO, AmountRec)
                 VALUES (@idOps, @dt, @pots, @podt, @code, CONVERT(date, @date, 23), @po, @rec)`);
     }
   }
@@ -4924,7 +4924,7 @@ async function lockOpsDoc(transaction, idOps) {
   const r = await new sql.Request(transaction).input('id', sql.Int, idOps).query(`
     SELECT idOps, DocCode, idCompReq, idCompTarget, DateSent, DateCheck, DateAck, DateApv, DateReject, DateCancel,
            CONVERT(varchar(23), ISNULL(DateEdit, DateTs), 121) AS Stamp
-    FROM devsk.OverPoSaleMt WITH (UPDLOCK, ROWLOCK) WHERE idOps = @id`);
+    FROM devsk.SeedReqSaleMt WITH (UPDLOCK, ROWLOCK) WHERE idOps = @id`);
   return r.recordset[0] || null;
 }
 
@@ -4979,21 +4979,21 @@ app.get('/api/ops/docs', requireMenu(MENU_OPS, { companyParam: 'idComp' }), asyn
              m.DateSent, m.DateCheck, m.DateAck, m.DateApv, m.DateReject, m.DateCancel, m.RejectNote, m.CancelNote,
              CONVERT(varchar(16), m.DateSent, 120) AS TxSent, CONVERT(varchar(16), m.DateCancel, 120) AS TxCancel, pc.PsName AS PsCancel,
              ml.LastMail, ml.MailFail
-      FROM devsk.OverPoSaleMt m
+      FROM devsk.SeedReqSaleMt m
       LEFT JOIN PchInvAndProject.dbo.dCompany ct ON ct.idComp = m.idCompTarget
       OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsReq) pr
       OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsCancel) pc
-      OUTER APPLY (SELECT MAX(l.DateSend) AS LastSend FROM devsk.OverPoSaleMailLog l WHERE l.idOps = m.idOps) lm
+      OUTER APPLY (SELECT MAX(l.DateSend) AS LastSend FROM devsk.SeedReqSaleMailLog l WHERE l.idOps = m.idOps) lm
       OUTER APPLY (SELECT CONVERT(varchar(16), lm.LastSend, 120) AS LastMail,
                           SUM(CASE WHEN l.stSend = 0 THEN 1 ELSE 0 END) AS MailFail
-                   FROM devsk.OverPoSaleMailLog l WHERE l.idOps = m.idOps AND l.DateSend = lm.LastSend) ml
+                   FROM devsk.SeedReqSaleMailLog l WHERE l.idOps = m.idOps AND l.DateSend = lm.LastSend) ml
       WHERE m.idCompReq = @idComp
       ORDER BY m.DateDoc DESC, m.idOps DESC;
 
       SELECT d.idOps, d.idOpsDt, i.InvName, d.AmountPO, d.AmountRec, d.AmountProduce, d.AmountOffer, u.UnitName,
-             STUFF((SELECT ', ' + p.POCode FROM devsk.OverPoSalePo p WHERE p.idOpsDt = d.idOpsDt ORDER BY p.DatePO, p.POCode FOR XML PATH('')), 1, 2, '') AS POCodes
-      FROM devsk.OverPoSaleDt d
-      JOIN devsk.OverPoSaleMt m ON m.idOps = d.idOps
+             STUFF((SELECT ', ' + p.POCode FROM devsk.SeedReqSalePORef p WHERE p.idOpsDt = d.idOpsDt ORDER BY p.DatePO, p.POCode FOR XML PATH('')), 1, 2, '') AS POCodes
+      FROM devsk.SeedReqSaleDt d
+      JOIN devsk.SeedReqSaleMt m ON m.idOps = d.idOps
       LEFT JOIN devsk.dInventoryMain i ON i.idInvMain = d.idInvMain
       LEFT JOIN devsk.dInvUnit u ON u.idUnit = d.idUnit
       WHERE m.idCompReq = @idComp
@@ -5031,7 +5031,7 @@ async function loadOpsDoc(idOps) {
            CONVERT(varchar(16), m.DateTs, 120) AS TxTs, pt.PsName AS PsTs, CONVERT(varchar(16), m.DateEdit, 120) AS TxEdit, pe.PsName AS PsEdit,
            CONVERT(varchar(16), m.DateSent, 120) AS TxSent, ps.PsName AS PsSent,
            CONVERT(varchar(16), m.DateCancel, 120) AS TxCancel, pc.PsName AS PsCancel
-    FROM devsk.OverPoSaleMt m
+    FROM devsk.SeedReqSaleMt m
     LEFT JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = m.idCompReq
     LEFT JOIN PchInvAndProject.dbo.dProvinceFix pvc ON pvc.idProvince = c.idProvince
     LEFT JOIN PchInvAndProject.dbo.dCompany ct ON ct.idComp = m.idCompTarget
@@ -5043,7 +5043,7 @@ async function loadOpsDoc(idOps) {
     WHERE m.idOps = @id;
 
     SELECT d.idOpsDt, d.idInvMain, ci.InvName, sd.SeedName, d.idUnit, u.UnitName, d.AmountPO, d.AmountRec, d.AmountProduce, d.AmountOffer, d.Price, d.NoteDt
-    FROM devsk.OverPoSaleDt d
+    FROM devsk.SeedReqSaleDt d
     JOIN devsk.dInventoryMain ci ON ci.idInvMain = d.idInvMain
     ${CROP_JOIN_SQL}
     LEFT JOIN dbo.dSeed sd ON sd.idSeed = ${CROP_ID_SQL}
@@ -5051,10 +5051,10 @@ async function loadOpsDoc(idOps) {
     WHERE d.idOps = @id ORDER BY d.idOpsDt;
 
     SELECT p.idOpsDt, p.idPOTs, p.idPODt, p.POCode, CONVERT(varchar(10), p.DatePO, 23) AS DatePO, p.AmountPO, p.AmountRec
-    FROM devsk.OverPoSalePo p WHERE p.idOps = @id ORDER BY p.DatePO, p.POCode, p.idPODt;
+    FROM devsk.SeedReqSalePORef p WHERE p.idOps = @id ORDER BY p.DatePO, p.POCode, p.idPODt;
 
     SELECT l.Step, l.RecvType, l.Email, l.stSend, l.ErrMsg, CONVERT(varchar(16), l.DateSend, 120) AS TxSend, v.PsName
-    FROM devsk.OverPoSaleMailLog l
+    FROM devsk.SeedReqSaleMailLog l
     OUTER APPLY (SELECT TOP 1 x.PsName FROM devsk.vPersonxSelect x WHERE x.idPs = l.idPs) v
     WHERE l.idOps = @id ORDER BY l.DateSend DESC, l.idMailLog;`);
   const m = r.recordsets[0][0];
@@ -5115,7 +5115,7 @@ app.post('/api/ops/docs', requireMenu(MENU_OPS, { companyParam: 'idCompReq' }), 
       .input('req', sql.Int, head.idCompReq).input('tgt', sql.Int, head.idCompTarget).input('ps', sql.Int, head.idPsReq)
       .input('subj', sql.NVarChar(300), head.subject).input('cause', sql.NVarChar(sql.MAX), head.causeNote)
       .input('note', sql.NVarChar(1000), head.note || null).input('ts', sql.Int, req.idPs)
-      .query(`INSERT INTO devsk.OverPoSaleMt (DocCode, DateDoc, idCompReq, idCompTarget, idPsReq, Subject, CauseNote, Note, idPsTs, DateTs)
+      .query(`INSERT INTO devsk.SeedReqSaleMt (DocCode, DateDoc, idCompReq, idCompTarget, idPsReq, Subject, CauseNote, Note, idPsTs, DateTs)
               VALUES (@doc, @now, @req, @tgt, @ps, @subj, @cause, @note, @ts, @now);
               SELECT CAST(SCOPE_IDENTITY() AS int) AS id;`);
     const idOps = mt.recordset[0].id;
@@ -5151,11 +5151,11 @@ app.put('/api/ops/docs/:id', requireMenu(MENU_OPS), async (req, res) => {
       .input('id', sql.Int, idOps).input('tgt', sql.Int, head.idCompTarget).input('ps', sql.Int, head.idPsReq)
       .input('subj', sql.NVarChar(300), head.subject).input('cause', sql.NVarChar(sql.MAX), head.causeNote)
       .input('note', sql.NVarChar(1000), head.note || null).input('ed', sql.Int, req.idPs)
-      .query(`UPDATE devsk.OverPoSaleMt SET idCompTarget = @tgt, idPsReq = @ps, Subject = @subj, CauseNote = @cause, Note = @note,
+      .query(`UPDATE devsk.SeedReqSaleMt SET idCompTarget = @tgt, idPsReq = @ps, Subject = @subj, CauseNote = @cause, Note = @note,
                      idPsEdit = @ed, DateEdit = GETDATE()
               WHERE idOps = @id;
-              DELETE FROM devsk.OverPoSalePo WHERE idOps = @id;
-              DELETE FROM devsk.OverPoSaleDt WHERE idOps = @id;`);
+              DELETE FROM devsk.SeedReqSalePORef WHERE idOps = @id;
+              DELETE FROM devsk.SeedReqSaleDt WHERE idOps = @id;`);
     await insertOpsItems(transaction, idOps, items);
     await transaction.commit();
     res.json({ success: true, id: idOps, docNo: cur.DocCode });
@@ -5184,7 +5184,7 @@ app.post('/api/ops/docs/:id/cancel', requireMenu(MENU_OPS), async (req, res) => 
     if (!hasComp(req.access, cur.idCompReq)) return stop(403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
     if (!['D', 'S'].includes(opsStatus(cur))) return stop(409, 'ฝั่งผู้ซื้อดำเนินการกับเอกสารนี้แล้ว หรือถูกยกเลิกไปแล้ว — ยกเลิกไม่ได้');
     await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, req.idPs).input('note', sql.NVarChar(500), note)
-      .query('UPDATE devsk.OverPoSaleMt SET idPsCancel = @ps, DateCancel = GETDATE(), CancelNote = @note WHERE idOps = @id');
+      .query('UPDATE devsk.SeedReqSaleMt SET idPsCancel = @ps, DateCancel = GETDATE(), CancelNote = @note WHERE idOps = @id');
     await transaction.commit();
     res.json({ success: true });
   } catch (err) {
@@ -5199,7 +5199,7 @@ async function opsRecipients(runner, idComp, step = OPS_MAIL_STEP_CHECK) {
   const req = runner instanceof sql.Transaction ? new sql.Request(runner) : runner.request();
   const r = await req.input('idComp', sql.Int, idComp).input('step', sql.VarChar(10), step).query(`
     SELECT t.idMailTo, t.idPs, v.PsName, v.PositionName, NULLIF(LTRIM(RTRIM(p.Email)), '') AS Email
-    FROM devsk.OverPoSaleMailTo t
+    FROM devsk.SeedReqSaleMailTo t
     LEFT JOIN dbo.dPerson p ON p.idPs = t.idPs
     OUTER APPLY (SELECT TOP 1 x.PsName, x.PositionName FROM devsk.vPersonxSelect x WHERE x.idPs = t.idPs) v
     WHERE t.idComp = @idComp AND t.Step = @step AND t.stDel IS NULL
@@ -5228,8 +5228,8 @@ app.post('/api/ops/mailto', requireMenu(MENU_OPS_MAILTO), async (req, res) => {
     const pool = await poolPromise;
     await pool.request().input('idComp', sql.Int, idComp).input('idPs', sql.Int, idPs).input('step', sql.VarChar(10), OPS_MAIL_STEP_CHECK)
       .input('ts', sql.Int, req.idPs)
-      .query(`IF NOT EXISTS (SELECT 1 FROM devsk.OverPoSaleMailTo WHERE idComp = @idComp AND Step = @step AND idPs = @idPs AND stDel IS NULL)
-                INSERT INTO devsk.OverPoSaleMailTo (idComp, Step, idPs, idPsTs, DateTs) VALUES (@idComp, @step, @idPs, @ts, GETDATE())`);
+      .query(`IF NOT EXISTS (SELECT 1 FROM devsk.SeedReqSaleMailTo WHERE idComp = @idComp AND Step = @step AND idPs = @idPs AND stDel IS NULL)
+                INSERT INTO devsk.SeedReqSaleMailTo (idComp, Step, idPs, idPsTs, DateTs) VALUES (@idComp, @step, @idPs, @ts, GETDATE())`);
     res.json({ success: true, data: await opsRecipients(pool, idComp) });
   } catch (err) {
     console.error('OPS mailto add error:', err);
@@ -5243,7 +5243,7 @@ app.delete('/api/ops/mailto/:id', requireMenu(MENU_OPS_MAILTO), async (req, res)
   try {
     const pool = await poolPromise;
     const r = await pool.request().input('id', sql.Int, id)
-      .query('UPDATE devsk.OverPoSaleMailTo SET stDel = 1 OUTPUT inserted.idComp WHERE idMailTo = @id AND stDel IS NULL');
+      .query('UPDATE devsk.SeedReqSaleMailTo SET stDel = 1 OUTPUT inserted.idComp WHERE idMailTo = @id AND stDel IS NULL');
     const idComp = r.recordset[0] && r.recordset[0].idComp;
     res.json({ success: true, data: idComp ? await opsRecipients(pool, idComp) : [] });
   } catch (err) {
@@ -5325,12 +5325,12 @@ app.post('/api/ops/docs/:id/send', requireMenu(MENU_OPS), async (req, res) => {
           .input('ps', sql.Int, l.idPs).input('mail', sql.NVarChar(255), l.email).input('ok', sql.Bit, l.ok)
           .input('err', sql.NVarChar(1000), l.ok ? null : String(result.error || 'ส่งไม่สำเร็จ').slice(0, 1000))
           .input('by', sql.Int, req.idPs).input('now', sql.DateTime, now)
-          .query(`INSERT INTO devsk.OverPoSaleMailLog (idOps, Step, RecvType, idPs, Email, stSend, ErrMsg, idPsSend, DateSend)
+          .query(`INSERT INTO devsk.SeedReqSaleMailLog (idOps, Step, RecvType, idPs, Email, stSend, ErrMsg, idPsSend, DateSend)
                   VALUES (@id, @step, @type, @ps, @mail, @ok, @err, @by, @now)`);
       }
       if (anyTo) {
         await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, req.idPs).input('now', sql.DateTime, now)
-          .query('UPDATE devsk.OverPoSaleMt SET idPsSent = @ps, DateSent = @now WHERE idOps = @id AND DateSent IS NULL AND DateCancel IS NULL');
+          .query('UPDATE devsk.SeedReqSaleMt SET idPsSent = @ps, DateSent = @now WHERE idOps = @id AND DateSent IS NULL AND DateCancel IS NULL');
       }
       await transaction.commit();
     } catch (e) {
