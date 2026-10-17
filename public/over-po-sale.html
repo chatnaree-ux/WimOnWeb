@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIM — ร้องขอขายเมล็ดพันธุ์เกิน PO</title>
+<link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-950:#0c1420; --navy-900:#111d2e; --navy-800:#182a40; --navy-850:#0f1a29;
+    --steel-700:#25405c; --steel-500:#4a6b8a;
+    --concrete-200:#e7e4da; --concrete-400:#b9b4a5;
+    --amber-500:#f2a91c; --amber-600:#d8930c;
+    --safety-red:#e5533d; --ok-green:#3ecf8e; --sky-blue:#4ea7e0;
+    --radius:10px; --sidebar-w:270px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif; background:var(--navy-950); color:var(--concrete-200); min-height:100vh; overflow-x:hidden;}
+  #printArea{display:none;}
+
+  .app-shell{display:flex; min-height:100vh;}
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:var(--sidebar-w); flex-shrink:0;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border-right:1px solid rgba(255,255,255,.07);
+    display:flex; flex-direction:column;
+    position:fixed; top:0; left:0; bottom:0; z-index:20;
+    transition:transform .25s ease;
+  }
+  .sidebar-head{display:flex; align-items:center; gap:12px; padding:22px 20px; border-bottom:1px solid rgba(255,255,255,.07);}
+  .brand-mark{
+    width:38px; height:38px; border:2px solid var(--amber-500); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    font-family:'Oswald',sans-serif; font-weight:700; color:var(--amber-500); font-size:15px;
+    transform:rotate(-3deg);
+  }
+  .brand-text{font-family:'Oswald',sans-serif; letter-spacing:.05em; font-size:16.5px; font-weight:600; color:var(--concrete-200); line-height:1.2;}
+  .brand-text small{display:block; font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.08em; color:var(--steel-500); font-weight:400; margin-top:2px;}
+
+  .side-nav{flex:1; padding:16px 12px; overflow-y:auto;}
+  .nav-section-label{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em; color:var(--steel-500); text-transform:uppercase; padding:6px 12px 8px;}
+  .nav-item{
+    width:100%; display:flex; align-items:center; gap:12px;
+    padding:11px 12px; border-radius:8px; margin-bottom:2px;
+    color:var(--concrete-200); text-decoration:none;
+    font-size:14px; font-family:'Inter',sans-serif; font-weight:500;
+    background:none; border:none; cursor:pointer; text-align:left;
+    transition:background .15s, color .15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-item.active{background:rgba(242,169,28,.12); color:var(--amber-500);}
+  .nav-icon{width:19px; height:19px; flex-shrink:0; color:var(--amber-500); opacity:.9;}
+  .nav-icon svg{width:100%; height:100%; stroke-width:1.8;}
+  .nav-label{flex:1;}
+  .nav-chevron{width:14px; height:14px; flex-shrink:0; color:var(--steel-500); transition:transform .2s ease;}
+  .nav-group.open .nav-chevron{transform:rotate(180deg);}
+  .nav-group.open > .nav-parent{background:rgba(255,255,255,.04);}
+  .nav-submenu{display:grid; grid-template-rows:0fr; overflow:hidden; transition:grid-template-rows .22s ease;}
+  .nav-group.open .nav-submenu{grid-template-rows:1fr;}
+  .nav-submenu-inner{overflow:hidden; padding-left:14px; margin:2px 0 6px;}
+  .nav-subitem{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 12px 9px 20px; border-radius:7px; margin-bottom:1px;
+    color:var(--concrete-400); text-decoration:none; font-size:13px;
+    position:relative; transition:background .15s, color .15s;
+    border-left:1px solid rgba(255,255,255,.09);
+  }
+  .nav-subitem::before{content:""; position:absolute; left:-1px; top:50%; width:12px; height:1px; background:rgba(255,255,255,.09);}
+  .nav-subitem:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-subitem.active{color:var(--amber-500); border-left-color:var(--amber-500); background:rgba(242,169,28,.08);}
+
+  .sidebar-foot{padding:16px; border-top:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:10px;}
+  .user-chip{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:700; color:#fff;
+    border:1px solid rgba(255,255,255,.15); padding:11px 14px; border-radius:9px; background:rgba(255,255,255,.04);
+  }
+  .user-chip .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-green); box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  #userLabel{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .logout-btn{
+    font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.05em;
+    color:#fff; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.2);
+    border-radius:8px; padding:11px 14px; cursor:pointer; text-transform:uppercase;
+    transition:border-color .15s, color .15s, background .15s;
+    width:100%; text-align:center; text-decoration:none;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75; background:rgba(255,60,60,.08);}
+
+  /* ---------- MAIN AREA ---------- */
+  .main-wrap{flex:1; margin-left:var(--sidebar-w); min-width:0;}
+  .topbar-mobile{
+    display:none; align-items:center; gap:14px; padding:16px 20px;
+    border-bottom:1px solid rgba(255,255,255,.07); position:sticky; top:0; background:var(--navy-950); z-index:15;
+  }
+  .hamburger{
+    width:38px; height:38px; border-radius:8px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.03); color:var(--concrete-200); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .hamburger svg{width:18px; height:18px;}
+
+  main{max-width:1440px; margin:0 auto; padding:clamp(28px,4vw,48px) clamp(20px,4vw,48px) 70px;}
+  /* แท็บรายการร้องขอ: ตารางกว้าง ให้ใช้ความกว้างหน้าจอเต็มที่ ไม่จำกัด 1440px */
+  main:has(#listPage.active){max-width:none;}
+
+  .eyebrow{font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em; color:var(--amber-500); text-transform:uppercase; margin:0 0 10px;}
+  h1{font-family:'Oswald',sans-serif; font-weight:700; text-transform:uppercase; font-size:clamp(24px,3.4vw,32px); line-height:1.15; margin:0 0 8px; color:#fff;}
+  .sub{font-size:14px; color:var(--concrete-400); margin:0 0 24px;}
+
+  /* ---------- แท็บสลับหน้า (สร้างคำร้อง / รายการ) ---------- */
+  .tab-bar{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:22px; border-bottom:1px solid rgba(255,255,255,.08);}
+  .nav-btn{
+    display:flex; align-items:center; gap:8px;
+    background:none; border:0; border-bottom:2px solid transparent; margin-bottom:-1px;
+    color:var(--concrete-400); padding:11px 16px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+    transition:color .15s, border-color .15s;
+  }
+  .nav-btn svg{width:16px; height:16px;}
+  .nav-btn:hover{color:#fff;}
+  .nav-btn.active{color:var(--amber-500); border-bottom-color:var(--amber-500);}
+
+  .page{display:none;}
+  .page.active{display:block; animation:fadeIn .25s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ---------- CARD ---------- */
+  .card{
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
+    padding:20px 22px; margin-bottom:22px;
+  }
+  .card h2{
+    display:flex; align-items:center; gap:10px; margin:0 0 18px;
+    font-family:'Oswald',sans-serif; font-size:16px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; color:#fff;
+  }
+  .card h2::before{content:""; width:4px; height:18px; border-radius:2px; background:var(--amber-500); flex-shrink:0;}
+
+  /* ---------- FORM ---------- */
+  .form-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px;}
+  .form-group{display:flex; flex-direction:column; gap:7px; min-width:0;}
+  .form-group.full{grid-column:1 / -1;}
+  .form-group label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em; color:var(--concrete-400); text-transform:uppercase;}
+  .req{color:var(--safety-red); margin-left:2px;}
+  input,select,textarea{
+    width:100%; padding:11px 12px;
+    background:var(--navy-950); border:1px solid rgba(255,255,255,.1); border-radius:7px;
+    color:#fff; font-family:'Inter',sans-serif; font-size:14px;
+    transition:border-color .18s, box-shadow .18s;
+  }
+  input::placeholder,textarea::placeholder{color:var(--steel-500);}
+  input:focus,select:focus,textarea:focus{outline:none; border-color:var(--amber-500); box-shadow:0 0 0 3px rgba(242,169,28,.15);}
+  select{cursor:pointer;}
+  select option{background:var(--navy-900); color:#fff;}
+  input[type="date"]{color-scheme:dark;}
+  input[readonly]{background:rgba(255,255,255,.03); color:var(--concrete-400); cursor:not-allowed; border-style:dashed;}
+  input#requestNo{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500);}
+  textarea{resize:vertical; min-height:48px;}
+  /* ช่องเลือกผู้ร้องขอ: textbox + ไอคอนค้นหา คลิกแล้วเปิด popup */
+  .picker-input{position:relative; cursor:pointer;}
+  .picker-input input[readonly]{cursor:pointer; padding-right:38px; border-style:solid;}
+  .picker-input:hover input{border-color:rgba(242,169,28,.5);}
+  .picker-icon{position:absolute; right:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--amber-500); pointer-events:none;}
+
+  /* ---------- BUTTONS ---------- */
+  .btn{
+    border:1px solid transparent; padding:10px 18px; border-radius:7px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    white-space:nowrap; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    transition:transform .15s, filter .15s, background .15s, border-color .15s, color .15s;
+  }
+  .btn svg{width:15px; height:15px;}
+  .btn:hover{transform:translateY(-1px); filter:brightness(1.1);}
+  .btn:active{transform:translateY(0);}
+  .btn-primary,.btn-success{background:var(--amber-500); color:var(--navy-950);}
+  .btn-secondary{background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.14); color:var(--concrete-200);}
+  .btn-secondary:hover{border-color:var(--amber-500); color:var(--amber-500); background:rgba(242,169,28,.08); filter:none;}
+  .btn-info{background:var(--sky-blue); color:var(--navy-950);}
+  .btn-danger{background:transparent; border-color:rgba(229,83,61,.55); color:#ff8a75;}
+  .btn-danger:hover{background:rgba(229,83,61,.12); border-color:var(--safety-red); filter:none;}
+  .btn-sm{padding:6px 12px; font-size:11.5px;}
+  .btn-disabled,.btn:disabled{background:rgba(255,255,255,.06) !important; border-color:transparent !important; color:var(--steel-500) !important; cursor:not-allowed; transform:none !important; filter:none !important;}
+
+  /* ---------- TABLE ---------- */
+  .table-header{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;}
+  .table-header h2{margin:0;}
+  .table-responsive{overflow-x:auto; border:1px solid rgba(255,255,255,.06); border-radius:8px;}
+  table{width:100%; border-collapse:collapse; min-width:820px; font-size:13px;}
+  thead th{
+    text-align:left; padding:11px 12px; white-space:nowrap; position:sticky; top:0;
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:500; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--amber-500); background:#1a2433; border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  tbody td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.05); color:var(--concrete-200);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:rgba(255,255,255,.03);}
+  td input{padding:8px 10px; font-size:13px;}
+  th.num,td.num{text-align:right;}
+  th.ctr,td.ctr{text-align:center;}
+  td.num{font-family:'JetBrains Mono',monospace; white-space:nowrap;}
+  .qty-input{width:120px; text-align:right; font-family:'JetBrains Mono',monospace;}
+  .date-input{width:160px;}
+  /* ช่องวันที่ (.date-overlay-wrap): หน้าตา + ปฏิทินเลือกวันที่อยู่ใน thai-datepicker.js (ใช้ร่วมกันทุกหน้า) */
+  .empty-msg{text-align:center; color:var(--concrete-400); padding:28px 16px; font-size:13px; margin:0;}
+  .empty-msg .list-retry{margin-top:12px;}
+
+  /* ---------- ตารางรายการร้องขอ (แสดงรายเมล็ด จัดกลุ่มตามเอกสาร) ---------- */
+  .list-toolbar{display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; margin-bottom:16px;}
+  .list-toolbar .form-group{flex:0 1 320px;}
+  /* ---------- Dashboard สรุปสถานะ (กดการ์ด = กรองตาราง / กดซ้ำ = ยกเลิก) ---------- */
+  /* การ์ดกว้างเท่ากัน ยืดพอดีจอ (auto-fit) — ขึ้นแถวใหม่เมื่อจอแคบ / สูงเท่ากันทุกการ์ด (grid-auto-rows:1fr = สูงเท่าการ์ดที่สูงสุด)
+     การ์ดต้องติดตามกว้าง 2 ช่อง ให้ข้อความอธิบายไม่ต้องตัดหลายบรรทัด */
+  .dash{display:grid; grid-template-columns:repeat(auto-fit, minmax(118px, 1fr)); grid-auto-rows:1fr; gap:10px; margin-bottom:10px;}
+  .dash > .dash-card.follow{grid-column:span 2;}
+  .dash-card{
+    position:relative; display:flex; flex-direction:column; justify-content:flex-start;
+    text-align:left; cursor:pointer; padding:8px 14px 8px; border-radius:9px; font:inherit; color:inherit;
+    background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.08); border-top:3px solid var(--c);
+    transition:background .15s, border-color .15s, transform .15s;
+  }
+  .dash-card:hover{background:rgba(255,255,255,.05); transform:translateY(-1px);}
+  .dash-card.active{background:color-mix(in srgb, var(--c) 13%, transparent); border-color:var(--c);}
+  .dash-card .lbl{display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--concrete-400);}
+  .dash-card .lbl i{width:8px; height:8px; border-radius:50%; background:var(--c); flex-shrink:0;}
+  .dash-card .val{font-family:'Oswald',sans-serif; font-size:24px; font-weight:600; line-height:1.1; color:var(--c); margin-top:2px;}
+  .dash-card .val .unit{font-family:'Inter',sans-serif; font-size:12.5px; font-weight:500; color:var(--concrete-400); margin-left:6px;}
+  .dash-card .sub{font-size:11.5px; color:var(--concrete-400);}
+  .dash-card .desc{font-size:11px; color:var(--concrete-400); margin-top:2px; line-height:1.35;}
+  .dash-card.zero .val{opacity:.35;}
+  .dash-card.follow{background:rgba(242,169,28,.07);}
+  .dash-card.follow.hot .val{animation:dashPulse 1.8s ease-in-out infinite;}
+  @keyframes dashPulse{50%{opacity:.55;}}
+  @media (prefers-reduced-motion: reduce){ .dash-card.follow.hot .val{animation:none;} }
+  /* Loading ของแท็บรายการ: คลุมการ์ดรายการ + โลโก้ + วงแหวนหมุน + ข้อความ Loading . . . */
+  .list-card{position:relative;}
+  .list-loading{position:absolute; inset:0; z-index:20; display:flex; align-items:flex-start; justify-content:center;
+    padding-top:min(160px, 18vh); border-radius:inherit; background:rgba(16,20,26,.72); backdrop-filter:blur(2px);}
+  .list-loading[hidden]{display:none;}
+  .ld-box{display:flex; flex-direction:column; align-items:center; gap:8px; position:sticky; top:120px;}
+  /* โลโก้นิ่ง + วงแหวนสีส้มหมุนรอบ แสดงว่ากำลังโหลด / ตัวหนังสือนิ่ง */
+  .ld-ring{position:relative; width:66px; height:66px; display:flex; align-items:center; justify-content:center;}
+  .ld-ring::before{content:""; position:absolute; inset:0; border-radius:50%;
+    border:2.5px solid rgba(242,169,28,.15); border-top-color:var(--amber-500); border-right-color:var(--amber-500);
+    animation:ldSpin .9s linear infinite;}
+  .ld-logo{width:48px; height:48px; filter:drop-shadow(0 4px 10px rgba(242,120,28,.3));}
+  /* Inter บาง + ช่องไฟกว้าง ให้ดูนุ่มกว่า Oswald (ตัวผอมตรง) */
+  .ld-text{font-family:'Inter',sans-serif; font-size:14px; font-weight:500; letter-spacing:.32em; padding-left:.32em; color:#f5c66b;}
+  .ld-sub{font-size:12.5px; color:var(--concrete-400);}
+  @keyframes ldSpin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){ .ld-ring::before{animation-duration:2.5s;} }
+  /* แถบสัดส่วนสถานะ */
+  .dash-bar{display:flex; height:7px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.06); margin-bottom:16px;}
+  .dash-bar span{height:100%; background:var(--c); transition:width .3s;}
+  @media (max-width:560px){ .dash{grid-template-columns:repeat(2, minmax(0, 1fr));} }
+  /* รายการที่ยกเลิก (แสดงเมื่อกดการ์ดยกเลิก): แถวจาง + ขีดฆ่าเลขที่ */
+  .badge.st-C{background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.18); color:var(--concrete-400);}
+  .req-list-table tbody tr.doc-cancel td{color:var(--concrete-400);}
+  .req-list-table tbody tr.doc-cancel td.doc-cell{text-decoration:line-through; color:var(--concrete-400);}
+  .cancel-by{display:block; font-size:12px; color:var(--concrete-200);}
+  /* วันที่ต้องการใช้งาน: เลยกำหนด / ใกล้ถึง (สอดคล้องกับการ์ดต้องติดตาม) */
+  .need-late{color:#ff8a75; font-weight:700;}
+  .need-soon{color:var(--amber-500); font-weight:700;}
+  /* ---------- ตัวกรองรายการร้องขอ (checkbox เปิด/ปิดแต่ละเงื่อนไข) ---------- */
+  .filter-bar{
+    display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)) auto; gap:12px 16px; align-items:end;
+    padding:14px 16px; margin-bottom:10px; border:1px solid rgba(255,255,255,.07); border-radius:8px; background:rgba(255,255,255,.02);
+  }
+  .flt-item{display:flex; flex-direction:column; gap:7px; min-width:0;}
+  .flt-check{display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; font-size:12.5px; color:var(--concrete-400); transition:color .15s;}
+  .flt-check input[type="checkbox"]{width:16px; height:16px; padding:0; margin:0; flex-shrink:0; cursor:pointer; accent-color:var(--amber-500); box-shadow:none;}
+  .flt-item.on .flt-check{color:var(--amber-500); font-weight:600;}
+  .flt-item select, .flt-item input[type="text"]{padding:9px 11px; font-size:13px;}
+  .flt-item.on select, .flt-item.on input[type="text"]{border-color:rgba(242,169,28,.55);}
+  .flt-item select:disabled, .flt-item input:disabled{opacity:.4; cursor:not-allowed;}
+  .flt-actions{display:flex; align-items:flex-end;}
+  .flt-count{margin:0 2px 10px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500); min-height:14px;}
+  .flt-count b{color:var(--amber-500);}
+  @media (max-width:1100px){ .filter-bar{grid-template-columns:repeat(2, minmax(0, 1fr));} .flt-actions{grid-column:1 / -1; justify-content:flex-end;} }
+  @media (max-width:560px){ .filter-bar{grid-template-columns:1fr;} }
+  .req-list-table{min-width:1920px;}
+  /* ส่งคำร้องถึง (บริษัทต้นทาง): ชื่อย่อในป้าย ชื่อเต็มอยู่ใน tooltip */
+  .co-pill{display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap;
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.22); color:var(--concrete-200);}
+  /* สีประจำบริษัท (ตาม idComp): 3 = กรีนซีดส์ เขียว / 2 = โฟลเทคซีดส์ ฟ้า / 4 = แอ๊ดว้านซ์ซีดส์ ชมพู */
+  .co-pill.co-3{background:rgba(62,207,142,.12); border-color:rgba(62,207,142,.45); color:var(--ok-green);}
+  .co-pill.co-2{background:rgba(78,167,224,.12); border-color:rgba(78,167,224,.45); color:var(--sky-blue);}
+  .co-pill.co-4{background:rgba(244,114,182,.13); border-color:rgba(244,114,182,.45); color:#f472b6;}
+  /* ตรึงหัวตาราง: ตารางเลื่อนในกรอบของตัวเอง (สูงไม่เกินจอ) + thead ทั้งก้อน (แถวกลุ่ม + แถวชื่อคอลัมน์) ติดด้านบน */
+  .req-list-wrap{max-height:calc(100vh - 170px); min-height:240px; overflow:auto;}
+  .req-list-table thead{position:sticky; top:0; z-index:5;}
+  .req-list-table thead th{position:static;}
+  .req-list-table thead tr:last-child th{box-shadow:inset 0 -1px 0 rgba(242,169,28,.35);}
+  /* แบ่งหน้า (ข้อมูลโหลดมาครบแล้ว แบ่งแสดงในหน้าเว็บ) */
+  .list-pager{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:12px; font-size:12.5px; color:var(--concrete-400);}
+  .list-pager[hidden]{display:none;}
+  .list-pager .pg-btns{display:flex; align-items:center; gap:4px; flex-wrap:wrap;}
+  .list-pager button{min-width:32px; height:32px; padding:0 10px; border-radius:7px; cursor:pointer; font:inherit; font-size:12.5px;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14); color:var(--concrete-200);}
+  .list-pager button:hover:not(:disabled){border-color:var(--amber-500); color:var(--amber-500);}
+  .list-pager button.on{background:var(--amber-500); border-color:var(--amber-500); color:var(--navy-950); font-weight:600;}
+  .list-pager button:disabled{opacity:.4; cursor:default;}
+  .list-pager .pg-gap{padding:0 4px;}
+  .req-list-table thead tr.group-row th{
+    text-align:center; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.04em;
+    color:var(--navy-950); background:var(--amber-500); border-right:1px solid rgba(0,0,0,.15);
+  }
+  .req-list-table thead tr.group-row th.blank{background:#1a2433;}
+  .req-list-table thead tr.group-row th.grp-action{background:var(--sky-blue);}
+  .req-list-table thead tr.group-row th.grp-manage{background:var(--concrete-200);}
+  /* ปุ่มไอคอนในบล็อกจัดการ */
+  .req-list-table td.act{text-align:center; padding-left:3px; padding-right:3px; vertical-align:middle;}
+  /* บล็อกจัดการ: บีบให้แคบ (หัวคอลัมน์ตัวเล็ก ตัดบรรทัดได้ / ช่องลำดับ + ปุ่มไอคอนชิดกัน) */
+  .req-list-table thead th.mg{padding:8px 4px; font-size:11px; letter-spacing:0; line-height:1.25; white-space:normal; width:1%;}
+  .req-list-table td:first-child{padding-left:4px; padding-right:4px;}
+  .req-list-table td.act .icon-btn{width:28px; height:28px;}
+  .icon-btn{
+    width:30px; height:30px; padding:0; border-radius:7px; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14); color:var(--concrete-200);
+    transition:background .15s, border-color .15s, color .15s;
+  }
+  .icon-btn svg{width:15px; height:15px;}
+  .icon-btn:hover{border-color:var(--amber-500); color:var(--amber-500); background:rgba(242,169,28,.1);}
+  .icon-btn.act-send:hover{border-color:var(--sky-blue); color:var(--sky-blue); background:rgba(78,167,224,.12);}
+  .icon-btn.act-cancel:hover{border-color:var(--safety-red); color:#ff8a75; background:rgba(229,83,61,.12);}
+  /* แก้ไข / ยกเลิก กดไม่ได้ (ตอบกลับแล้ว) */
+  .icon-btn:disabled{opacity:.3; cursor:not-allowed; border-color:rgba(255,255,255,.14); color:var(--concrete-200); background:rgba(255,255,255,.04);}
+  .replied-at{display:block; font-size:11px; color:var(--concrete-400);}
+  .req-list-table td{white-space:nowrap; vertical-align:top;}
+  .req-list-table td.wrap{white-space:normal; min-width:200px;}
+  /* แยกเอกสาร: เส้นคั่นที่แถวแรกของแต่ละเอกสาร + สลับสีพื้นทีละเอกสาร (ทุกแถวสีตัวอักษรเหมือนกัน) */
+  .req-list-table tbody tr.doc-first td{border-top:2px solid rgba(242,169,28,.45);}
+  .req-list-table tbody tr:first-child td{border-top:none;}
+  .req-list-table tbody tr.doc-alt td{background:rgba(255,255,255,.035);}
+  .req-list-table td.doc-cell{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500);}
+  .req-list-table tbody tr:hover td{background:rgba(242,169,28,.06);}
+
+  /* ---------- ACTION BAR ---------- */
+  .action-bar{display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:6px;}
+
+  /* ---------- ERROR BANNER ---------- */
+  .error-banner{
+    display:none; background:rgba(229,83,61,.08); border:1px solid rgba(229,83,61,.4); border-left:3px solid var(--safety-red);
+    color:#ff8a75; border-radius:8px; padding:14px 18px; margin-bottom:20px; font-size:13px;
+  }
+  .error-banner ul{margin:6px 0 0; padding-left:18px; color:var(--concrete-200);}
+
+  /* ---------- BADGES ---------- */
+  .badge{padding:3px 11px; border-radius:999px; font-size:11.5px; font-weight:700; display:inline-block; border:1px solid transparent;}
+  .status-draft{background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.22); color:var(--concrete-200);}
+  .status-ส่งคำร้องขอ,.status-รออนุมัติ{background:rgba(78,167,224,.14); border-color:rgba(78,167,224,.4); color:var(--sky-blue);}
+  .status-อนุมัติแล้ว{background:rgba(62,207,142,.12); border-color:rgba(62,207,142,.4); color:var(--ok-green);}
+  .status-ไม่อนุมัติ{background:rgba(229,83,61,.14); border-color:rgba(229,83,61,.4); color:#ff8a75;}
+  .status-จัดส่งแล้ว{background:rgba(167,139,250,.14); border-color:rgba(167,139,250,.4); color:#c4b5fd;}
+  /* stReq: 1 = ส่งคำร้องแล้ว (รอตอบกลับ) / 2 = พร้อมส่ง / 3 = ไม่พร้อมส่ง */
+  .badge.st-1{background:rgba(78,167,224,.14); border-color:rgba(78,167,224,.4); color:var(--sky-blue);}
+  .badge.st-2{background:rgba(62,207,142,.12); border-color:rgba(62,207,142,.4); color:var(--ok-green);}
+  .badge.st-3{background:rgba(229,83,61,.14); border-color:rgba(229,83,61,.4); color:#ff8a75;}
+  /* 4 = จัดส่งแล้วบางส่วน / 5 = จัดส่งครบแล้ว (ระบบตั้งจากยอดรับเข้า) */
+  .badge.st-4{background:rgba(167,139,250,.14); border-color:rgba(167,139,250,.4); color:#c4b5fd;}
+  .badge.st-5{background:rgba(45,212,191,.14); border-color:rgba(45,212,191,.45); color:#5eead4;}
+  .badge[title]{cursor:help;}
+  /* คอลัมน์กำหนดส่ง: วันที่พร้อมส่ง / ไม่พร้อม + สาเหตุ */
+  .due-ok{font-weight:600; color:var(--ok-green);}
+  .due-wait{color:#ff8a75; font-size:12px;}
+  .due-note{display:block; max-width:220px; white-space:normal; font-size:11.5px; color:var(--concrete-400); margin-top:2px;}
+  /* ปุ่มส่งคำร้องของเอกสารที่ส่งครบแล้ว */
+  .icon-btn.act-send.done{border-color:rgba(62,207,142,.45); color:var(--ok-green);}
+  /* แถบบอกว่ากำลังแก้ไขเอกสารเดิม (หน้าฟอร์ม) */
+  .edit-banner{display:none; align-items:center; gap:10px; flex-wrap:wrap; background:rgba(242,169,28,.08); border:1px solid rgba(242,169,28,.4); border-left:3px solid var(--amber-500); border-radius:8px; padding:12px 16px; margin-bottom:20px; font-size:13px; color:var(--concrete-200);}
+  .edit-banner.show{display:flex;}
+  .edit-banner b{font-family:'JetBrains Mono',monospace; color:var(--amber-500);}
+  .cancel-note{width:100%; min-height:90px; margin-bottom:12px;}
+
+  /* ---------- POPUP ส่งคำร้อง / ลิงก์ตอบกลับ ---------- */
+  .send-summary{display:grid; grid-template-columns:auto 1fr; gap:8px 14px; font-size:13.5px; margin-bottom:16px;}
+  .send-summary dt{color:var(--concrete-400);}
+  .send-summary dd{margin:0; color:#fff;}
+  .send-summary dd.doc{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500);}
+  .send-note{font-size:12.5px; color:var(--concrete-400); margin:0 0 16px;}
+  .link-box{display:flex; align-items:stretch; gap:8px; margin-bottom:12px;}
+  /* ตัด margin-bottom ของ input ใน modal ออก ไม่งั้นปุ่มคัดลอกสูงกว่าช่องลิงก์ */
+  .modal-body .link-box input[type=text]{margin:0;}
+  .link-box .btn{padding-top:0; padding-bottom:0;}
+  .link-box input{font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--sky-blue);}
+  .msg-box{width:100%; min-height:150px; font-size:13px; line-height:1.55; margin-bottom:12px;}
+  .send-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+  /* ปุ่มคัดลอกไปวางใน LINE: สีเขียว LINE + ไอคอน */
+  .btn-line{background:#06c755; color:#fff;}
+  .btn-line svg{width:17px; height:17px;}
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; z-index:60;
+    background:rgba(6,10,16,.7); backdrop-filter:blur(2px);
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal-box{
+    width:100%; max-width:760px; max-height:85vh; display:flex; flex-direction:column;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border:1px solid rgba(255,255,255,.1); border-radius:var(--radius);
+    box-shadow:0 30px 70px -20px rgba(0,0,0,.7); overflow:hidden;
+  }
+  .modal-header{display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;}
+  .modal-header h3{margin:0; font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; color:#fff;}
+  .modal-close{
+    width:30px; height:30px; border-radius:7px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.03); color:var(--concrete-200); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; padding:0;
+  }
+  .modal-close:hover{border-color:var(--safety-red); color:#ff8a75;}
+  .modal-close svg{width:14px; height:14px; pointer-events:none;}
+  .modal-body{padding:16px 20px 20px; overflow-y:auto;}
+  .modal-body input[type=text]{margin-bottom:14px;}
+
+  /* ---------- POPUP เลือกผู้ร้องขอ (แบบเดียวกับ popup เพิ่มสมาชิกหน้ากำหนดสิทธิ์) ---------- */
+  .modal-narrow{max-width:520px; max-height:80vh;}
+  .modal-search{padding:14px 20px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0;}
+  .search-shell{
+    display:flex; align-items:center; gap:8px; color:var(--concrete-400);
+    background:var(--navy-950); border:1px solid rgba(255,255,255,.1); border-radius:7px; padding:0 12px;
+    transition:border-color .18s, box-shadow .18s;
+  }
+  .search-shell:focus-within{border-color:var(--amber-500); box-shadow:0 0 0 3px rgba(242,169,28,.15);}
+  .search-shell input{flex:1; background:transparent; border:0; box-shadow:none; padding:11px 0; margin:0;}
+  .search-shell input:focus{box-shadow:none;}
+  .modal-list{flex:1; padding:8px;}
+  /* popup เลือกเมล็ดพันธุ์: combobox ประเภทพืช + ช่องค้นหา */
+  .seed-filter{display:flex; gap:10px; flex-wrap:wrap;}
+  .seed-filter select{flex:0 1 220px; width:auto; min-width:160px;}
+  .seed-filter .search-shell{flex:1 1 240px;}
+  .seed-pick-table{min-width:560px;}
+  .seed-pick-table td:first-child{font-family:'JetBrains Mono',monospace; white-space:nowrap;}
+  .seed-count{margin:10px 2px 0; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500);}
+  .state-box{padding:30px 20px; text-align:center; color:var(--concrete-400); font-size:13px;}
+  .state-box.error{color:#ff8a75;}
+  .avail-user-row{display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:8px; transition:background .15s; margin-bottom:2px;}
+  .avail-user-row:hover{background:rgba(255,255,255,.04);}
+  .member-avatar{
+    width:36px; height:36px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(242,169,28,.12); border:1px solid rgba(242,169,28,.35); color:var(--amber-500);
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700;
+  }
+  .member-info{flex:1; min-width:0;}
+  .member-name{font-size:13.5px; color:var(--concrete-200); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .member-sub{font-size:11.5px; color:var(--concrete-400); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .avail-choose-btn{
+    flex-shrink:0; border:1px solid rgba(242,169,28,.4); background:rgba(242,169,28,.08);
+    color:var(--amber-500); font-family:'JetBrains Mono',monospace; font-size:11px;
+    letter-spacing:.03em; text-transform:uppercase; padding:7px 12px; border-radius:7px; cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .avail-choose-btn:hover{background:var(--amber-500); color:var(--navy-950);}
+
+  /* ---------- TOAST ---------- */
+  .toast{
+    position:fixed; bottom:24px; right:24px; z-index:2000;
+    background:var(--navy-800); color:#fff; border:1px solid rgba(62,207,142,.45); border-left:3px solid var(--ok-green);
+    padding:14px 20px; border-radius:9px; box-shadow:0 20px 50px -15px rgba(0,0,0,.7); font-size:13.5px;
+    display:flex; align-items:center; gap:10px; opacity:0; transform:translateY(20px); transition:.3s; pointer-events:none;
+  }
+  .toast.show{opacity:1; transform:translateY(0);}
+
+  footer{text-align:center; padding:20px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500);}
+
+  /* ---------- เมนูที่ไม่มีสิทธิ์เข้าถึง ---------- */
+  .menu-locked{opacity:.4; cursor:not-allowed !important;}
+  .menu-locked::after{content:"🔒"; margin-left:auto; font-size:11px; opacity:.9;}
+  a.menu-locked{pointer-events:none;}
+  /* ---------- RESPONSIVE ---------- */
+  .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:19;}
+  @media (max-width:1100px){ .form-grid{grid-template-columns:1fr 1fr;} }
+  @media (max-width:900px){
+    .sidebar{transform:translateX(-100%);}
+    body.sidebar-open .sidebar{transform:translateX(0);}
+    body.sidebar-open .sidebar-overlay{display:block;}
+    .main-wrap{margin-left:0;}
+    .topbar-mobile{display:flex;}
+  }
+  @media (max-width:560px){
+    .form-grid{grid-template-columns:1fr;}
+    .action-bar .btn{flex:1;}
+  }
+
+  /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
+     และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
+  select, input, textarea{max-width:100%; min-width:0;}
+  .form-grid > *, .filter-bar > *{min-width:0;}
+
+  /* ==================================================================
+     ร้องขอขายเมล็ดพันธุ์เกิน PO — ส่วนเพิ่มเติมจากหน้าคำร้องเร่งด่วน
+  ================================================================== */
+  input#docNo{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500);}
+  .hint{font-size:12px; color:var(--concrete-400); margin:6px 0 0;}
+  .hint b{color:var(--amber-500); font-weight:600;}
+  .warn-banner{display:flex; gap:10px; align-items:flex-start; background:rgba(242,169,28,.08); border:1px solid rgba(242,169,28,.4); border-left:3px solid var(--amber-500);
+    border-radius:8px; padding:12px 16px; margin-bottom:18px; font-size:13px; color:var(--concrete-200);}
+  .warn-banner[hidden]{display:none;}
+
+  /* ---------- ตารางรายการในฟอร์ม (1 แถว = 1 เมล็ด + PO ที่อ้างถึง) ---------- */
+  .item-table{min-width:1180px;}
+  .item-table td{vertical-align:top;}
+  .item-table .nm{font-weight:600; color:#fff;}
+  .item-table .crop{display:block; font-size:11.5px; color:var(--concrete-400);}
+  .po-chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:7px;}
+  .po-chip{display:inline-flex; align-items:center; gap:6px; padding:3px 4px 3px 9px; border-radius:999px; font-size:11.5px;
+    background:rgba(78,167,224,.1); border:1px solid rgba(78,167,224,.35); color:var(--concrete-200); white-space:nowrap;}
+  .po-chip b{font-family:'JetBrains Mono',monospace; color:var(--sky-blue); font-weight:600;}
+  .po-chip .q{color:var(--concrete-400);}
+  .po-chip button{width:18px; height:18px; border-radius:50%; border:0; padding:0; cursor:pointer; background:rgba(255,255,255,.08); color:var(--concrete-200); font-size:12px; line-height:18px;}
+  .po-chip button:hover{background:var(--safety-red); color:#fff;}
+  .calc-over{font-family:'JetBrains Mono',monospace; font-weight:700; color:#ff8a75;}
+  .calc-over.none{color:var(--steel-500); font-weight:400;}
+  .item-table .qty-input{width:130px;}
+  .item-table textarea{min-height:38px; font-size:12.5px; padding:8px 10px; min-width:160px;}
+  .field-err{border-color:var(--safety-red) !important; box-shadow:0 0 0 3px rgba(229,83,61,.15) !important;}
+  .max-note{display:block; font-size:11px; color:var(--concrete-400); margin-top:4px; text-align:right; font-family:'JetBrains Mono',monospace;}
+
+  /* ---------- popup เลือก PO ---------- */
+  .modal-po{max-width:1180px; height:86vh; max-height:86vh;}
+  .po-filter{display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+  .po-filter .search-shell{flex:1 1 280px;}
+  .po-filter label.chk{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--concrete-400); cursor:pointer; user-select:none;}
+  .po-filter label.chk input{width:16px; height:16px; padding:0; margin:0; accent-color:var(--amber-500);}
+  .po-pick-wrap{flex:1; min-height:0; overflow:auto; margin:0 20px; border:1px solid rgba(255,255,255,.06); border-radius:8px;}
+  .po-pick-table{min-width:1040px; font-size:12.5px;}
+  .po-pick-table td{padding:8px 10px; white-space:nowrap;}
+  .po-pick-table td.nm{white-space:normal; min-width:220px;}
+  .po-pick-table tbody tr{cursor:pointer;}
+  .po-pick-table tbody tr.on td{background:rgba(242,169,28,.09);}
+  .po-pick-table input[type=checkbox]{width:16px; height:16px; padding:0; margin:0; accent-color:var(--amber-500); cursor:pointer;}
+  .po-pick-table td.code{font-family:'JetBrains Mono',monospace; font-weight:600; color:var(--sky-blue);}
+  .po-st{display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700;}
+  .po-st.done{background:rgba(62,207,142,.13); color:var(--ok-green);}
+  .po-st.full{background:rgba(45,212,191,.13); color:#5eead4;}
+  .po-st.open{background:rgba(255,255,255,.07); color:var(--concrete-400);}
+  .used-in{display:block; font-size:11px; color:var(--amber-500);}
+  .pct-over{color:#ff8a75; font-weight:700;}
+  .modal-foot{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 20px 16px; border-top:1px solid rgba(255,255,255,.08); flex-shrink:0;}
+  .modal-foot .sel-count{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-400);}
+  .modal-foot .sel-count b{color:var(--amber-500);}
+
+  /* ---------- รายการเอกสาร ---------- */
+  .ops-list-table{min-width:1700px;}
+  .ops-list-table td{white-space:nowrap; vertical-align:top;}
+  .ops-list-table td.wrap{white-space:normal; min-width:180px;}
+  .ops-list-table td.doc-cell{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500);}
+  .ops-list-table tbody tr.doc-first td{border-top:2px solid rgba(242,169,28,.45);}
+  .ops-list-table tbody tr:first-child td{border-top:none;}
+  .ops-list-table tbody tr.doc-alt td{background:rgba(255,255,255,.035);}
+  .ops-list-table thead th.mg{padding:8px 4px; font-size:11px; letter-spacing:0; line-height:1.25; white-space:normal; width:1%;}
+  .ops-list-table td.act{text-align:center; padding-left:3px; padding-right:3px;}
+  .ops-list-table td.act .icon-btn{width:28px; height:28px;}
+  /* เคสแดง: ไม่รับซื้อ */
+  .ops-list-table tbody tr.doc-reject td{background:rgba(229,83,61,.09);}
+  .ops-list-table tbody tr.doc-cancel td{color:var(--concrete-400);}
+  .ops-list-table tbody tr.doc-cancel td.doc-cell{text-decoration:line-through; color:var(--concrete-400);}
+  .reject-note{display:block; max-width:260px; white-space:normal; font-size:11.5px; color:#ff8a75; margin-top:3px;}
+  .mail-fail{display:block; font-size:11px; color:#ff8a75;}
+  .badge.ops-D{background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.22); color:var(--concrete-200);}
+  .badge.ops-S{background:rgba(78,167,224,.14); border-color:rgba(78,167,224,.4); color:var(--sky-blue);}
+  .badge.ops-H, .badge.ops-K{background:rgba(167,139,250,.14); border-color:rgba(167,139,250,.4); color:#c4b5fd;}
+  .badge.ops-A{background:rgba(62,207,142,.12); border-color:rgba(62,207,142,.4); color:var(--ok-green);}
+  .badge.ops-R{background:rgba(229,83,61,.2); border-color:rgba(229,83,61,.6); color:#ff8a75;}
+  .badge.ops-C{background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.18); color:var(--concrete-400);}
+  .icon-btn.act-send.done{border-color:rgba(62,207,142,.45); color:var(--ok-green);}
+  .search-inline{flex:1 1 260px; max-width:360px;}
+
+  /* ---------- popup ส่งคำร้อง / ผู้รับอีเมล ---------- */
+  .recip-list{display:flex; flex-direction:column; gap:4px; margin:0 0 14px;}
+  .recip{display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);}
+  .recip .member-info{flex:1;}
+  .recip .mail{font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--sky-blue);}
+  .recip .mail.none{color:#ff8a75; font-family:'Inter',sans-serif;}
+  .recip .tag{font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:1px 7px; border-radius:4px; background:rgba(242,169,28,.14); color:var(--amber-500);}
+  .recip .ok{color:var(--ok-green); font-weight:700; font-size:12px;}
+  .recip .ng{color:#ff8a75; font-weight:700; font-size:12px;}
+  .sec-title{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em; color:var(--concrete-400); text-transform:uppercase; margin:4px 0 8px;}
+  .dry-note{font-size:12px; color:var(--amber-500); margin:0 0 12px;}
+
+  /* ---------- หน้าเอกสาร (บนจอ) ---------- */
+  .doc-toolbar{display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-bottom:18px;}
+  .doc-toolbar .grp{display:flex; gap:8px; flex-wrap:wrap;}
+  .doc-state{padding:40px 20px; text-align:center; color:var(--concrete-400);}
+  .doc-state.error{color:#ff8a75;}
+  .mail-log{font-size:12.5px;}
+  .mail-log table{min-width:640px;}
+  .mail-log td{white-space:nowrap;}
+
+  /* ---------- กระดาษ A4 (ดูบนจอ + พิมพ์ — template เดียวกัน) ---------- */
+  .paper{position:relative; width:210mm; max-width:100%; min-height:297mm; margin:0 auto 22px; padding:14mm 15mm 16mm; background:#fff; color:#111;
+    font-family:'Inter',Tahoma,sans-serif; font-size:11.5px; line-height:1.55; border-radius:4px; box-shadow:0 20px 50px -20px rgba(0,0,0,.7); overflow:hidden;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  .paper .p-head{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding-bottom:8px; border-bottom:2px solid #222;}
+  .paper .p-co{display:flex; gap:12px; align-items:flex-start; min-width:0;}
+  .paper .p-logo{height:58px; width:96px; object-fit:contain; object-position:left top; flex-shrink:0;}
+  .paper .p-co-name{font-size:14px; font-weight:700;}
+  .paper .p-co-en{font-size:11px; font-weight:600; color:#333;}
+  .paper .p-co-l{font-size:9.5px; color:#444;}
+  .paper .p-title{text-align:right; flex-shrink:0;}
+  .paper .p-title .th{font-size:16px; font-weight:700; line-height:1.3;}
+  .paper .p-title .en{font-size:11px; font-weight:600; color:#444; letter-spacing:.03em;}
+  .paper .p-meta{display:grid; grid-template-columns:auto 1fr auto auto; gap:3px 10px; margin:12px 0 10px; font-size:11.5px;}
+  .paper .p-meta .k{font-weight:700;}
+  .paper p{margin:0 0 9px; text-align:justify;}
+  .paper .indent{text-indent:2.2em;}
+  .paper h4{margin:12px 0 6px; font-size:12px; font-weight:700;}
+  .paper table{width:100%; min-width:0; border-collapse:collapse; margin:0 0 10px;}
+  .paper th{position:static; background:#ececec; color:#111; border:1px solid #999; padding:4px 5px; font-family:inherit; font-size:10px; font-weight:700;
+    text-align:center; text-transform:none; letter-spacing:0; white-space:normal; line-height:1.3;}
+  .paper td{border:1px solid #999; padding:4px 5px; color:#111; background:none; font-size:10.5px; vertical-align:top;}
+  .paper tr:hover td{background:none;}
+  .paper td.num{text-align:right; white-space:nowrap; font-family:inherit;}
+  .paper td.ctr{text-align:center;}
+  .paper td.over{font-weight:700; color:#b3261e;}
+  .paper td.offer{font-weight:700;}
+  .paper tr.tot td{font-weight:700; background:#f5f5f5;}
+  .paper .p-box{border:1px solid #999; border-radius:3px; padding:7px 10px; margin-bottom:10px; white-space:pre-wrap; overflow-wrap:anywhere;}
+  .paper .p-signs{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; margin-top:12mm; break-inside:avoid;}
+  .paper .p-sign{text-align:center; font-size:9.5px; line-height:1.4;}
+  .paper .p-sign .side{font-size:9px; color:#666; margin-bottom:2px;}
+  .paper .p-sign .sg{height:12mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:0 8px 3px;}
+  .paper .p-sign .sg img{max-height:12mm; max-width:100%; object-fit:contain;}
+  .paper .p-sign .n{font-weight:600;}
+  .paper .p-sign .t{font-weight:700; font-size:10.5px;}
+  .paper .p-sign .blank{color:#999; font-weight:400;}
+  .paper .p-reject{border:2px solid #b3261e; color:#b3261e; border-radius:4px; padding:8px 12px; margin:10px 0; font-weight:600;}
+  .paper .p-mark{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:1;}
+  .paper .p-mark span{transform:rotate(-28deg); font-size:64px; font-weight:800; letter-spacing:.1em; border:6px solid currentColor; padding:4px 28px; border-radius:10px; opacity:.13;}
+  .paper .p-mark.cancel span{color:#b3261e;}
+  .paper .p-mark.draft span{color:#555; font-size:52px;}
+
+  /* ---------- PRINT ---------- */
+  @page{size:A4 portrait; margin:0;}
+  @media print{
+    body{background:#fff !important;}
+    body.printing #app > *:not(.main-wrap), body.printing .topbar-mobile, body.printing footer,
+    body.printing .modal-overlay, body.printing .toast, body.printing .no-print{display:none !important;}
+    body.printing .main-wrap{margin:0 !important;}
+    body.printing main{padding:0 !important; max-width:none !important;}
+    body.printing .paper{box-shadow:none; border-radius:0; margin:0; width:210mm; min-height:0; padding:12mm 14mm;}
+  }
+
+</style>
+<!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
+<script src="/js/session-guard.js"></script>
+<script src="/js/sidebar.js"></script>
+</head>
+
+<body>
+
+<div class="app-shell" id="app">
+
+  <!-- ---------- SIDEBAR (โหลดไฟล์กลางมาแปะอัตโนมัติ) ---------- -->
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ---------- MAIN ---------- -->
+  <div class="main-wrap">
+
+    <div class="topbar-mobile">
+      <button class="hamburger" id="sidebarToggle" type="button" aria-label="เปิดเมนู">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <div class="brand-text">WIM</div>
+    </div>
+
+    <main>
+      <div class="no-print">
+        <div class="eyebrow">Over PO Seed Sale Request</div>
+        <h1>ร้องขอขายเมล็ดพันธุ์เกิน PO</h1>
+      </div>
+
+      <!-- ============ โหมดเอกสาร (/over-po-sale-doc?id=) ============ -->
+      <section id="docPage" class="page">
+        <div class="doc-toolbar no-print">
+          <div class="grp">
+            <a class="btn btn-secondary" href="/over-po-sale" id="docBackBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              รายการเอกสาร
+            </a>
+          </div>
+          <div class="grp" id="docActions"></div>
+        </div>
+        <div id="docPaper"><div class="doc-state">กำลังโหลดเอกสาร…</div></div>
+        <div class="card no-print" id="docMailCard" hidden>
+          <h2>ประวัติการส่งอีเมล</h2>
+          <div class="table-responsive mail-log"><table><thead><tr><th>เวลา</th><th>ครั้ง</th><th>ประเภท</th><th>ผู้รับ</th><th>อีเมล</th><th>ผล</th></tr></thead><tbody id="docMailBody"></tbody></table></div>
+        </div>
+      </section>
+
+      <div class="tab-bar no-print" id="tabBar">
+        <button type="button" class="nav-btn active" id="navListBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+          รายการคำร้อง
+        </button>
+        <button type="button" class="nav-btn" id="navFormBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          เพิ่มคำร้อง
+        </button>
+      </div>
+
+      <!-- ============ FORM ============ -->
+      <section id="formPage" class="page">
+        <div class="edit-banner" id="editBanner">✏️ กำลังแก้ไขเอกสาร <b id="editDocNo"></b> <span>(แก้ไขได้จนกว่าจะส่งคำร้อง)</span></div>
+        <div class="warn-banner" id="mailWarn" hidden></div>
+        <div class="error-banner" id="formError"></div>
+
+        <div class="card">
+          <h2>ข้อมูลคำร้อง</h2>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>วันที่เอกสาร</label>
+              <input type="text" id="docDate" readonly>
+            </div>
+            <div class="form-group">
+              <label>เลขที่เอกสาร</label>
+              <input type="text" id="docNo" readonly>
+            </div>
+            <div class="form-group">
+              <label>ผู้ร้องขอ (ผู้ลงนาม)<span class="req">*</span></label>
+              <div class="picker-input" id="openEmployeeBtn" title="คลิกเพื่อเลือกผู้ร้องขอ">
+                <input type="text" id="requesterName" readonly placeholder="— เลือกผู้ร้องขอ —">
+                <svg class="picker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>บริษัทที่ร้องขอ (ผู้ขาย)<span class="req">*</span></label>
+              <select id="compReqSelect"><option value="">— เลือกบริษัท —</option></select>
+            </div>
+            <div class="form-group">
+              <label>ส่งคำร้องถึง (ผู้ซื้อ / เจ้าของ PO)<span class="req">*</span></label>
+              <select id="compTargetSelect" disabled><option value="">— เลือกบริษัทที่ร้องขอก่อน —</option></select>
+            </div>
+            <div class="form-group full">
+              <label>เรื่อง<span class="req">*</span></label>
+              <input type="text" id="subjectInput" maxlength="300">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-header">
+            <h2>PO ตั้งต้นที่อ้างถึง และยอดที่เสนอขาย</h2>
+            <button type="button" class="btn btn-primary" id="openPoBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              เลือก PO ที่อ้างถึง
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="item-table">
+              <thead>
+                <tr>
+                  <th class="ctr">#</th><th>เมล็ดพันธุ์ / PO ที่อ้างถึง</th><th class="num">ยอด PO รวม</th><th class="num">ขายแล้ว<br>(รับเข้าตาม PO)</th>
+                  <th class="ctr">ผลิตได้ทั้งหมด<span class="req">*</span></th><th class="num">เกิน PO</th><th class="ctr">เสนอขายเพิ่ม<span class="req">*</span></th>
+                  <th class="ctr">หน่วย</th><th>หมายเหตุรายการ</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="itemBody"></tbody>
+            </table>
+            <p class="empty-msg" id="noItemMsg">ยังไม่มีรายการ — เลือกบริษัทแล้วกด "เลือก PO ที่อ้างถึง"</p>
+          </div>
+          <p class="hint">เกิน PO = ผลิตได้ทั้งหมด − ยอด PO รวม &nbsp;·&nbsp; เสนอขายเพิ่มได้ไม่เกิน <b>ผลิตได้ทั้งหมด − ขายแล้ว</b> (ค่าเริ่มต้น = ยอดนี้)</p>
+        </div>
+
+        <div class="card">
+          <h2>สาเหตุการผลิตเกิน PO</h2>
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>สาเหตุ / รายละเอียด<span class="req">*</span></label>
+              <textarea id="causeInput" rows="6" placeholder="เช่น แผนการผลิต จำนวนต้น ผลผลิตเฉลี่ย ปัจจัยด้านตลาด/คุณภาพ ที่ทำให้ผลผลิตเกินใบสั่งซื้อ..."></textarea>
+            </div>
+            <div class="form-group full">
+              <label>หมายเหตุ</label>
+              <textarea id="noteInput" rows="2" maxlength="1000"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-bar">
+          <button type="button" class="btn btn-danger" id="resetBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            ล้างฟอร์ม
+          </button>
+          <button type="button" class="btn btn-success" id="saveBtn">บันทึก</button>
+        </div>
+      </section>
+
+      <!-- ============ LIST ============ -->
+      <section id="listPage" class="page active">
+        <div class="card list-card">
+          <div class="list-loading" id="listLoading" hidden role="status" aria-live="polite">
+            <div class="ld-box">
+              <div class="ld-ring"><img src="images/WIM_LoadingLogo.png" alt="" class="ld-logo" width="48" height="48"></div>
+              <div class="ld-text" aria-label="กำลังโหลด">Loading . . .</div>
+            </div>
+          </div>
+          <h2>รายการคำร้องขอขายเมล็ดพันธุ์เกิน PO</h2>
+          <div class="list-toolbar">
+            <div class="form-group">
+              <label>บริษัทที่ร้องขอ :</label>
+              <select id="listCompSelect"></select>
+            </div>
+            <div class="form-group search-inline">
+              <label>ค้นหา :</label>
+              <input type="text" id="listSearch" placeholder="เลขที่ / เมล็ดพันธุ์ / PO..." autocomplete="off">
+            </div>
+            <button type="button" class="btn btn-secondary" id="listRefreshBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              รีเฟรชข้อมูล
+            </button>
+          </div>
+          <div class="dash" id="statusDash"></div>
+          <div class="table-responsive req-list-wrap">
+            <table class="ops-list-table">
+              <thead>
+                <tr>
+                  <th class="ctr mg">ลำดับ</th><th class="ctr mg">เอกสาร</th><th class="ctr mg">ส่ง<br>คำร้อง</th><th class="ctr mg">แก้ไข</th><th class="ctr mg">ยกเลิก</th>
+                  <th class="ctr">สถานะ</th><th>เลขที่เอกสาร</th><th class="ctr">วันที่</th><th class="ctr">ส่งถึง</th>
+                  <th>เมล็ดพันธุ์</th><th>PO ที่อ้างถึง</th><th class="num">ยอด PO</th><th class="num">ขายแล้ว</th><th class="num">ผลิตได้</th>
+                  <th class="num">เกิน PO</th><th class="num">เสนอขายเพิ่ม</th><th class="ctr">หน่วย</th><th>ผู้ร้องขอ</th><th class="ctr">ส่งคำร้องเมื่อ</th>
+                </tr>
+              </thead>
+              <tbody id="listBody"></tbody>
+            </table>
+            <p class="empty-msg" id="noListMsg">ยังไม่มีคำร้องของบริษัทนี้</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="no-print">©2026 WIM ⋅ WAREHOUSE AND INVENTORY MANAGEMENT</footer>
+  </div>
+
+</div>
+
+<!-- ============ เลือกพนักงาน (ผู้ร้องขอ / ผู้รับอีเมล) ============ -->
+<div class="modal-overlay" id="employeeModal">
+  <div class="modal-box modal-narrow">
+    <div class="modal-header">
+      <h3 id="employeeModalTitle">เลือกผู้ร้องขอ</h3>
+      <button type="button" class="modal-close" data-close="employeeModal" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="modal-search">
+      <div class="search-shell">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" id="employeeSearch" placeholder="พิมพ์ชื่อพนักงาน..." autocomplete="off">
+      </div>
+    </div>
+    <div class="modal-body modal-list" id="employeeModalBody"></div>
+  </div>
+</div>
+
+<!-- ============ เลือก PO ตั้งต้น ============ -->
+<div class="modal-overlay" id="poModal">
+  <div class="modal-box modal-po">
+    <div class="modal-header">
+      <div>
+        <h3>เลือก PO ตั้งต้นที่อ้างถึง</h3>
+        <p class="av-head-sub" id="poModalSub"></p>
+      </div>
+      <button type="button" class="modal-close" data-close="poModal" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="modal-search po-filter">
+      <div class="search-shell">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" id="poSearch" placeholder="ค้นหาเลขที่ PO / ชื่อเมล็ดพันธุ์ / ประเภทพืช..." autocomplete="off">
+      </div>
+      <label class="chk"><input type="checkbox" id="poShowOpen"> แสดง PO ที่ยังไม่สิ้นสุดและรับยังไม่ครบด้วย</label>
+    </div>
+    <div class="po-pick-wrap" style="margin-top:12px;">
+      <table class="po-pick-table">
+        <thead>
+          <tr>
+            <th class="ctr"></th><th>เลขที่ PO</th><th class="ctr">วันที่ PO</th><th>เมล็ดพันธุ์</th><th class="num">ยอด PO</th><th class="num">รับแล้ว</th>
+            <th class="num">% รับ</th><th class="ctr">หน่วย</th><th class="ctr">สถานะ PO</th>
+          </tr>
+        </thead>
+        <tbody id="poBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-foot">
+      <span class="sel-count" id="poSelCount"></span>
+      <div class="grp" style="display:flex; gap:8px;">
+        <button type="button" class="btn btn-secondary" data-close="poModal">ปิด</button>
+        <button type="button" class="btn btn-primary" id="poConfirmBtn">ใช้ PO ที่เลือก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ popup ทั่วไป (ส่งคำร้อง / ผู้รับอีเมล / ยกเลิก / บันทึกสำเร็จ) — เนื้อหาสร้างจาก JS ============ -->
+<div class="modal-overlay" id="dlgModal">
+  <div class="modal-box modal-narrow" style="max-width:620px;">
+    <div class="modal-header">
+      <h3 id="dlgTitle"></h3>
+      <button type="button" class="modal-close" data-close="dlgModal" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="dlgBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const CURRENT_PAGE_MENU_CODE = 'over_po_sale';
+  function loadSidebar() { return WIMSidebar.load({ menuCode: CURRENT_PAGE_MENU_CODE }); }
+  document.addEventListener('DOMContentLoaded', loadSidebar);
+</script>
+
+<script>
+(function(){
+  'use strict';
+
+  const LOGO_BASE_URL = 'https://seedsgroup.dyndns.org/spm/Center/Logo/';
+  const ESIGN_URL = (idPs) => `https://seedsgroup.dyndns.org/spm/images/eSign/${encodeURIComponent(idPs)}.png`;
+  const DEFAULT_SUBJECT = 'ขออนุมัติขายเมล็ดพันธุ์ที่ผลิตเกินจำนวนใบสั่งซื้อ (Over PO)';
+  const STATUS = {
+    D: 'ร่าง (ยังไม่ส่ง)', S: 'ส่งคำร้องแล้ว รอตรวจสอบ', H: 'ตรวจสอบแล้ว', K: 'รับทราบแล้ว',
+    A: 'อนุมัติรับซื้อ', R: 'ไม่รับซื้อ', C: 'ยกเลิก'
+  };
+  const DASH = [
+    { key: 'all', label: 'ทั้งหมด (ไม่รวมยกเลิก)', c: 'var(--amber-500)', test: d => d.status !== 'C' },
+    { key: 'D', label: STATUS.D, c: 'var(--concrete-200)', test: d => d.status === 'D' },
+    { key: 'S', label: 'รอฝั่งผู้ซื้อดำเนินการ', c: 'var(--sky-blue)', test: d => ['S', 'H', 'K'].includes(d.status) },
+    { key: 'A', label: STATUS.A, c: 'var(--ok-green)', test: d => d.status === 'A' },
+    { key: 'R', label: 'ไม่รับซื้อ (เคสแดง)', c: 'var(--safety-red)', test: d => d.status === 'R' },
+    { key: 'C', label: STATUS.C, c: 'var(--steel-500)', test: d => d.status === 'C' }
+  ];
+
+  /* ==================================================================
+     HELPERS
+  ================================================================== */
+  const $ = (id) => document.getElementById(id);
+  function esc(s){
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  const round6 = (n) => Math.round(n * 1e6) / 1e6;
+  // จำนวน: ทศนิยมสูงสุด 3 ตำแหน่ง มีคอมม่าคั่นหลักพัน
+  function fmtQty(v){
+    if(v === null || v === undefined || v === '' || isNaN(v)) return '-';
+    return Number(v).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+  }
+  function parseQty(text){ const n = parseFloat(String(text).replace(/,/g, '')); return isNaN(n) ? null : n; }
+  function thDate(iso){
+    if(!iso) return '-';
+    const [y,m,d] = iso.slice(0,10).split('-').map(Number);
+    return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y + 543}`;
+  }
+  const TH_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  function thLongDate(iso){
+    if(!iso) return '-';
+    const [y,m,d] = iso.slice(0,10).split('-').map(Number);
+    return `${d} ${TH_MONTHS[m - 1]} ${y + 543}`;
+  }
+  const thStamp = (s) => s ? `${thDate(s)} ${s.slice(11,16)}` : '-';
+  const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+  function shortCompName(name){
+    return String(name || '').replace(/^\s*บริษัท\s*/, '').replace(/\s*จำกัด(\s*\(มหาชน\))?\s*$/, '').trim() || name;
+  }
+  function showToast(msg){
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+  function openModal(id){ $(id).classList.add('show'); }
+  function closeModal(id){ $(id).classList.remove('show'); }
+  async function api(url, opts = {}){
+    const res = await fetch(url, opts.body ? { method: opts.method || 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts.body) } : opts);
+    let data = null;
+    try{ data = await res.json(); } catch(e){}
+    if(!data) throw new Error(`เชื่อมต่อ server ไม่สำเร็จ (${res.status})`);
+    if(!data.success){ const err = new Error(data.message || 'ทำรายการไม่สำเร็จ'); err.data = data; throw err; }
+    return data;
+  }
+  function currentUser(){
+    let u = null;
+    try{ u = JSON.parse(sessionStorage.getItem('wim_user') || 'null'); } catch(e){}
+    const id = u && Number(u.idPs);
+    const name = u && (u.PsName || [u.PsNameF, u.PsNameS].filter(Boolean).join(' ').trim());
+    return id ? { id, name: name || '-' } : null;
+  }
+  function dlg(title, html){
+    $('dlgTitle').textContent = title;
+    $('dlgBody').innerHTML = html;
+    openModal('dlgModal');
+  }
+
+  /* ==================================================================
+     STATE
+  ================================================================== */
+  let companies = [];       // บริษัท 2/3/4 + allowed
+  let myCompanies = [];
+  let mailReady = false, mailDryRun = false, canMailTo = false;
+  let employees = null;     // โหลดครั้งแรกที่เปิด popup
+  let employeeMode = 'requester';   // requester | mailto
+  let requester = null;
+  let compReq = null, compTarget = null;
+  let items = [];           // [{ idInvMain, invName, seedName, idUnit, unit, pos:[poLine], amountProduce, amountOffer, note }]
+  let editing = null;       // { id, docNo, stamp } = แก้ไขเอกสารเดิม
+  let poLines = [], poLinesKey = '', poSelected = new Set();
+  let docs = [], dashKey = 'all';
+  let mailtoComp = null;
+
+  /* ==================================================================
+     INIT
+  ================================================================== */
+  // แท็บใหม่ (เช่น เปิดจากลิงก์ในอีเมล): sessionStorage ยังว่าง — ดึงผู้ใช้จาก session server เอง ไม่รอ sidebar
+  async function ensureUser(){
+    if(currentUser()) return;
+    try{
+      const res = await fetch('/api/auth/me', { cache: 'no-store' });
+      const data = await res.json();
+      if(res.ok && data.success) sessionStorage.setItem('wim_user', JSON.stringify(data.user));
+    } catch(e){}
+  }
+
+  async function init(){
+    attachEvents();
+    await ensureUser();
+    try{
+      const r = await api('/api/ops/companies');
+      companies = r.data || [];
+      myCompanies = companies.filter(c => c.allowed);
+      mailReady = r.mailReady; mailDryRun = r.mailDryRun; canMailTo = r.canMailTo;
+    } catch(err){
+      console.error(err);
+      $('formError').style.display = 'block';
+      $('formError').textContent = 'โหลดข้อมูลบริษัทไม่สำเร็จ: ' + err.message;
+    }
+    const params = new URLSearchParams(location.search);
+    if(location.pathname.replace(/\.html$/, '') === '/over-po-sale-doc'){
+      $('tabBar').style.display = 'none';
+      $('listPage').classList.remove('active');
+      $('docPage').classList.add('active');
+      return loadDocPage(parseInt(params.get('id'), 10));
+    }
+    renderMailWarn();
+    renderCompanySelects();
+    resetForm();
+    const editId = parseInt(params.get('edit'), 10);
+    if(editId){ switchTab('form'); openEdit(editId); }
+    else loadList();
+  }
+
+  function renderMailWarn(){
+    const el = $('mailWarn');
+    if(!mailReady){
+      el.hidden = false;
+      el.innerHTML = '⚠️ server ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) — บันทึกเอกสารได้ แต่จะส่งคำร้องทางอีเมลไม่ได้จนกว่าผู้ดูแลระบบจะตั้งค่า';
+    } else if(mailDryRun){
+      el.hidden = false;
+      el.innerHTML = '🧪 โหมดทดสอบอีเมล (MAIL_DRY_RUN) — กดส่งแล้วระบบจะบันทึกเป็นไฟล์บน server ไม่ได้ส่งถึงผู้รับจริง';
+    } else el.hidden = true;
+  }
+
+  function renderCompanySelects(){
+    const opts = myCompanies.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    $('compReqSelect').innerHTML = myCompanies.length ? '<option value="">— เลือกบริษัท —</option>' + opts : '<option value="">ไม่มีสิทธิ์บริษัทใด ติดต่อผู้ดูแลระบบ</option>';
+    $('compReqSelect').disabled = !myCompanies.length;
+    $('listCompSelect').innerHTML = opts || '<option value="">ไม่มีสิทธิ์บริษัทใด</option>';
+    // ค่าเริ่มต้นฝั่งร้องขอ = บริษัทแรกที่มีสิทธิ์ที่ไม่ใช่ AV (4) — ปกติผู้ขายคือ FLO / GR
+    const def = myCompanies.find(c => Number(c.id) !== 4) || myCompanies[0];
+    if(def) $('listCompSelect').value = String(def.id);
+  }
+
+  function renderTargetSelect(){
+    const sel = $('compTargetSelect');
+    if(!compReq){
+      sel.disabled = true;
+      sel.innerHTML = '<option value="">— เลือกบริษัทที่ร้องขอก่อน —</option>';
+      compTarget = null;
+      return;
+    }
+    const targets = companies.filter(c => Number(c.id) !== compReq);
+    if(!targets.some(c => Number(c.id) === compTarget)) compTarget = targets.some(c => Number(c.id) === 4) ? 4 : null;
+    sel.disabled = false;
+    sel.innerHTML = '<option value="">— เลือกบริษัท —</option>' + targets.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    sel.value = compTarget ? String(compTarget) : '';
+  }
+
+  /* ==================================================================
+     TABS
+  ================================================================== */
+  function switchTab(tab){
+    $('navListBtn').classList.toggle('active', tab === 'list');
+    $('navFormBtn').classList.toggle('active', tab === 'form');
+    $('listPage').classList.toggle('active', tab === 'list');
+    $('formPage').classList.toggle('active', tab === 'form');
+  }
+
+  /* ==================================================================
+     FORM
+  ================================================================== */
+  function resetForm(){
+    editing = null;
+    $('editBanner').classList.remove('show');
+    $('saveBtn').textContent = 'บันทึก';
+    $('formError').style.display = 'none';
+    $('docDate').value = thDate(todayISO());
+    const iso = todayISO();
+    $('docNo').value = `OPQ${String(Number(iso.slice(0,4)) + 543).slice(-2)}${iso.slice(5,7)}/0000`;
+    requester = currentUser();
+    $('requesterName').value = requester ? requester.name : '';
+    const def = myCompanies.find(c => Number(c.id) !== 4) || myCompanies[0];
+    compReq = def ? Number(def.id) : null;
+    $('compReqSelect').value = compReq ? String(compReq) : '';
+    $('compReqSelect').disabled = !myCompanies.length;
+    compTarget = null;
+    renderTargetSelect();
+    $('subjectInput').value = DEFAULT_SUBJECT;
+    $('causeInput').value = '';
+    $('noteInput').value = '';
+    items = [];
+    renderItems();
+  }
+
+  function onCompanyChange(kind, value){
+    const v = value ? Number(value) : null;
+    const prev = kind === 'req' ? compReq : compTarget;
+    if(v === prev) return;
+    if(items.length && !confirm('เปลี่ยนบริษัทแล้ว PO ที่เลือกไว้จะถูกล้างทั้งหมด — ต้องการเปลี่ยนหรือไม่?')){
+      (kind === 'req' ? $('compReqSelect') : $('compTargetSelect')).value = prev ? String(prev) : '';
+      return;
+    }
+    if(kind === 'req'){ compReq = v; renderTargetSelect(); }
+    else compTarget = v;
+    items = [];
+    renderItems();
+  }
+
+  // ยอดของรายการ: รวมจาก PO ที่เลือก (แปลงเป็นหน่วยของ PO บรรทัดแรก — กรัม <-> กก.)
+  const GRAM = { 1: 1, 2: 1000 };
+  function conv(v, from, to){
+    if(from === to) return v;
+    if(GRAM[from] && GRAM[to]) return v * GRAM[from] / GRAM[to];
+    return null;
+  }
+  function itemTotals(it){
+    let po = 0, rec = 0, bad = false;
+    it.pos.forEach(p => {
+      const a = conv(p.amountPO, p.idUnit, it.idUnit), b = conv(p.amountRec, p.idUnit, it.idUnit);
+      if(a === null || b === null) bad = true; else { po += a; rec += b; }
+    });
+    return { po: round6(po), rec: round6(rec), bad };
+  }
+
+  function renderItems(){
+    $('noItemMsg').style.display = items.length ? 'none' : '';
+    $('itemBody').innerHTML = items.map((it, i) => {
+      const t = itemTotals(it);
+      const over = it.amountProduce != null ? round6(it.amountProduce - t.po) : null;
+      const maxOffer = it.amountProduce != null ? round6(it.amountProduce - t.rec) : null;
+      const chips = it.pos.map(p => `<span class="po-chip" title="วันที่ PO ${thDate(p.datePO)}">
+          <b>${esc(p.poCode)}</b><span class="q">${fmtQty(p.amountPO)} ${esc(p.unitName || '')}</span>
+          <button type="button" data-rm-po="${p.idPODt}" title="เอา PO นี้ออก">×</button></span>`).join('');
+      return `<tr data-i="${i}">
+        <td class="ctr">${i + 1}</td>
+        <td><span class="nm">${esc(it.invName)}</span>${it.seedName ? `<span class="crop">${esc(it.seedName)}</span>` : ''}
+          <div class="po-chips">${chips}</div>
+          ${t.bad ? '<span class="mail-fail">⚠ หน่วยของ PO ในรายการนี้แปลงรวมกันไม่ได้</span>' : ''}</td>
+        <td class="num">${fmtQty(t.po)}</td>
+        <td class="num">${fmtQty(t.rec)}</td>
+        <td class="ctr"><input type="text" class="qty-input" inputmode="decimal" data-f="amountProduce" value="${it.amountProduce == null ? '' : it.amountProduce}" placeholder="0"></td>
+        <td class="num"><span class="calc-over ${over != null && over > 0 ? '' : 'none'}">${over == null ? '-' : fmtQty(over)}</span></td>
+        <td class="ctr"><input type="text" class="qty-input" inputmode="decimal" data-f="amountOffer" value="${it.amountOffer == null ? '' : it.amountOffer}" placeholder="0">
+          ${maxOffer != null ? `<span class="max-note">สูงสุด ${fmtQty(maxOffer)}</span>` : ''}</td>
+        <td class="ctr">${esc(it.unit || '-')}</td>
+        <td><textarea data-f="note" rows="1" maxlength="500">${esc(it.note || '')}</textarea></td>
+        <td class="ctr"><button type="button" class="icon-btn act-cancel" data-rm-item="${i}" title="ลบรายการ">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg></button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // กรอกยอดผลิตได้แล้ว: ถ้ายังไม่เคยแก้ยอดเสนอขาย ให้ตั้งเป็นยอดสูงสุด (ผลิตได้ − ขายแล้ว) อัตโนมัติ
+  function onItemInput(e){
+    const tr = e.target.closest('tr[data-i]');
+    const f = e.target.dataset.f;
+    if(!tr || !f) return;
+    const it = items[Number(tr.dataset.i)];
+    if(f === 'note'){ it.note = e.target.value; return; }
+    it[f] = parseQty(e.target.value);
+    if(f === 'amountOffer') it.offerTouched = true;
+    if(f === 'amountProduce' && !it.offerTouched && it.amountProduce != null){
+      const max = round6(it.amountProduce - itemTotals(it).rec);
+      it.amountOffer = max > 0 ? max : null;
+      const offerInput = tr.querySelector('[data-f="amountOffer"]');
+      offerInput.value = it.amountOffer == null ? '' : it.amountOffer;
+    }
+    const t = itemTotals(it);
+    const over = it.amountProduce != null ? round6(it.amountProduce - t.po) : null;
+    const overEl = tr.querySelector('.calc-over');
+    overEl.textContent = over == null ? '-' : fmtQty(over);
+    overEl.classList.toggle('none', !(over > 0));
+    const maxEl = tr.querySelector('.max-note');
+    const maxOffer = it.amountProduce != null ? round6(it.amountProduce - t.rec) : null;
+    if(maxOffer != null){
+      if(maxEl) maxEl.textContent = `สูงสุด ${fmtQty(maxOffer)}`;
+      else tr.querySelector('[data-f="amountOffer"]').insertAdjacentHTML('afterend', `<span class="max-note">สูงสุด ${fmtQty(maxOffer)}</span>`);
+    } else if(maxEl) maxEl.remove();
+    e.target.classList.remove('field-err');
+  }
+
+  function validateForm(){
+    const errs = [];
+    if(!requester) errs.push('กรุณาเลือกผู้ร้องขอ');
+    if(!compReq) errs.push('กรุณาเลือกบริษัทที่ร้องขอ');
+    if(!compTarget) errs.push('กรุณาเลือกบริษัทที่ส่งคำร้องถึง');
+    if(!$('subjectInput').value.trim()) errs.push('กรุณาระบุเรื่อง');
+    if(!items.length) errs.push('กรุณาเลือก PO ที่อ้างถึงอย่างน้อย 1 รายการ');
+    document.querySelectorAll('#itemBody .field-err').forEach(el => el.classList.remove('field-err'));
+    items.forEach((it, i) => {
+      const t = itemTotals(it);
+      const tr = $('itemBody').querySelector(`tr[data-i="${i}"]`);
+      const mark = (f) => tr && tr.querySelector(`[data-f="${f}"]`).classList.add('field-err');
+      const no = `รายการที่ ${i + 1} (${it.invName})`;
+      if(t.bad) errs.push(`${no}: หน่วยของ PO แปลงรวมกันไม่ได้`);
+      if(!(it.amountProduce > 0)){ errs.push(`${no}: กรุณากรอกยอดผลิตได้ทั้งหมด`); mark('amountProduce'); }
+      else if(it.amountProduce <= t.po){ errs.push(`${no}: ยอดผลิตได้ต้องมากกว่ายอด PO รวม (${fmtQty(t.po)})`); mark('amountProduce'); }
+      if(!(it.amountOffer > 0)){ errs.push(`${no}: กรุณากรอกยอดเสนอขายเพิ่ม`); mark('amountOffer'); }
+      else if(it.amountProduce > 0 && it.amountOffer > round6(it.amountProduce - t.rec) + 1e-6){
+        errs.push(`${no}: ยอดเสนอขายเพิ่มเกิน ${fmtQty(round6(it.amountProduce - t.rec))}`); mark('amountOffer');
+      }
+    });
+    if(!$('causeInput').value.trim()) errs.push('กรุณาระบุสาเหตุการผลิตเกิน PO');
+    return errs;
+  }
+  function showErrors(errs){
+    const el = $('formError');
+    if(!errs.length){ el.style.display = 'none'; return; }
+    el.innerHTML = `<b>กรุณาตรวจสอบข้อมูล</b><ul>${errs.map(e => `<li>${esc(e)}</li>`).join('')}</ul>`;
+    el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  async function handleSave(){
+    const errs = validateForm();
+    showErrors(errs);
+    if(errs.length) return;
+    const body = {
+      idCompReq: compReq, idCompTarget: compTarget, idPsReq: requester.id,
+      subject: $('subjectInput').value.trim(), causeNote: $('causeInput').value.trim(), note: $('noteInput').value.trim(),
+      stamp: editing ? editing.stamp : undefined,
+      items: items.map(it => ({ idInvMain: it.idInvMain, amountProduce: it.amountProduce, amountOffer: it.amountOffer, note: it.note || '', poLines: it.pos.map(p => p.idPODt) }))
+    };
+    const btn = $('saveBtn');
+    btn.disabled = true;
+    try{
+      const r = editing
+        ? await api(`/api/ops/docs/${editing.id}`, { method: 'PUT', body })
+        : await api('/api/ops/docs', { body });
+      const wasEdit = !!editing;
+      resetForm();
+      dlg(wasEdit ? 'แก้ไขเอกสารสำเร็จ' : 'บันทึกเอกสารสำเร็จ', `
+        <dl class="send-summary"><dt>เลขที่เอกสาร</dt><dd class="doc">${esc(r.docNo)}</dd><dt>สถานะ</dt><dd>${STATUS.D}</dd></dl>
+        <p class="send-note">ตรวจสอบเอกสารแล้วกด "ส่งคำร้อง" เพื่อส่งอีเมลแจ้งฝ่ายจัดซื้อผู้ซื้อ (หลังส่งแล้วจะแก้ไขไม่ได้)</p>
+        <div class="send-actions">
+          <button type="button" class="btn btn-secondary" data-act="list" data-id="${r.id}">ไปหน้ารายการ</button>
+          <a class="btn btn-secondary" href="/over-po-sale-doc?id=${r.id}" target="_blank" rel="noopener">ดูเอกสาร</a>
+          <button type="button" class="btn btn-primary" data-act="send" data-id="${r.id}">ส่งคำร้อง</button>
+        </div>`);
+    } catch(err){
+      showErrors([err.message]);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function openEdit(id){
+    try{
+      const { data: d } = await api(`/api/ops/doc/${id}`);
+      if(d.status !== 'D' || !d.canEdit){ alert('เอกสารนี้ส่งคำร้องแล้วหรือถูกยกเลิก — แก้ไขไม่ได้'); return; }
+      resetForm();
+      editing = { id: d.id, docNo: d.docNo, stamp: d.stamp };
+      $('editDocNo').textContent = d.docNo;
+      $('editBanner').classList.add('show');
+      $('saveBtn').textContent = 'บันทึกการแก้ไข';
+      $('docNo').value = d.docNo;
+      $('docDate').value = thDate(d.docDate);
+      requester = { id: d.requester.id, name: d.requester.name };
+      $('requesterName').value = requester.name;
+      compReq = d.compReq;
+      $('compReqSelect').value = String(compReq);
+      $('compReqSelect').disabled = true;   // เปลี่ยนบริษัทผู้ร้องขอไม่ได้ (เลขที่เอกสารรันตามบริษัท)
+      compTarget = d.compTarget;
+      renderTargetSelect();
+      $('subjectInput').value = d.subject;
+      $('causeInput').value = d.causeNote;
+      $('noteInput').value = d.note;
+      // ยอด PO / รับแล้ว ใช้ค่าล่าสุดจาก popup PO (โหลดใหม่) — ถ้าโหลดไม่ได้ใช้ค่าที่บันทึกไว้
+      await ensurePoLines(false, d.id).catch(() => {});
+      const lineMap = new Map(poLines.map(l => [l.idPODt, l]));
+      items = d.items.map(it => ({
+        idInvMain: it.idInvMain, invName: it.invName, seedName: it.seedName, idUnit: it.idUnit, unit: it.unit,
+        amountProduce: it.amountProduce, amountOffer: it.amountOffer, note: it.note, offerTouched: true,
+        pos: it.pos.map(p => lineMap.get(p.idPODt) || { ...p, idUnit: it.idUnit, unitName: it.unit })
+      }));
+      renderItems();
+      switchTab('form');
+    } catch(err){
+      alert('เปิดเอกสารไม่สำเร็จ: ' + err.message);
+    }
+  }
+
+  /* ==================================================================
+     PO PICKER
+  ================================================================== */
+  async function ensurePoLines(all, excludeId){
+    const key = `${compReq}|${compTarget}|${all ? 1 : 0}|${excludeId || (editing && editing.id) || ''}`;
+    if(key === poLinesKey) return;
+    const q = new URLSearchParams({ idCompReq: compReq, idCompTarget: compTarget, all: all ? '1' : '0' });
+    const ex = excludeId || (editing && editing.id);
+    if(ex) q.set('idOps', ex);
+    const r = await api('/api/ops/po-lines?' + q);
+    poLines = r.data || [];
+    poLines.hiddenOpen = r.hiddenOpen || 0;
+    poLinesKey = key;
+  }
+
+  async function openPoModal(){
+    if(!compReq || !compTarget){ showErrors(['กรุณาเลือกบริษัทที่ร้องขอและบริษัทที่ส่งคำร้องถึงก่อน']); return; }
+    const req = companies.find(c => Number(c.id) === compReq), tgt = companies.find(c => Number(c.id) === compTarget);
+    $('poModalSub').innerHTML = `PO ที่ <b>${esc(tgt ? tgt.name : '-')}</b> เปิดให้ <b>${esc(req ? req.name : '-')}</b>`;
+    poSelected = new Set(items.flatMap(it => it.pos.map(p => p.idPODt)));
+    $('poSearch').value = '';
+    // PO ที่เลือกไว้แล้วแต่ยังเปิดอยู่ ให้แสดง PO เปิดด้วย ไม่งั้นจะหายจากตาราง
+    $('poShowOpen').checked = items.some(it => it.pos.some(p => !p.completed && !p.fullyReceived));
+    openModal('poModal');
+    await loadPoModal();
+    setTimeout(() => $('poSearch').focus(), 50);
+  }
+  async function loadPoModal(){
+    $('poBody').innerHTML = '<tr><td colspan="9" class="empty-msg">กำลังโหลดรายการ PO…</td></tr>';
+    try{
+      await ensurePoLines($('poShowOpen').checked);
+      renderPoModal();
+    } catch(err){
+      $('poBody').innerHTML = `<tr><td colspan="9" class="empty-msg" style="color:#ff8a75">${esc(err.message)}</td></tr>`;
+    }
+  }
+  function renderPoModal(){
+    const term = $('poSearch').value.trim().toLowerCase();
+    const list = poLines.filter(l => !term || [l.poCode, l.invName, l.seedName].some(v => String(v || '').toLowerCase().includes(term)));
+    $('poBody').innerHTML = list.map(l => {
+      const pct = l.amountPO > 0 ? l.amountRec / l.amountPO * 100 : null;
+      const st = l.completed ? `<span class="po-st done" title="สิ้นสุด PO ${thDate(l.dateComplete)}">สิ้นสุดแล้ว</span>`
+        : l.fullyReceived ? '<span class="po-st full">รับครบแล้ว</span>' : '<span class="po-st open">ยังเปิดอยู่</span>';
+      return `<tr data-po="${l.idPODt}" class="${poSelected.has(l.idPODt) ? 'on' : ''}">
+        <td class="ctr"><input type="checkbox" ${poSelected.has(l.idPODt) ? 'checked' : ''} tabindex="-1"></td>
+        <td class="code">${esc(l.poCode)}</td><td class="ctr">${thDate(l.datePO)}</td>
+        <td class="nm">${esc(l.invName)}${l.seedName ? `<span class="crop" style="display:block;font-size:11px;color:var(--concrete-400)">${esc(l.seedName)}</span>` : ''}
+          ${l.usedIn.length ? `<span class="used-in">⚠ อ้างอิงแล้วใน ${esc(l.usedIn.join(', '))}</span>` : ''}</td>
+        <td class="num">${fmtQty(l.amountPO)}</td><td class="num">${fmtQty(l.amountRec)}${l.unitError ? ' <span class="mail-fail" title="มีใบรับที่หน่วยแปลงไม่ได้ ไม่นับรวม">⚠</span>' : ''}</td>
+        <td class="num ${pct != null && pct > 100.5 ? 'pct-over' : ''}">${pct == null ? '-' : pct.toFixed(1) + '%'}</td>
+        <td class="ctr">${esc(l.unitName || '-')}</td><td class="ctr">${st}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="9" class="empty-msg">ไม่พบ PO${poLines.hiddenOpen && !$('poShowOpen').checked ? ` ที่สิ้นสุดหรือรับครบแล้ว (มี PO ที่ยังเปิดอยู่ ${poLines.hiddenOpen} รายการ — ติ๊ก "แสดง PO ที่ยังไม่สิ้นสุด" เพื่อดู)` : ''}</td></tr>`;
+    updatePoCount();
+  }
+  function updatePoCount(){
+    const seeds = new Set(poLines.filter(l => poSelected.has(l.idPODt)).map(l => l.idInvMain));
+    $('poSelCount').innerHTML = `เลือกแล้ว <b>${poSelected.size}</b> PO · <b>${seeds.size}</b> เมล็ดพันธุ์`;
+  }
+  function togglePo(id){
+    if(poSelected.has(id)) poSelected.delete(id); else poSelected.add(id);
+    const tr = $('poBody').querySelector(`tr[data-po="${id}"]`);
+    if(tr){ tr.classList.toggle('on', poSelected.has(id)); tr.querySelector('input').checked = poSelected.has(id); }
+    updatePoCount();
+  }
+  // จัดกลุ่ม PO ที่เลือกตามเมล็ดพันธุ์ — รายการเดิมเก็บยอดที่กรอกไว้ / หน่วยรายการ = หน่วยของ PO บรรทัดแรก
+  function confirmPo(){
+    const lineMap = new Map(poLines.map(l => [l.idPODt, l]));
+    items.forEach(it => it.pos.forEach(p => { if(!lineMap.has(p.idPODt)) lineMap.set(p.idPODt, p); }));
+    const chosen = [...poSelected].map(id => lineMap.get(id)).filter(Boolean).sort((a, b) => a.idPODt - b.idPODt);
+    const old = new Map(items.map(it => [it.idInvMain, it]));
+    const bySeed = new Map();
+    chosen.forEach(l => {
+      if(!bySeed.has(l.idInvMain)){
+        const prev = old.get(l.idInvMain);
+        bySeed.set(l.idInvMain, prev ? { ...prev, pos: [] } : {
+          idInvMain: l.idInvMain, invName: l.invName, seedName: l.seedName, idUnit: l.idUnit, unit: l.unitName,
+          amountProduce: null, amountOffer: null, note: '', pos: []
+        });
+      }
+      bySeed.get(l.idInvMain).pos.push(l);
+    });
+    items = [...bySeed.values()].map(it => ({ ...it, idUnit: it.pos[0].idUnit, unit: it.pos[0].unitName }));
+    renderItems();
+    closeModal('poModal');
+  }
+  function removePoFromItem(idPODt){
+    items.forEach(it => { it.pos = it.pos.filter(p => p.idPODt !== idPODt); });
+    items = items.filter(it => it.pos.length).map(it => ({ ...it, idUnit: it.pos[0].idUnit, unit: it.pos[0].unitName }));
+    renderItems();
+  }
+
+  /* ==================================================================
+     EMPLOYEE PICKER (ผู้ร้องขอ / ผู้รับอีเมล)
+  ================================================================== */
+  async function openEmployeeModal(mode){
+    employeeMode = mode;
+    $('employeeModalTitle').textContent = mode === 'mailto' ? 'เพิ่มผู้รับอีเมล' : 'เลือกผู้ร้องขอ';
+    $('employeeSearch').value = '';
+    openModal('employeeModal');
+    setTimeout(() => $('employeeSearch').focus(), 50);
+    if(!employees){
+      $('employeeModalBody').innerHTML = '<div class="state-box">กำลังโหลดรายชื่อพนักงาน…</div>';
+      try{
+        const r = await api('/api/usergroups/available-users?' + new URLSearchParams({ keyword: '' }));
+        employees = (r.data || []).map(e => ({ id: e.idPs, name: e.PsName, position: e.PositionName, compName: e.CompName, compCode: e.CompCode }));
+      } catch(err){
+        $('employeeModalBody').innerHTML = `<div class="state-box error">โหลดรายชื่อพนักงานไม่สำเร็จ: ${esc(err.message)}</div>`;
+        return;
+      }
+    }
+    renderEmployees();
+  }
+  function renderEmployees(){
+    if(!employees) return;
+    const term = $('employeeSearch').value.trim().toLowerCase();
+    const list = employees.filter(e => String(e.name || '').toLowerCase().includes(term)).slice(0, 300);
+    $('employeeModalBody').innerHTML = list.map(e => `
+      <div class="avail-user-row">
+        <div class="member-avatar">${esc(e.compCode || (e.name || '?')[0])}</div>
+        <div class="member-info">
+          <div class="member-name">${esc(e.name)}</div>
+          <div class="member-sub">${esc(e.position) || '-'} · ${esc(e.compName) || '-'}</div>
+        </div>
+        <button type="button" class="avail-choose-btn" data-emp="${e.id}">เลือก</button>
+      </div>`).join('') || '<div class="state-box">ไม่พบพนักงานที่ตรงกับคำค้น</div>';
+  }
+  async function chooseEmployee(id){
+    const emp = employees.find(e => e.id === id);
+    if(!emp) return;
+    closeModal('employeeModal');
+    if(employeeMode === 'requester'){
+      requester = { id: emp.id, name: emp.name };
+      $('requesterName').value = emp.name;
+      return;
+    }
+    try{
+      const r = await api('/api/ops/mailto', { body: { idComp: mailtoComp, idPs: emp.id } });
+      renderMailtoDlg(r.data, true);
+      showToast('เพิ่มผู้รับอีเมลแล้ว');
+    } catch(err){ alert(err.message); }
+  }
+
+  /* ==================================================================
+     LIST
+  ================================================================== */
+  async function loadList(){
+    const idComp = $('listCompSelect').value;
+    if(!idComp){ docs = []; renderList(); return; }
+    $('listLoading').hidden = false;
+    try{
+      const r = await api('/api/ops/docs?' + new URLSearchParams({ idComp }));
+      docs = r.data || [];
+    } catch(err){
+      docs = [];
+      $('noListMsg').textContent = 'โหลดรายการไม่สำเร็จ: ' + err.message;
+    } finally {
+      $('listLoading').hidden = true;
+    }
+    renderList();
+  }
+  function renderList(){
+    const term = $('listSearch').value.trim().toLowerCase();
+    const base = docs.filter(d => !term || [d.docNo, d.subject, ...d.items.flatMap(it => [it.invName, it.poCodes])]
+      .some(v => String(v || '').toLowerCase().includes(term)));
+    $('statusDash').innerHTML = DASH.map(c => {
+      const n = base.filter(c.test).length;
+      return `<button type="button" class="dash-card ${dashKey === c.key ? 'active' : ''} ${n ? '' : 'zero'}" style="--c:${c.c}" data-dash="${c.key}">
+        <span class="lbl"><i></i>${esc(c.label)}</span><span class="val">${n}<span class="unit">เอกสาร</span></span></button>`;
+    }).join('');
+    const rule = DASH.find(c => c.key === dashKey) || DASH[0];
+    const list = base.filter(rule.test);
+    $('noListMsg').style.display = list.length ? 'none' : '';
+    if(!list.length && docs.length) $('noListMsg').textContent = 'ไม่มีเอกสารตามเงื่อนไขที่เลือก';
+    else if(!docs.length && !$('noListMsg').textContent.startsWith('โหลด')) $('noListMsg').textContent = 'ยังไม่มีคำร้องของบริษัทนี้';
+    const icon = {
+      doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>',
+      send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>',
+      edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>',
+      cancel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>'
+    };
+    $('listBody').innerHTML = list.map((d, di) => {
+      const n = Math.max(1, d.items.length);
+      const canSend = ['D', 'S'].includes(d.status);
+      const rowCls = [di % 2 ? 'doc-alt' : '', d.status === 'R' ? 'doc-reject' : '', d.status === 'C' ? 'doc-cancel' : ''].join(' ');
+      const statusCell = `<span class="badge ops-${d.status}">${esc(STATUS[d.status])}</span>
+        ${d.status === 'R' && d.rejectNote ? `<span class="reject-note">เหตุผล: ${esc(d.rejectNote)}</span>` : ''}
+        ${d.cancel ? `<span class="reject-note" style="color:var(--concrete-400)">${esc(d.cancel.by)} · ${thStamp(d.cancel.at)}<br>${esc(d.cancel.reason)}</span>` : ''}`;
+      const sentCell = d.sentAt ? thStamp(d.sentAt) : '-';
+      const mailFail = d.mailFail ? '<span class="mail-fail">⚠ ส่งอีเมลครั้งล่าสุดไม่สำเร็จบางราย</span>' : '';
+      const head = (span) => `
+        <td class="ctr" rowspan="${span}">${di + 1}</td>
+        <td class="act" rowspan="${span}"><a class="icon-btn" href="/over-po-sale-doc?id=${d.id}" target="_blank" rel="noopener" title="เปิดเอกสาร">${icon.doc}</a></td>
+        <td class="act" rowspan="${span}"><button type="button" class="icon-btn act-send ${d.status === 'S' ? 'done' : ''}" data-send="${d.id}" ${canSend ? '' : 'disabled'} title="${d.status === 'S' ? 'ส่งอีเมลอีกครั้ง' : 'ส่งคำร้อง (อีเมล)'}">${icon.send}</button></td>
+        <td class="act" rowspan="${span}"><button type="button" class="icon-btn" data-edit="${d.id}" ${d.status === 'D' ? '' : 'disabled'} title="แก้ไข">${icon.edit}</button></td>
+        <td class="act" rowspan="${span}"><button type="button" class="icon-btn act-cancel" data-cancel="${d.id}" ${canSend ? '' : 'disabled'} title="ยกเลิกเอกสาร">${icon.cancel}</button></td>
+        <td class="ctr" rowspan="${span}">${statusCell}</td>
+        <td class="doc-cell" rowspan="${span}">${esc(d.docNo)}</td>
+        <td class="ctr" rowspan="${span}">${thDate(d.docDate)}</td>
+        <td class="ctr" rowspan="${span}"><span class="co-pill co-${d.target}" title="${esc(d.targetName)}">${esc(shortCompName(d.targetName))}</span></td>`;
+      const tail = (span) => `<td rowspan="${span}">${esc(d.requester)}</td><td class="ctr" rowspan="${span}">${sentCell}${mailFail}</td>`;
+      const its = d.items.length ? d.items : [null];
+      return its.map((it, i) => {
+        const cells = it ? `<td class="wrap">${esc(it.invName)}</td><td class="wrap">${esc(it.poCodes)}</td>
+          <td class="num">${fmtQty(it.amountPO)}</td><td class="num">${fmtQty(it.amountRec)}</td><td class="num">${fmtQty(it.amountProduce)}</td>
+          <td class="num"><span class="calc-over">${fmtQty(round6(it.amountProduce - it.amountPO))}</span></td><td class="num"><b>${fmtQty(it.amountOffer)}</b></td>
+          <td class="ctr">${esc(it.unit || '-')}</td>` : '<td colspan="8">-</td>';
+        return `<tr class="${rowCls} ${i === 0 ? 'doc-first' : ''}">${i === 0 ? head(n) : ''}${cells}${i === 0 ? tail(n) : ''}</tr>`;
+      }).join('');
+    }).join('');
+  }
+
+  /* ==================================================================
+     SEND (อีเมล)
+  ================================================================== */
+  async function openSend(id){
+    dlg('ส่งคำร้อง (อีเมล)', '<div class="state-box">กำลังโหลด…</div>');
+    try{
+      const { data: d } = await api(`/api/ops/doc/${id}`);
+      const r = await api('/api/ops/mailto?' + new URLSearchParams({ idComp: d.compTarget }));
+      const recips = r.data || [];
+      const okList = recips.filter(x => x.email);
+      const resend = d.status === 'S';
+      $('dlgTitle').textContent = resend ? 'ส่งอีเมลคำร้องอีกครั้ง' : 'ส่งคำร้อง (อีเมล)';
+      $('dlgBody').innerHTML = `
+        <dl class="send-summary">
+          <dt>เลขที่เอกสาร</dt><dd class="doc">${esc(d.docNo)}</dd>
+          <dt>ส่งถึง</dt><dd>ฝ่ายจัดซื้อ ${esc(d.compTargetName)}</dd>
+          <dt>รายการ</dt><dd>${d.items.map(it => `${esc(it.invName)} — เสนอขาย ${fmtQty(it.amountOffer)} ${esc(it.unit || '')}`).join('<br>')}</dd>
+        </dl>
+        <div class="sec-title">ผู้รับ (To)</div>
+        <div class="recip-list">${recips.map(x => recipRow(x)).join('') || '<div class="state-box error">ยังไม่ได้กำหนดผู้รับอีเมลของบริษัทนี้</div>'}</div>
+        <p class="send-note">สำเนา (CC) ถึงผู้ร้องขอและผู้กดส่ง ถ้ามีอีเมลในระบบ · อีเมลมีลิงก์เปิดเอกสาร (ผู้รับต้องมีสิทธิ์เมนูนี้และสิทธิ์บริษัทผู้ซื้อ)</p>
+        ${resend ? '<p class="dry-note">เอกสารนี้ส่งคำร้องไปแล้ว — การส่งครั้งนี้เป็นการส่งอีเมลซ้ำ</p>' : '<p class="send-note">หลังส่งคำร้องแล้วจะแก้ไขเอกสารไม่ได้</p>'}
+        ${!mailReady ? '<p class="dry-note" style="color:#ff8a75">server ยังไม่ได้ตั้งค่า SMTP — ส่งไม่ได้</p>' : mailDryRun ? '<p class="dry-note">🧪 โหมดทดสอบ: ไม่ส่งถึงผู้รับจริง (บันทึกเป็นไฟล์บน server)</p>' : ''}
+        <div class="send-actions">
+          ${canMailTo ? `<button type="button" class="btn btn-secondary" data-act="mailto" data-comp="${d.compTarget}">จัดการผู้รับอีเมล</button>` : ''}
+          <button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button>
+          <button type="button" class="btn btn-primary" data-act="confirm-send" data-id="${d.id}" ${okList.length && mailReady ? '' : 'disabled'}>${resend ? 'ส่งอีกครั้ง' : 'ยืนยันส่งคำร้อง'}</button>
+        </div>`;
+    } catch(err){
+      $('dlgBody').innerHTML = `<div class="state-box error">${esc(err.message)}</div>`;
+    }
+  }
+  function recipRow(x, opts = {}){
+    return `<div class="recip">
+      <div class="member-info"><div class="member-name">${esc(x.name)}</div><div class="member-sub">${esc(x.position || '-')}</div></div>
+      <span class="mail ${x.email ? '' : 'none'}">${x.email ? esc(x.email) : 'ไม่มีอีเมลในระบบ'}</span>
+      ${opts.removable ? `<button type="button" class="icon-btn act-cancel" data-rm-mailto="${x.id}" title="ลบ">×</button>` : ''}
+    </div>`;
+  }
+  async function confirmSend(btn){
+    btn.disabled = true;
+    btn.textContent = 'กำลังส่ง…';
+    try{
+      const r = await api(`/api/ops/docs/${btn.dataset.id}/send`, { body: { origin: location.origin } });
+      $('dlgTitle').textContent = 'ส่งคำร้องสำเร็จ';
+      $('dlgBody').innerHTML = sendResultHtml(r);
+      loadList();
+    } catch(err){
+      $('dlgTitle').textContent = 'ส่งคำร้องไม่สำเร็จ';
+      $('dlgBody').innerHTML = `<div class="state-box error">${esc(err.message)}</div>${err.data && err.data.results ? sendResultHtml(err.data) : ''}
+        <div class="send-actions"><button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button></div>`;
+      loadList();
+    }
+  }
+  function sendResultHtml(r){
+    return `${r.dryRun ? '<p class="dry-note">🧪 โหมดทดสอบ: บันทึกอีเมลเป็นไฟล์บน server (ไม่ได้ส่งจริง)</p>' : ''}
+      <div class="recip-list">${(r.results || []).map(x => `<div class="recip"><span class="tag">${x.type.toUpperCase()}</span>
+        <span class="mail" style="flex:1">${esc(x.email)}</span>${x.ok ? '<span class="ok">✓ ส่งแล้ว</span>' : '<span class="ng">✗ ไม่สำเร็จ</span>'}</div>`).join('')}</div>
+      ${r.success ? '<div class="send-actions"><button type="button" class="btn btn-primary" data-close="dlgModal">ปิด</button></div>' : ''}`;
+  }
+
+  /* ---------- จัดการผู้รับอีเมล ---------- */
+  async function openMailto(idComp){
+    mailtoComp = Number(idComp);
+    dlg('ผู้รับอีเมลคำร้อง', '<div class="state-box">กำลังโหลด…</div>');
+    try{
+      const r = await api('/api/ops/mailto?' + new URLSearchParams({ idComp: mailtoComp }));
+      renderMailtoDlg(r.data, r.canEdit);
+    } catch(err){
+      $('dlgBody').innerHTML = `<div class="state-box error">${esc(err.message)}</div>`;
+    }
+  }
+  function renderMailtoDlg(list, canEdit){
+    const comp = companies.find(c => Number(c.id) === mailtoComp);
+    $('dlgTitle').textContent = 'ผู้รับอีเมลคำร้อง — ' + (comp ? shortCompName(comp.name) : '');
+    $('dlgBody').innerHTML = `
+      <p class="send-note">ฝ่ายจัดซื้อของ <b>${esc(comp ? comp.name : '-')}</b> ที่จะได้รับอีเมลเมื่อมีคำร้องขอขายเมล็ดพันธุ์เกิน PO ส่งมาถึงบริษัทนี้ (อีเมลอ่านจากข้อมูลพนักงาน)</p>
+      <div class="recip-list">${(list || []).map(x => recipRow(x, { removable: canEdit })).join('') || '<div class="state-box">ยังไม่มีผู้รับ</div>'}</div>
+      <div class="send-actions">
+        ${canEdit ? '<button type="button" class="btn btn-secondary" data-act="add-mailto">+ เพิ่มผู้รับ</button>' : ''}
+        <button type="button" class="btn btn-primary" data-close="dlgModal">ปิด</button>
+      </div>`;
+  }
+  async function removeMailto(id){
+    if(!confirm('ลบผู้รับอีเมลรายนี้?')) return;
+    try{
+      const r = await api(`/api/ops/mailto/${id}`, { method: 'DELETE' });
+      renderMailtoDlg(r.data, true);
+    } catch(err){ alert(err.message); }
+  }
+
+  /* ---------- ยกเลิกเอกสาร ---------- */
+  function openCancel(id){
+    const d = docs.find(x => x.id === id);
+    dlg('ยกเลิกเอกสาร', `
+      <dl class="send-summary"><dt>เลขที่เอกสาร</dt><dd class="doc">${esc(d ? d.docNo : id)}</dd></dl>
+      <textarea class="cancel-note" id="cancelNote" placeholder="ระบุเหตุผลการยกเลิก (มากกว่า 5 ตัวอักษร)" maxlength="500"></textarea>
+      ${d && d.status === 'S' ? '<p class="send-note">เอกสารนี้ส่งคำร้องไปแล้ว — ระบบจะไม่ส่งอีเมลแจ้งยกเลิก กรุณาแจ้งฝ่ายจัดซื้อผู้ซื้อด้วย</p>' : ''}
+      <div class="send-actions">
+        <button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button>
+        <button type="button" class="btn btn-danger" data-act="confirm-cancel" data-id="${id}">ยืนยันยกเลิก</button>
+      </div>`);
+    setTimeout(() => $('cancelNote').focus(), 50);
+  }
+  async function confirmCancel(btn){
+    const note = $('cancelNote').value.trim();
+    if(note.length <= 5){ $('cancelNote').classList.add('field-err'); return; }
+    btn.disabled = true;
+    try{
+      await api(`/api/ops/docs/${btn.dataset.id}/cancel`, { body: { note } });
+      closeModal('dlgModal');
+      showToast('ยกเลิกเอกสารแล้ว');
+      if($('docPage').classList.contains('active')) loadDocPage(Number(btn.dataset.id)); else loadList();
+    } catch(err){
+      alert(err.message);
+      btn.disabled = false;
+    }
+  }
+
+  /* ==================================================================
+     DOCUMENT (A4)
+  ================================================================== */
+  async function loadDocPage(id){
+    if(!id){ $('docPaper').innerHTML = '<div class="doc-state error">ไม่ได้ระบุเลขที่เอกสาร</div>'; return; }
+    try{
+      const { data: d } = await api(`/api/ops/doc/${id}`);
+      document.title = `${d.docNo} — ร้องขอขายเมล็ดพันธุ์เกิน PO`;
+      $('docPaper').innerHTML = paperHtml(d);
+      const acts = [];
+      if(d.canEdit && d.status === 'D') acts.push(`<a class="btn btn-secondary" href="/over-po-sale?edit=${d.id}">แก้ไข</a>`);
+      if(d.canEdit && ['D', 'S'].includes(d.status)){
+        acts.push(`<button type="button" class="btn btn-danger" data-act="cancel-doc" data-id="${d.id}">ยกเลิกเอกสาร</button>`);
+        acts.push(`<button type="button" class="btn btn-info" data-act="send" data-id="${d.id}">${d.status === 'S' ? 'ส่งอีเมลอีกครั้ง' : 'ส่งคำร้อง'}</button>`);
+      }
+      acts.push('<button type="button" class="btn btn-primary" data-act="print">พิมพ์</button>');
+      $('docActions').innerHTML = acts.join('');
+      $('docMailCard').hidden = !d.mails.length;
+      $('docMailBody').innerHTML = d.mails.map(m => `<tr><td>${thStamp(m.at)}</td><td>${m.step === 'resend' ? 'ส่งซ้ำ' : 'ส่งคำร้อง'}</td>
+        <td>${m.type.toUpperCase()}</td><td>${esc(m.name || '-')}</td><td>${esc(m.email || '-')}</td>
+        <td>${m.ok ? '<span style="color:var(--ok-green)">✓ สำเร็จ</span>' : `<span style="color:#ff8a75" title="${esc(m.error)}">✗ ไม่สำเร็จ</span>`}</td></tr>`).join('');
+    } catch(err){
+      $('docPaper').innerHTML = `<div class="doc-state error">${esc(err.message)}</div>`;
+    }
+  }
+
+  function paperHtml(d){
+    const ci = d.compInfo || {};
+    const addr = [ci.address, ci.province && !String(ci.address || '').includes(ci.province) ? (/กรุงเทพ/.test(ci.province) ? ci.province : 'จ.' + ci.province) : '',
+      ci.postCode && !String(ci.address || '').includes(ci.postCode) ? ci.postCode : ''].filter(Boolean).join(' ');
+    const contact = [ci.tel ? `โทร ${ci.tel}` : '', ci.fax ? `แฟกซ์ ${ci.fax}` : ''].filter(Boolean).join(' · ');
+    const allPos = d.items.flatMap(it => it.pos.map(p => ({ ...p, invName: it.invName, unit: it.unit })));
+    const poCount = new Set(allPos.map(p => p.poCode)).size;
+    const units = [...new Set(d.items.map(it => it.unit || ''))];
+    const sum = (k) => d.items.reduce((s, it) => s + (Number(it[k]) || 0), 0);
+    const oneUnit = units.length === 1;
+    const offerText = d.items.map(it => `${it.invName} จำนวน ${fmtQty(it.amountOffer)} ${it.unit || ''}`).join(', ');
+    const poRows = allPos.map((p, i) => `<tr><td class="ctr">${i + 1}</td><td class="ctr">${esc(p.poCode)}</td><td class="ctr">${thDate(p.datePO)}</td>
+      <td>${esc(p.invName)}</td><td class="num">${fmtQty(p.amountPO)}</td><td class="num">${fmtQty(p.amountRec)}</td><td class="ctr">${esc(p.unit || '')}</td></tr>`).join('');
+    const itemRows = d.items.map((it, i) => `<tr><td class="ctr">${i + 1}</td><td>${esc(it.invName)}${it.note ? `<div style="font-size:9.5px;color:#555">หมายเหตุ: ${esc(it.note)}</div>` : ''}</td>
+      <td class="num">${fmtQty(it.amountPO)}</td><td class="num">${fmtQty(it.amountRec)}</td><td class="num">${fmtQty(it.amountProduce)}</td>
+      <td class="num over">${fmtQty(round6(it.amountProduce - it.amountPO))}</td><td class="num offer">${fmtQty(it.amountOffer)}</td>
+      <td class="ctr">${esc(it.unit || '')}</td><td class="num">${it.price == null ? '' : fmtQty(it.price)}</td></tr>`).join('');
+    const totRow = oneUnit && d.items.length > 1 ? `<tr class="tot"><td colspan="2" class="ctr">รวม</td><td class="num">${fmtQty(sum('amountPO'))}</td>
+      <td class="num">${fmtQty(sum('amountRec'))}</td><td class="num">${fmtQty(sum('amountProduce'))}</td>
+      <td class="num over">${fmtQty(round6(sum('amountProduce') - sum('amountPO')))}</td><td class="num offer">${fmtQty(sum('amountOffer'))}</td><td class="ctr">${esc(units[0])}</td><td></td></tr>` : '';
+    const signDate = (d.sent && d.sent.at) || d.docDate;
+    const sign = (side, title, who) => `<div class="p-sign">
+        <div class="side">${side}</div>
+        <div class="sg">${who ? `<img src="${ESIGN_URL(who.id)}" alt="" onerror="this.remove()">` : ''}</div>
+        <div class="n">${who ? `(${esc(who.full || who.name)})` : '<span class="blank">(.................................)</span>'}</div>
+        <div>${who ? esc(who.pos || '') : '<span class="blank">ตำแหน่ง ...........................</span>'}</div>
+        <div class="t">${title}</div>
+        <div>${who ? 'วันที่ ' + thDate(who.at) : '<span class="blank">วันที่ ......./......./.......</span>'}</div>
+      </div>`;
+    const mark = d.status === 'C' ? '<div class="p-mark cancel"><span>ยกเลิก</span></div>'
+      : d.status === 'D' ? '<div class="p-mark draft"><span>ร่าง</span></div>' : '';
+    return `<div class="paper">${mark}
+      <div class="p-head">
+        <div class="p-co">
+          <img class="p-logo" src="${LOGO_BASE_URL + encodeURIComponent(d.compReq)}.jpg" alt="" onerror="this.remove()">
+          <div>
+            <div class="p-co-name">${esc(d.compReqName)}</div>
+            ${ci.nameEn ? `<div class="p-co-en">${esc(ci.nameEn)}</div>` : ''}
+            ${addr ? `<div class="p-co-l">${esc(addr)}</div>` : ''}
+            ${contact ? `<div class="p-co-l">${esc(contact)}</div>` : ''}
+          </div>
+        </div>
+        <div class="p-title"><div class="th">บันทึกขออนุมัติขายเมล็ดพันธุ์<br>ส่วนที่ผลิตเกินใบสั่งซื้อ</div><div class="en">OVER PO SALE REQUEST</div></div>
+      </div>
+      <div class="p-meta">
+        <span class="k">เรื่อง</span><span>${esc(d.subject)}</span><span class="k">เลขที่</span><span>${esc(d.docNo)}</span>
+        <span class="k">เรียน</span><span>ฝ่ายจัดซื้อ ${esc(d.compTargetName)}</span><span class="k">วันที่</span><span>${thLongDate(d.docDate)}</span>
+      </div>
+      <p class="indent">ตามที่ ${esc(d.compReqName)} ได้รับคำสั่งผลิตเมล็ดพันธุ์จาก ${esc(d.compTargetName)} ตามใบสั่งซื้อ (PO)
+        จำนวน ${poCount} ฉบับ ${oneUnit ? `รวมทั้งสิ้น <b>${fmtQty(sum('amountPO'))} ${esc(units[0])}</b>` : ''} ดังรายการต่อไปนี้</p>
+      <table>
+        <thead><tr><th style="width:6%">ลำดับ</th><th style="width:15%">เลขที่ใบสั่งซื้อ</th><th style="width:12%">วันที่ PO</th><th>เมล็ดพันธุ์</th>
+          <th style="width:13%">ยอด PO</th><th style="width:13%">ขายแล้ว<br>(รับเข้าตาม PO)</th><th style="width:8%">หน่วย</th></tr></thead>
+        <tbody>${poRows}</tbody>
+      </table>
+      <p class="indent">ปัจจุบันผลการผลิตได้ผลผลิตเกินจำนวนใบสั่งซื้อ รายละเอียดยอดผลิตและยอดที่ขอเสนอขายเพิ่ม ดังนี้</p>
+      <table>
+        <thead><tr><th style="width:6%">ลำดับ</th><th>เมล็ดพันธุ์</th><th style="width:10%">ยอด PO รวม</th><th style="width:10%">ขายแล้ว</th>
+          <th style="width:11%">ผลิตได้ทั้งหมด</th><th style="width:10%">เกิน PO</th><th style="width:11%">เสนอขายเพิ่ม</th><th style="width:7%">หน่วย</th>
+          <th style="width:11%">ราคา/หน่วย<br><span style="font-weight:400">(ฝ่ายจัดซื้อระบุ)</span></th></tr></thead>
+        <tbody>${itemRows}${totRow}</tbody>
+      </table>
+      <h4>สาเหตุการผลิตเกินใบสั่งซื้อ (Over PO)</h4>
+      <div class="p-box">${esc(d.causeNote)}</div>
+      ${d.note ? `<h4>หมายเหตุ</h4><div class="p-box">${esc(d.note)}</div>` : ''}
+      <p class="indent">${esc(d.compReqName)} จึงมีความประสงค์ขอเสนอขายเมล็ดพันธุ์ส่วนที่ผลิตเกินใบสั่งซื้อ ได้แก่ ${esc(offerText)}
+        ให้แก่ ${esc(d.compTargetName)} ตามเกณฑ์อัตราการรับซื้อสำหรับจำนวนส่วนเกินระหว่างบริษัทในเครือ จึงเรียนมาเพื่อโปรดพิจารณาและดำเนินการต่อไป</p>
+      ${d.status === 'R' && d.reject ? `<div class="p-reject">ไม่รับซื้อ — เหตุผล: ${esc(d.reject.note)}</div>` : ''}
+      <div class="p-signs">
+        ${sign(esc(shortCompName(d.compReqName)), 'ผู้ร้องขอ', { ...d.requester, at: signDate })}
+        ${sign(esc(shortCompName(d.compTargetName)), 'ผู้ตรวจสอบ (ฝ่ายจัดซื้อ)', null)}
+        ${sign(esc(shortCompName(d.compTargetName)), 'ผู้รับทราบ', null)}
+        ${sign(esc(shortCompName(d.compTargetName)), 'ผู้อนุมัติ', null)}
+      </div>
+    </div>`;
+  }
+
+  function printDoc(){
+    const imgs = [...document.querySelectorAll('#docPaper img')];
+    Promise.all(imgs.map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; setTimeout(r, 4000); }))).then(() => {
+      document.body.classList.add('printing');
+      window.print();
+    });
+  }
+  window.addEventListener('afterprint', () => document.body.classList.remove('printing'));
+
+  /* ==================================================================
+     EVENTS
+  ================================================================== */
+  function attachEvents(){
+    $('navListBtn').addEventListener('click', () => { switchTab('list'); loadList(); });
+    $('navFormBtn').addEventListener('click', () => switchTab('form'));
+
+    $('openEmployeeBtn').addEventListener('click', () => openEmployeeModal('requester'));
+    $('employeeSearch').addEventListener('input', renderEmployees);
+    $('employeeModalBody').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-emp]');
+      if(b) chooseEmployee(Number(b.dataset.emp));
+    });
+
+    $('compReqSelect').addEventListener('change', (e) => onCompanyChange('req', e.target.value));
+    $('compTargetSelect').addEventListener('change', (e) => onCompanyChange('target', e.target.value));
+    $('openPoBtn').addEventListener('click', openPoModal);
+    $('poSearch').addEventListener('input', renderPoModal);
+    $('poShowOpen').addEventListener('change', loadPoModal);
+    $('poBody').addEventListener('click', (e) => {
+      const tr = e.target.closest('tr[data-po]');
+      if(tr) togglePo(Number(tr.dataset.po));
+    });
+    $('poConfirmBtn').addEventListener('click', confirmPo);
+
+    $('itemBody').addEventListener('input', onItemInput);
+    $('itemBody').addEventListener('click', (e) => {
+      const rmPo = e.target.closest('[data-rm-po]');
+      if(rmPo) return removePoFromItem(Number(rmPo.dataset.rmPo));
+      const rmIt = e.target.closest('[data-rm-item]');
+      if(rmIt){ items.splice(Number(rmIt.dataset.rmItem), 1); renderItems(); }
+    });
+
+    $('saveBtn').addEventListener('click', handleSave);
+    $('resetBtn').addEventListener('click', () => {
+      if((items.length || $('causeInput').value.trim()) && !confirm('ล้างข้อมูลในฟอร์มทั้งหมด?')) return;
+      resetForm();
+    });
+
+    $('listCompSelect').addEventListener('change', loadList);
+    $('listRefreshBtn').addEventListener('click', loadList);
+    $('listSearch').addEventListener('input', renderList);
+    $('statusDash').addEventListener('click', (e) => {
+      const c = e.target.closest('[data-dash]');
+      if(!c) return;
+      dashKey = dashKey === c.dataset.dash ? 'all' : c.dataset.dash;
+      renderList();
+    });
+    $('listBody').addEventListener('click', (e) => {
+      const s = e.target.closest('[data-send]'), ed = e.target.closest('[data-edit]'), c = e.target.closest('[data-cancel]');
+      if(s) openSend(Number(s.dataset.send));
+      if(ed) openEdit(Number(ed.dataset.edit));
+      if(c) openCancel(Number(c.dataset.cancel));
+    });
+
+    // ปุ่มใน popup / แถบเครื่องมือหน้าเอกสาร (สร้างใหม่ทุกครั้ง จึงผูกที่ document)
+    document.addEventListener('click', (e) => {
+      const close = e.target.closest('[data-close]');
+      if(close){ closeModal(close.dataset.close); return; }
+      const a = e.target.closest('[data-act]');
+      if(!a || a.disabled) return;
+      const id = Number(a.dataset.id);
+      switch(a.dataset.act){
+        case 'list': closeModal('dlgModal'); switchTab('list'); loadList(); break;
+        case 'send': openSend(id); break;
+        case 'confirm-send': confirmSend(a).then(() => { if($('docPage').classList.contains('active')) loadDocPage(id); }); break;
+        case 'mailto': openMailto(a.dataset.comp); break;
+        case 'add-mailto': openEmployeeModal('mailto'); break;
+        case 'cancel-doc': openCancel(id); break;
+        case 'confirm-cancel': confirmCancel(a); break;
+        case 'print': printDoc(); break;
+      }
+    });
+    $('dlgBody').addEventListener('click', (e) => {
+      const rm = e.target.closest('[data-rm-mailto]');
+      if(rm) removeMailto(Number(rm.dataset.rmMailto));
+    });
+    document.querySelectorAll('.modal-overlay').forEach(ov => {
+      ov.addEventListener('click', (e) => { if(e.target === ov) ov.classList.remove('show'); });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
