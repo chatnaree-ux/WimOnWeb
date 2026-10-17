@@ -4677,6 +4677,16 @@ app.post('/api/supplier-return/doc/:id/send-back', requireMenu([MENU_RTS_ACK, ME
   }
 });
 
+// รวมยอดทุกบริษัท + แยกรายบริษัท (byComp เก็บเฉพาะบริษัทที่มีงานค้าง) ให้หน้า Home บอกได้ว่ายอดมาจากบริษัทไหน
+function summarizeByComp(rows, fields) {
+  const total = Object.fromEntries(fields.map(k => [k, 0]));
+  rows.forEach(r => fields.forEach(k => { total[k] += r[k] || 0; }));
+  const byComp = rows
+    .filter(r => fields.some(k => r[k] > 0))
+    .map(r => ({ id: r.id, name: r.name, ...Object.fromEntries(fields.map(k => [k, r[k] || 0])) }));
+  return { ...total, byComp };
+}
+
 // ==================================================================
 // ---------- หน้า Home: ตัวเลขสรุปเฉพาะเมนู + บริษัทที่ผู้ใช้มีสิทธิ์ ----------
 // ==================================================================
@@ -4690,37 +4700,37 @@ app.get('/api/home/summary', requireLogin, async (req, res) => {
     if (hasMenu(access, 'coating')) {
       const request = pool.request();
       const r = await request.query(
-        `SELECT
+        `SELECT mt.idComp AS id, c.CompName AS name,
            COUNT(DISTINCT CASE WHEN mt.DateRmStart IS NULL THEN mt.idRm END) AS waiting,
            COUNT(DISTINCT CASE WHEN mt.DateRmStart IS NOT NULL AND mt.DateRmEnd IS NULL THEN mt.idRm END) AS inprogress
          FROM ${COATING_TABLE} mt
          JOIN devsk.WimWaitCutMt wmt ON mt.idRm = wmt.idMt AND wmt.ProcessID = 12
+         LEFT JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = mt.idComp
          WHERE mt.idPsCancel IS NULL AND mt.TypeRm IS NULL
            AND wmt.stUseCut = 1 AND mt.WAfter IS NULL
-           ${compFilter(access, request, 'mt.idComp')}`
+           ${compFilter(access, request, 'mt.idComp')}
+         GROUP BY mt.idComp, c.CompName
+         ORDER BY c.CompName`
       );
-      data.coating = r.recordset[0];
+      data.coating = summarizeByComp(r.recordset, ['waiting', 'inprogress']);
     }
 
     if (hasMenu(access, 'moisture')) {
       const request = pool.request();
       const r = await request.query(
-        `SELECT
+        `SELECT mt.idComp AS id, c.CompName AS name,
            COUNT(DISTINCT CASE WHEN mt.DateRdHmS IS NULL THEN mt.idRm END) AS waiting,
-           COUNT(DISTINCT CASE WHEN mt.DateRdHmS IS NOT NULL AND mt.DateRdHmE IS NULL THEN mt.idRm END) AS inprogress,
-           COUNT(DISTINCT CASE WHEN mt.DateRdHmS IS NOT NULL AND mt.DateRdHmE IS NULL THEN mt.${COL_ROOM} END) AS roomsBusy
+           COUNT(DISTINCT CASE WHEN mt.DateRdHmS IS NOT NULL AND mt.DateRdHmE IS NULL THEN mt.idRm END) AS inprogress
          FROM ${COATING_TABLE} mt
          JOIN devsk.WimWaitCutMt wmt ON mt.idRm = wmt.idMt AND wmt.ProcessID = 12
+         LEFT JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = mt.idComp
          WHERE mt.idPsCancel IS NULL AND mt.TypeRm IS NULL
            AND wmt.stUseCut = 1 AND mt.WAfter IS NULL
-           ${compFilter(access, request, 'mt.idComp')}`
+           ${compFilter(access, request, 'mt.idComp')}
+         GROUP BY mt.idComp, c.CompName
+         ORDER BY c.CompName`
       );
-      const roomReq = pool.request();
-      const rooms = await roomReq.query(
-        `SELECT COUNT(*) AS roomsTotal FROM devsk.SeedReduceHmRoom
-         WHERE stDel IS NULL ${compFilter(access, roomReq, 'idComp')}`
-      );
-      data.moisture = { ...r.recordset[0], roomsTotal: rooms.recordset[0].roomsTotal };
+      data.moisture = summarizeByComp(r.recordset, ['waiting', 'inprogress']);
     }
 
     if (hasMenu(access, 'urs_request')) {
@@ -4740,10 +4750,23 @@ app.get('/api/home/summary', requireLogin, async (req, res) => {
       data.urs = { draftDocs: row.draftDocs || 0, awaitingReply: row.awaitingReply || 0, notReady: row.notReady || 0 };
     }
 
+    let companies = null;
+    if (!access.allComps) {
+      const compReq = pool.request();
+      const comps = await compReq.query(
+        `SELECT c.idComp AS id, c.CompName AS name
+         FROM PchInvAndProject.dbo.dCompany c
+         WHERE 1 = 1 ${compFilter(access, compReq, 'c.idComp')}
+         ORDER BY c.CompName`
+      );
+      companies = comps.recordset;
+    }
+
     res.json({
       success: true,
       unrestricted: access.unrestricted,
       allowedMenuCodes: [...access.menus],
+      companies,                             // บริษัทที่มีสิทธิ์ (null = ทุกบริษัท)
       menuOrder: await getMenuOrderSafe(),   // ลำดับเมนูหน้า Home (WIMWebMenu.SortOrder)
       wipMenuCodes: await getWipMenusSafe(), // เมนู On process (ซ่อนจากผู้ใช้ทั่วไป)
       data

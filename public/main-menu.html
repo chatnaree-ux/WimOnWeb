@@ -198,7 +198,7 @@
     border:1px solid rgba(255,255,255,.08);
     transition:transform .18s, border-color .18s, box-shadow .18s;
   }
-  .kpi-card:hover{transform:translateY(-3px); border-color:rgba(242,169,28,.4); box-shadow:0 18px 34px -18px rgba(0,0,0,.55);}
+  .kpi-card:hover{border-color:rgba(242,169,28,.3);}
   .kpi-top{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
   .kpi-icon{
     width:34px; height:34px; border-radius:8px; flex-shrink:0;
@@ -220,13 +220,40 @@
   .kpi-sub{font-size:12.8px; color:var(--concrete-400); display:flex; flex-wrap:wrap; gap:4px 14px;}
   .kpi-sub b{color:var(--concrete-200); font-weight:600; font-variant-numeric:tabular-nums;}
   .kpi-sub .warn b{color:#ff8a75;}
+  /* ยอดแยกรายบริษัท: กดแล้วเปิดหน้าโดยเลือกบริษัทนั้นไว้ให้ */
+  .comp-list{
+    display:flex; flex-direction:column; gap:2px;
+    margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,.07);
+  }
+  .comp-list-label{font-size:11.5px; color:var(--steel-500); margin-bottom:4px;}
+  .comp-row{
+    display:flex; align-items:center; gap:10px; padding:7px 8px; margin:0 -8px; border-radius:7px;
+    text-decoration:none; color:var(--concrete-200); font-size:12.8px;
+    transition:background .15s;
+  }
+  .comp-row:hover{background:rgba(255,255,255,.05);}
+  .comp-row .ctext{flex:1; min-width:0;}
+  .comp-row .cname{display:block; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .comp-row .cnum{display:block; color:var(--concrete-400); font-size:12.3px; margin-top:1px; font-variant-numeric:tabular-nums;}
+  .comp-row .cnum b{color:#fff; font-weight:600;}
+  .comp-row .arrow{color:var(--steel-500); transition:transform .15s, color .15s;}
+  .comp-row:hover .arrow{transform:translateX(3px); color:var(--amber-500);}
+  .comp-none{font-size:12.8px; color:var(--steel-500); padding:4px 0;}
+  .comp-tag{
+    display:inline-flex; align-self:flex-start; align-items:center; gap:6px; margin-bottom:4px;
+    padding:3px 10px; border-radius:999px; font-size:12px; color:var(--concrete-400);
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+  }
+  .comp-tag::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--amber-500);}
+
   .kpi-cta{
-    margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,.07);
-    font-size:12.8px; font-weight:600; color:var(--amber-500);
+    margin-top:auto; padding-top:12px; border-top:1px solid rgba(255,255,255,.07);
+    font-size:12.8px; font-weight:600; color:var(--amber-500); text-decoration:none;
     display:flex; align-items:center; justify-content:space-between;
   }
   .kpi-cta .arrow{transition:transform .18s;}
-  .kpi-card:hover .kpi-cta .arrow{transform:translateX(4px);}
+  .kpi-cta:hover .arrow{transform:translateX(4px);}
+  .comp-list + .kpi-cta{margin-top:10px;}
 
   .skeleton{
     border-radius:var(--radius); min-height:178px;
@@ -538,7 +565,7 @@
       setAllowed(data.unrestricted ? null : data.allowedMenuCodes, data.menuOrder, data.wipMenuCodes);
       applyWip(data);
 
-      const cards = buildKpiCards(data.data || {});
+      const cards = buildKpiCards(data.data || {}, data.companies);
       document.getElementById('kpiSection').hidden = cards.length === 0;
       grid.innerHTML = cards.join('');
       document.getElementById('updatedAt').textContent =
@@ -552,38 +579,70 @@
     }
   }
 
-  function kpiCard({ href, icon, label, value, unit, subs, cta, live }) {
+  function kpiCard({ href, icon, label, value, unit, subs, cta, live, comps, compTag }) {
     return `
-      <a class="kpi-card" href="${href}" data-go="${href}">
+      <div class="kpi-card">
         <div class="kpi-top">
           <div class="kpi-icon">${svg(icon)}</div>
           <div class="kpi-label">${label}</div>
           ${live ? '<span class="live-dot" title="มีงานกำลังดำเนินการ"></span>' : ''}
         </div>
+        ${compTag ? `<span class="comp-tag" title="${esc(compTag)}">${esc(shortComp(compTag))}</span>` : ''}
         <div class="kpi-value ${value ? '' : 'zero'}">${nf(value)}<small>${unit}</small></div>
         <div class="kpi-sub">${subs.join('')}</div>
-        <div class="kpi-cta"><span>${cta}</span><span class="arrow">→</span></div>
-      </a>`;
+        ${comps || ''}
+        <a class="kpi-cta" href="${href}" data-go="${href}"><span>${cta}</span><span class="arrow">→</span></a>
+      </div>`;
   }
 
-  function buildKpiCards(d) {
+  // ชื่อบริษัทแบบสั้น (ตัด "บริษัท" / "จำกัด") ให้พอดีการ์ด — ชื่อเต็มอยู่ใน title
+  const shortComp = (name) => String(name || '').replace(/^บริษัท\s*/, '').replace(/\s*จำกัด.*$/, '').trim() || '-';
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
+  // ยอดแยกรายบริษัท — แต่ละแถวลิงก์ไปหน้านั้นพร้อมเลือกบริษัทไว้ (?comp=)
+  // numText(c) = ข้อความตัวเลขของบริษัทนั้น (ต่างกันระหว่างเคลือบ / ลดความชื้น)
+  function compList(href, byComp, numText) {
+    if (!byComp || byComp.length === 0) return '<div class="comp-list"><div class="comp-none">ไม่มีงานค้างในบริษัทที่คุณมีสิทธิ์</div></div>';
+    return `
+      <div class="comp-list">
+        <div class="comp-list-label">แยกตามบริษัท</div>
+        ${byComp.map(c => `
+          <a class="comp-row" href="${href}?comp=${encodeURIComponent(c.id)}" data-go="${href}" title="${esc(c.name)}">
+            <span class="ctext">
+              <span class="cname">${esc(shortComp(c.name))}</span>
+              <span class="cnum">${numText(c)}</span>
+            </span>
+            <span class="arrow">→</span>
+          </a>`).join('')}
+      </div>`;
+  }
+
+  function buildKpiCards(d, companies) {
     const cards = [];
+    // companies = บริษัทที่มีสิทธิ์ (null = ทุกบริษัท) / มีสิทธิ์บริษัทเดียว -> ไม่ต้องแยก แค่บอกชื่อบริษัท
+    const single = Array.isArray(companies) && companies.length === 1 ? companies[0] : null;
+    const pageHref = (href) => single ? `${href}?comp=${encodeURIComponent(single.id)}` : href;
+    const allLabel = single ? '' : ' <span>(รวมทุกบริษัท)</span>';
+
     if (d.coating) {
       cards.push(kpiCard({
-        href: '/coating', icon: 'seed', label: 'เคลือบเมล็ด',
+        href: pageHref('/coating'), icon: 'seed', label: 'เคลือบเมล็ด', compTag: single && single.name,
         value: d.coating.inprogress, unit: 'รายการกำลังเคลือบ', live: d.coating.inprogress > 0,
-        subs: [`<span>รอคิว <b>${nf(d.coating.waiting)}</b> รายการ</span>`],
+        subs: [`<span>รอคิว <b>${nf(d.coating.waiting)}</b> รายการ${allLabel}</span>`],
+        comps: single ? '' : compList('/coating', d.coating.byComp,
+          c => `กำลังเคลือบ <b>${nf(c.inprogress)}</b> · รอคิว <b>${nf(c.waiting)}</b>`),
         cta: 'ไปลงเวลาเคลือบเมล็ด'
       }));
     }
     if (d.moisture) {
       cards.push(kpiCard({
-        href: '/moisture', icon: 'drop', label: 'ลดความชื้น',
+        href: pageHref('/moisture'), icon: 'drop', label: 'ลดความชื้น', compTag: single && single.name,
         value: d.moisture.inprogress, unit: 'รายการกำลังลดความชื้น', live: d.moisture.inprogress > 0,
         subs: [
-          `<span>ห้องใช้งาน <b>${nf(d.moisture.roomsBusy)}/${nf(d.moisture.roomsTotal)}</b></span>`,
-          `<span>รอคิว <b>${nf(d.moisture.waiting)}</b> รายการ</span>`
+          `<span>รอคิว <b>${nf(d.moisture.waiting)}</b> รายการ${allLabel}</span>`
         ],
+        comps: single ? '' : compList('/moisture', d.moisture.byComp,
+          c => `กำลังทำ <b>${nf(c.inprogress)}</b> · รอคิว <b>${nf(c.waiting)}</b>`),
         cta: 'ไปลงเวลาลดความชื้น'
       }));
     }
