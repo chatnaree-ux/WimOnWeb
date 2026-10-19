@@ -12,7 +12,11 @@ start "WIM Server - อย่าปิดหน้าต่างนี้" cmd 
 
 REM รอสักครู่ให้ server เริ่มทำงานก่อน แล้วค่อยเปิดเบราว์เซอร์
 timeout /t 3 /nobreak >nul
-start http://localhost:3001
+REM เปิดด้วย Chrome เสมอ (ไม่ขึ้นกับ browser เริ่มต้นของ Windows) — ไม่มี Chrome ค่อยใช้ browser เริ่มต้น
+set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+if not exist "%CHROME%" set "CHROME=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+if not exist "%CHROME%" set "CHROME=%LocalAppData%\Google\Chrome\Application\chrome.exe"
+if exist "%CHROME%" (start "" "%CHROME%" http://localhost:3001) else (start http://localhost:3001)
 
 echo เปิดเบราว์เซอร์ให้แล้ว หากหน้าเว็บยังไม่ขึ้น ให้รอสักครู่แล้ว refresh
 echo (หน้าต่างนี้ปิดได้เลย แต่ห้ามปิดหน้าต่าง "WIM Server")

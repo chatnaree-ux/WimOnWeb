@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WIM — ร้องขอขายเมล็ดพันธุ์เกิน PO</title>
+<title>WIM — ร้องขอขายเมล็ดพันธุ์ (Over PO)</title>
 <link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -497,8 +497,10 @@
   .form-grid > *, .filter-bar > *{min-width:0;}
 
   /* ==================================================================
-     ร้องขอขายเมล็ดพันธุ์เกิน PO — ส่วนเพิ่มเติมจากหน้าคำร้องเร่งด่วน
+     ร้องขอขายเมล็ดพันธุ์ (Over PO) — ส่วนเพิ่มเติมจากหน้าคำร้องเร่งด่วน
   ================================================================== */
+  /* หัวข้อช่องกรอก: ตัวใหญ่ขึ้น สว่างขึ้น อ่านง่าย (หน้าอื่นใช้ตัว mono 11px สีจาง) */
+  .form-group label{font-family:'Inter',sans-serif; font-size:13.5px; font-weight:600; letter-spacing:.01em; text-transform:none; color:var(--concrete-200);}
   input#docNo{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500);}
   .hint{font-size:12px; color:var(--concrete-400); margin:6px 0 0;}
   .hint b{color:var(--amber-500); font-weight:600;}
@@ -506,11 +508,25 @@
     border-radius:8px; padding:12px 16px; margin-bottom:18px; font-size:13px; color:var(--concrete-200);}
   .warn-banner[hidden]{display:none;}
 
-  /* ---------- ตารางรายการในฟอร์ม (1 แถว = 1 เมล็ด + PO ที่อ้างถึง) ---------- */
-  .item-table{min-width:1180px;}
+  /* ---------- ตารางรายการในฟอร์ม (1 แถว = 1 เมล็ด + PO ที่อ้างอิง) ---------- */
+  /* ตารางรายการ: กว้างพอดีการ์ด (ไม่ล้นจนปุ่มลบตกขอบ) — พื้นที่ตารางแคบกว่า 900px แสดงเป็นกล่องรายการแทน (ดู @container ด้านล่าง) */
+  .item-wrap{container-type:inline-size;}
+  .item-table{min-width:0; width:100%;}
+  .item-table .m-no{display:none;}
   .item-table td{vertical-align:top;}
+  .item-table thead th{text-align:center; vertical-align:middle;}
   .item-table .nm{font-weight:600; color:#fff;}
   .item-table .crop{display:block; font-size:11.5px; color:var(--concrete-400);}
+  /* PO ที่อ้างอิง: 1 บรรทัดต่อ 1 PO (เลขที่ + จำนวน PO) */
+  .po-lines{display:flex; flex-direction:column; gap:3px; margin-top:7px;}
+  .po-line{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--concrete-400); white-space:nowrap;}
+  .po-line b{font-family:'JetBrains Mono',monospace; color:var(--sky-blue); font-weight:600;}
+  .po-line .q{color:var(--concrete-200);}
+  .po-line button{width:20px; height:20px; border-radius:50%; border:1px solid rgba(229,83,61,.65); padding:0; cursor:pointer; background:rgba(229,83,61,.14); color:#ff8a75; font-weight:700; font-size:12px; line-height:18px; flex-shrink:0;}
+  .po-line button:hover{background:var(--safety-red); border-color:var(--safety-red); color:#fff;}
+  /* ปุ่มลบรายการ: แดง มีกรอบ เห็นชัดบนพื้นเข้ม */
+  .item-table .icon-btn.act-cancel{border-color:rgba(229,83,61,.65); color:#ff8a75; background:rgba(229,83,61,.12);}
+  .item-table .icon-btn.act-cancel:hover{border-color:var(--safety-red); background:var(--safety-red); color:#fff;}
   .po-chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:7px;}
   .po-chip{display:inline-flex; align-items:center; gap:6px; padding:3px 4px 3px 9px; border-radius:999px; font-size:11.5px;
     background:rgba(78,167,224,.1); border:1px solid rgba(78,167,224,.35); color:var(--concrete-200); white-space:nowrap;}
@@ -520,8 +536,54 @@
   .po-chip button:hover{background:var(--safety-red); color:#fff;}
   .calc-over{font-family:'JetBrains Mono',monospace; font-weight:700; color:#ff8a75;}
   .calc-over.none{color:var(--steel-500); font-weight:400;}
-  .item-table .qty-input{width:130px;}
-  .item-table textarea{min-height:38px; font-size:12.5px; padding:8px 10px; min-width:160px;}
+  .item-table .qty-input{width:96px;}
+  .item-table textarea{min-height:38px; font-size:12.5px; padding:8px 10px; min-width:90px;}
+  .item-table td.c-nm{min-width:200px;}
+  .item-table td.c-del{width:1%;}
+  /* แบบตาราง: หัวคอลัมน์ตัดบรรทัดได้ / บรรทัด PO = เลขที่ PO บน · จำนวน PO ล่าง (ไม่ยืดคอลัมน์ชื่อจนตารางล้น) */
+  .item-table thead th{white-space:normal; line-height:1.3; padding:9px 8px;}
+  .item-table tbody td{padding:10px 8px;}
+  .item-table .po-line{display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:8px; row-gap:0; align-items:center; white-space:normal;}
+  .item-table .po-line > span:nth-child(2){grid-row:2; grid-column:1;}
+  .item-table .po-line > button{grid-row:1 / span 2; grid-column:2;}
+  .item-table .po-line + .po-line{margin-top:4px;}
+
+  /* ---------- กล่องรายการ (การ์ดตารางแคบกว่า 1000px: มือถือ / แท็บเล็ต / จอเล็ก) ---------- */
+  @container (max-width: 899px){
+    .item-table thead{display:none;}
+    .item-table, .item-table tbody{display:block;}
+    .item-table tbody tr{position:relative; display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:10px;
+      padding:14px; margin:10px; border:1px solid rgba(255,255,255,.12); border-radius:10px; background:rgba(255,255,255,.025);}
+    .item-table tbody tr:hover{background:rgba(255,255,255,.025);}
+    .item-table tbody td{display:block; padding:0; border:0; text-align:left;}
+    .item-table td.c-no, .item-table td.c-unit{display:none;}
+    .item-table .m-no{display:inline;}
+    .item-table td.c-nm{grid-column:1 / -1; padding-right:44px;}
+    .item-table td.c-del{position:absolute; top:12px; right:12px; width:auto;}
+    /* บรรทัด PO: เลขที่ | จำนวน (ตัดบรรทัดได้) | ปุ่ม × อยู่บรรทัดเดียวกันเสมอ */
+    .item-table .po-line{display:grid; grid-template-columns:max-content minmax(0, 1fr) auto; align-items:center; white-space:normal;}
+    .item-table .po-line > span:nth-child(2){grid-row:auto; grid-column:auto;}
+    .item-table .po-line > button{grid-row:auto; grid-column:auto;}
+    /* ลำดับในการ์ด: ชื่อ/PO → กล่องสรุป 3 ช่อง → ผลิตได้ / เสนอขาย → หมายเหตุ */
+    .item-table td.c-nm{order:0;} .item-table td.c-po{order:1;} .item-table td.c-rec{order:2;} .item-table td.c-over{order:3;}
+    .item-table td.c-pd{order:4;} .item-table td.c-of{order:5;} .item-table td.c-note{order:6;}
+    .item-table td[data-l]::before{content:attr(data-l); display:block; margin-bottom:4px; font-family:'Inter',sans-serif; font-size:11.5px; font-weight:600; color:var(--concrete-400); white-space:normal;}
+    /* กล่องสรุป 3 ช่อง: จำนวน PO = ฟ้า / ขายแล้ว = เขียว / ยอดเกิน PO = แดง (แบบรายงานรับเมล็ดจากในเครือ) */
+    .item-table td.c-po, .item-table td.c-rec, .item-table td.c-over{grid-column:span 2; padding:8px 10px; border-radius:8px; font-size:15px; font-weight:700;
+      background:var(--bx-bg); border:1px solid var(--bx-line); border-top:3px solid var(--bx);}
+    .item-table td.c-po{--bx:#8ccbff; --bx-bg:rgba(140,203,255,.08); --bx-line:rgba(140,203,255,.22); color:#cfe8ff;}
+    .item-table td.c-rec{--bx:#3ecf8e; --bx-bg:rgba(62,207,142,.08); --bx-line:rgba(62,207,142,.25); color:#7ee2b4;}
+    .item-table td.c-over{--bx:#ff8a75; --bx-bg:rgba(229,83,61,.08); --bx-line:rgba(229,83,61,.28);}
+    .item-table td.c-pd, .item-table td.c-of{grid-column:span 3;}
+    .item-table td.c-note{grid-column:1 / -1;}
+    .item-table .qty-input, .item-table textarea{width:100%; min-width:0;}
+    .item-table .max-note{text-align:left;}
+  }
+  @container (max-width: 420px){
+    /* มือถือแคบมาก: กล่องสรุปเรียง 3 ช่องยังได้ แต่ช่องกรอก 2 ช่องเรียงลงทีละช่อง */
+    .item-table td.c-pd, .item-table td.c-of{grid-column:1 / -1;}
+  }
+  .item-wrap:has(.item-table){overflow-x:auto;}
   .field-err{border-color:var(--safety-red) !important; box-shadow:0 0 0 3px rgba(229,83,61,.15) !important;}
   .max-note{display:block; font-size:11px; color:var(--concrete-400); margin-top:4px; text-align:right; font-family:'JetBrains Mono',monospace;}
 
@@ -532,8 +594,51 @@
   .po-filter label.chk{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--concrete-400); cursor:pointer; user-select:none;}
   .po-filter label.chk input{width:16px; height:16px; padding:0; margin:0; accent-color:var(--amber-500);}
   .po-pick-wrap{flex:1; min-height:0; overflow:auto; margin:0 20px; border:1px solid rgba(255,255,255,.06); border-radius:8px;}
-  .po-pick-table{min-width:1040px; font-size:12.5px;}
-  .po-pick-table td{padding:8px 10px; white-space:nowrap;}
+  .po-pick-table{min-width:1080px; font-size:14px;}
+  .nw{white-space:nowrap;}
+  .po-pick-table thead th{white-space:normal; line-height:1.3; vertical-align:middle; text-transform:none;}
+  /* หัว popup: ชื่อรายการ PO (ตัวใหญ่) + คำอธิบายในวงเล็บ (เล็กลงเล็กน้อย แต่ยังสว่าง อ่านง่าย) */
+  .modal-po .po-head{font-family:'Inter',sans-serif; text-transform:none; letter-spacing:0; font-size:16px; font-weight:700; line-height:1.4; color:#fff;}
+  .modal-po .po-head-note{margin:3px 0 0; font-size:13px; font-weight:500; color:var(--concrete-200);}
+
+  /* ---------- popup เลือก PO บนจอแคบ: แต่ละ PO เป็นการ์ด แตะทั้งการ์ดเพื่อเลือก ---------- */
+  .po-pick-wrap{container-type:inline-size;}
+  @container (max-width: 699px){
+    .po-pick-table{min-width:0; width:100%;}
+    .po-pick-table thead{display:none;}
+    .po-pick-table, .po-pick-table tbody{display:block;}
+    .po-pick-table tbody tr{display:grid; grid-template-columns:repeat(12, minmax(0, 1fr)); gap:8px 10px; align-items:center;
+      margin:8px; padding:12px; border:1px solid rgba(255,255,255,.12); border-radius:10px; background:rgba(255,255,255,.025);}
+    .po-pick-table tbody tr.on{border-color:var(--amber-500); box-shadow:inset 0 0 0 1px var(--amber-500);}
+    .po-pick-table tbody td{display:block; padding:0; border:0; text-align:left; white-space:normal;}
+    /* แถวบน: ☐ | PO No. | สถานะ (ขวา) */
+    .po-pick-table td.c-ck{grid-row:1; grid-column:1 / span 1;}
+    .po-pick-table td.c-code{grid-row:1; grid-column:2 / span 6; font-size:15px;}
+    .po-pick-table td.c-st{grid-row:1; grid-column:8 / span 5; text-align:right;}
+    .po-pick-wrap .po-pick-table tbody tr.on td, .po-pick-wrap .po-pick-table tbody tr:hover td{background:none;}
+    .po-pick-table tbody tr.on{background:rgba(242,169,28,.07);}
+    .po-pick-table td.c-date{grid-column:1 / -1; font-size:13.5px; color:var(--concrete-200);}
+    .po-pick-table td.c-date::before{content:attr(data-l) ' : '; color:var(--concrete-400);}
+    .po-pick-table td.c-item{grid-column:1 / -1; font-weight:600; color:#fff;}
+    .po-pick-table td.c-unit{display:none;}
+    .po-pick-table td.c-qpo, .po-pick-table td.c-qsold, .po-pick-table td.c-qrec, .po-pick-table td.c-pct{grid-column:span 6; padding:7px 9px; border-radius:8px; font-size:15.5px; font-weight:700;
+      background:var(--bx-bg); border:1px solid var(--bx-line); border-top:3px solid var(--bx);}
+    .po-pick-table td.c-qpo::before, .po-pick-table td.c-qsold::before, .po-pick-table td.c-qrec::before, .po-pick-table td.c-pct::before{content:attr(data-l); display:block; margin-bottom:2px;
+      font-family:'Inter',sans-serif; font-size:12px; font-weight:600; color:var(--concrete-400);}
+    .po-pick-table td.c-qpo{--bx:#8ccbff; --bx-bg:rgba(140,203,255,.08); --bx-line:rgba(140,203,255,.22); color:#cfe8ff;}
+    .po-pick-table td.c-qsold{--bx:#4ea7e0; --bx-bg:rgba(78,167,224,.08); --bx-line:rgba(78,167,224,.25); color:#a9d8f5;}
+    .po-pick-table td.c-qrec{--bx:#3ecf8e; --bx-bg:rgba(62,207,142,.08); --bx-line:rgba(62,207,142,.25); color:#7ee2b4;}
+    .po-pick-table td.c-qrec.warn{--bx:var(--amber-500); color:var(--amber-500);}
+    .po-pick-table td.c-pct{--bx:#b197fc; --bx-bg:rgba(177,151,252,.08); --bx-line:rgba(177,151,252,.25); color:#d0bfff;}
+    .po-pick-table td.c-pct.pct-over{--bx:#ff8a75; color:#ff8a75;}
+    .po-pick-table td.empty-msg{grid-column:1 / -1;}
+  }
+  @media (max-width:700px){
+    .modal-po{height:92vh; max-height:92vh;}
+    .po-pick-wrap{margin:0 10px;}
+    .modal-po .po-head{font-size:15px;}
+  }
+  .po-pick-table td{padding:9px 10px; white-space:nowrap;}
   .po-pick-table td.nm{white-space:normal; min-width:220px;}
   .po-pick-table tbody tr{cursor:pointer;}
   .po-pick-table tbody tr.on td{background:rgba(242,169,28,.09);}
@@ -543,6 +648,12 @@
   .po-st.done{background:rgba(62,207,142,.13); color:var(--ok-green);}
   .po-st.full{background:rgba(45,212,191,.13); color:#5eead4;}
   .po-st.open{background:rgba(255,255,255,.07); color:var(--concrete-400);}
+  .po-st.sold{background:rgba(78,167,224,.15); color:#8ccaf2;}
+  .po-warn{display:block; margin-top:4px; font-size:11px; font-weight:600; color:var(--amber-500); white-space:nowrap;}
+  .po-pick-table td.c-qrec.warn{color:var(--amber-500); font-weight:700;}
+  /* ใต้ยอดขายแล้ว (ฟอร์ม): ยอดรับเข้าฝั่งผู้ซื้อ — ไม่เท่ากัน = สีส้ม */
+  .rec-sub{display:block; margin-top:2px; font-size:11px; font-weight:500; color:var(--concrete-400); font-family:'Inter',sans-serif;}
+  .rec-sub.diff{color:var(--amber-500); font-weight:600;}
   .used-in{display:block; font-size:11px; color:var(--amber-500);}
   .pct-over{color:#ff8a75; font-weight:700;}
   .modal-foot{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 20px 16px; border-top:1px solid rgba(255,255,255,.08); flex-shrink:0;}
@@ -574,6 +685,53 @@
   .badge.ops-C{background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.18); color:var(--concrete-400);}
   .icon-btn.act-send.done{border-color:rgba(62,207,142,.45); color:var(--ok-green);}
   .search-inline{flex:1 1 260px; max-width:360px;}
+  .ops-list-table thead th{text-align:center; vertical-align:middle;}
+  .ops-list-table td.wrap.ctr{text-align:center;}
+  .st-cell{display:inline-flex; align-items:center; gap:6px;}
+  .ops-list-table tr.has-detail{cursor:pointer;}
+  .ops-list-table .expander{width:22px; height:22px; border-radius:6px; border:1px solid rgba(255,255,255,.18); color:var(--concrete-400);
+    display:inline-flex; align-items:center; justify-content:center; transition:transform .2s, color .15s, border-color .15s; flex-shrink:0;}
+  .ops-list-table .expander svg{width:12px; height:12px;}
+  .ops-list-table tr.open .expander{transform:rotate(90deg); color:var(--amber-500); border-color:var(--amber-500);}
+  .ops-list-table tr.detail-row > td{padding:0; text-align:left; background:rgba(0,0,0,.18); border-bottom:2px solid rgba(242,169,28,.35); white-space:normal;}
+  .ops-list-table tr.detail-row:hover > td{background:rgba(0,0,0,.18);}
+  .ops-list-table .detail-box{position:sticky; left:0; width:min(100%, 1100px); padding:12px 18px 14px 44px; display:grid; gap:8px;}
+  .cancel-info{font-size:13px; color:#ff8a75; padding:10px 12px; border-radius:8px; background:rgba(229,83,61,.07); border:1px solid rgba(229,83,61,.3);}
+  .cancel-info b{color:#ffb4a6;}
+  .ops-list-table .badge{white-space:nowrap;}   /* ป้ายสถานะในตาราง: บรรทัดเดียวเสมอ */
+  .doc-card .badge{white-space:normal; text-align:right;}   /* กล่องเอกสารมือถือ: ชื่อเต็มยาว ตัดบรรทัดได้ */
+
+  /* ---------- กล่องเอกสาร (มือถือ / พื้นที่แคบ) ---------- */
+  .list-area{container-type:inline-size;}
+  .list-cards{display:none;}
+  @container (max-width: 899px){
+    .list-area .req-list-wrap{display:none;}
+    .list-cards{display:flex; flex-direction:column; gap:12px;}
+  }
+  .doc-card{border:1px solid rgba(255,255,255,.12); border-left:4px solid var(--amber-500); border-radius:10px; padding:14px; background:rgba(255,255,255,.025);}
+  .doc-card.is-reject{border-left-color:var(--safety-red); background:rgba(229,83,61,.07);}
+  .doc-card.is-cancel{border-left-color:var(--steel-500); opacity:.75;}
+  .doc-card.is-cancel .dc-no{text-decoration:line-through;}
+  .dc-head{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;}
+  .dc-no{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:15px; color:var(--amber-500);}
+  .dc-meta{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:4px 12px; margin:10px 0 6px; font-size:13px; color:var(--concrete-200);}
+  .dc-meta .k{color:var(--concrete-400); font-size:12px; margin-right:4px;}
+  .dc-note{font-size:12.5px; color:var(--concrete-400); margin:6px 0;}
+  .dc-note.reject{color:#ff8a75; font-weight:600;}
+  .dc-item{margin-top:10px; padding-top:10px; border-top:1px dashed rgba(255,255,255,.1);}
+  .dc-nm{font-weight:700; color:#fff; font-size:14px;}
+  .dc-po{font-size:12.5px; color:var(--concrete-400); margin:2px 0 8px; overflow-wrap:anywhere;}
+  .dc-stats{display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:8px;}
+  .dc-box{padding:7px 9px; border-radius:8px; background:var(--bx-bg); border:1px solid var(--bx-line); border-top:3px solid var(--bx);}
+  .dc-box .l{display:block; font-size:11.5px; font-weight:600; color:var(--concrete-400); margin-bottom:2px;}
+  .dc-box b{font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--bx-txt, #fff);}
+  .dc-box.b-po{--bx:#8ccbff; --bx-bg:rgba(140,203,255,.08); --bx-line:rgba(140,203,255,.22); --bx-txt:#cfe8ff;}
+  .dc-box.b-sold{--bx:#3ecf8e; --bx-bg:rgba(62,207,142,.08); --bx-line:rgba(62,207,142,.25); --bx-txt:#7ee2b4;}
+  .dc-box.b-pd{--bx:#b197fc; --bx-bg:rgba(177,151,252,.08); --bx-line:rgba(177,151,252,.25); --bx-txt:#d0bfff;}
+  .dc-box.b-over{--bx:#ff8a75; --bx-bg:rgba(229,83,61,.08); --bx-line:rgba(229,83,61,.28); --bx-txt:#ff8a75;}
+  .dc-box.b-of{--bx:var(--amber-500); --bx-bg:rgba(242,169,28,.08); --bx-line:rgba(242,169,28,.3); --bx-txt:var(--amber-500);}
+  .dc-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
+  @container (max-width: 420px){ .dc-meta{grid-template-columns:1fr;} }
 
   /* ---------- popup ส่งคำร้อง / ผู้รับอีเมล ---------- */
   .recip-list{display:flex; flex-direction:column; gap:4px; margin:0 0 14px;}
@@ -587,8 +745,100 @@
   .sec-title{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em; color:var(--concrete-400); text-transform:uppercase; margin:4px 0 8px;}
   .dry-note{font-size:12px; color:var(--amber-500); margin:0 0 12px;}
 
+  /* ---------- การ์ด "ส่ง E-Mail ถึง" ในฟอร์ม ---------- */
+  .mail-sec + .mail-sec{margin-top:16px; padding-top:14px; border-top:1px dashed rgba(255,255,255,.1);}
+  .mail-sec-head{display:flex; align-items:center; gap:6px 12px; flex-wrap:wrap; margin-bottom:8px;}
+  .mail-sec-head .sec-label{font-size:13.5px; font-weight:600; color:var(--concrete-200);}
+  .mail-sec-head .sec-hint{font-size:12px; color:var(--concrete-400); flex:1;}
+  /* การ์ดผู้รับคำร้อง (แตะเพื่อเปลี่ยน) */
+  .to-card{position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:3px; width:100%; max-width:380px; text-align:left;
+    padding:12px 16px; border-radius:10px; cursor:pointer; font:inherit; color:inherit;
+    background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.14); transition:border-color .15s, background .15s;}
+  .to-card:hover{border-color:var(--amber-500); background:rgba(242,169,28,.06);}
+  /* สีแยกผู้รับ: ผู้รับคำร้อง (To) = ส้ม / สำเนา (CC) = ฟ้า — กรอบสี + พื้นโปร่งสีเดียวกัน ไม่กลืนกับพื้นการ์ด */
+  #mailToCard{border-color:rgba(242,169,28,.6); background:rgba(242,169,28,.09);}
+  #mailToCard:hover{border-color:var(--amber-500); background:rgba(242,169,28,.16);}
+  #mailToCard.empty{border-color:rgba(229,83,61,.6); background:rgba(229,83,61,.08);}
+  .cc-grid .cc-card{border-color:rgba(78,167,224,.6); background:rgba(78,167,224,.09);}
+  .recip-list.is-to .recip{border-color:rgba(242,169,28,.6); background:rgba(242,169,28,.09);}
+  .recip-list.is-cc .recip{border-color:rgba(78,167,224,.6); background:rgba(78,167,224,.09);}
+  /* เว้นที่ขวาเฉพาะบรรทัดชื่อ (ป้าย "แตะเพื่อเปลี่ยน" / ปุ่ม × อยู่มุมขวาบน) — ยาวเกิน = ตัดบรรทัด ไม่ล้นการ์ด */
+  .to-card .tc-name{font-size:15px; font-weight:700; color:#fff; padding-right:84px; overflow-wrap:anywhere;}
+  .to-card .tc-sub{overflow-wrap:anywhere;}
+  .to-card .tc-mail{overflow-wrap:anywhere; word-break:break-all;}
+  .to-card .tc-sub{font-size:12.5px; color:var(--concrete-400);}
+  .to-card .tc-mail{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--sky-blue); margin-top:2px;}
+  .to-card .tc-mail svg{width:14px; height:14px; flex-shrink:0;}
+  .to-card .tc-change{position:absolute; top:12px; right:14px; font-size:11.5px; color:var(--amber-500);}
+  .to-card.empty .tc-name{color:#ff8a75;}
+  /* ลิงก์ "จัดการรายชื่อ" ชิดขวาของหัวข้อผู้รับคำร้อง */
+  /* อยู่ต่อท้ายคำอธิบาย (ไม่ดันไปขวาสุดบนจอกว้าง) / ปุ่มกรอบมน ตัวหนา สีสว่าง อ่านง่าย */
+  .to-manage{margin:-2px 0 10px;}
+  .link-btn{display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; cursor:pointer;
+    background:rgba(78,167,224,.12); border:1px solid rgba(78,167,224,.55); font:inherit; font-size:13px; font-weight:600; color:#a9d8f5; white-space:nowrap;}
+  .link-btn svg{width:15px; height:15px;}
+  .link-btn:hover{background:rgba(78,167,224,.22); border-color:var(--sky-blue); color:#fff;}
+  .link-btn[hidden]{display:none;}
+  /* การ์ดสำเนา (CC) */
+  /* กว้างเท่าการ์ดผู้รับคำร้อง (380px) ทุกใบ / จอแคบ = เต็มความกว้าง */
+  .cc-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(380px, 100%), 380px)); gap:10px;}
+  .cc-grid .to-card{max-width:380px; cursor:default;}
+  .cc-grid .cc-card .tc-name{padding-right:30px;}
+  .cc-grid .cc-add .tc-name{padding-right:0;}
+  .cc-grid .cc-card:hover{border-color:rgba(78,167,224,.6); background:rgba(78,167,224,.09);}
+  .cc-rm{position:absolute; top:10px; right:10px; width:24px; height:24px; border-radius:50%; padding:0; cursor:pointer; font-size:14px; line-height:22px; font-weight:700;
+    border:1px solid rgba(229,83,61,.65); background:rgba(229,83,61,.14); color:#ff8a75;}
+  .cc-rm:hover{background:var(--safety-red); border-color:var(--safety-red); color:#fff;}
+  .cc-grid .cc-add{cursor:pointer; align-items:center; justify-content:center; min-height:84px; padding:12px 16px;
+    border-style:dashed; color:var(--amber-500); font-weight:600; font-size:13.5px;}
+  .cc-grid .cc-add{border-color:rgba(78,167,224,.6); background:rgba(78,167,224,.06); color:#a9d8f5;}
+  .cc-grid .cc-add:hover{border-color:var(--sky-blue); background:rgba(78,167,224,.16); color:#fff;}
+  .recip.cur{border-color:rgba(62,207,142,.45); background:rgba(62,207,142,.06);}
+  /* ใน popup: จอแคบให้อีเมล / ป้าย / ปุ่ม ตกบรรทัด ไม่บีบชื่อจนอ่านไม่ออก */
+  #dlgBody .recip{flex-wrap:wrap;}
+  #dlgBody .recip .member-info{min-width:170px;}
+  #dlgBody .recip .member-name, #dlgBody .recip .member-sub{white-space:normal;}
+  .avail-choose-btn:disabled{opacity:.35; cursor:not-allowed;}
+  .recip .mail.ok-mail{color:var(--sky-blue);}
+  .recip .def{font-size:10.5px; padding:1px 7px; border-radius:4px; background:rgba(62,207,142,.14); color:var(--ok-green); white-space:nowrap;}
+  .recip .btn-def{font-size:11px; padding:4px 9px;}
+  .recip .icon-btn.act-cancel{border-color:rgba(229,83,61,.65); color:#ff8a75; background:rgba(229,83,61,.12);}
+  .recip .icon-btn.act-cancel:hover{border-color:var(--safety-red); background:var(--safety-red); color:#fff;}
+  .mail-empty{font-size:12.5px; color:var(--concrete-400); padding:6px 2px;}
+  .mail-empty.err{color:#ff8a75;}
+  .confirm-recips{margin:0 0 14px;}
+  /* popup เลือกพนักงานเปิดซ้อนบน popup อื่นได้ (เช่น เพิ่มชื่อจากรายชื่อฝ่ายจัดซื้อ) → อยู่ชั้นบนกว่า */
+  #employeeModal{z-index:70;}
+  .emp-all{display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12.5px; color:var(--concrete-400); cursor:pointer; user-select:none;}
+  .emp-all[hidden]{display:none;}
+  .emp-all input{width:16px; height:16px; padding:0; margin:0; accent-color:var(--amber-500);}
+
   /* ---------- หน้าเอกสาร (บนจอ) ---------- */
-  .doc-toolbar{display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-bottom:18px;}
+  /* แถบปุ่ม + timeline กว้างเท่ากระดาษ A4 (กลางจอ) */
+  .doc-toolbar{display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; align-items:center; margin:0 auto 18px; width:210mm; max-width:100%;}
+  .doc-timeline{width:210mm; max-width:100%; margin:0 auto 22px;}
+  .doc-mode .page-head{width:210mm; max-width:100%; margin:0 auto;}
+  .doc-mode .page-head h1{font-size:clamp(20px,2.4vw,24px);}   /* หน้าเอกสาร: หัวเล็กลง ให้สมดุลกับ eyebrow และตัวเอกสาร */
+  #docPaper .paper{transform-origin:top left;}
+  .tl{list-style:none; margin:0; padding:0;}
+  .tl li{position:relative; display:flex; gap:14px; padding:0 0 18px;}
+  .tl li:last-child{padding-bottom:0;}
+  .tl li:not(:last-child)::before{content:""; position:absolute; left:15px; top:32px; bottom:2px; width:2px; background:rgba(255,255,255,.12);}
+  .tl li.tl-done:not(:last-child)::before{background:rgba(62,207,142,.45);}
+  .tl-ico{width:32px; height:32px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.06); border:2px solid rgba(255,255,255,.18); color:var(--concrete-400);}
+  .tl-ico svg{width:15px; height:15px;}
+  .tl-done .tl-ico{background:rgba(62,207,142,.15); border-color:var(--ok-green); color:var(--ok-green);}
+  .tl-current .tl-ico{background:rgba(242,169,28,.15); border-color:var(--amber-500); color:var(--amber-500);}
+  .tl-fail .tl-ico{background:rgba(229,83,61,.15); border-color:var(--safety-red); color:#ff8a75;}
+  .tl-pending .tl-ico::after{content:""; width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.25);}
+  .tl-body{padding-top:4px; min-width:0;}
+  .tl-title{font-size:14.5px; font-weight:700; color:#fff;}
+  .tl-current .tl-title{color:var(--amber-500);}
+  .tl-pending .tl-title{color:var(--concrete-400); font-weight:600;}
+  .tl-fail .tl-title{color:#ff8a75;}
+  .tl-sub{font-size:12.5px; color:var(--concrete-400); margin-top:2px;}
+  .tl-why{display:block; margin-top:3px; color:#ffb4a6;}
   .doc-toolbar .grp{display:flex; gap:8px; flex-wrap:wrap;}
   .doc-state{padding:40px 20px; text-align:center; color:var(--concrete-400);}
   .doc-state.error{color:#ff8a75;}
@@ -597,7 +847,7 @@
   .mail-log td{white-space:nowrap;}
 
   /* ---------- กระดาษ A4 (ดูบนจอ + พิมพ์ — template เดียวกัน) ---------- */
-  .paper{position:relative; width:210mm; max-width:100%; min-height:297mm; margin:0 auto 22px; padding:14mm 15mm 16mm; background:#fff; color:#111;
+  .paper{position:relative; width:210mm; min-height:297mm; margin:0 auto 22px; padding:14mm 15mm 16mm; background:#fff; color:#111;
     font-family:'Inter',Tahoma,sans-serif; font-size:11.5px; line-height:1.55; border-radius:4px; box-shadow:0 20px 50px -20px rgba(0,0,0,.7); overflow:hidden;
     -webkit-print-color-adjust:exact; print-color-adjust:exact;}
   .paper .p-head{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding-bottom:8px; border-bottom:2px solid #222;}
@@ -619,6 +869,7 @@
     text-align:center; text-transform:none; letter-spacing:0; white-space:normal; line-height:1.3;}
   .paper td{border:1px solid #999; padding:4px 5px; color:#111; background:none; font-size:10.5px; vertical-align:top;}
   .paper tr:hover td{background:none;}
+  .paper tbody tr:last-child td{border-bottom:1px solid #999;}   /* ทับกฎทั่วไปที่ลบเส้นล่างแถวสุดท้าย */
   .paper td.num{text-align:right; white-space:nowrap; font-family:inherit;}
   .paper td.ctr{text-align:center;}
   .paper td.over{font-weight:700; color:#b3261e;}
@@ -626,8 +877,11 @@
   .paper tr.tot td{font-weight:700; background:#f5f5f5;}
   .paper .p-box{border:1px solid #999; border-radius:3px; padding:7px 10px; margin-bottom:10px; white-space:pre-wrap; overflow-wrap:anywhere;}
   .paper .p-signs{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; margin-top:12mm; break-inside:avoid;}
+  .paper .p-signs.one{grid-template-columns:minmax(0, 1fr); justify-items:end;}
+  .paper .p-signs.one .p-sign{width:66mm;}
   .paper .p-sign{text-align:center; font-size:9.5px; line-height:1.4;}
   .paper .p-sign .side{font-size:9px; color:#666; margin-bottom:2px;}
+  .paper .p-signs.one .side{font-size:11.5px; color:#111; margin-bottom:6px;}   /* คำลงท้ายจดหมาย "ขอแสดงความนับถือ" */
   .paper .p-sign .sg{height:12mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:0 8px 3px;}
   .paper .p-sign .sg img{max-height:12mm; max-width:100%; object-fit:contain;}
   .paper .p-sign .n{font-weight:600;}
@@ -639,6 +893,21 @@
   .paper .p-mark.cancel span{color:#b3261e;}
   .paper .p-mark.draft span{color:#555; font-size:52px;}
 
+  /* ---------- ปุ่ม: แนวทางของหน้านี้ (และเมนูใหม่ต่อไป) ----------
+     ปุ่มรอง/ปุ่มอันตราย = กรอบสี + พื้นโปร่งสีเดียวกันจางๆ (ไม่ใช้สีพื้นเดียวกับการ์ด ไม่งั้นกลืน) / hover = เข้มขึ้น
+     ปุ่มหลัก (บันทึก / ยืนยัน) = พื้นสีส้มทึบเหมือนเดิม */
+  .btn{text-transform:none;}   /* ไม่แปลงเป็นตัวพิมพ์ใหญ่ (E-mail ไม่กลายเป็น E-MAIL) */
+  .btn-secondary{background:rgba(78,167,224,.12); border-color:rgba(78,167,224,.6); color:#a9d8f5;}
+  .btn-secondary:hover{background:rgba(78,167,224,.24); border-color:var(--sky-blue); color:#fff; filter:none;}
+  .btn-danger{background:rgba(229,83,61,.12); border-color:rgba(229,83,61,.65); color:#ff8a75;}
+  .btn-danger:hover{background:rgba(229,83,61,.24); border-color:var(--safety-red); color:#fff; filter:none;}
+  /* ปุ่มไอคอนในตารางรายการ: กรอบฟ้า / ยกเลิก = กรอบแดง / กดไม่ได้ = จาง */
+  .icon-btn{background:rgba(78,167,224,.1); border-color:rgba(78,167,224,.5); color:#a9d8f5;}
+  .icon-btn:hover{background:rgba(78,167,224,.24); border-color:var(--sky-blue); color:#fff;}
+  .icon-btn.act-cancel{background:rgba(229,83,61,.1); border-color:rgba(229,83,61,.55); color:#ff8a75;}
+  .icon-btn.act-cancel:hover{background:rgba(229,83,61,.24); border-color:var(--safety-red); color:#fff;}
+  .icon-btn:disabled, .icon-btn:disabled:hover{opacity:.3; background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.14); color:var(--concrete-200);}
+
   /* ---------- PRINT ---------- */
   @page{size:A4 portrait; margin:0;}
   @media print{
@@ -647,7 +916,8 @@
     body.printing .modal-overlay, body.printing .toast, body.printing .no-print{display:none !important;}
     body.printing .main-wrap{margin:0 !important;}
     body.printing main{padding:0 !important; max-width:none !important;}
-    body.printing .paper{box-shadow:none; border-radius:0; margin:0; width:210mm; min-height:0; padding:12mm 14mm;}
+    body.printing .paper{box-shadow:none; border-radius:0; margin:0; width:210mm; min-height:0; padding:12mm 14mm; transform:none !important;}
+    body.printing #docPaper{height:auto !important; overflow:visible !important;}
   }
 
 </style>
@@ -676,9 +946,9 @@
     </div>
 
     <main>
-      <div class="no-print">
+      <div class="no-print page-head">
         <div class="eyebrow">Over PO Seed Sale Request</div>
-        <h1>ร้องขอขายเมล็ดพันธุ์เกิน PO</h1>
+        <h1>ร้องขอขายเมล็ดพันธุ์ (Over PO)</h1>
       </div>
 
       <!-- ============ โหมดเอกสาร (/over-po-sale-doc?id=) ============ -->
@@ -693,9 +963,10 @@
           <div class="grp" id="docActions"></div>
         </div>
         <div id="docPaper"><div class="doc-state">กำลังโหลดเอกสาร…</div></div>
-        <div class="card no-print" id="docMailCard" hidden>
-          <h2>ประวัติการส่งอีเมล</h2>
-          <div class="table-responsive mail-log"><table><thead><tr><th>เวลา</th><th>ครั้ง</th><th>ประเภท</th><th>ผู้รับ</th><th>อีเมล</th><th>ผล</th></tr></thead><tbody id="docMailBody"></tbody></table></div>
+        <!-- ประวัติการดำเนินการ (timeline) — ดูบนจอเท่านั้น ไม่พิมพ์ / กว้างเท่ากระดาษ -->
+        <div class="card no-print doc-timeline" id="docTimelineCard" hidden>
+          <h2>ประวัติการดำเนินการ</h2>
+          <ol class="tl" id="docTimeline"></ol>
         </div>
       </section>
 
@@ -712,7 +983,7 @@
 
       <!-- ============ FORM ============ -->
       <section id="formPage" class="page">
-        <div class="edit-banner" id="editBanner">✏️ กำลังแก้ไขเอกสาร <b id="editDocNo"></b> <span>(แก้ไขได้จนกว่าจะส่งคำร้อง)</span></div>
+        <div class="edit-banner" id="editBanner">✏️ กำลังแก้ไขเอกสาร <b id="editDocNo"></b> <span id="editBannerNote"></span></div>
         <div class="warn-banner" id="mailWarn" hidden></div>
         <div class="error-banner" id="formError"></div>
 
@@ -739,38 +1010,60 @@
               <select id="compReqSelect"><option value="">— เลือกบริษัท —</option></select>
             </div>
             <div class="form-group">
-              <label>ส่งคำร้องถึง (ผู้ซื้อ / เจ้าของ PO)<span class="req">*</span></label>
+              <label>ส่งคำร้องถึง (ผู้ซื้อ)<span class="req">*</span></label>
               <select id="compTargetSelect" disabled><option value="">— เลือกบริษัทที่ร้องขอก่อน —</option></select>
             </div>
-            <div class="form-group full">
-              <label>เรื่อง<span class="req">*</span></label>
-              <input type="text" id="subjectInput" maxlength="300">
+          </div>
+        </div>
+
+        <!-- ผู้รับอีเมล: ผู้รับคำร้อง (ฝ่ายจัดซื้อ) 1 คน + สำเนา (CC) ไม่บังคับ — ให้ตรวจก่อนกดบันทึกและส่ง -->
+        <div class="card" id="mailCard">
+          <h2>ส่ง E-Mail ถึง</h2>
+          <div class="mail-sec">
+            <div class="mail-sec-head">
+              <span class="sec-label">ผู้รับคำร้อง (ฝ่ายจัดซื้อ)<span class="req">*</span></span>
+              <span class="sec-hint">ได้รับ E-mail พร้อมลิงก์ เพื่อเข้าไปจัดการคำร้อง</span>
             </div>
+            <div class="to-manage">
+              <!-- ใต้หัวข้อผู้รับคำร้อง (แสดงเฉพาะผู้มีสิทธิ์จัดการรายชื่อ) -->
+              <button type="button" class="link-btn" id="manageMailtoBtn" hidden title="เพิ่ม / ลบ / ตั้งค่าเริ่มต้น รายชื่อฝ่ายจัดซื้อ">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                จัดการรายชื่อผู้รับคำร้อง
+              </button>
+            </div>
+            <div id="mailToBox"></div>
+          </div>
+          <div class="mail-sec">
+            <div class="mail-sec-head">
+              <span class="sec-label">สำเนาถึง (CC)</span>
+              <span class="sec-hint">แจ้งเพื่อทราบพร้อมรายละเอียด · ไม่ระบุก็ได้</span>
+            </div>
+            <div id="mailCcBox"></div>
           </div>
         </div>
 
         <div class="card">
           <div class="table-header">
-            <h2>PO ตั้งต้นที่อ้างถึง และยอดที่เสนอขาย</h2>
+            <h2>รายการ PO อ้างอิง และยอดที่เสนอขาย</h2>
             <button type="button" class="btn btn-primary" id="openPoBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              เลือก PO ที่อ้างถึง
+              เลือก PO ที่อ้างอิง
             </button>
           </div>
-          <div class="table-responsive">
+          <div class="table-responsive item-wrap">
             <table class="item-table">
               <thead>
                 <tr>
-                  <th class="ctr">#</th><th>เมล็ดพันธุ์ / PO ที่อ้างถึง</th><th class="num">ยอด PO รวม</th><th class="num">ขายแล้ว<br>(รับเข้าตาม PO)</th>
-                  <th class="ctr">ผลิตได้ทั้งหมด<span class="req">*</span></th><th class="num">เกิน PO</th><th class="ctr">เสนอขายเพิ่ม<span class="req">*</span></th>
+                  <th class="ctr">#</th><th>เมล็ดพันธุ์ / PO ที่อ้างอิง</th><th class="num">ยอด PO รวม</th><th class="num">ขายแล้ว<br>(ผู้ขาย)</th>
+                  <th class="ctr">ผลิตได้ทั้งหมด<span class="req">*</span></th><th class="num">ยอดเกิน PO</th><th class="ctr">เสนอขายเพิ่ม<span class="req">*</span></th>
                   <th class="ctr">หน่วย</th><th>หมายเหตุรายการ</th><th></th>
                 </tr>
               </thead>
               <tbody id="itemBody"></tbody>
             </table>
-            <p class="empty-msg" id="noItemMsg">ยังไม่มีรายการ — เลือกบริษัทแล้วกด "เลือก PO ที่อ้างถึง"</p>
+            <p class="empty-msg" id="noItemMsg">ยังไม่มีรายการ — เลือกบริษัทแล้วกด "เลือก PO ที่อ้างอิง"</p>
           </div>
-          <p class="hint">เกิน PO = ผลิตได้ทั้งหมด − ยอด PO รวม &nbsp;·&nbsp; เสนอขายเพิ่มได้ไม่เกิน <b>ผลิตได้ทั้งหมด − ขายแล้ว</b> (ค่าเริ่มต้น = ยอดนี้)</p>
+          <p class="hint">ยอดเกิน PO = ผลิตได้ทั้งหมด − ยอด PO รวม &nbsp;·&nbsp; เสนอขายเพิ่มได้ไม่เกิน <b>ผลิตได้ทั้งหมด − ขายแล้ว (ผู้ขาย)</b> (ค่าเริ่มต้น = ยอดนี้) &nbsp;·&nbsp; ขายแล้ว = ตามใบขายของผู้ขาย รวมที่ผู้ซื้อยังไม่รับเข้า</p>
         </div>
 
         <div class="card">
@@ -792,7 +1085,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             ล้างฟอร์ม
           </button>
-          <button type="button" class="btn btn-success" id="saveBtn">บันทึก</button>
+          <button type="button" class="btn btn-success" id="saveBtn">บันทึกและส่งคำร้อง</button>
         </div>
       </section>
 
@@ -805,7 +1098,7 @@
               <div class="ld-text" aria-label="กำลังโหลด">Loading . . .</div>
             </div>
           </div>
-          <h2>รายการคำร้องขอขายเมล็ดพันธุ์เกิน PO</h2>
+          <h2>รายการคำร้องขอขายเมล็ดพันธุ์ (Over PO)</h2>
           <div class="list-toolbar">
             <div class="form-group">
               <label>บริษัทที่ร้องขอ :</label>
@@ -813,7 +1106,7 @@
             </div>
             <div class="form-group search-inline">
               <label>ค้นหา :</label>
-              <input type="text" id="listSearch" placeholder="เลขที่ / เมล็ดพันธุ์ / PO..." autocomplete="off">
+              <input type="text" id="listSearch" placeholder="เลขที่เอกสาร / ชื่อสินค้า / PO No. ..." autocomplete="off">
             </div>
             <button type="button" class="btn btn-secondary" id="listRefreshBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
@@ -821,19 +1114,23 @@
             </button>
           </div>
           <div class="dash" id="statusDash"></div>
+          <!-- จอกว้าง = ตาราง / พื้นที่แคบกว่า 900px (มือถือ / แท็บเล็ต) = กล่องเอกสาร (#listCards) -->
+          <div class="list-area" id="listArea">
           <div class="table-responsive req-list-wrap">
             <table class="ops-list-table">
               <thead>
                 <tr>
                   <th class="ctr mg">ลำดับ</th><th class="ctr mg">เอกสาร</th><th class="ctr mg">ส่ง<br>คำร้อง</th><th class="ctr mg">แก้ไข</th><th class="ctr mg">ยกเลิก</th>
-                  <th class="ctr">สถานะ</th><th>เลขที่เอกสาร</th><th class="ctr">วันที่</th><th class="ctr">ส่งถึง</th>
-                  <th>เมล็ดพันธุ์</th><th>PO ที่อ้างถึง</th><th class="num">ยอด PO</th><th class="num">ขายแล้ว</th><th class="num">ผลิตได้</th>
-                  <th class="num">เกิน PO</th><th class="num">เสนอขายเพิ่ม</th><th class="ctr">หน่วย</th><th>ผู้ร้องขอ</th><th class="ctr">ส่งคำร้องเมื่อ</th>
+                  <th class="ctr">สถานะ</th><th class="ctr">เลขที่เอกสาร</th><th class="ctr">วันที่ร้องขอ</th><th class="ctr">ส่งถึง</th>
+                  <th class="ctr">รายการ</th><th class="ctr">PO ที่อ้างอิง</th><th class="ctr">จำนวน PO</th><th class="ctr">ขายแล้ว <span class="nw">(ผู้ขาย)</span></th><th class="ctr">ผลิตได้</th>
+                  <th class="ctr">จำนวนเกิน PO</th><th class="ctr">เสนอขายเพิ่ม</th><th class="ctr">หน่วย</th><th class="ctr">ผู้ร้องขอ</th><th class="ctr">ส่งคำร้องเมื่อ</th>
                 </tr>
               </thead>
               <tbody id="listBody"></tbody>
             </table>
             <p class="empty-msg" id="noListMsg">ยังไม่มีคำร้องของบริษัทนี้</p>
+          </div>
+          <div class="list-cards" id="listCards"></div>
           </div>
         </div>
       </section>
@@ -858,6 +1155,8 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         <input type="text" id="employeeSearch" placeholder="พิมพ์ชื่อพนักงาน..." autocomplete="off">
       </div>
+      <!-- เพิ่มรายชื่อผู้รับคำร้อง: เริ่มต้นแสดงเฉพาะพนักงานของบริษัทนั้น (ไม่กรองตำแหน่ง) / ติ๊กเพื่อดูทุกบริษัท -->
+      <label class="emp-all" id="empAllWrap" hidden><input type="checkbox" id="empAllComp"> แสดงพนักงานทุกบริษัท</label>
     </div>
     <div class="modal-body modal-list" id="employeeModalBody"></div>
   </div>
@@ -868,8 +1167,8 @@
   <div class="modal-box modal-po">
     <div class="modal-header">
       <div>
-        <h3>เลือก PO ตั้งต้นที่อ้างถึง</h3>
-        <p class="av-head-sub" id="poModalSub"></p>
+        <h3 class="po-head" id="poModalTitle"></h3>
+        <p class="po-head-note" id="poModalNote"></p>
       </div>
       <button type="button" class="modal-close" data-close="poModal" aria-label="ปิด">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -878,16 +1177,15 @@
     <div class="modal-search po-filter">
       <div class="search-shell">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <input type="text" id="poSearch" placeholder="ค้นหาเลขที่ PO / ชื่อเมล็ดพันธุ์ / ประเภทพืช..." autocomplete="off">
+        <input type="text" id="poSearch" placeholder="ค้นหา PO No. / รายการ / ประเภทพืช..." autocomplete="off">
       </div>
-      <label class="chk"><input type="checkbox" id="poShowOpen"> แสดง PO ที่ยังไม่สิ้นสุดและรับยังไม่ครบด้วย</label>
     </div>
     <div class="po-pick-wrap" style="margin-top:12px;">
       <table class="po-pick-table">
         <thead>
           <tr>
-            <th class="ctr"></th><th>เลขที่ PO</th><th class="ctr">วันที่ PO</th><th>เมล็ดพันธุ์</th><th class="num">ยอด PO</th><th class="num">รับแล้ว</th>
-            <th class="num">% รับ</th><th class="ctr">หน่วย</th><th class="ctr">สถานะ PO</th>
+            <th class="ctr"></th><th class="ctr">PO No.</th><th class="ctr">วันที่สั่งซื้อ <span class="nw">(PO)</span></th><th class="ctr">รายการ</th><th class="ctr">จำนวน PO</th><th class="ctr">ขายแล้ว <span class="nw">(ผู้ขาย)</span></th><th class="ctr">จำนวนรับแล้ว <span class="nw">(ผู้ซื้อ)</span></th>
+            <th class="ctr">% รับจาก PO</th><th class="ctr">หน่วย</th><th class="ctr">สถานะ PO</th>
           </tr>
         </thead>
         <tbody id="poBody"></tbody>
@@ -897,7 +1195,7 @@
       <span class="sel-count" id="poSelCount"></span>
       <div class="grp" style="display:flex; gap:8px;">
         <button type="button" class="btn btn-secondary" data-close="poModal">ปิด</button>
-        <button type="button" class="btn btn-primary" id="poConfirmBtn">ใช้ PO ที่เลือก</button>
+        <button type="button" class="btn btn-primary" id="poConfirmBtn">เลือก PO ที่ระบุ</button>
       </div>
     </div>
   </div>
@@ -920,7 +1218,9 @@
 
 <script>
   const CURRENT_PAGE_MENU_CODE = 'over_po_sale';
-  function loadSidebar() { return WIMSidebar.load({ menuCode: CURRENT_PAGE_MENU_CODE }); }
+  // หน้าเอกสาร (/over-po-sale-doc): ผู้รับสำเนาที่ไม่มีสิทธิ์เมนูก็เปิดดูได้ → ไม่เช็คสิทธิ์เมนูของหน้า (server เช็คสิทธิ์เอกสารเอง)
+  const IS_DOC_PAGE = location.pathname.replace(/\.html$/, '') === '/over-po-sale-doc';
+  function loadSidebar() { return WIMSidebar.load({ menuCode: IS_DOC_PAGE ? null : CURRENT_PAGE_MENU_CODE }); }
   document.addEventListener('DOMContentLoaded', loadSidebar);
 </script>
 
@@ -930,19 +1230,30 @@
 
   const LOGO_BASE_URL = 'https://seedsgroup.dyndns.org/spm/Center/Logo/';
   const ESIGN_URL = (idPs) => `https://seedsgroup.dyndns.org/spm/images/eSign/${encodeURIComponent(idPs)}.png`;
-  const DEFAULT_SUBJECT = 'ขออนุมัติขายเมล็ดพันธุ์ที่ผลิตเกินจำนวนใบสั่งซื้อ (Over PO)';
+  // สถานะ: S = ส่งแล้ว ฝ่ายจัดซื้อยังไม่รับคำร้อง / H, K = ฝ่ายจัดซื้อรับคำร้อง+ระบุราคาแล้ว อยู่ระหว่างพิจารณา (ขั้นย่อยใน STATUS_SUB)
+  //        A = อนุมัติรับซื้อ / R = ไม่รับซื้อ / C = ยกเลิก / D = เอกสารเก่าที่ยังไม่ส่ง (ก่อนมีปุ่มบันทึกและส่ง — ไม่มีการ์ดสรุป)
   const STATUS = {
-    D: 'ร่าง (ยังไม่ส่ง)', S: 'ส่งคำร้องแล้ว รอตรวจสอบ', H: 'ตรวจสอบแล้ว', K: 'รับทราบแล้ว',
+    D: 'ยังไม่ส่งคำร้อง', S: 'รอผู้รับคำร้องดำเนินการ', H: 'รอพิจารณา', K: 'รอพิจารณา',
     A: 'อนุมัติรับซื้อ', R: 'ไม่รับซื้อ', C: 'ยกเลิก'
   };
+  const STATUS_SUB = { H: 'ขั้นรับทราบ', K: 'ขั้นอนุมัติ' };   // เฟส 2 ปรับตามลำดับขั้นจริง
   const DASH = [
     { key: 'all', label: 'ทั้งหมด (ไม่รวมยกเลิก)', c: 'var(--amber-500)', test: d => d.status !== 'C' },
-    { key: 'D', label: STATUS.D, c: 'var(--concrete-200)', test: d => d.status === 'D' },
-    { key: 'S', label: 'รอฝั่งผู้ซื้อดำเนินการ', c: 'var(--sky-blue)', test: d => ['S', 'H', 'K'].includes(d.status) },
+    { key: 'S', label: STATUS.S, c: 'var(--sky-blue)', test: d => d.status === 'S' },
+    { key: 'W', label: 'รอพิจารณา', c: '#c4b5fd', test: d => ['H', 'K'].includes(d.status) },
     { key: 'A', label: STATUS.A, c: 'var(--ok-green)', test: d => d.status === 'A' },
-    { key: 'R', label: 'ไม่รับซื้อ (เคสแดง)', c: 'var(--safety-red)', test: d => d.status === 'R' },
+    { key: 'R', label: STATUS.R, c: 'var(--safety-red)', test: d => d.status === 'R' },
     { key: 'C', label: STATUS.C, c: 'var(--steel-500)', test: d => d.status === 'C' }
   ];
+  const STATUS_SHORT = { S: 'รอดำเนินการ' };   // คอลัมน์สถานะในตาราง: ข้อความสั้น (แถวไม่สูง) — ชื่อเต็มอยู่ใน tooltip
+  const statusFull = (d) => STATUS[d.status] + (STATUS_SUB[d.status] ? ` · ${STATUS_SUB[d.status]}` : '');
+  const statusBadge = (d, short) => `<span class="badge ops-${d.status}" title="${esc(statusFull(d))}">${esc(short ? (STATUS_SHORT[d.status] || STATUS[d.status]) : statusFull(d))}</span>`;
+  // รายละเอียดที่ซ่อนไว้ (คลิกแถวเพื่อขยาย): ยกเลิก = ผู้ยกเลิก / วันที่ / สาเหตุ · ไม่รับซื้อ = เหตุผล
+  const docDetail = (d) => [
+    d.cancel ? `<div class="cancel-info"><b>ยกเลิกโดย</b> ${esc(d.cancel.by)} · ${thStamp(d.cancel.at)} — <b>สาเหตุ:</b> ${esc(d.cancel.reason || '-')}</div>` : '',
+    d.status === 'R' && d.rejectNote ? `<div class="cancel-info"><b>ไม่รับซื้อ</b> — <b>เหตุผล:</b> ${esc(d.rejectNote)}</div>` : ''
+  ].join('');
+  const listOpen = new Set();   // เอกสารที่ขยายรายละเอียดอยู่
 
   /* ==================================================================
      HELPERS
@@ -953,11 +1264,18 @@
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
   const round6 = (n) => Math.round(n * 1e6) / 1e6;
-  // จำนวน: ทศนิยมสูงสุด 3 ตำแหน่ง มีคอมม่าคั่นหลักพัน
+  // จำนวน: ทศนิยม 2 ตำแหน่ง + คอมม่าคั่นหลักพัน / ค่าที่เบามาก (ไม่ใช่ 0 แต่ 2 ตำแหน่งได้ 0.00) แสดง 3–6 ตำแหน่ง
   function fmtQty(v){
     if(v === null || v === undefined || v === '' || isNaN(v)) return '-';
-    return Number(v).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+    const n = Number(v);
+    const tiny = n !== 0 && Math.abs(n) < 0.005;
+    return n.toLocaleString('en-US', tiny ? { minimumFractionDigits: 3, maximumFractionDigits: 6 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  // ช่องกรอกจำนวน: ตอนไม่ได้แก้ = ทศนิยม 2 ตำแหน่ง + comma (แบบเดียวกับ fmtQty) / ตอนคลิกแก้ = ตัวเลขล้วน แก้ง่าย
+  const qtyInputText = (v) => v == null ? '' : fmtQty(v);
+  const qtyRawText = (v) => v == null ? '' : String(round6(v));
+  // ป้ายที่มีวงเล็บ เช่น "ขายแล้ว (ผู้ขาย)": ใส่ word joiner ระหว่างตัวอักษรในวงเล็บ ตัดบรรทัดแล้ววงเล็บไปทั้งก้อน
+  const kp = (str) => String(str).replace(/\([^)]*\)/g, m => m.split('').join('\u2060'));
   function parseQty(text){ const n = parseFloat(String(text).replace(/,/g, '')); return isNaN(n) ? null : n; }
   function thDate(iso){
     if(!iso) return '-';
@@ -996,7 +1314,7 @@
     try{ u = JSON.parse(sessionStorage.getItem('wim_user') || 'null'); } catch(e){}
     const id = u && Number(u.idPs);
     const name = u && (u.PsName || [u.PsNameF, u.PsNameS].filter(Boolean).join(' ').trim());
-    return id ? { id, name: name || '-' } : null;
+    return id ? { id, name: name || '-', idComp: u.idComp != null ? Number(u.idComp) : null } : null;
   }
   function dlg(title, html){
     $('dlgTitle').textContent = title;
@@ -1009,9 +1327,12 @@
   ================================================================== */
   let companies = [];       // บริษัท 2/3/4 + allowed
   let myCompanies = [];
-  let mailReady = false, mailDryRun = false, canMailTo = false;
+  let mailReady = false, mailDryRun = false, mailRedirect = null, canMailTo = false;
   let employees = null;     // โหลดครั้งแรกที่เปิด popup
-  let employeeMode = 'requester';   // requester | mailto
+  let employeeMode = 'requester';   // requester | mailto | cc
+  let mailToList = [], mailToComp = null;   // รายชื่อฝ่ายจัดซื้อ (ผู้รับคำร้องที่เลือกได้) ของบริษัทที่ส่งถึง
+  let mailToId = null;      // idPs ผู้รับคำร้องที่เลือก
+  let ccList = [];          // [{ idPs, name, position, compName, email }]
   let requester = null;
   let compReq = null, compTarget = null;
   let items = [];           // [{ idInvMain, invName, seedName, idUnit, unit, pos:[poLine], amountProduce, amountOffer, note }]
@@ -1040,7 +1361,7 @@
       const r = await api('/api/ops/companies');
       companies = r.data || [];
       myCompanies = companies.filter(c => c.allowed);
-      mailReady = r.mailReady; mailDryRun = r.mailDryRun; canMailTo = r.canMailTo;
+      mailReady = r.mailReady; mailDryRun = r.mailDryRun; mailRedirect = r.mailRedirect || null; canMailTo = r.canMailTo;
     } catch(err){
       console.error(err);
       $('formError').style.display = 'block';
@@ -1049,6 +1370,7 @@
     const params = new URLSearchParams(location.search);
     if(location.pathname.replace(/\.html$/, '') === '/over-po-sale-doc'){
       $('tabBar').style.display = 'none';
+      document.body.classList.add('doc-mode');   // หน้าเอกสาร: หัวข้อ + ปุ่ม + กระดาษ อยู่คอลัมน์กลางเดียวกัน
       $('listPage').classList.remove('active');
       $('docPage').classList.add('active');
       return loadDocPage(parseInt(params.get('id'), 10));
@@ -1065,7 +1387,10 @@
     const el = $('mailWarn');
     if(!mailReady){
       el.hidden = false;
-      el.innerHTML = '⚠️ server ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) — บันทึกเอกสารได้ แต่จะส่งคำร้องทางอีเมลไม่ได้จนกว่าผู้ดูแลระบบจะตั้งค่า';
+      el.innerHTML = '⚠️ server ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) — บันทึกและส่งคำร้องไม่ได้จนกว่าผู้ดูแลระบบจะตั้งค่า';
+    } else if(mailRedirect && !mailDryRun){
+      el.hidden = false;
+      el.innerHTML = `🧪 ช่วงทดสอบ: อีเมลทุกฉบับจะส่งไปที่ <b>${esc(mailRedirect)}</b> แทนผู้รับที่เลือก (ในอีเมลจะบอกว่าใช้งานจริงจะส่งถึงใคร)`;
     } else if(mailDryRun){
       el.hidden = false;
       el.innerHTML = '🧪 โหมดทดสอบอีเมล (MAIL_DRY_RUN) — กดส่งแล้วระบบจะบันทึกเป็นไฟล์บน server ไม่ได้ส่งถึงผู้รับจริง';
@@ -1077,9 +1402,9 @@
     $('compReqSelect').innerHTML = myCompanies.length ? '<option value="">— เลือกบริษัท —</option>' + opts : '<option value="">ไม่มีสิทธิ์บริษัทใด ติดต่อผู้ดูแลระบบ</option>';
     $('compReqSelect').disabled = !myCompanies.length;
     $('listCompSelect').innerHTML = opts || '<option value="">ไม่มีสิทธิ์บริษัทใด</option>';
-    // ค่าเริ่มต้นฝั่งร้องขอ = บริษัทแรกที่มีสิทธิ์ที่ไม่ใช่ AV (4) — ปกติผู้ขายคือ FLO / GR
-    const def = myCompanies.find(c => Number(c.id) !== 4) || myCompanies[0];
-    if(def) $('listCompSelect').value = String(def.id);
+    // ค่าเริ่มต้น = บริษัทที่ผู้ใช้ที่ login สังกัด (ถ้ามีสิทธิ์) ไม่งั้นบริษัทแรกที่มีสิทธิ์ที่ไม่ใช่ AV
+    const def = defaultCompReq(currentUser());
+    if(def) $('listCompSelect').value = String(def);
   }
 
   function renderTargetSelect(){
@@ -1095,6 +1420,99 @@
     sel.disabled = false;
     sel.innerHTML = '<option value="">— เลือกบริษัท —</option>' + targets.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     sel.value = compTarget ? String(compTarget) : '';
+    loadMailTo();
+  }
+
+  /* ==================================================================
+     ส่ง E-Mail ถึง (ผู้รับคำร้อง + CC)
+  ================================================================== */
+  // โหลดรายชื่อฝ่ายจัดซื้อของบริษัทที่ส่งถึง — ผู้รับเดิมยังอยู่ในรายชื่อ = คงไว้ / ไม่อยู่ = ใช้ค่าเริ่มต้น
+  async function loadMailTo(force){
+    const comp = compTarget;
+    if(!comp){ mailToList = []; mailToComp = null; mailToId = null; renderMailTo(); return; }
+    if(comp !== mailToComp || force){
+      $('mailToBox').innerHTML = '<div class="mail-empty">กำลังโหลดรายชื่อฝ่ายจัดซื้อ…</div>';
+      try{
+        const r = await api('/api/ops/mailto?' + new URLSearchParams({ idComp: comp }));
+        if(comp !== compTarget) return;   // ระหว่างโหลดมีการเปลี่ยนบริษัทอีก
+        mailToList = r.data || [];
+        mailToComp = comp;
+      } catch(err){
+        $('mailToBox').innerHTML = `<div class="mail-empty err">โหลดรายชื่อฝ่ายจัดซื้อไม่สำเร็จ: ${esc(err.message)}</div>`;
+        return;
+      }
+    }
+    if(!mailToList.some(x => x.idPs === mailToId)){
+      const def = mailToList.find(x => x.isDefault && x.email) || mailToList.find(x => x.email);
+      mailToId = def ? def.idPs : null;
+    }
+    renderMailTo();
+  }
+  function renderMailTo(){
+    $('manageMailtoBtn').hidden = !(canMailTo && compTarget);
+    const box = $('mailToBox');
+    if(!compTarget){ box.innerHTML = '<div class="mail-empty">เลือกบริษัทที่ส่งคำร้องถึงก่อน</div>'; }
+    else if(!mailToList.length){
+      box.innerHTML = `<div class="mail-empty err">ยังไม่ได้กำหนดรายชื่อฝ่ายจัดซื้อของบริษัทนี้ — ${canMailTo ? 'กด "จัดการรายชื่อฝ่ายจัดซื้อ" เพื่อเพิ่ม' : 'ติดต่อผู้ดูแลระบบ'}</div>`;
+    } else {
+      // การ์ดผู้รับคำร้อง: แตะการ์ดเพื่อเปลี่ยนคน (เลือกจากรายชื่อฝ่ายจัดซื้อ)
+      const cur = mailToList.find(x => x.idPs === mailToId);
+      box.innerHTML = `<button type="button" class="to-card ${cur ? '' : 'empty'}" id="mailToCard" title="แตะเพื่อเปลี่ยนผู้รับคำร้อง">
+        ${cur ? `<span class="tc-name">${esc(cur.name)}</span>
+          <span class="tc-sub">${esc(cur.position || '-')}</span>
+          <span class="tc-mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><polyline points="3 7 12 13 21 7"></polyline></svg>${esc(cur.email || 'ไม่มีอีเมลในระบบ')}</span>`
+          : '<span class="tc-name">— เลือกผู้รับคำร้อง —</span><span class="tc-sub">ไม่มีผู้รับที่มีอีเมล</span>'}
+        <span class="tc-change">${mailToList.length > 1 ? 'แตะเพื่อเปลี่ยน ›' : ''}</span>
+      </button>`;
+    }
+    // สำเนา (CC): การ์ดแบบเดียวกับผู้รับคำร้อง + ปุ่ม × มุมขวาบน / ช่องสุดท้าย = การ์ดเส้นประ "เพิ่มผู้รับสำเนา"
+    $('mailCcBox').innerHTML = `<div class="cc-grid">
+      ${ccList.map(x => `<div class="to-card cc-card">
+        <span class="tc-name">${esc(x.name)}</span>
+        <span class="tc-sub">${esc(x.position || '-')}${x.compName ? ' · ' + esc(x.compName) : ''}</span>
+        <span class="tc-mail">${MAIL_ICON}${esc(x.email || '')}</span>
+        <button type="button" class="cc-rm" data-rm-cc="${x.idPs}" title="เอาออกจากสำเนา">×</button>
+      </div>`).join('')}
+      <button type="button" class="to-card cc-add" id="addCcBtn">+ เพิ่มผู้รับสำเนา</button>
+    </div>`;
+  }
+  const MAIL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><polyline points="3 7 12 13 21 7"></polyline></svg>';
+  // popup เลือกผู้รับคำร้องจากรายชื่อฝ่ายจัดซื้อของบริษัทที่ส่งถึง (คนไม่มีอีเมลเลือกไม่ได้)
+  function openToPicker(){
+    if(!mailToList.length) return;
+    const comp = companies.find(c => Number(c.id) === compTarget);
+    dlg('เลือกผู้รับคำร้อง — ' + (comp ? shortCompName(comp.name) : ''), `
+      <p class="send-note">ฝ่ายจัดซื้อที่จะได้รับอีเมลพร้อมลิงก์เข้าไปจัดการคำร้อง (เลือกได้ 1 คน)</p>
+      <div class="recip-list">${mailToList.map(x => `<div class="recip ${x.idPs === mailToId ? 'cur' : ''}">
+          <div class="member-info"><div class="member-name">${esc(x.name)}</div><div class="member-sub">${esc(x.position || '-')}</div></div>
+          <span class="mail ${x.email ? '' : 'none'}">${x.email ? esc(x.email) : 'ไม่มีอีเมลในระบบ'}</span>
+          ${x.isDefault ? '<span class="def">ค่าเริ่มต้น</span>' : ''}
+          ${x.idPs === mailToId ? '<span class="ok">✓ เลือกอยู่</span>'
+            : `<button type="button" class="avail-choose-btn" data-pick-to="${x.idPs}" ${x.email ? '' : 'disabled'}>เลือก</button>`}
+        </div>`).join('')}</div>
+      <div class="send-actions">
+        ${canMailTo ? `<button type="button" class="btn btn-secondary" data-act="mailto" data-comp="${compTarget}">จัดการรายชื่อฝ่ายจัดซื้อ</button>` : ''}
+        <button type="button" class="btn btn-primary" data-close="dlgModal">ปิด</button>
+      </div>`);
+  }
+  function pickTo(idPs){
+    mailToId = idPs;
+    ccList = ccList.filter(x => x.idPs !== mailToId);   // คนเดียวกันไม่ต้องอยู่ทั้ง To และ CC
+    renderMailTo();
+    closeModal('dlgModal');
+  }
+
+  async function addCc(emp){
+    if(emp.id === mailToId){ alert(`${emp.name} เป็นผู้รับคำร้องอยู่แล้ว`); return; }
+    if(ccList.some(x => x.idPs === emp.id)) return;
+    if(ccList.length >= 20){ alert('สำเนาถึง (CC) ได้ไม่เกิน 20 คน'); return; }
+    try{
+      const r = await api('/api/ops/people?' + new URLSearchParams({ ids: emp.id }));
+      const p = (r.data || [])[0];
+      if(!p || !p.email){ alert(`${emp.name} ไม่มีอีเมลในระบบ — เพิ่มเป็นผู้รับสำเนาไม่ได้`); return; }
+      ccList.push(p);
+      renderMailTo();
+    } catch(err){ alert(err.message); }
   }
 
   /* ==================================================================
@@ -1113,24 +1531,31 @@
   function resetForm(){
     editing = null;
     $('editBanner').classList.remove('show');
-    $('saveBtn').textContent = 'บันทึก';
+    $('saveBtn').textContent = 'บันทึกและส่งคำร้อง';
+    mailToId = null;
+    ccList = [];
     $('formError').style.display = 'none';
     $('docDate').value = thDate(todayISO());
     const iso = todayISO();
     $('docNo').value = `OPQ${String(Number(iso.slice(0,4)) + 543).slice(-2)}${iso.slice(5,7)}/0000`;
     requester = currentUser();
     $('requesterName').value = requester ? requester.name : '';
-    const def = myCompanies.find(c => Number(c.id) !== 4) || myCompanies[0];
-    compReq = def ? Number(def.id) : null;
+    compReq = defaultCompReq(requester);
     $('compReqSelect').value = compReq ? String(compReq) : '';
     $('compReqSelect').disabled = !myCompanies.length;
     compTarget = null;
     renderTargetSelect();
-    $('subjectInput').value = DEFAULT_SUBJECT;
     $('causeInput').value = '';
     $('noteInput').value = '';
     items = [];
     renderItems();
+  }
+
+  // บริษัทที่ร้องขอเริ่มต้น = บริษัทที่ผู้ร้องขอสังกัด (ถ้ามีสิทธิ์บริษัทนั้น) ไม่งั้นบริษัทแรกที่มีสิทธิ์ที่ไม่ใช่ AV — เปลี่ยนเองได้
+  function defaultCompReq(ps){
+    const own = ps && myCompanies.find(c => Number(c.id) === ps.idComp);
+    const def = own || myCompanies.find(c => Number(c.id) !== 4) || myCompanies[0];
+    return def ? Number(def.id) : null;
   }
 
   function onCompanyChange(kind, value){
@@ -1142,7 +1567,7 @@
       return;
     }
     if(kind === 'req'){ compReq = v; renderTargetSelect(); }
-    else compTarget = v;
+    else { compTarget = v; loadMailTo(); }
     items = [];
     renderItems();
   }
@@ -1154,13 +1579,15 @@
     if(GRAM[from] && GRAM[to]) return v * GRAM[from] / GRAM[to];
     return null;
   }
+  // sold = ขายแล้วตามใบขายฝั่งผู้ขาย (ใช้คำนวณ) / rec = รับเข้าแล้วฝั่งผู้ซื้อ (แสดงประกอบ)
   function itemTotals(it){
-    let po = 0, rec = 0, bad = false;
+    let po = 0, rec = 0, sold = 0, bad = false;
     it.pos.forEach(p => {
       const a = conv(p.amountPO, p.idUnit, it.idUnit), b = conv(p.amountRec, p.idUnit, it.idUnit);
-      if(a === null || b === null) bad = true; else { po += a; rec += b; }
+      const c = conv(p.amountSold != null ? p.amountSold : p.amountRec, p.idUnit, it.idUnit);
+      if(a === null || b === null || c === null) bad = true; else { po += a; rec += b; sold += c; }
     });
-    return { po: round6(po), rec: round6(rec), bad };
+    return { po: round6(po), rec: round6(rec), sold: round6(sold), bad };
   }
 
   function renderItems(){
@@ -1168,24 +1595,26 @@
     $('itemBody').innerHTML = items.map((it, i) => {
       const t = itemTotals(it);
       const over = it.amountProduce != null ? round6(it.amountProduce - t.po) : null;
-      const maxOffer = it.amountProduce != null ? round6(it.amountProduce - t.rec) : null;
-      const chips = it.pos.map(p => `<span class="po-chip" title="วันที่ PO ${thDate(p.datePO)}">
-          <b>${esc(p.poCode)}</b><span class="q">${fmtQty(p.amountPO)} ${esc(p.unitName || '')}</span>
-          <button type="button" data-rm-po="${p.idPODt}" title="เอา PO นี้ออก">×</button></span>`).join('');
+      const maxOffer = it.amountProduce != null ? round6(it.amountProduce - t.sold) : null;
+      const chips = it.pos.map(p => `<div class="po-line" title="วันที่ PO ${thDate(p.datePO)}">
+          <span>PO No. อ้างอิง <b>${esc(p.poCode)}</b></span><span>จำนวน PO <span class="q">${fmtQty(p.amountPO)} ${esc(p.unitName || '')}</span></span>
+          <button type="button" data-rm-po="${p.idPODt}" title="เอา PO นี้ออก">×</button></div>`).join('');
+      // class c-* + data-l (ป้ายบนมือถือ — ตอนแสดงเป็นการ์ด หัวตารางถูกซ่อน)
+      const u = it.unit ? ` (${esc(it.unit)})` : '';
       return `<tr data-i="${i}">
-        <td class="ctr">${i + 1}</td>
-        <td><span class="nm">${esc(it.invName)}</span>${it.seedName ? `<span class="crop">${esc(it.seedName)}</span>` : ''}
-          <div class="po-chips">${chips}</div>
+        <td class="ctr c-no">${i + 1}</td>
+        <td class="c-nm"><span class="nm"><span class="m-no">${i + 1}. </span>${esc(it.invName)}</span>${it.seedName ? `<span class="crop">${esc(it.seedName)}</span>` : ''}
+          <div class="po-lines">${chips}</div>
           ${t.bad ? '<span class="mail-fail">⚠ หน่วยของ PO ในรายการนี้แปลงรวมกันไม่ได้</span>' : ''}</td>
-        <td class="num">${fmtQty(t.po)}</td>
-        <td class="num">${fmtQty(t.rec)}</td>
-        <td class="ctr"><input type="text" class="qty-input" inputmode="decimal" data-f="amountProduce" value="${it.amountProduce == null ? '' : it.amountProduce}" placeholder="0"></td>
-        <td class="num"><span class="calc-over ${over != null && over > 0 ? '' : 'none'}">${over == null ? '-' : fmtQty(over)}</span></td>
-        <td class="ctr"><input type="text" class="qty-input" inputmode="decimal" data-f="amountOffer" value="${it.amountOffer == null ? '' : it.amountOffer}" placeholder="0">
+        <td class="num c-po" data-l="${kp('จำนวน PO รวม' + u)}">${fmtQty(t.po)}</td>
+        <td class="num c-rec" data-l="${kp('ขายแล้ว (ผู้ขาย)' + u)}">${fmtQty(t.sold)}<span class="rec-sub ${Math.abs(t.sold - t.rec) > 1e-6 ? 'diff' : ''}" title="รับเข้าแล้วฝั่งผู้ซื้อ">ผู้ซื้อรับเข้า ${fmtQty(t.rec)}</span></td>
+        <td class="ctr c-pd" data-l="${kp('ผลิตได้ทั้งหมด' + u)} *"><input type="text" class="qty-input" inputmode="decimal" data-f="amountProduce" value="${qtyInputText(it.amountProduce)}" placeholder="0"></td>
+        <td class="num c-over" data-l="${kp('ยอดเกิน PO' + u)}"><span class="calc-over ${over != null && over > 0 ? '' : 'none'}">${over == null ? '-' : fmtQty(over)}</span></td>
+        <td class="ctr c-of" data-l="${kp('เสนอขายเพิ่ม' + u)} *"><input type="text" class="qty-input" inputmode="decimal" data-f="amountOffer" value="${qtyInputText(it.amountOffer)}" placeholder="0">
           ${maxOffer != null ? `<span class="max-note">สูงสุด ${fmtQty(maxOffer)}</span>` : ''}</td>
-        <td class="ctr">${esc(it.unit || '-')}</td>
-        <td><textarea data-f="note" rows="1" maxlength="500">${esc(it.note || '')}</textarea></td>
-        <td class="ctr"><button type="button" class="icon-btn act-cancel" data-rm-item="${i}" title="ลบรายการ">
+        <td class="ctr c-unit">${esc(it.unit || '-')}</td>
+        <td class="c-note" data-l="หมายเหตุรายการ"><textarea data-f="note" rows="1" maxlength="500">${esc(it.note || '')}</textarea></td>
+        <td class="ctr c-del"><button type="button" class="icon-btn act-cancel" data-rm-item="${i}" title="ลบรายการ">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg></button></td>
       </tr>`;
     }).join('');
@@ -1201,10 +1630,10 @@
     it[f] = parseQty(e.target.value);
     if(f === 'amountOffer') it.offerTouched = true;
     if(f === 'amountProduce' && !it.offerTouched && it.amountProduce != null){
-      const max = round6(it.amountProduce - itemTotals(it).rec);
+      const max = round6(it.amountProduce - itemTotals(it).sold);
       it.amountOffer = max > 0 ? max : null;
       const offerInput = tr.querySelector('[data-f="amountOffer"]');
-      offerInput.value = it.amountOffer == null ? '' : it.amountOffer;
+      offerInput.value = qtyInputText(it.amountOffer);
     }
     const t = itemTotals(it);
     const over = it.amountProduce != null ? round6(it.amountProduce - t.po) : null;
@@ -1212,7 +1641,7 @@
     overEl.textContent = over == null ? '-' : fmtQty(over);
     overEl.classList.toggle('none', !(over > 0));
     const maxEl = tr.querySelector('.max-note');
-    const maxOffer = it.amountProduce != null ? round6(it.amountProduce - t.rec) : null;
+    const maxOffer = it.amountProduce != null ? round6(it.amountProduce - t.sold) : null;
     if(maxOffer != null){
       if(maxEl) maxEl.textContent = `สูงสุด ${fmtQty(maxOffer)}`;
       else tr.querySelector('[data-f="amountOffer"]').insertAdjacentHTML('afterend', `<span class="max-note">สูงสุด ${fmtQty(maxOffer)}</span>`);
@@ -1225,8 +1654,7 @@
     if(!requester) errs.push('กรุณาเลือกผู้ร้องขอ');
     if(!compReq) errs.push('กรุณาเลือกบริษัทที่ร้องขอ');
     if(!compTarget) errs.push('กรุณาเลือกบริษัทที่ส่งคำร้องถึง');
-    if(!$('subjectInput').value.trim()) errs.push('กรุณาระบุเรื่อง');
-    if(!items.length) errs.push('กรุณาเลือก PO ที่อ้างถึงอย่างน้อย 1 รายการ');
+    if(!items.length) errs.push('กรุณาเลือก PO ที่อ้างอิงอย่างน้อย 1 รายการ');
     document.querySelectorAll('#itemBody .field-err').forEach(el => el.classList.remove('field-err'));
     items.forEach((it, i) => {
       const t = itemTotals(it);
@@ -1237,11 +1665,14 @@
       if(!(it.amountProduce > 0)){ errs.push(`${no}: กรุณากรอกยอดผลิตได้ทั้งหมด`); mark('amountProduce'); }
       else if(it.amountProduce <= t.po){ errs.push(`${no}: ยอดผลิตได้ต้องมากกว่ายอด PO รวม (${fmtQty(t.po)})`); mark('amountProduce'); }
       if(!(it.amountOffer > 0)){ errs.push(`${no}: กรุณากรอกยอดเสนอขายเพิ่ม`); mark('amountOffer'); }
-      else if(it.amountProduce > 0 && it.amountOffer > round6(it.amountProduce - t.rec) + 1e-6){
-        errs.push(`${no}: ยอดเสนอขายเพิ่มเกิน ${fmtQty(round6(it.amountProduce - t.rec))}`); mark('amountOffer');
+      else if(it.amountProduce > 0 && it.amountOffer > round6(it.amountProduce - t.sold) + 1e-6){
+        errs.push(`${no}: ยอดเสนอขายเพิ่มเกินยอดคงเหลือหลังหักที่ขายแล้ว (สูงสุด ${fmtQty(round6(it.amountProduce - t.sold))})`); mark('amountOffer');
       }
     });
     if(!$('causeInput').value.trim()) errs.push('กรุณาระบุสาเหตุการผลิตเกิน PO');
+    const to = mailToList.find(x => x.idPs === mailToId);
+    if(!to || !to.email) errs.push('กรุณาเลือกผู้รับคำร้อง (ฝ่ายจัดซื้อ) ที่มีอีเมล');
+    if(!mailReady) errs.push('server ยังไม่ได้ตั้งค่าการส่งอีเมล — บันทึกและส่งคำร้องไม่ได้ ติดต่อผู้ดูแลระบบ');
     return errs;
   }
   function showErrors(errs){
@@ -1252,48 +1683,81 @@
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  async function handleSave(){
+  // กด "บันทึกและส่งคำร้อง" → หน้ายืนยัน (สรุปรายการ + ผู้รับ) → บันทึกและส่งอีเมลทีเดียว
+  function handleSave(){
     const errs = validateForm();
     showErrors(errs);
     if(errs.length) return;
+    const to = mailToList.find(x => x.idPs === mailToId);
+    const tgt = companies.find(c => Number(c.id) === compTarget);
+    const isEditSent = editing && editing.status === 'S';
+    dlg(isEditSent ? 'ยืนยันบันทึกการแก้ไขและส่งอีเมลแจ้ง' : editing ? 'ยืนยันบันทึกและส่งคำร้อง' : 'ยืนยันบันทึกและส่งคำร้อง', `
+      <dl class="send-summary">
+        ${editing ? `<dt>เลขที่เอกสาร</dt><dd class="doc">${esc(editing.docNo)}</dd>` : ''}
+        <dt>ส่ง E-mail ถึง</dt><dd>ฝ่ายจัดซื้อ ${esc(tgt ? tgt.name : '-')}</dd>
+        <dt>รายการ</dt><dd>${items.map(it => `${esc(it.invName)} — เสนอขายเพิ่ม <b>${fmtQty(it.amountOffer)}</b> ${esc(it.unit || '')}`).join('<br>')}</dd>
+      </dl>
+      <div class="sec-title">ผู้รับคำร้อง (To)</div>
+      <div class="recip-list confirm-recips is-to">${recipRow(to)}</div>
+      <div class="sec-title">สำเนาถึง (CC)</div>
+      <div class="recip-list confirm-recips is-cc">${ccList.map(x => recipRow(x)).join('') || '<div class="mail-empty">ไม่มี</div>'}</div>
+      ${isEditSent ? '<p class="send-note">ระบบจะส่งอีเมล "(แก้ไขเอกสาร)" พร้อมรายละเอียดล่าสุดถึงผู้รับทุกคน</p>'
+        : '<p class="send-note">บันทึกแล้วระบบจะส่งอีเมลทันที — ยังแก้ไขได้จนกว่าฝ่ายจัดซื้อจะเริ่มตรวจสอบ (แก้แล้วระบบส่งอีเมลแจ้งการแก้ไขให้)</p>'}
+      ${mailDryRun ? '<p class="dry-note">🧪 โหมดทดสอบ: ไม่ส่งถึงผู้รับจริง (บันทึกเป็นไฟล์บน server)</p>' : mailRedirect ? `<p class="dry-note">🧪 ช่วงทดสอบ: อีเมลทุกฉบับจะส่งไปที่ ${esc(mailRedirect)} แทนผู้รับข้างบน</p>` : ''}
+      <div class="send-actions">
+        <button type="button" class="btn btn-secondary" data-close="dlgModal">กลับไปแก้ไข</button>
+        <button type="button" class="btn btn-primary" data-act="confirm-save">${isEditSent ? 'ยืนยันบันทึกการแก้ไขและส่ง E-mail' : 'ยืนยันบันทึกและส่ง E-mail'}</button>
+      </div>`);
+  }
+
+  async function doSave(btn){
     const body = {
       idCompReq: compReq, idCompTarget: compTarget, idPsReq: requester.id,
-      subject: $('subjectInput').value.trim(), causeNote: $('causeInput').value.trim(), note: $('noteInput').value.trim(),
-      stamp: editing ? editing.stamp : undefined,
+      causeNote: $('causeInput').value.trim(), note: $('noteInput').value.trim(),
+      stamp: editing ? editing.stamp : undefined, origin: location.origin,
+      mailTo: mailToId, mailCc: ccList.map(x => x.idPs),
       items: items.map(it => ({ idInvMain: it.idInvMain, amountProduce: it.amountProduce, amountOffer: it.amountOffer, note: it.note || '', poLines: it.pos.map(p => p.idPODt) }))
     };
-    const btn = $('saveBtn');
     btn.disabled = true;
+    btn.textContent = 'กำลังบันทึกและส่งอีเมล…';
+    $('saveBtn').disabled = true;
     try{
       const r = editing
         ? await api(`/api/ops/docs/${editing.id}`, { method: 'PUT', body })
         : await api('/api/ops/docs', { body });
       const wasEdit = !!editing;
       resetForm();
-      dlg(wasEdit ? 'แก้ไขเอกสารสำเร็จ' : 'บันทึกเอกสารสำเร็จ', `
-        <dl class="send-summary"><dt>เลขที่เอกสาร</dt><dd class="doc">${esc(r.docNo)}</dd><dt>สถานะ</dt><dd>${STATUS.D}</dd></dl>
-        <p class="send-note">ตรวจสอบเอกสารแล้วกด "ส่งคำร้อง" เพื่อส่งอีเมลแจ้งฝ่ายจัดซื้อผู้ซื้อ (หลังส่งแล้วจะแก้ไขไม่ได้)</p>
+      $('dlgTitle').textContent = wasEdit ? 'บันทึกการแก้ไขและส่งอีเมลแล้ว' : 'บันทึกและส่งคำร้องแล้ว';
+      $('dlgBody').innerHTML = `
+        <dl class="send-summary"><dt>เลขที่เอกสาร</dt><dd class="doc">${esc(r.docNo)}</dd><dt>สถานะ</dt><dd>${STATUS.S}</dd></dl>
+        ${sendResultHtml({ ...r, success: false })}
         <div class="send-actions">
-          <button type="button" class="btn btn-secondary" data-act="list" data-id="${r.id}">ไปหน้ารายการ</button>
           <a class="btn btn-secondary" href="/over-po-sale-doc?id=${r.id}" target="_blank" rel="noopener">ดูเอกสาร</a>
-          <button type="button" class="btn btn-primary" data-act="send" data-id="${r.id}">ส่งคำร้อง</button>
-        </div>`);
+          <button type="button" class="btn btn-secondary" data-act="list">ไปหน้ารายการ</button>
+          <button type="button" class="btn btn-primary" data-close="dlgModal">ทำรายการใหม่</button>
+        </div>`;
     } catch(err){
+      closeModal('dlgModal');
       showErrors([err.message]);
     } finally {
-      btn.disabled = false;
+      $('saveBtn').disabled = false;
     }
   }
 
   async function openEdit(id){
     try{
       const { data: d } = await api(`/api/ops/doc/${id}`);
-      if(d.status !== 'D' || !d.canEdit){ alert('เอกสารนี้ส่งคำร้องแล้วหรือถูกยกเลิก — แก้ไขไม่ได้'); return; }
+      if(!['D', 'S'].includes(d.status) || !d.canEdit){ alert('ฝ่ายจัดซื้อเริ่มดำเนินการแล้ว หรือเอกสารถูกยกเลิก — แก้ไขไม่ได้'); return; }
       resetForm();
-      editing = { id: d.id, docNo: d.docNo, stamp: d.stamp };
+      editing = { id: d.id, docNo: d.docNo, stamp: d.stamp, status: d.status };
       $('editDocNo').textContent = d.docNo;
+      $('editBannerNote').textContent = d.status === 'S'
+        ? '(ส่งคำร้องแล้ว — แก้ไขได้จนกว่าฝ่ายจัดซื้อจะเริ่มตรวจสอบ บันทึกแล้วระบบส่งอีเมลแจ้งการแก้ไขถึงผู้รับทุกคน)'
+        : '(ยังไม่ได้ส่งคำร้อง)';
       $('editBanner').classList.add('show');
-      $('saveBtn').textContent = 'บันทึกการแก้ไข';
+      $('saveBtn').textContent = d.status === 'S' ? 'บันทึกการแก้ไขและส่งอีเมลแจ้ง' : 'บันทึกและส่งคำร้อง';
+      mailToId = d.recipients.to ? d.recipients.to.idPs : null;
+      ccList = d.recipients.cc.slice();
       $('docNo').value = d.docNo;
       $('docDate').value = thDate(d.docDate);
       requester = { id: d.requester.id, name: d.requester.name };
@@ -1303,7 +1767,6 @@
       $('compReqSelect').disabled = true;   // เปลี่ยนบริษัทผู้ร้องขอไม่ได้ (เลขที่เอกสารรันตามบริษัท)
       compTarget = d.compTarget;
       renderTargetSelect();
-      $('subjectInput').value = d.subject;
       $('causeInput').value = d.causeNote;
       $('noteInput').value = d.note;
       // ยอด PO / รับแล้ว ใช้ค่าล่าสุดจาก popup PO (โหลดใหม่) — ถ้าโหลดไม่ได้ใช้ค่าที่บันทึกไว้
@@ -1339,22 +1802,26 @@
   async function openPoModal(){
     if(!compReq || !compTarget){ showErrors(['กรุณาเลือกบริษัทที่ร้องขอและบริษัทที่ส่งคำร้องถึงก่อน']); return; }
     const req = companies.find(c => Number(c.id) === compReq), tgt = companies.find(c => Number(c.id) === compTarget);
-    $('poModalSub').innerHTML = `PO ที่ <b>${esc(tgt ? tgt.name : '-')}</b> เปิดให้ <b>${esc(req ? req.name : '-')}</b>`;
+    $('poModalTitle').innerHTML = `รายการ PO ที่ ${esc(tgt ? tgt.name : '-')} เปิดให้ ${esc(req ? req.name : '-')}`;
     poSelected = new Set(items.flatMap(it => it.pos.map(p => p.idPODt)));
     $('poSearch').value = '';
-    // PO ที่เลือกไว้แล้วแต่ยังเปิดอยู่ ให้แสดง PO เปิดด้วย ไม่งั้นจะหายจากตาราง
-    $('poShowOpen').checked = items.some(it => it.pos.some(p => !p.completed && !p.fullyReceived));
+    renderPoNote();
     openModal('poModal');
     await loadPoModal();
     setTimeout(() => $('poSearch').focus(), 50);
   }
+  // PO ที่แสดง: ผู้ขายขายครบแล้ว (ใบสั่งขาย/ใบขาย) / ผู้ซื้อรับครบแล้ว / สิ้นสุดแล้ว — PO ที่ยังขายได้ตามปกติไม่ต้องใช้เมนูนี้
+  function renderPoNote(){
+    $('poModalNote').textContent = '(แสดงเฉพาะ PO ที่ขายครบแล้ว และ PO ที่มีสถานะสิ้นสุดแล้ว)';
+  }
   async function loadPoModal(){
-    $('poBody').innerHTML = '<tr><td colspan="9" class="empty-msg">กำลังโหลดรายการ PO…</td></tr>';
+    renderPoNote();
+    $('poBody').innerHTML = '<tr><td colspan="10" class="empty-msg">กำลังโหลดรายการ PO…</td></tr>';
     try{
-      await ensurePoLines($('poShowOpen').checked);
+      await ensurePoLines(false);
       renderPoModal();
     } catch(err){
-      $('poBody').innerHTML = `<tr><td colspan="9" class="empty-msg" style="color:#ff8a75">${esc(err.message)}</td></tr>`;
+      $('poBody').innerHTML = `<tr><td colspan="10" class="empty-msg" style="color:#ff8a75">${esc(err.message)}</td></tr>`;
     }
   }
   function renderPoModal(){
@@ -1362,23 +1829,30 @@
     const list = poLines.filter(l => !term || [l.poCode, l.invName, l.seedName].some(v => String(v || '').toLowerCase().includes(term)));
     $('poBody').innerHTML = list.map(l => {
       const pct = l.amountPO > 0 ? l.amountRec / l.amountPO * 100 : null;
-      const st = l.completed ? `<span class="po-st done" title="สิ้นสุด PO ${thDate(l.dateComplete)}">สิ้นสุดแล้ว</span>`
-        : l.fullyReceived ? '<span class="po-st full">รับครบแล้ว</span>' : '<span class="po-st open">ยังเปิดอยู่</span>';
+      // สถานะ: สิ้นสุด / รับครบ (ผู้ซื้อ) / ขายครบ (ผู้ขาย) + เตือนถ้าผู้ขายขายแล้วแต่ผู้ซื้อยังรับเข้าไม่ครบ
+      const pending = l.sellerComplete && !l.fullyReceived && l.amountSold > l.amountRec + 1e-6;
+      const st = (l.completed ? `<span class="po-st done" title="สิ้นสุด PO ${thDate(l.dateComplete)}">สิ้นสุดแล้ว</span>`
+        : l.fullyReceived ? '<span class="po-st full">รับครบแล้ว</span>'
+        : l.sellerComplete ? '<span class="po-st sold">ขายครบแล้ว</span>' : '<span class="po-st open">ยังเปิดอยู่</span>')
+        + (pending ? '<span class="po-warn">ผู้ซื้อยังรับเข้าไม่ครบ</span>' : '');
+      // class c-* + data-l = ป้ายตอนแสดงเป็นการ์ด (จอแคบ — หัวตารางถูกซ่อน)
+      const u = l.unitName ? ` (${esc(l.unitName)})` : '';
+      const L = (t) => kp(t + u);   // ป้ายช่องตัวเลข (มีหน่วย)
       return `<tr data-po="${l.idPODt}" class="${poSelected.has(l.idPODt) ? 'on' : ''}">
-        <td class="ctr"><input type="checkbox" ${poSelected.has(l.idPODt) ? 'checked' : ''} tabindex="-1"></td>
-        <td class="code">${esc(l.poCode)}</td><td class="ctr">${thDate(l.datePO)}</td>
-        <td class="nm">${esc(l.invName)}${l.seedName ? `<span class="crop" style="display:block;font-size:11px;color:var(--concrete-400)">${esc(l.seedName)}</span>` : ''}
+        <td class="ctr c-ck"><input type="checkbox" ${poSelected.has(l.idPODt) ? 'checked' : ''} tabindex="-1"></td>
+        <td class="code c-code">${esc(l.poCode)}</td><td class="ctr c-date" data-l="${kp('วันที่สั่งซื้อ (PO)')}">${thDate(l.datePO)}</td>
+        <td class="nm c-item">${esc(l.invName)}${l.seedName ? `<span class="crop" style="display:block;font-size:11px;color:var(--concrete-400)">${esc(l.seedName)}</span>` : ''}
           ${l.usedIn.length ? `<span class="used-in">⚠ อ้างอิงแล้วใน ${esc(l.usedIn.join(', '))}</span>` : ''}</td>
-        <td class="num">${fmtQty(l.amountPO)}</td><td class="num">${fmtQty(l.amountRec)}${l.unitError ? ' <span class="mail-fail" title="มีใบรับที่หน่วยแปลงไม่ได้ ไม่นับรวม">⚠</span>' : ''}</td>
-        <td class="num ${pct != null && pct > 100.5 ? 'pct-over' : ''}">${pct == null ? '-' : pct.toFixed(1) + '%'}</td>
-        <td class="ctr">${esc(l.unitName || '-')}</td><td class="ctr">${st}</td>
+        <td class="num c-qpo" data-l="${L('จำนวน PO')}">${fmtQty(l.amountPO)}</td><td class="num c-qsold" data-l="${L('ขายแล้ว (ผู้ขาย)')}">${fmtQty(l.amountSold)}</td><td class="num c-qrec ${pending ? 'warn' : ''}" data-l="${L('จำนวนรับแล้ว (ผู้ซื้อ)')}">${fmtQty(l.amountRec)}${l.unitError ? ' <span class="mail-fail" title="มีใบรับที่หน่วยแปลงไม่ได้ ไม่นับรวม">⚠</span>' : ''}</td>
+        <td class="num c-pct ${pct != null && pct > 100.5 ? 'pct-over' : ''}" data-l="${kp('% รับจาก PO')}">${pct == null ? '-' : pct.toFixed(1) + '%'}</td>
+        <td class="ctr c-unit">${esc(l.unitName || '-')}</td><td class="ctr c-st">${st}</td>
       </tr>`;
-    }).join('') || `<tr><td colspan="9" class="empty-msg">ไม่พบ PO${poLines.hiddenOpen && !$('poShowOpen').checked ? ` ที่สิ้นสุดหรือรับครบแล้ว (มี PO ที่ยังเปิดอยู่ ${poLines.hiddenOpen} รายการ — ติ๊ก "แสดง PO ที่ยังไม่สิ้นสุด" เพื่อดู)` : ''}</td></tr>`;
+    }).join('') || `<tr><td colspan="10" class="empty-msg">ไม่พบ PO ที่ผู้ขายขายครบ รับครบ หรือสิ้นสุดแล้ว${poLines.hiddenOpen ? ` (PO ที่ยังเปิดอยู่ ${poLines.hiddenOpen} รายการ ขายได้ตามปกติ)` : ''}</td></tr>`;
     updatePoCount();
   }
   function updatePoCount(){
     const seeds = new Set(poLines.filter(l => poSelected.has(l.idPODt)).map(l => l.idInvMain));
-    $('poSelCount').innerHTML = `เลือกแล้ว <b>${poSelected.size}</b> PO · <b>${seeds.size}</b> เมล็ดพันธุ์`;
+    $('poSelCount').innerHTML = `เลือกแล้ว <b>${poSelected.size}</b> รายการ PO · <b>${seeds.size}</b> รายการสินค้า`;
   }
   function togglePo(id){
     if(poSelected.has(id)) poSelected.delete(id); else poSelected.add(id);
@@ -1418,15 +1892,17 @@
   ================================================================== */
   async function openEmployeeModal(mode){
     employeeMode = mode;
-    $('employeeModalTitle').textContent = mode === 'mailto' ? 'เพิ่มผู้รับอีเมล' : 'เลือกผู้ร้องขอ';
+    $('employeeModalTitle').textContent = mode === 'mailto' ? 'เพิ่มรายชื่อผู้รับคำร้อง' : mode === 'cc' ? 'เพิ่มผู้รับสำเนา (CC)' : 'เลือกผู้ร้องขอ';
     $('employeeSearch').value = '';
+    $('empAllWrap').hidden = mode !== 'mailto';
+    $('empAllComp').checked = false;
     openModal('employeeModal');
     setTimeout(() => $('employeeSearch').focus(), 50);
     if(!employees){
       $('employeeModalBody').innerHTML = '<div class="state-box">กำลังโหลดรายชื่อพนักงาน…</div>';
       try{
         const r = await api('/api/usergroups/available-users?' + new URLSearchParams({ keyword: '' }));
-        employees = (r.data || []).map(e => ({ id: e.idPs, name: e.PsName, position: e.PositionName, compName: e.CompName, compCode: e.CompCode }));
+        employees = (r.data || []).map(e => ({ id: e.idPs, name: e.PsName, position: e.PositionName, idComp: e.idComp != null ? Number(e.idComp) : null, compName: e.CompName, compCode: e.CompCode }));
       } catch(err){
         $('employeeModalBody').innerHTML = `<div class="state-box error">โหลดรายชื่อพนักงานไม่สำเร็จ: ${esc(err.message)}</div>`;
         return;
@@ -1437,7 +1913,9 @@
   function renderEmployees(){
     if(!employees) return;
     const term = $('employeeSearch').value.trim().toLowerCase();
-    const list = employees.filter(e => String(e.name || '').toLowerCase().includes(term)).slice(0, 300);
+    // เพิ่มรายชื่อผู้รับคำร้อง: เฉพาะพนักงานของบริษัทนั้น (ใครก็ได้ ไม่ดูตำแหน่ง) เว้นแต่ติ๊ก "แสดงพนักงานทุกบริษัท"
+    const onlyComp = employeeMode === 'mailto' && !$('empAllComp').checked ? mailtoComp : null;
+    const list = employees.filter(e => String(e.name || '').toLowerCase().includes(term) && (!onlyComp || e.idComp === onlyComp)).slice(0, 300);
     $('employeeModalBody').innerHTML = list.map(e => `
       <div class="avail-user-row">
         <div class="member-avatar">${esc(e.compCode || (e.name || '?')[0])}</div>
@@ -1453,14 +1931,20 @@
     if(!emp) return;
     closeModal('employeeModal');
     if(employeeMode === 'requester'){
-      requester = { id: emp.id, name: emp.name };
+      requester = { id: emp.id, name: emp.name, idComp: emp.idComp };
+      // เปลี่ยนผู้ร้องขอ = เปลี่ยนบริษัทที่ร้องขอตามสังกัด (แก้ไขเอกสารเดิม: บริษัทล็อกไว้ ไม่เปลี่ยน)
+      if(!editing){
+        const c = defaultCompReq(requester);
+        if(c && c !== compReq){ $('compReqSelect').value = String(c); onCompanyChange('req', c); }
+      }
       $('requesterName').value = emp.name;
       return;
     }
+    if(employeeMode === 'cc') return addCc(emp);
     try{
       const r = await api('/api/ops/mailto', { body: { idComp: mailtoComp, idPs: emp.id } });
       renderMailtoDlg(r.data, true);
-      showToast('เพิ่มผู้รับอีเมลแล้ว');
+      showToast('เพิ่มรายชื่อฝ่ายจัดซื้อแล้ว');
     } catch(err){ alert(err.message); }
   }
 
@@ -1506,16 +1990,17 @@
       const n = Math.max(1, d.items.length);
       const canSend = ['D', 'S'].includes(d.status);
       const rowCls = [di % 2 ? 'doc-alt' : '', d.status === 'R' ? 'doc-reject' : '', d.status === 'C' ? 'doc-cancel' : ''].join(' ');
-      const statusCell = `<span class="badge ops-${d.status}">${esc(STATUS[d.status])}</span>
-        ${d.status === 'R' && d.rejectNote ? `<span class="reject-note">เหตุผล: ${esc(d.rejectNote)}</span>` : ''}
-        ${d.cancel ? `<span class="reject-note" style="color:var(--concrete-400)">${esc(d.cancel.by)} · ${thStamp(d.cancel.at)}<br>${esc(d.cancel.reason)}</span>` : ''}`;
+      const detail = docDetail(d);
+      const open = detail && listOpen.has(d.id);
+      const chev = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg>';
+      const statusCell = `<div class="st-cell">${statusBadge(d, true)}${detail ? `<span class="expander" title="คลิกแถวเพื่อดูรายละเอียด">${chev}</span>` : ''}</div>`;
       const sentCell = d.sentAt ? thStamp(d.sentAt) : '-';
       const mailFail = d.mailFail ? '<span class="mail-fail">⚠ ส่งอีเมลครั้งล่าสุดไม่สำเร็จบางราย</span>' : '';
       const head = (span) => `
         <td class="ctr" rowspan="${span}">${di + 1}</td>
         <td class="act" rowspan="${span}"><a class="icon-btn" href="/over-po-sale-doc?id=${d.id}" target="_blank" rel="noopener" title="เปิดเอกสาร">${icon.doc}</a></td>
         <td class="act" rowspan="${span}"><button type="button" class="icon-btn act-send ${d.status === 'S' ? 'done' : ''}" data-send="${d.id}" ${canSend ? '' : 'disabled'} title="${d.status === 'S' ? 'ส่งอีเมลอีกครั้ง' : 'ส่งคำร้อง (อีเมล)'}">${icon.send}</button></td>
-        <td class="act" rowspan="${span}"><button type="button" class="icon-btn" data-edit="${d.id}" ${d.status === 'D' ? '' : 'disabled'} title="แก้ไข">${icon.edit}</button></td>
+        <td class="act" rowspan="${span}"><button type="button" class="icon-btn" data-edit="${d.id}" ${canSend ? '' : 'disabled'} title="${canSend ? 'แก้ไข (แก้หลังส่งได้จนกว่าฝ่ายจัดซื้อจะเริ่มตรวจสอบ)' : 'แก้ไขไม่ได้'}">${icon.edit}</button></td>
         <td class="act" rowspan="${span}"><button type="button" class="icon-btn act-cancel" data-cancel="${d.id}" ${canSend ? '' : 'disabled'} title="ยกเลิกเอกสาร">${icon.cancel}</button></td>
         <td class="ctr" rowspan="${span}">${statusCell}</td>
         <td class="doc-cell" rowspan="${span}">${esc(d.docNo)}</td>
@@ -1524,52 +2009,98 @@
       const tail = (span) => `<td rowspan="${span}">${esc(d.requester)}</td><td class="ctr" rowspan="${span}">${sentCell}${mailFail}</td>`;
       const its = d.items.length ? d.items : [null];
       return its.map((it, i) => {
-        const cells = it ? `<td class="wrap">${esc(it.invName)}</td><td class="wrap">${esc(it.poCodes)}</td>
-          <td class="num">${fmtQty(it.amountPO)}</td><td class="num">${fmtQty(it.amountRec)}</td><td class="num">${fmtQty(it.amountProduce)}</td>
+        const cells = it ? `<td class="wrap">${esc(it.invName)}</td><td class="wrap ctr">${esc(it.poCodes)}</td>
+          <td class="num">${fmtQty(it.amountPO)}</td><td class="num">${fmtQty(it.amountSold != null ? it.amountSold : it.amountRec)}</td><td class="num">${fmtQty(it.amountProduce)}</td>
           <td class="num"><span class="calc-over">${fmtQty(round6(it.amountProduce - it.amountPO))}</span></td><td class="num"><b>${fmtQty(it.amountOffer)}</b></td>
           <td class="ctr">${esc(it.unit || '-')}</td>` : '<td colspan="8">-</td>';
-        return `<tr class="${rowCls} ${i === 0 ? 'doc-first' : ''}">${i === 0 ? head(n) : ''}${cells}${i === 0 ? tail(n) : ''}</tr>`;
+        return `<tr class="${rowCls} ${i === 0 ? 'doc-first' : ''} ${detail ? 'has-detail' : ''} ${open ? 'open' : ''}" data-doc="${d.id}">${i === 0 ? head(n) : ''}${cells}${i === 0 ? tail(n) : ''}</tr>`;
+      }).join('') + (open ? `<tr class="detail-row"><td colspan="19"><div class="detail-box">${detail}</div></td></tr>` : '');
+    }).join('');
+
+    // ---------- กล่องเอกสาร (มือถือ): 1 กล่อง = 1 เอกสาร / รายการในเอกสารเป็นกล่องย่อยพร้อมตัวเลขสรุป ----------
+    $('listCards').innerHTML = list.map(d => {
+      const canSend = ['D', 'S'].includes(d.status);
+      const items = d.items.map(it => {
+        const u = it.unit ? ` (${esc(it.unit)})` : '';
+        const box = (cls, label, v) => `<div class="dc-box ${cls}"><span class="l">${kp(label + u)}</span><b>${v}</b></div>`;
+        return `<div class="dc-item">
+          <div class="dc-nm">${esc(it.invName)}</div>
+          <div class="dc-po">PO ที่อ้างอิง: ${esc(it.poCodes || '-')}</div>
+          <div class="dc-stats">
+            ${box('b-po', 'จำนวน PO', fmtQty(it.amountPO))}
+            ${box('b-sold', 'ขายแล้ว (ผู้ขาย)', fmtQty(it.amountSold != null ? it.amountSold : it.amountRec))}
+            ${box('b-pd', 'ผลิตได้', fmtQty(it.amountProduce))}
+            ${box('b-over', 'จำนวนเกิน PO', fmtQty(round6(it.amountProduce - it.amountPO)))}
+            ${box('b-of', 'เสนอขายเพิ่ม', fmtQty(it.amountOffer))}
+          </div>
+        </div>`;
       }).join('');
+      return `<div class="doc-card ${d.status === 'R' ? 'is-reject' : ''} ${d.status === 'C' ? 'is-cancel' : ''}">
+        <div class="dc-head"><span class="dc-no">${esc(d.docNo)}</span>${statusBadge(d)}</div>
+        <div class="dc-meta">
+          <span><span class="k">วันที่ร้องขอ</span> ${thDate(d.docDate)}</span>
+          <span><span class="k">ส่งถึง</span> <span class="co-pill co-${d.target}">${esc(shortCompName(d.targetName))}</span></span>
+          <span><span class="k">ผู้ร้องขอ</span> ${esc(d.requester)}</span>
+          <span><span class="k">ส่งคำร้องเมื่อ</span> ${d.sentAt ? thStamp(d.sentAt) : '-'}</span>
+        </div>
+        ${d.status === 'R' && d.rejectNote ? `<div class="dc-note reject">ไม่รับซื้อ — เหตุผล: ${esc(d.rejectNote)}</div>` : ''}
+        ${d.cancel ? `<div class="dc-note">ยกเลิกโดย ${esc(d.cancel.by)} · ${thStamp(d.cancel.at)} — ${esc(d.cancel.reason)}</div>` : ''}
+        ${d.mailFail ? '<div class="dc-note reject">⚠ ส่งอีเมลครั้งล่าสุดไม่สำเร็จบางราย</div>' : ''}
+        ${items}
+        <div class="dc-actions">
+          <a class="btn btn-secondary btn-sm" href="/over-po-sale-doc?id=${d.id}" target="_blank" rel="noopener">เปิดเอกสาร</a>
+          ${canSend ? `<button type="button" class="btn btn-secondary btn-sm" data-edit="${d.id}">แก้ไข</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-send="${d.id}">${d.status === 'S' ? 'ส่งอีเมลอีกครั้ง' : 'ส่งคำร้อง'}</button>
+            <button type="button" class="btn btn-danger btn-sm" data-cancel="${d.id}">ยกเลิก</button>` : ''}
+        </div>
+      </div>`;
     }).join('');
   }
 
   /* ==================================================================
      SEND (อีเมล)
   ================================================================== */
+  // ส่งอีเมลซ้ำถึงผู้รับเดิมของเอกสาร (เปลี่ยนผู้รับ = กดแก้ไขเอกสาร) / เอกสารเก่าที่ไม่มีผู้รับรายเอกสาร = ผู้รับค่าเริ่มต้นของบริษัท
   async function openSend(id){
-    dlg('ส่งคำร้อง (อีเมล)', '<div class="state-box">กำลังโหลด…</div>');
+    dlg('ส่งอีเมลคำร้อง', '<div class="state-box">กำลังโหลด…</div>');
     try{
       const { data: d } = await api(`/api/ops/doc/${id}`);
-      const r = await api('/api/ops/mailto?' + new URLSearchParams({ idComp: d.compTarget }));
-      const recips = r.data || [];
-      const okList = recips.filter(x => x.email);
+      let to = d.recipients.to;
+      if(!to){
+        const r = await api('/api/ops/mailto?' + new URLSearchParams({ idComp: d.compTarget }));
+        to = (r.data || []).find(x => x.email) || null;
+      }
       const resend = d.status === 'S';
       $('dlgTitle').textContent = resend ? 'ส่งอีเมลคำร้องอีกครั้ง' : 'ส่งคำร้อง (อีเมล)';
       $('dlgBody').innerHTML = `
         <dl class="send-summary">
           <dt>เลขที่เอกสาร</dt><dd class="doc">${esc(d.docNo)}</dd>
           <dt>ส่งถึง</dt><dd>ฝ่ายจัดซื้อ ${esc(d.compTargetName)}</dd>
-          <dt>รายการ</dt><dd>${d.items.map(it => `${esc(it.invName)} — เสนอขาย ${fmtQty(it.amountOffer)} ${esc(it.unit || '')}`).join('<br>')}</dd>
+          <dt>รายการ</dt><dd>${d.items.map(it => `${esc(it.invName)} — เสนอขายเพิ่ม ${fmtQty(it.amountOffer)} ${esc(it.unit || '')}`).join('<br>')}</dd>
         </dl>
-        <div class="sec-title">ผู้รับ (To)</div>
-        <div class="recip-list">${recips.map(x => recipRow(x)).join('') || '<div class="state-box error">ยังไม่ได้กำหนดผู้รับอีเมลของบริษัทนี้</div>'}</div>
-        <p class="send-note">สำเนา (CC) ถึงผู้ร้องขอและผู้กดส่ง ถ้ามีอีเมลในระบบ · อีเมลมีลิงก์เปิดเอกสาร (ผู้รับต้องมีสิทธิ์เมนูนี้และสิทธิ์บริษัทผู้ซื้อ)</p>
-        ${resend ? '<p class="dry-note">เอกสารนี้ส่งคำร้องไปแล้ว — การส่งครั้งนี้เป็นการส่งอีเมลซ้ำ</p>' : '<p class="send-note">หลังส่งคำร้องแล้วจะแก้ไขเอกสารไม่ได้</p>'}
-        ${!mailReady ? '<p class="dry-note" style="color:#ff8a75">server ยังไม่ได้ตั้งค่า SMTP — ส่งไม่ได้</p>' : mailDryRun ? '<p class="dry-note">🧪 โหมดทดสอบ: ไม่ส่งถึงผู้รับจริง (บันทึกเป็นไฟล์บน server)</p>' : ''}
+        <div class="sec-title">ผู้รับคำร้อง (To)</div>
+        <div class="recip-list is-to">${to ? recipRow(to) : '<div class="state-box error">ไม่พบผู้รับคำร้องที่มีอีเมล</div>'}</div>
+        <div class="sec-title">สำเนาถึง (CC)</div>
+        <div class="recip-list is-cc">${d.recipients.cc.map(x => recipRow(x)).join('') || '<div class="mail-empty">ไม่มี</div>'}</div>
+        ${resend ? '<p class="send-note">ส่งอีเมลซ้ำถึงผู้รับเดิม — ถ้าต้องการเปลี่ยนผู้รับหรือแก้ข้อมูล ให้กด "แก้ไข" แทน</p>' : ''}
+        ${!mailReady ? '<p class="dry-note" style="color:#ff8a75">server ยังไม่ได้ตั้งค่า SMTP — ส่งไม่ได้</p>' : mailDryRun ? '<p class="dry-note">🧪 โหมดทดสอบ: ไม่ส่งถึงผู้รับจริง (บันทึกเป็นไฟล์บน server)</p>' : mailRedirect ? `<p class="dry-note">🧪 ช่วงทดสอบ: อีเมลทุกฉบับจะส่งไปที่ ${esc(mailRedirect)} แทนผู้รับข้างบน</p>` : ''}
         <div class="send-actions">
-          ${canMailTo ? `<button type="button" class="btn btn-secondary" data-act="mailto" data-comp="${d.compTarget}">จัดการผู้รับอีเมล</button>` : ''}
           <button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button>
-          <button type="button" class="btn btn-primary" data-act="confirm-send" data-id="${d.id}" ${okList.length && mailReady ? '' : 'disabled'}>${resend ? 'ส่งอีกครั้ง' : 'ยืนยันส่งคำร้อง'}</button>
+          <button type="button" class="btn btn-primary" data-act="confirm-send" data-id="${d.id}" ${to && to.email && mailReady ? '' : 'disabled'}>${resend ? 'ส่งอีกครั้ง' : 'ยืนยันส่งคำร้อง'}</button>
         </div>`;
     } catch(err){
       $('dlgBody').innerHTML = `<div class="state-box error">${esc(err.message)}</div>`;
     }
   }
+  // opts: removable = ลบจากรายชื่อฝ่ายจัดซื้อ / defaultable = ปุ่มตั้งเป็นค่าเริ่มต้น / removeCc = เอาออกจากสำเนาในฟอร์ม
   function recipRow(x, opts = {}){
+    if(!x) return '<div class="mail-empty err">-</div>';
     return `<div class="recip">
-      <div class="member-info"><div class="member-name">${esc(x.name)}</div><div class="member-sub">${esc(x.position || '-')}</div></div>
+      <div class="member-info"><div class="member-name">${esc(x.name)}</div><div class="member-sub">${esc(x.position || '-')}${x.compName ? ' · ' + esc(x.compName) : ''}</div></div>
       <span class="mail ${x.email ? '' : 'none'}">${x.email ? esc(x.email) : 'ไม่มีอีเมลในระบบ'}</span>
+      ${opts.defaultable ? (x.isDefault ? '<span class="def">ค่าเริ่มต้น</span>' : `<button type="button" class="btn btn-secondary btn-sm btn-def" data-def-mailto="${x.id}">ตั้งเป็นค่าเริ่มต้น</button>`) : ''}
       ${opts.removable ? `<button type="button" class="icon-btn act-cancel" data-rm-mailto="${x.id}" title="ลบ">×</button>` : ''}
+      ${opts.removeCc ? `<button type="button" class="icon-btn act-cancel" data-rm-cc="${x.idPs}" title="เอาออกจากสำเนา">×</button>` : ''}
     </div>`;
   }
   async function confirmSend(btn){
@@ -1588,7 +2119,8 @@
     }
   }
   function sendResultHtml(r){
-    return `${r.dryRun ? '<p class="dry-note">🧪 โหมดทดสอบ: บันทึกอีเมลเป็นไฟล์บน server (ไม่ได้ส่งจริง)</p>' : ''}
+    return `${r.dryRun ? '<p class="dry-note">🧪 โหมดทดสอบ: บันทึกอีเมลเป็นไฟล์บน server (ไม่ได้ส่งจริง)</p>'
+      : mailRedirect ? `<p class="dry-note">🧪 ช่วงทดสอบ: อีเมลทุกฉบับส่งไปที่ ${esc(mailRedirect)} แทนผู้รับด้านล่าง</p>` : ''}
       <div class="recip-list">${(r.results || []).map(x => `<div class="recip"><span class="tag">${x.type.toUpperCase()}</span>
         <span class="mail" style="flex:1">${esc(x.email)}</span>${x.ok ? '<span class="ok">✓ ส่งแล้ว</span>' : '<span class="ng">✗ ไม่สำเร็จ</span>'}</div>`).join('')}</div>
       ${r.success ? '<div class="send-actions"><button type="button" class="btn btn-primary" data-close="dlgModal">ปิด</button></div>' : ''}`;
@@ -1607,19 +2139,27 @@
   }
   function renderMailtoDlg(list, canEdit){
     const comp = companies.find(c => Number(c.id) === mailtoComp);
-    $('dlgTitle').textContent = 'ผู้รับอีเมลคำร้อง — ' + (comp ? shortCompName(comp.name) : '');
+    $('dlgTitle').textContent = 'รายชื่อฝ่ายจัดซื้อ — ' + (comp ? shortCompName(comp.name) : '');
     $('dlgBody').innerHTML = `
-      <p class="send-note">ฝ่ายจัดซื้อของ <b>${esc(comp ? comp.name : '-')}</b> ที่จะได้รับอีเมลเมื่อมีคำร้องขอขายเมล็ดพันธุ์เกิน PO ส่งมาถึงบริษัทนี้ (อีเมลอ่านจากข้อมูลพนักงาน)</p>
-      <div class="recip-list">${(list || []).map(x => recipRow(x, { removable: canEdit })).join('') || '<div class="state-box">ยังไม่มีผู้รับ</div>'}</div>
+      <p class="send-note">ฝ่ายจัดซื้อของ <b>${esc(comp ? comp.name : '-')}</b> ที่เลือกเป็น "ผู้รับคำร้อง" ได้ เมื่อมีคำร้องขอขายเมล็ดพันธุ์ (Over PO) ส่งมาถึงบริษัทนี้ — รายชื่อที่เป็น <b>ค่าเริ่มต้น</b> จะถูกเลือกให้อัตโนมัติในฟอร์ม</p>
+      <div class="recip-list">${(list || []).map(x => recipRow(x, { removable: canEdit, defaultable: canEdit })).join('') || '<div class="state-box">ยังไม่มีรายชื่อ</div>'}</div>
       <div class="send-actions">
-        ${canEdit ? '<button type="button" class="btn btn-secondary" data-act="add-mailto">+ เพิ่มผู้รับ</button>' : ''}
+        ${canEdit ? '<button type="button" class="btn btn-secondary" data-act="add-mailto">+ เพิ่มรายชื่อ</button>' : ''}
         <button type="button" class="btn btn-primary" data-close="dlgModal">ปิด</button>
       </div>`;
+    // ฟอร์มเปิดบริษัทเดียวกันอยู่: อัปเดตตัวเลือกผู้รับคำร้องตาม
+    if(mailtoComp === compTarget){ mailToList = list || []; mailToComp = compTarget; loadMailTo(); }
   }
   async function removeMailto(id){
-    if(!confirm('ลบผู้รับอีเมลรายนี้?')) return;
+    if(!confirm('ลบรายชื่อนี้ออกจากฝ่ายจัดซื้อ?')) return;
     try{
       const r = await api(`/api/ops/mailto/${id}`, { method: 'DELETE' });
+      renderMailtoDlg(r.data, true);
+    } catch(err){ alert(err.message); }
+  }
+  async function setDefaultMailto(id){
+    try{
+      const r = await api(`/api/ops/mailto/${id}/default`, { body: {} });
       renderMailtoDlg(r.data, true);
     } catch(err){ alert(err.message); }
   }
@@ -1659,23 +2199,75 @@
     if(!id){ $('docPaper').innerHTML = '<div class="doc-state error">ไม่ได้ระบุเลขที่เอกสาร</div>'; return; }
     try{
       const { data: d } = await api(`/api/ops/doc/${id}`);
-      document.title = `${d.docNo} — ร้องขอขายเมล็ดพันธุ์เกิน PO`;
+      document.title = `${d.docNo} — ร้องขอขายเมล็ดพันธุ์ (Over PO)`;
       $('docPaper').innerHTML = paperHtml(d);
-      const acts = [];
-      if(d.canEdit && d.status === 'D') acts.push(`<a class="btn btn-secondary" href="/over-po-sale?edit=${d.id}">แก้ไข</a>`);
-      if(d.canEdit && ['D', 'S'].includes(d.status)){
-        acts.push(`<button type="button" class="btn btn-danger" data-act="cancel-doc" data-id="${d.id}">ยกเลิกเอกสาร</button>`);
-        acts.push(`<button type="button" class="btn btn-info" data-act="send" data-id="${d.id}">${d.status === 'S' ? 'ส่งอีเมลอีกครั้ง' : 'ส่งคำร้อง'}</button>`);
-      }
-      acts.push('<button type="button" class="btn btn-primary" data-act="print">พิมพ์</button>');
-      $('docActions').innerHTML = acts.join('');
-      $('docMailCard').hidden = !d.mails.length;
-      $('docMailBody').innerHTML = d.mails.map(m => `<tr><td>${thStamp(m.at)}</td><td>${m.step === 'resend' ? 'ส่งซ้ำ' : 'ส่งคำร้อง'}</td>
-        <td>${m.type.toUpperCase()}</td><td>${esc(m.name || '-')}</td><td>${esc(m.email || '-')}</td>
-        <td>${m.ok ? '<span style="color:var(--ok-green)">✓ สำเร็จ</span>' : `<span style="color:#ff8a75" title="${esc(m.error)}">✗ ไม่สำเร็จ</span>`}</td></tr>`).join('');
+      fitPaper();
+      document.querySelectorAll('#docPaper img').forEach(img => img.addEventListener('load', fitPaper));
+      // หน้าเอกสาร = ดู + พิมพ์อย่างเดียว (ทุกคน รวมผู้รับสำเนา) — แก้ไข / ยกเลิก / ส่งซ้ำ ทำที่หน้ารายการ
+      $('docActions').innerHTML = '<button type="button" class="btn btn-primary" data-act="print">พิมพ์</button>';
+      if(d.viewOnly && !d.canEdit) $('docBackBtn').hidden = !myCompanies.length;   // ไม่มีสิทธิ์เมนู = ไม่มีหน้ารายการให้กลับไป
+      $('docTimeline').innerHTML = timelineHtml(d);
+      $('docTimelineCard').hidden = false;
     } catch(err){
       $('docPaper').innerHTML = `<div class="doc-state error">${esc(err.message)}</div>`;
     }
+  }
+
+  // ---------- กระดาษ A4 คงรูปแบบเดิมทุกขนาดจอ: จอแคบกว่า A4 = ย่อทั้งแผ่นให้พอดีความกว้าง (เหมือนดู PDF ในมือถือ) ----------
+  function fitPaper(){
+    const box = $('docPaper'), p = box.querySelector('.paper');
+    if(!p) return;
+    p.style.transform = '';
+    box.style.height = '';
+    box.style.overflow = '';
+    const s = Math.min(1, box.clientWidth / p.offsetWidth);
+    if(s < 1){
+      p.style.transform = 'scale(' + s + ')';
+      box.style.height = Math.ceil(p.offsetHeight * s) + 22 + 'px';
+      box.style.overflow = 'hidden';   // กล่องเดิมยังกว้างเท่า A4 ก่อนย่อ — ตัดส่วนเกิน ไม่ให้หน้าเลื่อนข้าง
+    }
+  }
+  window.addEventListener('resize', fitPaper);
+
+  // ---------- ประวัติการดำเนินการ (timeline) ----------
+  // ทำแล้ว = ✓ เขียว / ขั้นที่รออยู่ = นาฬิกาส้ม / ยังไม่ถึง = จุดเทา / ไม่รับซื้อ / ยกเลิก = ✕ แดง พร้อมเหตุผล (จบที่ขั้นนั้น)
+  // ขั้นฝั่งผู้ซื้อ (รับคำร้อง → รับทราบ → อนุมัติ) ปรับตามลำดับจริงตอนทำเฟส 2
+  function timelineHtml(d){
+    const by = (x) => x ? `${thDate(x.at)} ${x.at.slice(11, 16)} · โดย ${esc(x.by)}` : '';
+    const steps = [];
+    const add = (state, title, sub) => steps.push({ state, title, sub });
+    // บันทึกและส่งเกิดพร้อมกัน (ปุ่มเดียว) = ขั้นเดียว / เอกสารเก่าที่ส่งทีหลัง = แยก 2 ขั้น
+    const buyerDept = `ฝ่ายจัดซื้อ ${esc(d.compTargetName)}`;
+    const mins = (a, b) => Math.abs(new Date(a.replace(' ', 'T')) - new Date(b.replace(' ', 'T'))) / 60000;   // เวลาส่งบันทึกหลังส่งอีเมลเสร็จ อาจคร่อมนาที
+    if(d.sent && mins(d.sent.at, d.created.at) <= 5) add('done', `สร้างและส่งคำร้องขอ — E-mail ถึง ${buyerDept}`, by(d.sent));
+    else {
+      add('done', 'สร้างคำร้องขอ', by(d.created));
+      if(d.sent) add('done', `ส่งคำร้องขอ — E-mail ถึง ${buyerDept}`, by(d.sent));
+    }
+    if(d.edited && d.sent && d.edited.at > d.sent.at) add('done', 'แก้ไขคำร้องขอ (ส่ง E-mail แจ้งการแก้ไขแล้ว)', by(d.edited));
+    const bs = d.buyerSteps || {};
+    const buyer = [
+      ['check', 'ผู้รับคำร้องรับคำร้องและระบุราคา', `รอ${buyerDept} ดำเนินการ`],
+      ['ack', 'รับทราบคำร้อง', 'รอรับทราบ'],
+      ['approve', 'อนุมัติรับซื้อ', 'รออนุมัติ']
+    ];
+    let waiting = !d.sent || d.cancel || d.reject;   // ยังไม่ส่ง / จบแล้ว = ไม่มีขั้นที่ "รออยู่"
+    for(const [key, title, wait] of buyer){
+      if(bs[key]){ add('done', title, by(bs[key])); continue; }
+      if(d.reject || d.cancel) break;
+      if(!waiting){ add('current', wait, ''); waiting = true; }
+      else add('pending', title, '');
+    }
+    if(d.reject) add('fail', 'ไม่รับซื้อ', `${by(d.reject)}${d.reject.note ? `<span class="tl-why">เหตุผล: ${esc(d.reject.note)}</span>` : ''}`);
+    if(d.cancel) add('fail', 'ยกเลิกคำร้อง', `${by(d.cancel)}${d.cancel.reason ? `<span class="tl-why">สาเหตุ: ${esc(d.cancel.reason)}</span>` : ''}`);
+    const ico = {
+      done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+      current: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg>',
+      pending: '',
+      fail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'
+    };
+    return steps.map(s => `<li class="tl-${s.state}"><span class="tl-ico">${ico[s.state]}</span>
+      <div class="tl-body"><div class="tl-title">${s.title}</div>${s.sub ? `<div class="tl-sub">${s.sub}</div>` : ''}</div></li>`).join('');
   }
 
   function paperHtml(d){
@@ -1690,14 +2282,14 @@
     const oneUnit = units.length === 1;
     const offerText = d.items.map(it => `${it.invName} จำนวน ${fmtQty(it.amountOffer)} ${it.unit || ''}`).join(', ');
     const poRows = allPos.map((p, i) => `<tr><td class="ctr">${i + 1}</td><td class="ctr">${esc(p.poCode)}</td><td class="ctr">${thDate(p.datePO)}</td>
-      <td>${esc(p.invName)}</td><td class="num">${fmtQty(p.amountPO)}</td><td class="num">${fmtQty(p.amountRec)}</td><td class="ctr">${esc(p.unit || '')}</td></tr>`).join('');
+      <td>${esc(p.invName)}</td><td class="num">${fmtQty(p.amountPO)}</td><td class="num">${fmtQty(p.amountSold != null ? p.amountSold : p.amountRec)}</td><td class="num">${fmtQty(p.amountRec)}</td><td class="ctr">${esc(p.unit || '')}</td></tr>`).join('');
     const itemRows = d.items.map((it, i) => `<tr><td class="ctr">${i + 1}</td><td>${esc(it.invName)}${it.note ? `<div style="font-size:9.5px;color:#555">หมายเหตุ: ${esc(it.note)}</div>` : ''}</td>
-      <td class="num">${fmtQty(it.amountPO)}</td><td class="num">${fmtQty(it.amountRec)}</td><td class="num">${fmtQty(it.amountProduce)}</td>
+      <td class="num">${fmtQty(it.amountPO)}</td><td class="num">${fmtQty(it.amountSold != null ? it.amountSold : it.amountRec)}</td><td class="num">${fmtQty(it.amountProduce)}</td>
       <td class="num over">${fmtQty(round6(it.amountProduce - it.amountPO))}</td><td class="num offer">${fmtQty(it.amountOffer)}</td>
-      <td class="ctr">${esc(it.unit || '')}</td><td class="num">${it.price == null ? '' : fmtQty(it.price)}</td></tr>`).join('');
+      <td class="ctr">${esc(it.unit || '')}</td></tr>`).join('');
     const totRow = oneUnit && d.items.length > 1 ? `<tr class="tot"><td colspan="2" class="ctr">รวม</td><td class="num">${fmtQty(sum('amountPO'))}</td>
-      <td class="num">${fmtQty(sum('amountRec'))}</td><td class="num">${fmtQty(sum('amountProduce'))}</td>
-      <td class="num over">${fmtQty(round6(sum('amountProduce') - sum('amountPO')))}</td><td class="num offer">${fmtQty(sum('amountOffer'))}</td><td class="ctr">${esc(units[0])}</td><td></td></tr>` : '';
+      <td class="num">${fmtQty(d.items.reduce((s, it) => s + (it.amountSold != null ? it.amountSold : it.amountRec), 0))}</td><td class="num">${fmtQty(sum('amountProduce'))}</td>
+      <td class="num over">${fmtQty(round6(sum('amountProduce') - sum('amountPO')))}</td><td class="num offer">${fmtQty(sum('amountOffer'))}</td><td class="ctr">${esc(units[0])}</td></tr>` : '';
     const signDate = (d.sent && d.sent.at) || d.docDate;
     const sign = (side, title, who) => `<div class="p-sign">
         <div class="side">${side}</div>
@@ -1720,7 +2312,7 @@
             ${contact ? `<div class="p-co-l">${esc(contact)}</div>` : ''}
           </div>
         </div>
-        <div class="p-title"><div class="th">บันทึกขออนุมัติขายเมล็ดพันธุ์<br>ส่วนที่ผลิตเกินใบสั่งซื้อ</div><div class="en">OVER PO SALE REQUEST</div></div>
+        <div class="p-title"><div class="th">ใบร้องขอขายเมล็ดพันธุ์<br>ส่วนเกินใบสั่งซื้อ</div><div class="en">OVER PO SALE REQUEST</div></div>
       </div>
       <div class="p-meta">
         <span class="k">เรื่อง</span><span>${esc(d.subject)}</span><span class="k">เลขที่</span><span>${esc(d.docNo)}</span>
@@ -1729,15 +2321,14 @@
       <p class="indent">ตามที่ ${esc(d.compReqName)} ได้รับคำสั่งผลิตเมล็ดพันธุ์จาก ${esc(d.compTargetName)} ตามใบสั่งซื้อ (PO)
         จำนวน ${poCount} ฉบับ ${oneUnit ? `รวมทั้งสิ้น <b>${fmtQty(sum('amountPO'))} ${esc(units[0])}</b>` : ''} ดังรายการต่อไปนี้</p>
       <table>
-        <thead><tr><th style="width:6%">ลำดับ</th><th style="width:15%">เลขที่ใบสั่งซื้อ</th><th style="width:12%">วันที่ PO</th><th>เมล็ดพันธุ์</th>
-          <th style="width:13%">ยอด PO</th><th style="width:13%">ขายแล้ว<br>(รับเข้าตาม PO)</th><th style="width:8%">หน่วย</th></tr></thead>
+        <thead><tr><th style="width:6%">ลำดับ</th><th style="width:15%">เลขที่ใบสั่งซื้อ</th><th style="width:12%">วันที่สั่งซื้อ</th><th>รายการ</th>
+          <th style="width:11%">จำนวน PO</th><th style="width:11%">ขายแล้ว<br>(ผู้ขาย)</th><th style="width:11%">รับเข้าแล้ว<br>(ผู้ซื้อ)</th><th style="width:8%">หน่วย</th></tr></thead>
         <tbody>${poRows}</tbody>
       </table>
       <p class="indent">ปัจจุบันผลการผลิตได้ผลผลิตเกินจำนวนใบสั่งซื้อ รายละเอียดยอดผลิตและยอดที่ขอเสนอขายเพิ่ม ดังนี้</p>
       <table>
-        <thead><tr><th style="width:6%">ลำดับ</th><th>เมล็ดพันธุ์</th><th style="width:10%">ยอด PO รวม</th><th style="width:10%">ขายแล้ว</th>
-          <th style="width:11%">ผลิตได้ทั้งหมด</th><th style="width:10%">เกิน PO</th><th style="width:11%">เสนอขายเพิ่ม</th><th style="width:7%">หน่วย</th>
-          <th style="width:11%">ราคา/หน่วย<br><span style="font-weight:400">(ฝ่ายจัดซื้อระบุ)</span></th></tr></thead>
+        <thead><tr><th style="width:6%">ลำดับ</th><th>รายการ</th><th style="width:11%">จำนวน PO รวม</th><th style="width:11%">ขายแล้ว<br>(ผู้ขาย)</th>
+          <th style="width:12%">ผลิตได้ทั้งหมด</th><th style="width:11%">ยอดเกิน PO</th><th style="width:12%">เสนอขายเพิ่ม</th><th style="width:8%">หน่วย</th></tr></thead>
         <tbody>${itemRows}${totRow}</tbody>
       </table>
       <h4>สาเหตุการผลิตเกินใบสั่งซื้อ (Over PO)</h4>
@@ -1746,11 +2337,9 @@
       <p class="indent">${esc(d.compReqName)} จึงมีความประสงค์ขอเสนอขายเมล็ดพันธุ์ส่วนที่ผลิตเกินใบสั่งซื้อ ได้แก่ ${esc(offerText)}
         ให้แก่ ${esc(d.compTargetName)} ตามเกณฑ์อัตราการรับซื้อสำหรับจำนวนส่วนเกินระหว่างบริษัทในเครือ จึงเรียนมาเพื่อโปรดพิจารณาและดำเนินการต่อไป</p>
       ${d.status === 'R' && d.reject ? `<div class="p-reject">ไม่รับซื้อ — เหตุผล: ${esc(d.reject.note)}</div>` : ''}
-      <div class="p-signs">
-        ${sign(esc(shortCompName(d.compReqName)), 'ผู้ร้องขอ', { ...d.requester, at: signDate })}
-        ${sign(esc(shortCompName(d.compTargetName)), 'ผู้ตรวจสอบ (ฝ่ายจัดซื้อ)', null)}
-        ${sign(esc(shortCompName(d.compTargetName)), 'ผู้รับทราบ', null)}
-        ${sign(esc(shortCompName(d.compTargetName)), 'ผู้อนุมัติ', null)}
+      <!-- ลงชื่อ: ตอนนี้มีเฉพาะผู้ร้องขอ (ชิดขวาแบบบันทึกข้อความ) — ช่องฝั่งผู้ซื้อเพิ่มตอนทำเฟส 2 -->
+      <div class="p-signs one">
+        ${sign('ขอแสดงความนับถือ', 'ผู้ร้องขอ', { ...d.requester, at: signDate })}
       </div>
     </div>`;
   }
@@ -1773,6 +2362,7 @@
 
     $('openEmployeeBtn').addEventListener('click', () => openEmployeeModal('requester'));
     $('employeeSearch').addEventListener('input', renderEmployees);
+    $('empAllComp').addEventListener('change', renderEmployees);
     $('employeeModalBody').addEventListener('click', (e) => {
       const b = e.target.closest('[data-emp]');
       if(b) chooseEmployee(Number(b.dataset.emp));
@@ -1782,7 +2372,6 @@
     $('compTargetSelect').addEventListener('change', (e) => onCompanyChange('target', e.target.value));
     $('openPoBtn').addEventListener('click', openPoModal);
     $('poSearch').addEventListener('input', renderPoModal);
-    $('poShowOpen').addEventListener('change', loadPoModal);
     $('poBody').addEventListener('click', (e) => {
       const tr = e.target.closest('tr[data-po]');
       if(tr) togglePo(Number(tr.dataset.po));
@@ -1790,6 +2379,14 @@
     $('poConfirmBtn').addEventListener('click', confirmPo);
 
     $('itemBody').addEventListener('input', onItemInput);
+    $('itemBody').addEventListener('focusin', (e) => {
+      const f = e.target.dataset && e.target.dataset.f, tr = e.target.closest('tr[data-i]');
+      if(tr && (f === 'amountProduce' || f === 'amountOffer')){ e.target.value = qtyRawText(items[Number(tr.dataset.i)][f]); e.target.select(); }
+    });
+    $('itemBody').addEventListener('focusout', (e) => {
+      const f = e.target.dataset && e.target.dataset.f, tr = e.target.closest('tr[data-i]');
+      if(tr && (f === 'amountProduce' || f === 'amountOffer')) e.target.value = qtyInputText(items[Number(tr.dataset.i)][f]);
+    });
     $('itemBody').addEventListener('click', (e) => {
       const rmPo = e.target.closest('[data-rm-po]');
       if(rmPo) return removePoFromItem(Number(rmPo.dataset.rmPo));
@@ -1812,7 +2409,13 @@
       dashKey = dashKey === c.dataset.dash ? 'all' : c.dataset.dash;
       renderList();
     });
-    $('listBody').addEventListener('click', (e) => {
+    $('listArea').addEventListener('click', (e) => {
+      const row = e.target.closest('tr.has-detail');
+      if(row && !e.target.closest('button, a, input')){
+        const id = Number(row.dataset.doc);
+        listOpen.has(id) ? listOpen.delete(id) : listOpen.add(id);
+        return renderList();
+      }
       const s = e.target.closest('[data-send]'), ed = e.target.closest('[data-edit]'), c = e.target.closest('[data-cancel]');
       if(s) openSend(Number(s.dataset.send));
       if(ed) openEdit(Number(ed.dataset.edit));
@@ -1834,12 +2437,26 @@
         case 'add-mailto': openEmployeeModal('mailto'); break;
         case 'cancel-doc': openCancel(id); break;
         case 'confirm-cancel': confirmCancel(a); break;
+        case 'confirm-save': doSave(a); break;
         case 'print': printDoc(); break;
       }
     });
     $('dlgBody').addEventListener('click', (e) => {
       const rm = e.target.closest('[data-rm-mailto]');
       if(rm) removeMailto(Number(rm.dataset.rmMailto));
+      const def = e.target.closest('[data-def-mailto]');
+      if(def) setDefaultMailto(Number(def.dataset.defMailto));
+      const pick = e.target.closest('[data-pick-to]');
+      if(pick && !pick.disabled) pickTo(Number(pick.dataset.pickTo));
+    });
+
+    // การ์ด "ส่ง E-Mail ถึง"
+    $('manageMailtoBtn').addEventListener('click', () => { if(compTarget) openMailto(compTarget); });
+    $('mailCard').addEventListener('click', (e) => {
+      if(e.target.closest('#mailToCard')) return openToPicker();
+      if(e.target.closest('#addCcBtn')) return openEmployeeModal('cc');
+      const rm = e.target.closest('[data-rm-cc]');
+      if(rm){ ccList = ccList.filter(x => x.idPs !== Number(rm.dataset.rmCc)); renderMailTo(); }
     });
     document.querySelectorAll('.modal-overlay').forEach(ov => {
       ov.addEventListener('click', (e) => { if(e.target === ov) ov.classList.remove('show'); });

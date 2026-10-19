@@ -16,6 +16,10 @@
   #sidebar .nav-group-sub > .nav-parent .nav-chevron{width:12px; height:12px;}
   #sidebar .nav-group-sub.open > .nav-parent{background:rgba(255,255,255,.04); color:#fff;}
   #sidebar .nav-group-sub > .nav-submenu > .nav-submenu-inner{padding-left:18px; margin:2px 0 4px;}
+  /* ชั้นเดียวกันที่มีทั้งเมนูตรงและกลุ่มย่อย (เช่น คำร้องขอ): เมนูตรงใช้น้ำหนัก/สี/ระยะเท่าหัวกลุ่มย่อย ให้ดูเป็นระดับเดียวกัน */
+  #sidebar .nav-submenu-inner:has(> .nav-group-sub) > .nav-subitem{padding:8px 10px 8px 20px; font-weight:600; color:var(--concrete-200, #e7e4da);}
+  #sidebar .nav-submenu-inner:has(> .nav-group-sub) > .nav-subitem:hover{color:#fff;}
+  #sidebar .nav-submenu-inner:has(> .nav-group-sub) > .nav-subitem.active{color:var(--amber-500, #f2a91c);}
   /* กลุ่มย่อยที่มีหน้าปัจจุบันอยู่ข้างใน: ตัวหนังสือสีส้มทอง */
   #sidebar .nav-group-sub:has(.nav-subitem.active) > .nav-parent{color:var(--amber-500, #f2a91c);}
   /* เมนู On process (WIMWebMenu.stWip): ผู้ใช้ทั่วไป = ซ่อน (hidden) / กลุ่มระบบ = เห็นพร้อมป้าย WIP */
@@ -87,22 +91,36 @@
     </div>
   </div>
 
-  <a class="nav-item" href="/urs-request" data-menu="urs_request">
-    <span class="nav-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-      </svg>
-    </span>
-    <span class="nav-label">ร้องขอเมล็ดพันธุ์เร่งด่วน</span>
-  </a>
-  <a class="nav-item" href="/over-po-sale" data-menu="over_po_sale">
-    <span class="nav-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-      </svg>
-    </span>
-    <span class="nav-label">ร้องขอขายเมล็ดพันธุ์เกิน PO</span>
-  </a>
+  <!-- คำร้องขอ: ชั้น 2 = เมนูตรง (เร่งด่วน) / กลุ่มย่อย (Over PO) — ชั้น 3 ชื่อสั้น ชั้นแม่บอกบริบทแล้ว -->
+  <div class="nav-group" id="requestGroup">
+    <button class="nav-item nav-parent" id="requestToggle" type="button" aria-expanded="false" aria-controls="requestSubmenu">
+      <span class="nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 3h6a1 1 0 0 1 1 1v2H8V4a1 1 0 0 1 1-1z"></path>
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+          <path d="M8 12h8"></path><path d="M8 16h5"></path>
+        </svg>
+      </span>
+      <span class="nav-label">คำร้องขอ</span>
+      <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    </button>
+    <div class="nav-submenu" id="requestSubmenu">
+      <div class="nav-submenu-inner">
+        <a class="nav-subitem" href="/urs-request" data-menu="urs_request">ร้องขอเมล็ดพันธุ์เร่งด่วน</a>
+        <div class="nav-group nav-group-sub" data-group="over_po_sale_group">
+          <button class="nav-item nav-parent" type="button" aria-expanded="false">
+            <span class="nav-label">ร้องขอขายเมล็ด (Over PO)</span>
+            <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="nav-submenu">
+            <div class="nav-submenu-inner">
+              <a class="nav-subitem" href="/over-po-sale" data-menu="over_po_sale">แจ้งคำร้องขอขาย</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="nav-group" id="reportGroup">
     <button class="nav-item nav-parent" id="reportToggle" type="button" aria-expanded="false" aria-controls="reportSubmenu">
