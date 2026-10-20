@@ -5088,10 +5088,16 @@ app.get('/api/ops/po-lines', requireMenu(MENU_OPS, { companyParam: 'idCompReq' }
 });
 
 // ---------- รายการเอกสาร: side = req (ของบริษัทผู้ร้องขอ) / buy (ที่ส่งถึงบริษัทผู้ซื้อ — เฉพาะที่ส่งแล้ว) ----------
-async function opsListDocs(idComp, side) {
+// range = { from, to } ('YYYY-MM-DD' ตามวันที่ร้องขอ): กรองเฉพาะเอกสารที่สิ้นสุดแล้ว (อนุมัติ / ไม่รับซื้อ / ยกเลิก)
+// เอกสารระหว่างดำเนินการแสดงทุกฉบับเสมอ ไม่ว่าวันที่ใด — ไม่ส่ง range = ทั้งหมด
+async function opsListDocs(idComp, side, range = {}) {
   const pool = await poolPromise;
-  const where = side === 'buy' ? 'm.idCompTarget = @idComp AND m.DateSent IS NOT NULL' : 'm.idCompReq = @idComp';
-  const r = await pool.request().input('idComp', sql.Int, idComp).query(`
+  const okDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !isNaN(new Date(v));
+  const from = okDate(range.from) ? range.from : null, to = okDate(range.to) ? range.to : null;
+  const closed = 'm.DateCancel IS NOT NULL OR m.DateReject IS NOT NULL OR m.DateApv IS NOT NULL';
+  const where = (side === 'buy' ? 'm.idCompTarget = @idComp AND m.DateSent IS NOT NULL' : 'm.idCompReq = @idComp')
+    + (from || to ? ` AND (NOT (${closed}) OR (${from ? 'm.DateDoc >= @from' : '1 = 1'} AND ${to ? 'm.DateDoc < DATEADD(day, 1, @to)' : '1 = 1'}))` : '');
+  const r = await pool.request().input('idComp', sql.Int, idComp).input('from', sql.Date, from).input('to', sql.Date, to).query(`
     SELECT m.idOps, m.DocCode, CONVERT(varchar(10), m.DateDoc, 23) AS DateDoc, m.idCompReq, m.idCompTarget, ct.CompName AS CompNameTarget, cr.CompName AS CompNameReq,
            m.idPsReq, pr.PsName AS PsNameReq, m.Subject, m.CauseNote,
            m.DateSent, m.DateApv, m.DateReject, m.DateCancel, m.DateBuy, m.RejectNote, m.RejectStep, m.CancelNote,
@@ -5146,7 +5152,7 @@ app.get('/api/ops/docs', requireMenu(MENU_OPS, { companyParam: 'idComp' }), asyn
   const idComp = parseInt(req.query.idComp, 10);
   if (!OPS_COMPANY_IDS.includes(idComp)) return res.status(400).json({ success: false, message: 'กรุณาเลือกบริษัท' });
   try {
-    res.json({ success: true, data: await opsListDocs(idComp, 'req') });
+    res.json({ success: true, data: await opsListDocs(idComp, 'req', { from: req.query.dateFrom, to: req.query.dateTo }) });
   } catch (err) {
     console.error('OPS list error:', err);
     res.status(500).json({ success: false, message: 'โหลดรายการเอกสารไม่สำเร็จ', detail: err.message });
@@ -5158,7 +5164,7 @@ app.get('/api/ops/buy/docs', requireMenu(MENU_OPS_BUY, { companyParam: 'idComp' 
   const idComp = parseInt(req.query.idComp, 10);
   if (!OPS_COMPANY_IDS.includes(idComp)) return res.status(400).json({ success: false, message: 'กรุณาเลือกบริษัท' });
   try {
-    res.json({ success: true, data: await opsListDocs(idComp, 'buy') });
+    res.json({ success: true, data: await opsListDocs(idComp, 'buy', { from: req.query.dateFrom, to: req.query.dateTo }) });
   } catch (err) {
     console.error('OPS buy list error:', err);
     res.status(500).json({ success: false, message: 'โหลดรายการเอกสารไม่สำเร็จ', detail: err.message });

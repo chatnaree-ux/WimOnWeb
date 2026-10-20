@@ -1192,6 +1192,20 @@
   html.embed::-webkit-scrollbar-thumb:hover{background-color:rgba(255,255,255,.6);}
   body.viewer-open{overflow:hidden;}
 
+  /* ---- ช่วงวันที่ (กรองเฉพาะเอกสารที่สิ้นสุดแล้ว) ---- */
+  .list-toolbar .form-group.date-range{flex:0 1 330px;}
+  .dr-row{display:flex; align-items:center; gap:6px;}
+  .dr-row input{flex:1; min-width:0;}
+  .dr-sep{color:var(--concrete-400);}
+  .dr-note{font-weight:500; color:var(--concrete-400); font-size:12px;}
+  .dr-quick{display:flex; gap:6px; flex-wrap:wrap;}
+  .dr-quick button{padding:8px 12px; border-radius:8px; cursor:pointer; font:inherit; font-size:12.5px; font-weight:600;
+    background:rgba(78,167,224,.1); border:1px solid rgba(78,167,224,.45); color:#a9d8f5;}
+  .dr-quick button:hover{background:rgba(78,167,224,.22); border-color:var(--sky-blue); color:#fff;}
+  .dr-quick button.on{background:rgba(242,169,28,.16); border-color:rgba(242,169,28,.75); color:#ffcf66;}
+  .dr-info{margin:-4px 0 14px; font-size:12.5px; color:var(--concrete-400);}
+  .dr-info b{color:var(--concrete-200);}
+
   /* ---------- PRINT ---------- */
   @page{size:A4 portrait; margin:0;}
   @media print{
@@ -1286,12 +1300,22 @@
               <label>ค้นหา :</label>
               <input type="text" id="buySearch" placeholder="เลขที่คำร้อง / ใบขออนุมัติ / ชื่อสินค้า / PO No. ..." autocomplete="off">
             </div>
+            <div class="form-group date-range">
+              <label>วันที่ร้องขอ <span class="dr-note">(เฉพาะที่สิ้นสุดแล้ว)</span> :</label>
+              <div class="dr-row">
+                <input type="date" id="buyFrom"><span class="dr-sep">–</span><input type="date" id="buyTo">
+              </div>
+            </div>
+            <div class="dr-quick" data-range-for="buy">
+              <button type="button" data-range="month">เดือนนี้</button><button type="button" data-range="3m">3 เดือน</button><button type="button" data-range="year">ปีนี้</button>
+            </div>
             <button type="button" class="btn btn-secondary" id="buyRefreshBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
               รีเฟรชข้อมูล
             </button>
           </div>
           <div class="dash" id="buyDash"></div>
+          <p class="dr-info" id="buyRangeInfo"></p>
           <div class="list-area" id="buyListArea">
             <div class="table-responsive req-list-wrap">
               <table class="ops-list-table buy-list-table">
@@ -1544,12 +1568,22 @@
               <label>ค้นหา :</label>
               <input type="text" id="listSearch" placeholder="เลขที่เอกสาร / ชื่อสินค้า / PO No. ..." autocomplete="off">
             </div>
+            <div class="form-group date-range">
+              <label>วันที่ร้องขอ <span class="dr-note">(เฉพาะที่สิ้นสุดแล้ว)</span> :</label>
+              <div class="dr-row">
+                <input type="date" id="listFrom"><span class="dr-sep">–</span><input type="date" id="listTo">
+              </div>
+            </div>
+            <div class="dr-quick" data-range-for="list">
+              <button type="button" data-range="month">เดือนนี้</button><button type="button" data-range="3m">3 เดือน</button><button type="button" data-range="year">ปีนี้</button>
+            </div>
             <button type="button" class="btn btn-secondary" id="listRefreshBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
               รีเฟรชข้อมูล
             </button>
           </div>
           <div class="dash" id="statusDash"></div>
+          <p class="dr-info" id="listRangeInfo"></p>
           <!-- จอกว้าง = ตาราง / พื้นที่แคบกว่า 900px (มือถือ / แท็บเล็ต) = กล่องเอกสาร (#listCards) -->
           <div class="list-area" id="listArea">
           <div class="table-responsive req-list-wrap">
@@ -1805,6 +1839,8 @@
 
   async function init(){
     attachEvents();
+    setRange('list', 'month');
+    setRange('buy', 'month');
     await ensureUser();
     try{
       const r = await api('/api/ops/companies');
@@ -2439,7 +2475,8 @@
     if(!idComp){ docs = []; renderList(); return; }
     $('listLoading').hidden = false;
     try{
-      const r = await api('/api/ops/docs?' + new URLSearchParams({ idComp }));
+      const r = await api('/api/ops/docs?' + new URLSearchParams({ idComp, ...rangeParams('list') }));
+      rangeInfo('list');
       docs = r.data || [];
     } catch(err){
       docs = [];
@@ -2907,7 +2944,8 @@
     if(!idComp){ buyDocs = []; renderBuyList(); return; }
     $('buyListLoading').hidden = false;
     try{
-      const r = await api('/api/ops/buy/docs?' + new URLSearchParams({ idComp }));
+      const r = await api('/api/ops/buy/docs?' + new URLSearchParams({ idComp, ...rangeParams('buy') }));
+      rangeInfo('buy');
       buyDocs = r.data || [];
       $('noBuyListMsg').textContent = 'ยังไม่มีคำร้องที่ส่งถึงบริษัทนี้';
     } catch(err){
@@ -3584,6 +3622,33 @@
     loadApvList();
   }
 
+  /* ---------- ช่วงวันที่ร้องขอ (กรองเฉพาะเอกสารที่สิ้นสุดแล้ว — ระหว่างดำเนินการแสดงทั้งหมด) ---------- */
+  const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  function rangeOf(kind){
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+    if(kind === '3m') return [isoDate(new Date(y, m - 2, 1)), isoDate(new Date(y, m + 1, 0))];
+    if(kind === 'year') return [`${y}-01-01`, `${y}-12-31`];
+    return [isoDate(new Date(y, m, 1)), isoDate(new Date(y, m + 1, 0))];   // เดือนนี้ (ค่าเริ่มต้น)
+  }
+  // p = 'list' (ผู้ขาย) / 'buy' (ฝ่ายจัดซื้อ)
+  function setRange(p, kind){
+    const [a, b] = rangeOf(kind);
+    $(p + 'From').value = a;
+    $(p + 'To').value = b;
+    markRange(p);
+  }
+  function markRange(p){
+    document.querySelectorAll(`[data-range-for="${p}"] [data-range]`).forEach(btn => {
+      const [a, b] = rangeOf(btn.dataset.range);
+      btn.classList.toggle('on', $(p + 'From').value === a && $(p + 'To').value === b);
+    });
+  }
+  const rangeParams = (p) => ({ dateFrom: $(p + 'From').value, dateTo: $(p + 'To').value });
+  function rangeInfo(p){
+    const a = $(p + 'From').value, b = $(p + 'To').value;
+    $(p === 'list' ? 'listRangeInfo' : 'buyRangeInfo').innerHTML = `รายการระหว่างดำเนินการแสดงทั้งหมด · ที่สิ้นสุดแล้ว (อนุมัติรับซื้อ / ไม่รับซื้อ / ยกเลิก) แสดงตามวันที่ร้องขอ <b>${a ? thDate(a) : 'ทั้งหมด'}${a || b ? ' – ' + (b ? thDate(b) : 'ปัจจุบัน') : ''}</b>`;
+  }
+
   /* ==================================================================
      EVENTS
   ================================================================== */
@@ -3670,6 +3735,16 @@
       }
       window.close();
       setTimeout(() => { if(history.length > 1) history.back(); else showToast('ปิดแท็บนี้ได้เลย'); }, 200);
+    });
+
+    // ---- ช่วงวันที่ ----
+    ['list', 'buy'].forEach(p => {
+      const reload = () => (p === 'list' ? loadList() : loadBuyList());
+      [p + 'From', p + 'To'].forEach(id => $(id).addEventListener('change', () => { markRange(p); reload(); }));
+      document.querySelector(`[data-range-for="${p}"]`).addEventListener('click', (e) => {
+        const b = e.target.closest('[data-range]');
+        if(b){ setRange(p, b.dataset.range); reload(); }
+      });
     });
 
     // ---- รายการรอการพิจารณา ----
