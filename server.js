@@ -1921,7 +1921,7 @@ app.get('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req,
   }
 });
 
-app.get('/api/usergroups/available-users', requireMenu([MENU_ADMIN, 'urs_request', 'supplier_return', 'over_po_sale_mailto']), async (req, res) => {
+app.get('/api/usergroups/available-users', requireMenu([MENU_ADMIN, 'urs_request', 'supplier_return', 'over_po_sale', 'over_po_sale_mailto', 'over_po_sale_buy']), async (req, res) => {
   const keyword = (req.query.keyword || '').trim();
   try {
     const pool = await poolPromise;
@@ -4695,8 +4695,8 @@ function summarizeByComp(rows, fields) {
 // ==================================================================
 // ฝั่งร้องขอ (ผู้ขาย เช่น FLO / GR) อ้างอิง PO ตั้งต้นที่บริษัทผู้ซื้อ (เช่น AV) เปิดให้ แล้วเสนอขายยอดที่ผลิตเกิน PO
 // เฟส 1: บันทึก / แก้ไข (ก่อนส่ง) / ยกเลิก / เอกสาร A4 / ส่งอีเมลแจ้งฝ่ายจัดซื้อผู้ซื้อ (ผู้รับกำหนดใน SeedReqSaleMailTo)
-// เฟสถัดไป: ตรวจสอบ+ราคา / รับทราบ / อนุมัติ / ไม่รับซื้อ (เคสแดง) / Auto-PO — คอลัมน์มีรอไว้ใน SeedReqSaleMt แล้ว
-// ตาราง + เมนู: sql/over-po-sale-setup.sql
+// เฟส 2: ฝ่ายจัดซื้อผู้ซื้อกำหนดจำนวน/ราคา → ใบขออนุมัติ OPA → อนุมัติ 4 ขั้น (SeedReqSaleApv) → สร้าง PO (X..) + ใบสั่งขายอัตโนมัติ
+// ตาราง + เมนู: sql/over-po-sale-setup.sql, sql/over-po-sale-phase2-20261019.sql, sql/over-po-sale-dropcols-20261020.sql
 const MENU_OPS = 'over_po_sale';
 const MENU_OPS_MAILTO = 'over_po_sale_mailto';     // สิทธิ์กำหนดผู้รับอีเมล (สิทธิ์ย่อย ไม่มีหน้าแยก)
 const OPS_COMPANY_IDS = [2, 3, 4];
@@ -4708,7 +4708,26 @@ const OPS_MAX_CC = 20;
 // เรื่อง: ทุกเอกสารเป็นเรื่องเดียวกัน → ไม่ให้กรอก ระบบใส่ให้ (ยังเก็บใน Subject เผื่อใช้เรื่องอื่นในอนาคต)
 const OPS_DEFAULT_SUBJECT = 'แจ้งร้องขอขายเมล็ดพันธุ์ที่เกินใบสั่งซื้อ (Over PO)';
 
-app.get('/over-po-sale-doc', (req, res) => res.sendFile(path.join(__dirname, 'public', 'over-po-sale.html')));
+// หน้าเดียวกันหลายโหมด: /over-po-sale (ผู้ร้องขอ) / -doc (ใบร้องขอ OPQ) / -buy (ฝ่ายจัดซื้อ: รายการ + ?id= จัดการคำร้อง) / -opa (ใบขออนุมัติ + ปุ่มอนุมัติ)
+['/over-po-sale-doc', '/over-po-sale-buy', '/over-po-sale-buy.html', '/over-po-sale-opa', '/over-po-sale-apv'].forEach(p =>
+  app.get(p, (req, res) => res.sendFile(path.join(__dirname, 'public', 'over-po-sale.html'))));
+
+// ---- เฟส 2: ฝ่ายจัดซื้อผู้ซื้อพิจารณา + ขออนุมัติ 4 ขั้น (แบบ PO) + สร้าง PO / ใบสั่งขายอัตโนมัติ — sql/over-po-sale-phase2-20261019.sql
+const MENU_OPS_BUY = 'over_po_sale_buy';
+// ขั้นอนุมัติ: ลำดับแสดงผล / ชื่อ (ผู้อนุมัติ 1-2 แสดงว่า "ผู้อนุมัติ" — ลำดับ 1/2 เป็นเรื่องหลังบ้าน) / คอลัมน์ผู้อนุมัติใน PkPOBuyMt (ใช้ทั้งดึงค่าเริ่มต้นจาก PO ที่อ้างอิง และตอนสร้าง PO)
+const OPS_APV_STEPS = [
+  { code: 'accept', name: 'ผู้รับทราบ', poPs: 'idPsAccept', poDate: 'DateAcceptD', poSys: 'SysAccept' },
+  { code: 'check', name: 'ผู้ตรวจสอบ', poPs: 'idPsCheck', poDate: 'DateCheckD', poSys: 'SysCheck' },
+  { code: 'approve1', name: 'ผู้อนุมัติ', poPs: 'idPsApprove1', poDate: 'DateApprove1D', poSys: 'SysApprove' },
+  { code: 'approve2', name: 'ผู้อนุมัติ', poPs: 'idPsApprove2', poDate: 'DateApprove2D', poSys: 'SysApprove2' }
+];
+// อนุมัติ 1 กับ 2 ต้องเป็นคนละคน — PO เดิมได้คนเดียวกัน (ระบบอนุมัติ PO ใส่ซ้ำ) → ค่าเริ่มต้น อนุมัติ 1 = ชัชวาล / อนุมัติ 2 = อนวัช
+const OPS_APV_FIX = { approve1: 9, approve2: 7 };
+const OPS_PO_TYPE = 8;          // PkPOBuyMt.TypeTs ของ PO ซื้อส่วนเกินใบสั่งซื้อ (7 มีเอกสาร E ใช้อยู่)
+const OPS_PO_PREFIX = 'X';      // DocCode X{yy}/{mm}/{0000} — ใช้ไปก่อนจนกว่าฝ่ายจัดซื้อแจ้งรหัสที่ต้องการ
+const OPS_PO_SYS = 3;           // Sys* ของการอนุมัติ = 3 (อนุมัติผ่านใบขออนุมัติ OPA ในระบบนี้ / 1 = โปรแกรม, 2 = เว็บอนุมัติ)
+// OPS_PO_TEST_ROLLBACK=1 (.env): อนุมัติครบแล้วสร้าง PO + ใบสั่งขายจริงใน transaction แล้ว rollback ทั้งหมด (ทดสอบโดยไม่ทิ้งข้อมูล)
+const opsPoTestRollback = () => process.env.OPS_PO_TEST_ROLLBACK === '1';
 
 // ---------- อีเมล (nodemailer) ----------
 // ตั้งค่าใน .env: SMTP_HOST / SMTP_PORT / SMTP_SECURE (true = 465) / SMTP_USER / SMTP_PASS / MAIL_FROM
@@ -4726,6 +4745,7 @@ function opsMailer() {
   opsTransport = opsMailDryRun()
     ? nodemailer.createTransport({ streamTransport: true, buffer: true, newline: 'windows' })
     : nodemailer.createTransport({
+        pool: true, maxConnections: 3, maxMessages: 100,
         host: process.env.SMTP_HOST,
         port: parseInt(process.env.SMTP_PORT, 10) || 587,
         secure: process.env.SMTP_SECURE === 'true',
@@ -4767,16 +4787,23 @@ async function opsSendMail({ to, cc, subject, html }) {
 }
 
 // ---------- สถานะเอกสาร (ดูจากวันที่ของแต่ละขั้น ไม่มีคอลัมน์สถานะ) ----------
-// D = ร่าง (ยังไม่ส่ง) / S = ส่งคำร้องแล้ว รอตรวจสอบ / H = ตรวจสอบแล้ว / K = รับทราบแล้ว / A = อนุมัติรับซื้อ / R = ไม่รับซื้อ / C = ยกเลิก
+// D = ร่าง (ยังไม่ส่ง) / S = ส่งคำร้องแล้ว รอฝ่ายจัดซื้อ / H = ฝ่ายจัดซื้อส่งขออนุมัติแล้ว รออนุมัติ (4 ขั้น)
+// B = ผู้อนุมัติส่งกลับแก้ไข (รอฝ่ายจัดซื้อแก้แล้วส่งใหม่) / A = อนุมัติรับซื้อ (สร้าง PO แล้ว) / R = ไม่รับซื้อ / C = ยกเลิก
+// ApvBack มาจาก OPS_ROUND_SQL (ผลของรอบขออนุมัติปัจจุบัน) — query ที่ใช้ opsStatus ต้อง join ไว้
 function opsStatus(m) {
   if (m.DateCancel) return 'C';
   if (m.DateReject) return 'R';
   if (m.DateApv) return 'A';
-  if (m.DateAck) return 'K';
-  if (m.DateCheck) return 'H';
+  if (m.ApvBack) return 'B';
+  if (m.DateBuy) return 'H';
   if (m.DateSent) return 'S';
   return 'D';
 }
+// สรุปผลรอบขออนุมัติปัจจุบัน (ต่อท้าย FROM ... m) → ar.ApvDone / ar.ApvBack / ar.ApvActed / ar.ApvCount
+const OPS_ROUND_SQL = (m = 'm') => `OUTER APPLY (
+      SELECT SUM(CASE WHEN a.Result = 'A' THEN 1 ELSE 0 END) AS ApvDone, MAX(CASE WHEN a.Result = 'B' THEN 1 ELSE 0 END) AS ApvBack,
+             SUM(CASE WHEN a.Result IS NOT NULL THEN 1 ELSE 0 END) AS ApvActed, COUNT(a.idApv) AS ApvCount
+      FROM devsk.SeedReqSaleApv a WHERE a.idOps = ${m}.idOps AND a.ApvRound = ${m}.ApvRound) ar`;
 
 // ---------- ออกเลขที่เอกสาร: OPQ{YY}{MM}/{0001} (แบบเดียวกับ URQ ของคำร้องเร่งด่วน) ----------
 // YY = พ.ศ. 2 หลักท้าย / รันแยกบริษัทผู้ร้องขอ เริ่ม 0001 ใหม่ทุกปี / ต้องเรียกใน transaction เดียวกับ INSERT
@@ -5010,14 +5037,17 @@ async function insertOpsItems(transaction, idOps, items) {
 // ล็อกหัวเอกสารใน transaction แล้วคืนแถว (ใช้ก่อนแก้ไข / ยกเลิก / ส่ง)
 async function lockOpsDoc(transaction, idOps) {
   const r = await new sql.Request(transaction).input('id', sql.Int, idOps).query(`
-    SELECT idOps, DocCode, idCompReq, idCompTarget, DateSent, DateCheck, DateAck, DateApv, DateReject, DateCancel,
-           CONVERT(varchar(23), ISNULL(DateEdit, DateTs), 121) AS Stamp
-    FROM devsk.SeedReqSaleMt WITH (UPDLOCK, ROWLOCK) WHERE idOps = @id`);
+    SELECT m.idOps, m.DocCode, m.idCompReq, m.idCompTarget, m.DateSent, m.DateApv, m.DateReject, m.DateCancel,
+           m.DateBuy, m.BuyDocCode, m.ApvRound, m.idPsBuy, ar.ApvDone, ar.ApvBack, ar.ApvActed, ar.ApvCount,
+           CONVERT(varchar(23), ISNULL(m.DateEdit, m.DateTs), 121) AS Stamp
+    FROM devsk.SeedReqSaleMt m WITH (UPDLOCK, ROWLOCK)
+    ${OPS_ROUND_SQL()}
+    WHERE m.idOps = @id`);
   return r.recordset[0] || null;
 }
 
 // ---------- บริษัท (2, 3, 4) + allowed = มีสิทธิ์บริษัทนั้น ----------
-app.get('/api/ops/companies', requireMenu(MENU_OPS), async (req, res) => {
+app.get('/api/ops/companies', requireMenu([MENU_OPS, MENU_OPS_BUY]), async (req, res) => {
   try {
     const pool = await poolPromise;
     const r = await pool.request().query(`
@@ -5027,7 +5057,8 @@ app.get('/api/ops/companies', requireMenu(MENU_OPS), async (req, res) => {
       success: true,
       data: r.recordset.map(c => ({ ...c, allowed: hasComp(req.access, c.id) })),
       mailReady: opsMailReady(), mailDryRun: opsMailDryRun(), mailRedirect: opsMailRedirect() || null,
-      canMailTo: hasMenu(req.access, MENU_OPS_MAILTO)
+      canMailTo: hasMenu(req.access, MENU_OPS_MAILTO), canReq: hasMenu(req.access, MENU_OPS), canBuy: hasMenu(req.access, MENU_OPS_BUY),
+      poTestRollback: opsPoTestRollback()
     });
   } catch (err) {
     console.error('OPS companies error:', err);
@@ -5056,55 +5087,80 @@ app.get('/api/ops/po-lines', requireMenu(MENU_OPS, { companyParam: 'idCompReq' }
   }
 });
 
-// ---------- รายการเอกสารของบริษัทผู้ร้องขอ ----------
+// ---------- รายการเอกสาร: side = req (ของบริษัทผู้ร้องขอ) / buy (ที่ส่งถึงบริษัทผู้ซื้อ — เฉพาะที่ส่งแล้ว) ----------
+async function opsListDocs(idComp, side) {
+  const pool = await poolPromise;
+  const where = side === 'buy' ? 'm.idCompTarget = @idComp AND m.DateSent IS NOT NULL' : 'm.idCompReq = @idComp';
+  const r = await pool.request().input('idComp', sql.Int, idComp).query(`
+    SELECT m.idOps, m.DocCode, CONVERT(varchar(10), m.DateDoc, 23) AS DateDoc, m.idCompReq, m.idCompTarget, ct.CompName AS CompNameTarget, cr.CompName AS CompNameReq,
+           m.idPsReq, pr.PsName AS PsNameReq, m.Subject, m.CauseNote,
+           m.DateSent, m.DateApv, m.DateReject, m.DateCancel, m.DateBuy, m.RejectNote, m.RejectStep, m.CancelNote,
+           m.BuyDocCode, m.ApvRound, ar.ApvDone, ar.ApvBack, ar.ApvActed, ar.ApvCount, po.DocCode AS POCodeAuto,
+           CONVERT(varchar(16), m.DateSent, 120) AS TxSent, CONVERT(varchar(16), m.DateCancel, 120) AS TxCancel, pc.PsName AS PsCancel,
+           CONVERT(varchar(16), m.DateBuy, 120) AS TxBuy, pb.PsName AS PsBuy, CONVERT(varchar(16), m.DateReject, 120) AS TxReject, prj.PsName AS PsReject,
+           ml.LastMail, ml.MailFail
+    FROM devsk.SeedReqSaleMt m
+    LEFT JOIN PchInvAndProject.dbo.dCompany ct ON ct.idComp = m.idCompTarget
+    LEFT JOIN PchInvAndProject.dbo.dCompany cr ON cr.idComp = m.idCompReq
+    LEFT JOIN devsk.PkPOBuyMt po ON po.idPOTs = m.idPOTsAuto
+    ${OPS_ROUND_SQL()}
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsReq) pr
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsCancel) pc
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsBuy) pb
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsReject) prj
+    OUTER APPLY (SELECT MAX(l.DateSend) AS LastSend FROM devsk.SeedReqSaleMailLog l WHERE l.idOps = m.idOps) lm
+    OUTER APPLY (SELECT CONVERT(varchar(16), lm.LastSend, 120) AS LastMail,
+                        SUM(CASE WHEN l.stSend = 0 THEN 1 ELSE 0 END) AS MailFail
+                 FROM devsk.SeedReqSaleMailLog l WHERE l.idOps = m.idOps AND l.DateSend = lm.LastSend) ml
+    WHERE ${where}
+    ORDER BY m.DateDoc DESC, m.idOps DESC;
+
+    SELECT d.idOps, d.idOpsDt, i.InvName, d.AmountPO, d.AmountRec, d.AmountSold, d.AmountProduce, d.AmountOffer, d.AmountBuy, d.Price, u.UnitName,
+           STUFF((SELECT ', ' + p.POCode FROM devsk.SeedReqSalePORef p WHERE p.idOpsDt = d.idOpsDt ORDER BY p.DatePO, p.POCode FOR XML PATH('')), 1, 2, '') AS POCodes
+    FROM devsk.SeedReqSaleDt d
+    JOIN devsk.SeedReqSaleMt m ON m.idOps = d.idOps
+    LEFT JOIN devsk.dInventoryMain i ON i.idInvMain = d.idInvMain
+    LEFT JOIN devsk.dInvUnit u ON u.idUnit = d.idUnit
+    WHERE ${where}
+    ORDER BY d.idOps, d.idOpsDt;`);
+  const items = new Map();
+  r.recordsets[1].forEach(x => items.set(x.idOps, [...(items.get(x.idOps) || []), {
+    invName: x.InvName, amountPO: Number(x.AmountPO), amountRec: Number(x.AmountRec), amountSold: x.AmountSold == null ? null : Number(x.AmountSold),
+    amountProduce: Number(x.AmountProduce), amountOffer: Number(x.AmountOffer),
+    amountBuy: x.AmountBuy == null ? null : Number(x.AmountBuy), price: x.Price == null ? null : Number(x.Price),
+    unit: x.UnitName, poCodes: x.POCodes || ''
+  }]));
+  return r.recordsets[0].map(m => ({
+    id: m.idOps, docNo: m.DocCode, docDate: m.DateDoc, req: m.idCompReq, reqName: m.CompNameReq, target: m.idCompTarget, targetName: m.CompNameTarget,
+    requester: m.PsNameReq || '-', subject: m.Subject || '', cause: m.CauseNote || '', status: opsStatus(m),
+    sentAt: m.TxSent, lastMail: m.LastMail, mailFail: (m.MailFail || 0) > 0,
+    cancel: m.TxCancel ? { by: m.PsCancel || '-', at: m.TxCancel, reason: m.CancelNote || '' } : null,
+    rejectNote: m.RejectNote || '', reject: m.TxReject ? { by: m.PsReject || '-', at: m.TxReject, step: m.RejectStep || '' } : null,
+    buyDocNo: m.BuyDocCode || null, buy: m.TxBuy ? { by: m.PsBuy || '-', at: m.TxBuy } : null,
+    apvDone: m.ApvDone || 0, apvCount: m.ApvCount || 0, apvActed: m.ApvActed || 0, poCode: m.POCodeAuto || null,
+    items: items.get(m.idOps) || []
+  }));
+}
+
 app.get('/api/ops/docs', requireMenu(MENU_OPS, { companyParam: 'idComp' }), async (req, res) => {
   const idComp = parseInt(req.query.idComp, 10);
   if (!OPS_COMPANY_IDS.includes(idComp)) return res.status(400).json({ success: false, message: 'กรุณาเลือกบริษัท' });
   try {
-    const pool = await poolPromise;
-    const r = await pool.request().input('idComp', sql.Int, idComp).query(`
-      SELECT m.idOps, m.DocCode, CONVERT(varchar(10), m.DateDoc, 23) AS DateDoc, m.idCompReq, m.idCompTarget, ct.CompName AS CompNameTarget,
-             m.idPsReq, pr.PsName AS PsNameReq, m.Subject, m.CauseNote,
-             m.DateSent, m.DateCheck, m.DateAck, m.DateApv, m.DateReject, m.DateCancel, m.RejectNote, m.CancelNote,
-             CONVERT(varchar(16), m.DateSent, 120) AS TxSent, CONVERT(varchar(16), m.DateCancel, 120) AS TxCancel, pc.PsName AS PsCancel,
-             ml.LastMail, ml.MailFail
-      FROM devsk.SeedReqSaleMt m
-      LEFT JOIN PchInvAndProject.dbo.dCompany ct ON ct.idComp = m.idCompTarget
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsReq) pr
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsCancel) pc
-      OUTER APPLY (SELECT MAX(l.DateSend) AS LastSend FROM devsk.SeedReqSaleMailLog l WHERE l.idOps = m.idOps) lm
-      OUTER APPLY (SELECT CONVERT(varchar(16), lm.LastSend, 120) AS LastMail,
-                          SUM(CASE WHEN l.stSend = 0 THEN 1 ELSE 0 END) AS MailFail
-                   FROM devsk.SeedReqSaleMailLog l WHERE l.idOps = m.idOps AND l.DateSend = lm.LastSend) ml
-      WHERE m.idCompReq = @idComp
-      ORDER BY m.DateDoc DESC, m.idOps DESC;
-
-      SELECT d.idOps, d.idOpsDt, i.InvName, d.AmountPO, d.AmountRec, d.AmountSold, d.AmountProduce, d.AmountOffer, u.UnitName,
-             STUFF((SELECT ', ' + p.POCode FROM devsk.SeedReqSalePORef p WHERE p.idOpsDt = d.idOpsDt ORDER BY p.DatePO, p.POCode FOR XML PATH('')), 1, 2, '') AS POCodes
-      FROM devsk.SeedReqSaleDt d
-      JOIN devsk.SeedReqSaleMt m ON m.idOps = d.idOps
-      LEFT JOIN devsk.dInventoryMain i ON i.idInvMain = d.idInvMain
-      LEFT JOIN devsk.dInvUnit u ON u.idUnit = d.idUnit
-      WHERE m.idCompReq = @idComp
-      ORDER BY d.idOps, d.idOpsDt;`);
-    const items = new Map();
-    r.recordsets[1].forEach(x => items.set(x.idOps, [...(items.get(x.idOps) || []), {
-      invName: x.InvName, amountPO: Number(x.AmountPO), amountRec: Number(x.AmountRec), amountSold: x.AmountSold == null ? null : Number(x.AmountSold),
-      amountProduce: Number(x.AmountProduce),
-      amountOffer: Number(x.AmountOffer), unit: x.UnitName, poCodes: x.POCodes || ''
-    }]));
-    res.json({
-      success: true,
-      data: r.recordsets[0].map(m => ({
-        id: m.idOps, docNo: m.DocCode, docDate: m.DateDoc, target: m.idCompTarget, targetName: m.CompNameTarget,
-        requester: m.PsNameReq || '-', subject: m.Subject || '', cause: m.CauseNote || '', status: opsStatus(m),
-        sentAt: m.TxSent, lastMail: m.LastMail, mailFail: (m.MailFail || 0) > 0,
-        cancel: m.TxCancel ? { by: m.PsCancel || '-', at: m.TxCancel, reason: m.CancelNote || '' } : null,
-        rejectNote: m.RejectNote || '', items: items.get(m.idOps) || []
-      }))
-    });
+    res.json({ success: true, data: await opsListDocs(idComp, 'req') });
   } catch (err) {
     console.error('OPS list error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการเอกสารไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// รายการคำร้องที่ส่งถึงบริษัทผู้ซื้อ (หน้าพิจารณาคำร้องขอขาย — ฝ่ายจัดซื้อ)
+app.get('/api/ops/buy/docs', requireMenu(MENU_OPS_BUY, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = parseInt(req.query.idComp, 10);
+  if (!OPS_COMPANY_IDS.includes(idComp)) return res.status(400).json({ success: false, message: 'กรุณาเลือกบริษัท' });
+  try {
+    res.json({ success: true, data: await opsListDocs(idComp, 'buy') });
+  } catch (err) {
+    console.error('OPS buy list error:', err);
     res.status(500).json({ success: false, message: 'โหลดรายการเอกสารไม่สำเร็จ', detail: err.message });
   }
 });
@@ -5122,10 +5178,20 @@ async function loadOpsDoc(idOps, runner = null) {
            CONVERT(varchar(16), m.DateTs, 120) AS TxTs, pt.PsName AS PsTs, CONVERT(varchar(16), m.DateEdit, 120) AS TxEdit, pe.PsName AS PsEdit,
            CONVERT(varchar(16), m.DateSent, 120) AS TxSent, ps.PsName AS PsSent,
            CONVERT(varchar(16), m.DateCancel, 120) AS TxCancel, pc.PsName AS PsCancel,
-           -- ขั้นฝั่งผู้ซื้อ (timeline หน้าเอกสาร): รับคำร้อง+ราคา / รับทราบ / อนุมัติ / ไม่รับซื้อ
-           CONVERT(varchar(16), m.DateCheck, 120) AS TxCheck, pck.PsName AS PsCheck, CONVERT(varchar(16), m.DateAck, 120) AS TxAck, pak.PsName AS PsAck,
-           CONVERT(varchar(16), m.DateApv, 120) AS TxApv, pav.PsName AS PsApv, CONVERT(varchar(16), m.DateReject, 120) AS TxReject, prj.PsName AS PsReject
+           -- อนุมัติครบ (ผู้กดคนสุดท้าย) / ไม่รับซื้อ — ผลรายขั้นอยู่ใน SeedReqSaleApv
+           CONVERT(varchar(16), m.DateApv, 120) AS TxApv, pav.PsName AS PsApv, CONVERT(varchar(16), m.DateReject, 120) AS TxReject, prj.PsName AS PsReject,
+           -- ฝ่ายจัดซื้อ (ใบขออนุมัติรับซื้อ OPA) + ผลรอบขออนุมัติปัจจุบัน + PO ที่สร้างอัตโนมัติ
+           CONVERT(varchar(10), m.BuyDateDoc, 23) AS BuyDocDate, CONVERT(varchar(16), m.DateBuy, 120) AS TxBuy, CONVERT(varchar(10), m.BuyDateGet, 23) AS BuyGetDate,
+           pb.PsName AS PsBuy, pb.PsFullName AS FullBuy, pb.PositionName AS PosBuy,
+           ar.ApvDone, ar.ApvBack, ar.ApvActed, ar.ApvCount, po.DocCode AS POCodeAuto, sod.DocCode AS SaleOrderCode,
+           cb.CompNameEng AS TgtNameEng, cb.Address AS TgtAddress, cb.PostCode AS TgtPostCode, cb.Tel AS TgtTel, cb.Fax AS TgtFax, LTRIM(RTRIM(pvt.ProvinceName)) AS TgtProvince
     FROM devsk.SeedReqSaleMt m
+    LEFT JOIN devsk.PkPOBuyMt po ON po.idPOTs = m.idPOTsAuto
+    OUTER APPLY (SELECT TOP 1 o.DocCode FROM dbo.SmSaleOrderMt o WHERE o.idPOTs = m.idPOTsAuto AND m.idPOTsAuto IS NOT NULL AND o.idPsCancel IS NULL ORDER BY o.idSaleOrder DESC) sod
+    LEFT JOIN PchInvAndProject.dbo.dCompany cb ON cb.idComp = m.idCompTarget
+    LEFT JOIN PchInvAndProject.dbo.dProvinceFix pvt ON pvt.idProvince = cb.idProvince
+    ${OPS_ROUND_SQL()}
+    OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName, v.PositionName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsBuy) pb
     LEFT JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = m.idCompReq
     LEFT JOIN PchInvAndProject.dbo.dProvinceFix pvc ON pvc.idProvince = c.idProvince
     LEFT JOIN PchInvAndProject.dbo.dCompany ct ON ct.idComp = m.idCompTarget
@@ -5134,13 +5200,11 @@ async function loadOpsDoc(idOps, runner = null) {
     OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsEdit) pe
     OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsSent) ps
     OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsCancel) pc
-    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsCheck) pck
-    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsAck) pak
     OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsApv) pav
     OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsReject) prj
     WHERE m.idOps = @id;
 
-    SELECT d.idOpsDt, d.idInvMain, ci.InvName, sd.SeedName, d.idUnit, u.UnitName, d.AmountPO, d.AmountRec, d.AmountSold, d.AmountProduce, d.AmountOffer, d.Price, d.NoteDt
+    SELECT d.idOpsDt, d.idInvMain, ci.InvName, ci.idInvGroup, sd.SeedName, d.idUnit, u.UnitName, d.AmountPO, d.AmountRec, d.AmountSold, d.AmountProduce, d.AmountOffer, d.AmountBuy, d.Price, d.NoteDt
     FROM devsk.SeedReqSaleDt d
     JOIN devsk.dInventoryMain ci ON ci.idInvMain = d.idInvMain
     ${CROP_JOIN_SQL}
@@ -5160,7 +5224,15 @@ async function loadOpsDoc(idOps, runner = null) {
     FROM devsk.SeedReqSaleMailRecv r
     LEFT JOIN dbo.dPerson p ON p.idPs = r.idPs
     OUTER APPLY (SELECT TOP 1 x.PsName, x.PsFullName, x.PositionName, x.CompName FROM devsk.vPersonxSelect x WHERE x.idPs = r.idPs) v
-    WHERE r.idOps = @id ORDER BY r.idRecv;`);
+    WHERE r.idOps = @id ORDER BY r.idRecv;
+
+    SELECT a.idApv, a.ApvRound, a.StepCode, a.idPsAssign, a.Result, a.Note, a.idPsAct, CONVERT(varchar(16), a.DateAct, 120) AS TxAct,
+           CONVERT(varchar(16), a.DateTs, 120) AS TxTs, v.PsName, v.PsFullName, v.PositionName, NULLIF(LTRIM(RTRIM(p.Email)), '') AS Email, va.PsName AS PsAct
+    FROM devsk.SeedReqSaleApv a
+    LEFT JOIN dbo.dPerson p ON p.idPs = a.idPsAssign
+    OUTER APPLY (SELECT TOP 1 x.PsName, x.PsFullName, x.PositionName FROM devsk.vPersonxSelect x WHERE x.idPs = a.idPsAssign) v
+    OUTER APPLY (SELECT TOP 1 x.PsName FROM devsk.vPersonxSelect x WHERE x.idPs = a.idPsAct) va
+    WHERE a.idOps = @id ORDER BY a.ApvRound, a.idApv;`);
   const m = r.recordsets[0][0];
   if (!m) return null;
   const pos = r.recordsets[2];
@@ -5175,8 +5247,6 @@ async function loadOpsDoc(idOps, runner = null) {
     cancel: m.TxCancel ? { by: m.PsCancel || '-', at: m.TxCancel, reason: m.CancelNote || '' } : null,
     reject: m.DateReject ? { note: m.RejectNote || '', step: m.RejectStep || '', by: m.PsReject || '-', at: m.TxReject } : null,
     buyerSteps: {
-      check: m.TxCheck ? { by: m.PsCheck || '-', at: m.TxCheck } : null,
-      ack: m.TxAck ? { by: m.PsAck || '-', at: m.TxAck } : null,
       approve: m.TxApv ? { by: m.PsApv || '-', at: m.TxApv } : null
     },
     items: r.recordsets[1].map(d => ({
@@ -5184,6 +5254,7 @@ async function loadOpsDoc(idOps, runner = null) {
       amountPO: Number(d.AmountPO), amountRec: Number(d.AmountRec), amountSold: d.AmountSold == null ? null : Number(d.AmountSold),
       amountProduce: Number(d.AmountProduce), amountOffer: Number(d.AmountOffer),
       price: d.Price == null ? null : Number(d.Price), note: d.NoteDt || '',
+      idOpsDt: d.idOpsDt, idInvGroup: d.idInvGroup, amountBuy: d.AmountBuy == null ? null : Number(d.AmountBuy),
       pos: pos.filter(p => p.idOpsDt === d.idOpsDt).map(p => ({
         idPOTs: p.idPOTs, idPODt: p.idPODt, poCode: p.POCode, datePO: p.DatePO, amountPO: Number(p.AmountPO), amountRec: Number(p.AmountRec),
         amountSold: p.AmountSold == null ? null : Number(p.AmountSold)
@@ -5193,7 +5264,20 @@ async function loadOpsDoc(idOps, runner = null) {
     recipients: (() => {
       const ps = r.recordsets[4].map(x => ({ type: x.RecvType, idPs: x.idPs, name: x.PsName || `#${x.idPs}`, full: (x.PsFullName || '').trim(), position: x.PositionName || '', compName: x.CompName || '', email: x.Email }));
       return { to: ps.find(x => x.type === 'to') || null, cc: ps.filter(x => x.type === 'cc') };
-    })()
+    })(),
+    // ---- ฝ่ายจัดซื้อ / ขออนุมัติ (เฟส 2) ----
+    tgtInfo: { nameEn: m.TgtNameEng || '', address: m.TgtAddress || '', province: m.TgtProvince || '', postCode: m.TgtPostCode || '', tel: m.TgtTel || '', fax: m.TgtFax || '' },
+    buy: m.BuyDocCode || m.TxBuy ? {
+      docNo: m.BuyDocCode || null, docDate: m.BuyDocDate, at: m.TxBuy, dateGet: m.BuyGetDate, note: m.BuyNote || '',
+      by: m.idPsBuy ? { id: m.idPsBuy, name: m.PsBuy || '-', full: (m.FullBuy || '').trim(), pos: m.PosBuy || '' } : null
+    } : null,
+    apvRound: m.ApvRound || 0,
+    apvSummary: { done: m.ApvDone || 0, count: m.ApvCount || 0, acted: m.ApvActed || 0 },
+    approvals: r.recordsets[5].map(a => ({
+      id: a.idApv, round: a.ApvRound, step: a.StepCode, idPs: a.idPsAssign, name: a.PsName || `#${a.idPsAssign}`, full: (a.PsFullName || '').trim(),
+      position: a.PositionName || '', email: a.Email, result: a.Result || null, note: a.Note || '', at: a.TxAct, actBy: a.idPsAct ? (a.PsAct || '-') : null, sentAt: a.TxTs
+    })),
+    poAuto: m.idPOTsAuto ? { id: m.idPOTsAuto, docNo: m.POCodeAuto || null, saleOrder: m.SaleOrderCode || null } : null
   };
 }
 
@@ -5206,11 +5290,25 @@ app.get('/api/ops/doc/:id', requireLogin, async (req, res) => {
     const doc = await loadOpsDoc(idOps);
     if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบเอกสาร' });
     const member = hasMenu(access, MENU_OPS) && (hasComp(access, doc.compReq) || hasComp(access, doc.compTarget));
+    const buyer = hasMenu(access, MENU_OPS_BUY) && hasComp(access, doc.compTarget);
     const recipient = [doc.recipients.to, ...doc.recipients.cc].some(x => x && x.idPs === req.idPs);
-    if (!member && !recipient) return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์เปิดเอกสารนี้' });
+    const approver = doc.approvals.some(a => a.idPs === req.idPs);
+    if (!member && !buyer && !recipient && !approver) return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์เปิดเอกสารนี้' });
     const canEdit = hasMenu(access, MENU_OPS) && hasComp(access, doc.compReq);
-    // ผู้รับสำเนาที่ไม่มีสิทธิ์เมนู: ไม่เห็นประวัติการส่งอีเมล
-    res.json({ success: true, data: { ...doc, mails: member ? doc.mails : [], canEdit, viewOnly: !canEdit } });
+    // ฝ่ายจัดซื้อ: กรอกจำนวนรับซื้อ/ราคา/ผู้อนุมัติ แล้วส่งขออนุมัติ — ได้ตอนรอฝ่ายจัดซื้อ / ส่งกลับแก้ไข / ส่งขออนุมัติแล้วแต่ยังไม่มีใครกด
+    const buyOpen = doc.status === 'S' || doc.status === 'B' || (doc.status === 'H' && !doc.apvSummary.acted);
+    const myApv = doc.status === 'H' ? doc.approvals.filter(a => a.round === doc.apvRound && a.idPs === req.idPs && !a.result).map(a => a.step) : [];
+    // ราคา / จำนวนรับซื้อ / ผู้อนุมัติ เป็นข้อมูลภายในฝ่ายซื้อ — ฝั่งผู้ร้องขอ (และ CC) ไม่เห็น
+    const internal = buyer || approver;
+    const data = { ...doc, mails: member || buyer ? doc.mails : [], canEdit, viewOnly: !canEdit, canBuy: buyer && buyOpen, isBuyer: buyer, myApv, internal };
+    if (!internal) {
+      // ราคา: ผู้ร้องขอเห็นเมื่ออนุมัติแล้ว (ราคาอยู่ใน PO ที่ส่งถึงผู้ขายอยู่แล้ว)
+      if (doc.status !== 'A') data.items = doc.items.map(it => ({ ...it, price: null }));
+      data.approvals = [];
+      data.buy = doc.buy ? { docNo: doc.buy.docNo, at: doc.buy.at } : null;
+    }
+    if (buyer && buyOpen) data.apvDefaults = await opsApvDefaults(idOps, doc);
+    res.json({ success: true, data });
   } catch (err) {
     console.error('OPS doc error:', err);
     res.status(500).json({ success: false, message: 'โหลดเอกสารไม่สำเร็จ', detail: err.message });
@@ -5408,7 +5506,7 @@ app.post('/api/ops/mailto/:id/default', requireMenu(MENU_OPS_MAILTO), async (req
 });
 
 // ข้อมูลพนักงาน + อีเมล (ใช้ตอนเพิ่มผู้รับสำเนา CC ในฟอร์ม)
-app.get('/api/ops/people', requireMenu(MENU_OPS), async (req, res) => {
+app.get('/api/ops/people', requireMenu([MENU_OPS, MENU_OPS_BUY]), async (req, res) => {
   const ids = String(req.query.ids || '').split(',').map(v => parseInt(v, 10)).filter(Boolean).slice(0, 50);
   try {
     const pool = await poolPromise;
@@ -5446,7 +5544,7 @@ function buildOpsMail(doc, link, kind, role, to, cc) {
   const action = kind === 'edit' ? 'แก้ไขคำร้อง' : 'ส่งคำร้อง';
   const intro = isCc
     ? `<p>เรียน ผู้เกี่ยวข้อง</p><p><b>แจ้งเพื่อทราบ:</b> ${opsEsc(doc.compReqName)} ${action}ขอขายเมล็ดพันธุ์ที่ผลิตเกินใบสั่งซื้อ (Over PO) ถึงฝ่ายจัดซื้อ ${opsEsc(doc.compTargetName)}${kind === 'edit' ? ' รายละเอียดล่าสุดดังนี้' : ''}</p>`
-    : `<p>เรียน ${opsEsc(formal(to))} ฝ่ายจัดซื้อ ${opsEsc(doc.compTargetName)}</p>` + (kind === 'edit'
+    : `<p>เรียน ${opsEsc(opsDear(to))} ฝ่ายจัดซื้อ ${opsEsc(doc.compTargetName)}</p>` + (kind === 'edit'
       ? `<p>${opsEsc(doc.compReqName)} <b>แก้ไข</b>คำร้องขอขายเมล็ดพันธุ์ที่ผลิตเกินใบสั่งซื้อ (Over PO) — กรุณาใช้รายละเอียดล่าสุดด้านล่างแทนฉบับก่อนหน้า</p>`
       : `<p>${opsEsc(doc.compReqName)} ส่งคำร้องขอขายเมล็ดพันธุ์ที่ผลิตเกินใบสั่งซื้อ (Over PO) เพื่อโปรดพิจารณาและดำเนินการ</p>`);
   const btn = isCc ? `ดูเอกสาร ${doc.docNo}` : `เปิดเอกสารเพื่อดำเนินการ ${doc.docNo}`;
@@ -5483,9 +5581,10 @@ async function deliverOpsMails(transaction, idOps, kind, req) {
   if (!to || !opsValidEmail(to.email)) return { ok: false, message: 'ไม่พบผู้รับคำร้องที่มีอีเมล', results: [] };
 
   const base = (process.env.APP_BASE_URL || '').replace(/\/+$/, '') || ursReplyOrigin(req);
-  const link = `${base}/over-po-sale-doc?id=${idOps}`;
+  const link = `${base}/over-po-sale-doc?id=${idOps}`;          // CC: ดูเอกสารอย่างเดียว
+  const buyLink = `${base}/over-po-sale-buy?id=${idOps}`;      // ผู้รับคำร้อง: หน้าจัดการคำร้องของฝ่ายจัดซื้อ
   const logs = [];
-  const m1 = buildOpsMail(doc, link, kind, 'to', to, cc);
+  const m1 = buildOpsMail(doc, buyLink, kind, 'to', to, cc);
   const r1 = await opsSendMail({ to: [to.email], cc: [], subject: m1.subject, html: m1.html });
   const toOk = r1.ok.has(to.email.toLowerCase());
   logs.push({ type: 'to', idPs: to.idPs, email: to.email, ok: toOk, err: toOk ? null : (r1.error || 'ส่งไม่สำเร็จ') });
@@ -5538,6 +5637,551 @@ app.post('/api/ops/docs/:id/send', requireMenu(MENU_OPS), async (req, res) => {
     if (transaction) { try { await transaction.rollback(); } catch (e) {} }
     console.error('OPS send error:', err);
     res.status(500).json({ success: false, message: 'ส่งอีเมลไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ==================================================================
+// ---------- ร้องขอขายเมล็ดพันธุ์ (Over PO) เฟส 2: ฝ่ายจัดซื้อพิจารณา + ขออนุมัติ 4 ขั้น + สร้าง PO อัตโนมัติ ----------
+// ==================================================================
+// 1. ฝ่ายจัดซื้อ (สิทธิ์ over_po_sale_buy + บริษัทผู้ซื้อ) กรอกจำนวนรับซื้อจริง / ราคา/หน่วย / วันที่รับของ / ผู้อนุมัติ 4 ขั้น
+//    → ออกเลขใบขออนุมัติ OPA + ส่งอีเมลถึงผู้อนุมัติทั้ง 4 พร้อมกัน (ส่งไม่สำเร็จ = ไม่บันทึก) / หรือตัดสินไม่รับซื้อเอง (แจ้งผู้ร้องขอ)
+// 2. ผู้อนุมัติกดลำดับไหนก่อนก็ได้: ผ่าน / ส่งกลับแก้ไข (กลับไปฝ่ายจัดซื้อ แก้แล้วส่งใหม่ = รอบใหม่) / ไม่รับซื้อ (จบ)
+// 3. ผ่านครบ 4 ขั้น → สร้าง PO (TypeTs 8 / X..) อนุมัติแล้ว + ใบสั่งขายฝั่งผู้ขาย (sp_InsertPOxSlOrder) ใน transaction เดียว
+//    → อีเมลแจ้งผู้ร้องขอพร้อมเลข PO
+const opsFormal = (p) => (p && (p.full || String(p.name || '').replace(/\s*\([^)]*\)\s*$/, ''))) || '-';
+// คำขึ้นต้นอีเมล: "เรียน คุณชื่อ นามสกุล" — ตัดคำนำหน้าชื่อ (นาย / นาง / นางสาว / ดร. ...) แล้วใช้ "คุณ" แทน
+const OPS_TITLE_RE = /^(นางสาว|น\.ส\.|นาง|นาย|ด\.ช\.|ด\.ญ\.|ดร\.|ว่าที่\s*ร\.?\s*ต\.?(\s*หญิง)?)\s*/;
+const opsDear = (p) => { const n = opsFormal(p).replace(OPS_TITLE_RE, '').trim(); return n && n !== '-' ? `คุณ${n}` : 'ผู้เกี่ยวข้อง'; };
+const opsStepName = (code) =>(OPS_APV_STEPS.find(s => s.code === code) || {}).name || code;
+const opsStepAct = (code) => opsStepName(code).replace(/^ผู้/, '');   // ผู้อนุมัติ 1 → อนุมัติ 1
+const opsBase = (req) => (process.env.APP_BASE_URL || '').replace(/\/+$/, '') || ursReplyOrigin(req);
+const opsRound2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const opsFmtMoney = (v) => v == null ? '-' : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const opsFmtPrice = (v) => v == null ? '-' : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+// ผู้อนุมัติค่าเริ่มต้น: รอบก่อนหน้า (ส่งใหม่หลังแก้ไข) / ไม่มี = คนที่พบบ่อยสุดในแต่ละขั้นของ PO ที่อ้างอิง
+// อนุมัติ 1 = อนุมัติ 2 (PO เดิมใส่ซ้ำ) → OPS_APV_FIX
+async function opsApvDefaults(idOps, doc) {
+  const pool = await poolPromise;
+  let ids = {};
+  const prev = doc.apvRound ? doc.approvals.filter(a => a.round === doc.apvRound) : [];
+  if (prev.length) prev.forEach(a => { ids[a.step] = a.idPs; });
+  else {
+    const r = await pool.request().input('id', sql.Int, idOps).query(`
+      SELECT b.idPsAccept, b.idPsCheck, b.idPsApprove1, b.idPsApprove2
+      FROM devsk.PkPOBuyMt b WHERE b.idPOTs IN (SELECT DISTINCT idPOTs FROM devsk.SeedReqSalePORef WHERE idOps = @id)`);
+    for (const st of OPS_APV_STEPS) {
+      const cnt = new Map();
+      r.recordset.forEach(x => { const v = x[st.poPs]; if (v) cnt.set(v, (cnt.get(v) || 0) + 1); });
+      const top = [...cnt.entries()].sort((a, b) => b[1] - a[1])[0];
+      ids[st.code] = top ? top[0] : null;
+    }
+    if (ids.approve1 && ids.approve1 === ids.approve2) Object.assign(ids, OPS_APV_FIX);
+  }
+  const people = await opsPeople(pool, Object.values(ids).filter(Boolean));
+  const out = {};
+  OPS_APV_STEPS.forEach(st => { out[st.code] = (ids[st.code] && people.find(p => p.idPs === ids[st.code])) || null; });
+  return out;
+}
+
+// เลขใบขออนุมัติรับซื้อ OPA{YY}{MM}/{0001} — รันแยกบริษัทผู้ซื้อ เริ่มใหม่ทุกปี
+async function getNextOpaDocCode(transaction, idCompTarget, date) {
+  const yy = String(date.getFullYear() + 543).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const r = await new sql.Request(transaction)
+    .input('idComp', sql.Int, idCompTarget)
+    .input('pat', sql.VarChar, `OPA${yy}__/%`)
+    .query(`SELECT MAX(TRY_CAST(RIGHT(BuyDocCode, 4) AS INT)) AS last
+            FROM devsk.SeedReqSaleMt WITH (UPDLOCK, HOLDLOCK)
+            WHERE idCompTarget = @idComp AND BuyDocCode LIKE @pat`);
+  return `OPA${yy}${mm}/${String((r.recordset[0].last || 0) + 1).padStart(4, '0')}`;
+}
+
+// ---------- อีเมลฝั่งผู้ซื้อ ----------
+// ตารางรายการ: จำนวนเสนอขาย / รับซื้อ / ราคา / จำนวนเงิน (ข้อมูลภายในฝ่ายซื้อ — ส่งผู้ร้องขอเฉพาะตอนอนุมัติแล้ว)
+function opsBuyItemsTable(doc) {
+  const th = 'style="border:1px solid #bbb;padding:6px 8px;background:#f2f2f2;font-weight:700;text-align:center"';
+  const td = (v, num) => `<td style="border:1px solid #bbb;padding:6px 8px;${num ? 'text-align:right;white-space:nowrap' : ''}">${v}</td>`;
+  let total = 0;
+  const rows = doc.items.map((it, i) => {
+    const amt = it.amountBuy != null && it.price != null ? opsRound2(it.amountBuy * it.price) : null;
+    total += amt || 0;
+    return `<tr>${td(i + 1)}${td(`<b>${opsEsc(it.invName)}</b><br><span style="color:#555;font-size:12px">PO ที่อ้างอิง: ${opsEsc(it.pos.map(p => p.poCode).join(', '))}</span>`)}
+      ${td(opsFmtQty(it.amountOffer), 1)}${td(`<b>${opsFmtQty(it.amountBuy)}</b>`, 1)}${td(opsEsc(it.unit || '-'))}${td(opsFmtPrice(it.price), 1)}${td(opsFmtMoney(amt), 1)}</tr>`;
+  }).join('');
+  return `<table style="border-collapse:collapse;font-size:13px">
+      <tr><th ${th}>#</th><th ${th}>เมล็ดพันธุ์ / PO ที่อ้างอิง</th><th ${th}>เสนอขาย</th><th ${th}>รับซื้อ</th><th ${th}>หน่วย</th><th ${th}>ราคา/หน่วย (บาท)</th><th ${th}>จำนวนเงิน (บาท)</th></tr>
+      ${rows}
+      <tr><td colspan="6" style="border:1px solid #bbb;padding:6px 8px;text-align:right;font-weight:700">รวมเป็นเงิน</td>${td(`<b>${opsFmtMoney(total)}</b>`, 1)}</tr>
+    </table>`;
+}
+const opsMailWrap = (body, link, btn, color, foot) => `<div style="font-family:Tahoma,Arial,sans-serif;font-size:14px;color:#222;line-height:1.6">
+    ${body}
+    ${link ? `<p style="margin:22px 0"><a href="${opsEsc(link)}" style="background:${color};color:#111;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:700">${opsEsc(btn)}</a></p>` : ''}
+    <p style="color:#888;font-size:12px">อีเมลนี้ส่งอัตโนมัติจากระบบ WIM${foot ? ` — ${foot}` : ''} (ต้องเข้าสู่ระบบก่อนเปิดเอกสาร)${link ? `<br>${opsEsc(link)}` : ''}</p>
+  </div>`;
+const opsKv = (rows) => `<table style="border-collapse:collapse;margin:8px 0 14px">${rows.filter(Boolean).map(([k, v]) =>
+  `<tr><td style="padding:2px 12px 2px 0;color:#555;vertical-align:top;white-space:nowrap">${k}</td><td>${v}</td></tr>`).join('')}</table>`;
+
+// ขออนุมัติ (ถึงผู้อนุมัติ 1 คน — ระบุขั้นของคนนั้น) kind: request / edit / resubmit / remind
+function buildOpsApvMail(doc, link, person, steps, kind) {
+  const tag = { edit: '(แก้ไขเอกสาร) ', resubmit: '(ส่งขออนุมัติใหม่) ', remind: '(เตือน) ' }[kind] || '';
+  const subject = `[WIM] ${tag}ขออนุมัติรับซื้อเมล็ดพันธุ์ส่วนเกิน PO ${doc.buy.docNo} — ${doc.compReqName}`;
+  const lead = {
+    edit: 'ฝ่ายจัดซื้อ<b>แก้ไข</b>ใบขออนุมัติ — กรุณาใช้รายละเอียดล่าสุดด้านล่างแทนฉบับก่อนหน้า',
+    resubmit: 'ฝ่ายจัดซื้อแก้ไขตามที่ส่งกลับแล้ว และส่งขออนุมัติใหม่ (ผลการพิจารณารอบก่อนถูกล้าง ต้องพิจารณาใหม่ทุกท่าน)',
+    remind: 'ใบขออนุมัติด้านล่าง<b>ยังรอการพิจารณาของท่าน</b>'
+  }[kind] || 'ฝ่ายจัดซื้อขออนุมัติรับซื้อเมล็ดพันธุ์ที่ผลิตเกินใบสั่งซื้อ (Over PO) ตามคำร้องของผู้ขาย';
+  const body = `<p>เรียน ${opsEsc(opsDear(person))}</p>
+    <p>${lead} — ท่านเป็น<b>${opsEsc(steps.map(opsStepName).join(' / '))}</b> ของเอกสารนี้ (ผู้อนุมัติแต่ละท่านพิจารณาได้ทันที ไม่ต้องรอท่านอื่น)</p>
+    ${opsKv([
+      ['ใบขออนุมัติเลขที่', `<b>${opsEsc(doc.buy.docNo)}</b>`],
+      ['อ้างอิงใบร้องขอ', `${opsEsc(doc.docNo)} — ${opsEsc(doc.compReqName)}`],
+      ['ผู้ขออนุมัติ', `${opsEsc(opsFormal(doc.buy.by))}${doc.buy.by && doc.buy.by.pos ? ` (${opsEsc(doc.buy.by.pos)})` : ''}`],
+      ['วันที่ต้องการรับของ', opsEsc(ursFmtDateThai(doc.buy.dateGet))]
+    ])}
+    ${opsBuyItemsTable(doc)}
+    <p style="margin-top:14px"><b>สาเหตุการผลิตเกิน PO (จากผู้ขาย)</b><br>${opsEsc(doc.causeNote).replace(/\n/g, '<br>')}</p>
+    ${doc.buy.note ? `<p><b>หมายเหตุฝ่ายจัดซื้อ</b><br>${opsEsc(doc.buy.note).replace(/\n/g, '<br>')}</p>` : ''}`;
+  const listLink = link.replace(/\/over-po-sale-opa\?.*$/, '/over-po-sale-apv');
+  return { subject, html: opsMailWrap(body + `<p style="font-size:13px;color:#555">ดูรายการที่รอการพิจารณาของท่านทั้งหมด (พิจารณาหลายรายการพร้อมกันได้): <a href="${opsEsc(listLink)}">${opsEsc(listLink)}</a></p>`,
+    link, `เปิดใบขออนุมัติ ${doc.buy.docNo} เพื่อพิจารณา`, '#f2a91c') };
+}
+
+// ผลการพิจารณา kind: approved (ครบ + PO) / rejected (ผู้อนุมัติไม่รับซื้อ) / buy-reject (ฝ่ายจัดซื้อไม่รับซื้อ) / back (ส่งกลับแก้ไข → ฝ่ายจัดซื้อ)
+function buildOpsResultMail(doc, link, kind, dear, info = {}) {
+  const head = `[WIM] ร้องขอขายเมล็ดพันธุ์ (Over PO) ${doc.docNo}`;
+  const subject = {
+    approved: `${head} — อนุมัติรับซื้อแล้ว PO ${info.poCode || ''}`,
+    rejected: `${head} — ไม่รับซื้อ`, 'buy-reject': `${head} — ไม่รับซื้อ`,
+    back: `[WIM] ส่งกลับแก้ไข ใบขออนุมัติ ${doc.buy && doc.buy.docNo} (${doc.docNo})`
+  }[kind];
+  const who = info.by ? `${opsEsc(info.by)}${info.step ? ` (${opsEsc(opsStepName(info.step))})` : ''}` : '';
+  let body = `<p>เรียน ${opsEsc(dear)}</p>`;
+  if (kind === 'approved') {
+    body += `<p>${opsEsc(doc.compTargetName)} <b style="color:#1e8449">อนุมัติรับซื้อ</b>เมล็ดพันธุ์ส่วนเกินใบสั่งซื้อตามคำร้อง ${opsEsc(doc.docNo)} แล้ว และออกใบสั่งซื้อ (PO) ให้ดังนี้</p>
+      ${opsKv([
+        ['เลขที่ PO', `<b>${opsEsc(info.poCode || '-')}</b>`],
+        info.soCode ? ['ใบสั่งขาย (ผู้ขาย)', opsEsc(info.soCode)] : null,
+        ['ใบขออนุมัติ', opsEsc(doc.buy.docNo)],
+        ['วันที่ต้องการรับของ', opsEsc(ursFmtDateThai(doc.buy.dateGet))]
+      ])}
+      ${opsBuyItemsTable(doc)}`;
+  } else if (kind === 'back') {
+    body += `<p>ใบขออนุมัติ <b>${opsEsc(doc.buy.docNo)}</b> (คำร้อง ${opsEsc(doc.docNo)} — ${opsEsc(doc.compReqName)}) ถูก<b style="color:#b9770e">ส่งกลับแก้ไข</b> โดย ${who}</p>
+      <p><b>เหตุผล:</b> ${opsEsc(info.note || '-').replace(/\n/g, '<br>')}</p>
+      <p>กรุณาแก้ไขแล้วกด "บันทึกพร้อมส่งขออนุมัติ" อีกครั้ง (ผู้อนุมัติทุกท่านจะต้องพิจารณาใหม่)</p>`;
+  } else {
+    body += `<p>${opsEsc(doc.compTargetName)} <b style="color:#c0392b">ไม่รับซื้อ</b>เมล็ดพันธุ์ส่วนเกินใบสั่งซื้อตามคำร้อง <b>${opsEsc(doc.docNo)}</b></p>
+      ${opsKv([['พิจารณาโดย', who], ['เหตุผล', opsEsc(info.note || '-').replace(/\n/g, '<br>')]])}`;
+  }
+  const btn = kind === 'back' ? `เปิดเพื่อแก้ไข ${doc.buy.docNo}` : `ดูเอกสาร ${doc.docNo}`;
+  return { subject, html: opsMailWrap(body, link, btn, kind === 'back' ? '#f2a91c' : '#4ea7e0') };
+}
+
+// งานส่งอีเมลหลังบันทึกแล้ว — ไม่ให้ผู้ใช้รอ SMTP (Gmail ฉบับละหลายวินาที) / error เก็บ log ไม่ทำให้ server ล้ม
+const opsBackground = (label, fn) => setImmediate(() => Promise.resolve().then(fn).catch(err => console.error(`OPS ${label} mail error:`, err)));
+
+// ส่ง 1 ฉบับ + เก็บ log (นอก transaction — ใช้หลังบันทึกผลแล้ว ส่งไม่สำเร็จไม่ย้อนผล)
+async function opsNotify(runner, idOps, step, req, toList, ccList, mail) {
+  const to = toList.filter(p => p && opsValidEmail(p.email));
+  const seen = new Set(to.map(p => p.idPs));
+  const cc = [];
+  ccList.forEach(p => { if (p && opsValidEmail(p.email) && !seen.has(p.idPs)) { seen.add(p.idPs); cc.push(p); } });
+  if (!to.length && !cc.length) return { ok: false, logs: [] };
+  const r = await opsSendMail({ to: (to.length ? to : cc).map(p => p.email), cc: to.length ? cc.map(p => p.email) : [], subject: mail.subject, html: mail.html });
+  const logs = [...to.map(p => ({ type: 'to', p })), ...cc.map(p => ({ type: 'cc', p }))].map(x => ({ ...x, ok: r.ok.has(x.p.email.toLowerCase()) }));
+  const rq = () => runner instanceof sql.Transaction ? new sql.Request(runner) : runner.request();
+  for (const l of logs) {
+    await rq().input('id', sql.Int, idOps).input('step', sql.VarChar(20), step).input('type', sql.VarChar(3), l.type)
+      .input('ps', sql.Int, l.p.idPs).input('mail', sql.NVarChar(255), l.p.email).input('ok', sql.Bit, l.ok)
+      .input('err', sql.NVarChar(1000), l.ok ? null : String(r.error || 'ส่งไม่สำเร็จ').slice(0, 1000)).input('by', sql.Int, req.idPs)
+      .query(`INSERT INTO devsk.SeedReqSaleMailLog (idOps, Step, RecvType, idPs, Email, stSend, ErrMsg, idPsSend, DateSend)
+              VALUES (@id, @step, @type, @ps, @mail, @ok, @err, @by, GETDATE())`);
+  }
+  return { ok: logs.every(l => l.ok), error: r.error, logs: logs.map(l => ({ type: l.type, email: l.p.email, name: l.p.name, ok: l.ok })) };
+}
+
+// ส่งอีเมลขออนุมัติถึงผู้อนุมัติ (1 ฉบับต่อคน รวมทุกขั้นของคนนั้น / ส่งพร้อมกัน) — onlyPending = เฉพาะขั้นที่ยังไม่ได้กด (เตือน)
+// runner = pool (หลังบันทึกแล้ว)
+async function opsSendApvMails(transaction, idOps, kind, req, onlyPending = false) {
+  const doc = await loadOpsDoc(idOps, transaction);
+  const link = `${opsBase(req)}/over-po-sale-opa?id=${idOps}`;
+  const rows = doc.approvals.filter(a => a.round === doc.apvRound && (!onlyPending || !a.result));
+  const byPs = new Map();
+  rows.forEach(a => byPs.set(a.idPs, { person: { idPs: a.idPs, name: a.name, full: a.full, position: a.position, email: a.email }, steps: [...((byPs.get(a.idPs) || {}).steps || []), a.step] }));
+  const results = (await Promise.all([...byPs.values()].map(async ({ person, steps }) => {
+    if (!opsValidEmail(person.email)) return [{ type: 'to', email: '-', name: person.name, ok: false }];
+    const r = await opsNotify(transaction, idOps, `apv-${kind}`, req, [person], [], buildOpsApvMail(doc, link, person, steps, kind));
+    return r.logs.length ? r.logs : [{ type: 'to', email: person.email, name: person.name, ok: false }];
+  }))).flat();
+  return { ok: results.length > 0 && results.every(r => r.ok), results, doc };
+}
+
+// ---------- สร้าง PO + ใบสั่งขายฝั่งผู้ขาย (ภายใน transaction ของการอนุมัติขั้นสุดท้าย) ----------
+// หัว PO: คัดลอก ที่อยู่ / เครดิต / ประเภทบิล / สถานะเร่งด่วน / ออกบิลอัตโนมัติ จาก PO ที่อ้างอิงล่าสุด
+// รายการ: จำนวนรับซื้อจริง (> 0) × ราคา / คุณภาพ + ฤดูผลิต จากบรรทัด PO อ้างอิงล่าสุดของรายการนั้น / idDtRef = idOpsDt
+// เลขที่ X{yy}/{mm}/{0000}: รันแบบโปรแกรม PO เดิม (TypeTs + เดือน/ปีของ create_date + บริษัท)
+async function opsCreatePO(transaction, idOps, now) {
+  const rq = () => new sql.Request(transaction);
+  const r = await rq().input('id', sql.Int, idOps).query(`
+    SELECT m.idOps, m.DocCode, m.BuyDocCode, m.idCompReq, m.idCompTarget, m.idPsBuy, m.BuyDateGet, m.BuyNote, m.ApvRound, cr.CompName AS CompNameReq,
+           (SELECT TOP 1 b.idPOTs FROM devsk.SeedReqSalePORef p JOIN devsk.PkPOBuyMt b ON b.idPOTs = p.idPOTs WHERE p.idOps = m.idOps ORDER BY b.idPOTs DESC) AS idRefPO,
+           STUFF((SELECT DISTINCT ', ' + p.POCode FROM devsk.SeedReqSalePORef p WHERE p.idOps = m.idOps FOR XML PATH('')), 1, 2, '') AS POCodes
+    FROM devsk.SeedReqSaleMt m
+    LEFT JOIN PchInvAndProject.dbo.dCompany cr ON cr.idComp = m.idCompReq
+    WHERE m.idOps = @id;
+
+    SELECT d.idOpsDt, d.idInvMain, d.idUnit, d.AmountBuy, d.Price
+    FROM devsk.SeedReqSaleDt d WHERE d.idOps = @id AND d.AmountBuy > 0 ORDER BY d.idOpsDt;
+
+    SELECT a.StepCode, a.idPsAct, a.DateAct
+    FROM devsk.SeedReqSaleApv a JOIN devsk.SeedReqSaleMt m ON m.idOps = a.idOps AND m.ApvRound = a.ApvRound
+    WHERE a.idOps = @id AND a.Result = 'A';`);
+  const h = r.recordsets[0][0];
+  const lines = r.recordsets[1].map(d => ({ ...d, amount: Number(d.AmountBuy), price: Number(d.Price) }));
+  const apv = new Map(r.recordsets[2].map(a => [a.StepCode, a]));
+  if (!h || !h.idRefPO) throw new Error('ไม่พบ PO ที่อ้างอิง — สร้าง PO ไม่ได้');
+  if (!lines.length) throw new Error('ไม่มีรายการที่รับซื้อ — สร้าง PO ไม่ได้');
+  if (OPS_APV_STEPS.some(s => !apv.get(s.code))) throw new Error('ผลอนุมัติไม่ครบ 4 ท่าน — สร้าง PO ไม่ได้');
+  lines.forEach(l => { l.total = opsRound2(l.amount * l.price); });
+  const total = opsRound2(lines.reduce((s, l) => s + l.total, 0));
+
+  const last = (await rq().input('type', sql.Int, OPS_PO_TYPE).input('comp', sql.Int, h.idCompTarget).input('now', sql.DateTime, now).query(`
+    SELECT MAX(DocCode) AS last FROM devsk.PkPOBuyMt WITH (UPDLOCK, HOLDLOCK)
+    WHERE stGenDoc IS NOT NULL AND TypeTs = @type AND YEAR(create_date) = YEAR(@now) AND MONTH(create_date) = MONTH(@now) AND idComp = @comp`)).recordset[0].last;
+  const run = last ? (parseInt(String(last).substring(7, 11), 10) || 0) + 1 : 1;
+  const docCode = `${OPS_PO_PREFIX}${String(now.getFullYear() + 543).slice(-2)}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(run).padStart(4, '0')}`;
+  const note = `ซื้อเมล็ดพันธุ์ส่วนเกินใบสั่งซื้อ (Over PO) ตามใบขออนุมัติ ${h.BuyDocCode} / ใบร้องขอ ${h.DocCode} ของ ${h.CompNameReq || ''}\r\nอ้างอิง PO: ${h.POCodes || '-'}`
+    + (h.BuyNote ? `\r\n${h.BuyNote}` : '');
+
+  const mreq = rq()
+    .input('type', sql.Int, OPS_PO_TYPE).input('doc', sql.VarChar(20), docCode).input('now', sql.DateTime, now)
+    .input('day', sql.Date, now).input('get', sql.DateTime, h.BuyDateGet).input('ps', sql.Int, h.idPsBuy)
+    .input('sup', sql.Int, OPS_COMP_SUPPLIER[h.idCompReq]).input('comp', sql.Int, h.idCompTarget).input('note', sql.NVarChar(sql.MAX), note)
+    .input('total', sql.Decimal(18, 2), total).input('qt', sql.VarChar(20), h.DocCode).input('idMt', sql.Int, idOps)
+    .input('ref', sql.Int, h.idRefPO).input('sys', sql.Int, OPS_PO_SYS);
+  OPS_APV_STEPS.forEach(s => { const a = apv.get(s.code); mreq.input(`p_${s.code}`, sql.Int, a.idPsAct).input(`d_${s.code}`, sql.DateTime, a.DateAct); });
+  const mt = await mreq.query(`
+    INSERT INTO devsk.PkPOBuyMt (TypeTs, DocCode, DateTsD, idPsTs, idSup, idPsBuy, DateBuyD, DateGetD, idCredit, Address,
+      Note, TotalPrice, DiscountPerc, Discount, TotalNet, idComp, QtCode, SystemGroup, stPOGetMoney, AmountGetMoneyBalance,
+      idProject, stRight, VAT, idWhd, TAXPerc, TAX, stCredit, DateCredit, stTypeBill, idPsMoney, Money_balance, idPayCard,
+      stUrgent, stAutoBillBuy, TbName, idMt, stGenDoc, stReturn, DateReturnD, create_id, create_date, stPO,
+      ${OPS_APV_STEPS.map(s => `${s.poPs}, ${s.poDate}, ${s.poSys}`).join(', ')})
+    SELECT @type, @doc, @now, @ps, @sup, @ps, @day, @get, b.idCredit, b.Address,
+      @note, @total, 0, 0, @total, @comp, @qt, 'MAIN', NULL, @total,
+      0, b.stRight, 0, NULL, 0, 0, b.stCredit, NULL, b.stTypeBill, NULL, NULL, NULL,
+      b.stUrgent, b.stAutoBillBuy, 'SeedReqSaleMt', @idMt, 1, NULL, NULL, @ps, @now, 0,
+      ${OPS_APV_STEPS.map(s => `@p_${s.code}, @d_${s.code}, @sys`).join(', ')}
+    FROM devsk.PkPOBuyMt b WHERE b.idPOTs = @ref;
+    SELECT CAST(SCOPE_IDENTITY() AS int) AS id;`);
+  const idPOTs = mt.recordset[0].id;
+  for (const l of lines) {
+    await rq().input('po', sql.Int, idPOTs).input('inv', sql.Int, l.idInvMain).input('amt', sql.Decimal(18, 6), l.amount)
+      .input('price', sql.Decimal(18, 4), l.price).input('total', sql.Decimal(18, 2), l.total).input('unit', sql.Int, l.idUnit).input('dt', sql.Int, l.idOpsDt)
+      .query(`INSERT INTO devsk.PkPOBuyDt (idPOTs, idProduct, idInvMain, Amount, Price, TotalPrice, NoteDt, idPRDt, idUnitNew, dNET, dDiscount,
+                HumidPercent, ImpurePercent, PurePercent, GrowPercent, idDtRef, idSeasonPd)
+              SELECT @po, @inv, @inv, @amt, @price, @total, '', NULL, @unit, @price, 0,
+                q.HumidPercent, q.ImpurePercent, q.PurePercent, q.GrowPercent, @dt, q.idSeasonPd
+              FROM (SELECT 1 AS one) z
+              OUTER APPLY (SELECT TOP 1 b.HumidPercent, b.ImpurePercent, b.PurePercent, b.GrowPercent, b.idSeasonPd
+                           FROM devsk.SeedReqSalePORef p JOIN devsk.PkPOBuyDt b ON b.idPODt = p.idPODt
+                           WHERE p.idOpsDt = @dt ORDER BY p.idPOTs DESC, p.idPODt DESC) q`);
+  }
+  // ใบสั่งขายฝั่งผู้ขาย (ODP..) — SP เดียวกับตอน PO ในเครืออนุมัติครบ
+  await rq().input('po', sql.Int, idPOTs).input('ps', sql.Int, h.idPsBuy)
+    .query('EXEC devsk.sp_InsertPOxSlOrder @typeCmd = 1, @idPOTs = @po, @idPsTs = @ps');
+  // trigger tg_CalAmountOrd (คำนวณ AmountPiece / idUnitSale) ทำได้ทีละแถว — SP insert หลายแถวพร้อมกัน แถวอื่นได้ NULL
+  // → แตะทีละแถว (UPDATE Amount = Amount) ให้ trigger คำนวณครบทุกบรรทัด
+  await rq().input('po', sql.Int, idPOTs).query(`
+    DECLARE @dt int;
+    DECLARE c CURSOR LOCAL FAST_FORWARD FOR
+      SELECT d.idSaleOrderDt FROM dbo.SmSaleOrderDt d JOIN dbo.SmSaleOrderMt m ON m.idSaleOrder = d.idSaleOrder WHERE m.idPOTs = @po;
+    OPEN c; FETCH NEXT FROM c INTO @dt;
+    WHILE @@FETCH_STATUS = 0 BEGIN
+      UPDATE dbo.SmSaleOrderDt SET Amount = Amount WHERE idSaleOrderDt = @dt;
+      FETCH NEXT FROM c INTO @dt;
+    END
+    CLOSE c; DEALLOCATE c;`);
+  const so = (await rq().input('po', sql.Int, idPOTs)
+    .query('SELECT TOP 1 DocCode FROM dbo.SmSaleOrderMt WHERE idPOTs = @po AND idPsCancel IS NULL ORDER BY idSaleOrder DESC')).recordset[0];
+  return { idPOTs, docCode, soCode: so ? so.DocCode : null, total };
+}
+
+// ---------- ฝ่ายจัดซื้อ: บันทึกพร้อมส่งขออนุมัติ ----------
+// body: { items: [{ idOpsDt, amountBuy, price }], dateGet: 'YYYY-MM-DD', note, approvers: { accept, check, approve1, approve2 } }
+// สถานะ S = ส่งครั้งแรก (รอบ 1) / B = ส่งใหม่หลังแก้ไข (รอบใหม่) / H ที่ยังไม่มีใครกด = แก้ไข (แทนรอบเดิม)
+// บันทึกเสร็จแล้วจึงส่งอีเมลถึงผู้อนุมัติทั้ง 4 (เบื้องหลัง)
+app.post('/api/ops/buy/:id/submit', requireMenu(MENU_OPS_BUY), async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
+  if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — ติดต่อผู้ดูแลระบบ' });
+  let transaction;
+  const fail = async (code, message, extra = {}) => { await transaction.rollback(); return res.status(code).json({ success: false, message, ...extra }); };
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const cur = await lockOpsDoc(transaction, idOps);
+    if (!cur) return fail(404, 'ไม่พบเอกสาร');
+    if (!hasComp(req.access, cur.idCompTarget)) return fail(403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    const st = opsStatus(cur);
+    if (!(st === 'S' || st === 'B' || (st === 'H' && !cur.ApvActed))) return fail(409, st === 'H' ? 'มีผู้อนุมัติพิจารณาไปแล้ว — แก้ไขไม่ได้' : 'สถานะเอกสารเปลี่ยนไปแล้ว — กรุณาเปิดเอกสารใหม่');
+
+    // รายการ: ครบทุกบรรทัด / รับซื้อ 0 ถึงจำนวนเสนอขาย / มีรับซื้อ = ต้องมีราคา
+    const dts = (await new sql.Request(transaction).input('id', sql.Int, idOps)
+      .query('SELECT d.idOpsDt, d.AmountOffer, i.InvName FROM devsk.SeedReqSaleDt d LEFT JOIN devsk.dInventoryMain i ON i.idInvMain = d.idInvMain WHERE d.idOps = @id')).recordset;
+    const body = new Map((Array.isArray(req.body.items) ? req.body.items : []).map(x => [parseInt(x.idOpsDt, 10), x]));
+    const rows = [];
+    for (const d of dts) {
+      const x = body.get(d.idOpsDt);
+      if (!x) return fail(400, `${d.InvName}: ไม่พบข้อมูลรายการ — กรุณาเปิดเอกสารใหม่`);
+      const amt = Number(x.amountBuy), price = x.price === '' || x.price == null ? null : Number(x.price);
+      if (!(amt >= 0)) return fail(400, `${d.InvName}: จำนวนรับซื้อไม่ถูกต้อง`);
+      if (amt > Number(d.AmountOffer) + OPS_EPS) return fail(400, `${d.InvName}: จำนวนรับซื้อเกินจำนวนที่เสนอขาย (${opsFmtQty(d.AmountOffer)})`);
+      if (amt > 0 && !(price > 0)) return fail(400, `${d.InvName}: กรุณาระบุราคารับซื้อ/หน่วย`);
+      rows.push({ idOpsDt: d.idOpsDt, amt: round6(amt), price: amt > 0 ? Math.round(price * 10000) / 10000 : null });
+    }
+    if (!rows.some(r => r.amt > 0)) return fail(400, 'ต้องมีรายการที่รับซื้ออย่างน้อย 1 รายการ (ถ้าไม่รับซื้อทั้งหมด ใช้ปุ่ม "ไม่รับซื้อ")');
+    const dateGet = String(req.body.dateGet || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateGet) || isNaN(new Date(dateGet))) return fail(400, 'กรุณาระบุวันที่ต้องการรับของ');
+    const note = String(req.body.note || '').trim();
+    if (note.length > 1000) return fail(400, 'หมายเหตุยาวเกิน 1,000 ตัวอักษร');
+
+    // ผู้อนุมัติ 4 ขั้น: ครบ / มีอีเมล / อนุมัติ 1 ≠ อนุมัติ 2
+    const ap = {};
+    for (const s of OPS_APV_STEPS) {
+      ap[s.code] = parseInt((req.body.approvers || {})[s.code], 10);
+      if (!ap[s.code]) return fail(400, `กรุณาเลือก${s.name}`);
+    }
+    if (new Set(Object.values(ap)).size !== OPS_APV_STEPS.length) return fail(400, 'ผู้รับทราบ ผู้ตรวจสอบ และผู้อนุมัติ ทั้ง 4 ท่านต้องเป็นคนละคน');
+    const people = await opsPeople(transaction, [...new Set(Object.values(ap))]);
+    for (const s of OPS_APV_STEPS) {
+      const p = people.find(x => x.idPs === ap[s.code]);
+      if (!p) return fail(400, `${s.name}: ไม่พบพนักงานในระบบ`);
+      if (!opsValidEmail(p.email)) return fail(400, `${s.name} (${p.name}) ไม่มีอีเมลในระบบ`);
+    }
+
+    const now = (await new sql.Request(transaction).query('SELECT GETDATE() AS now')).recordset[0].now;
+    for (const r of rows) {
+      await new sql.Request(transaction).input('dt', sql.Int, r.idOpsDt).input('amt', sql.Decimal(18, 6), r.amt).input('price', sql.Decimal(18, 4), r.price)
+        .query('UPDATE devsk.SeedReqSaleDt SET AmountBuy = @amt, Price = @price WHERE idOpsDt = @dt');
+    }
+    const buyDoc = cur.BuyDocCode || await getNextOpaDocCode(transaction, cur.idCompTarget, now);
+    const kind = st === 'S' ? 'request' : st === 'B' ? 'resubmit' : 'edit';
+    const round = st === 'H' ? cur.ApvRound : (cur.ApvRound || 0) + 1;
+    await new sql.Request(transaction)
+      .input('id', sql.Int, idOps).input('doc', sql.VarChar(12), buyDoc).input('now', sql.DateTime, now).input('ps', sql.Int, req.idPs)
+      .input('get', sql.Date, dateGet).input('note', sql.NVarChar(1000), note || null).input('round', sql.Int, round)
+      .query(`UPDATE devsk.SeedReqSaleMt SET BuyDocCode = @doc, BuyDateDoc = ISNULL(BuyDateDoc, @now), idPsBuy = @ps, DateBuy = @now,
+                     BuyDateGet = @get, BuyNote = @note, ApvRound = @round
+              WHERE idOps = @id;
+              DELETE FROM devsk.SeedReqSaleApv WHERE idOps = @id AND ApvRound = @round;`);
+    for (const s of OPS_APV_STEPS) {
+      await new sql.Request(transaction).input('id', sql.Int, idOps).input('round', sql.Int, round).input('step', sql.VarChar(10), s.code)
+        .input('ps', sql.Int, ap[s.code]).input('ts', sql.Int, req.idPs).input('now', sql.DateTime, now)
+        .query(`INSERT INTO devsk.SeedReqSaleApv (idOps, ApvRound, StepCode, idPsAssign, idPsTs, DateTs, DateMail)
+                VALUES (@id, @round, @step, @ps, @ts, @now, @now)`);
+    }
+    await transaction.commit();
+    // บันทึกแล้วค่อยส่งอีเมล (ไม่ให้ transaction ค้างระหว่างรอ SMTP) — ส่งไม่สำเร็จดูได้ใน log / กด "ส่ง E-mail เตือน" ซ้ำได้
+    res.json({ success: true, buyDocNo: buyDoc, kind, dryRun: opsMailDryRun(), mailTo: OPS_APV_STEPS.map(st => ({ step: st.code, name: (people.find(p => p.idPs === ap[st.code]) || {}).name })) });
+    opsBackground('apv-request', () => opsSendApvMails(pool, idOps, kind, req));
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('OPS buy submit error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกไม่สำเร็จ — ระบบไม่ได้บันทึกข้อมูลใดๆ', detail: err.message });
+  }
+});
+
+// ---------- ฝ่ายจัดซื้อ: ส่งอีเมลเตือนผู้อนุมัติที่ยังไม่ได้พิจารณา ----------
+app.post('/api/ops/buy/:id/remind', requireMenu(MENU_OPS_BUY), async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
+  if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — ติดต่อผู้ดูแลระบบ' });
+  try {
+    const pool = await poolPromise;
+    const doc = await loadOpsDoc(idOps);
+    if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบเอกสาร' });
+    if (!hasComp(req.access, doc.compTarget)) return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้' });
+    if (doc.status !== 'H') return res.status(409).json({ success: false, message: 'เอกสารไม่ได้อยู่ระหว่างรออนุมัติ' });
+    const sent = await opsSendApvMails(pool, idOps, 'remind', req, true);
+    res.json({ success: true, dryRun: opsMailDryRun(), results: sent.results });
+  } catch (err) {
+    console.error('OPS buy remind error:', err);
+    res.status(500).json({ success: false, message: 'ส่งอีเมลเตือนไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ผู้ร้องขอ + CC + ฝ่ายจัดซื้อ (ใช้แจ้งผลถึงฝั่งผู้ขาย) ----------
+async function opsSellerAudience(runner, doc) {
+  const req = await opsPeople(runner, [doc.requester.id]);
+  const extra = await opsPeople(runner, [doc.buy && doc.buy.by && doc.buy.by.id, doc.recipients.to && doc.recipients.to.idPs].filter(Boolean));
+  return { to: req, cc: [...doc.recipients.cc, ...extra] };
+}
+
+// ---------- ฝ่ายจัดซื้อ: ไม่รับซื้อ (ตัดสินเอง ไม่ผ่านผู้อนุมัติ) — ต้องระบุเหตุผล / แจ้งผู้ร้องขอ + CC ตอนส่งคำร้อง ----------
+app.post('/api/ops/buy/:id/reject', requireMenu(MENU_OPS_BUY), async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  const note = String(req.body.note || '').trim();
+  if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
+  if (note.length <= 5 || /^[-0\s]+$/.test(note)) return res.status(400).json({ success: false, message: 'กรุณาระบุเหตุผลที่ไม่รับซื้อ (มากกว่า 5 ตัวอักษร)' });
+  if (note.length > 500) return res.status(400).json({ success: false, message: 'เหตุผลยาวเกิน 500 ตัวอักษร' });
+  let transaction;
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const cur = await lockOpsDoc(transaction, idOps);
+    const stop = async (code, message) => { await transaction.rollback(); return res.status(code).json({ success: false, message }); };
+    if (!cur) return stop(404, 'ไม่พบเอกสาร');
+    if (!hasComp(req.access, cur.idCompTarget)) return stop(403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    const st = opsStatus(cur);
+    if (!(st === 'S' || st === 'B' || (st === 'H' && !cur.ApvActed))) return stop(409, 'มีผู้อนุมัติพิจารณาไปแล้ว หรือสถานะเอกสารเปลี่ยนไป — ไม่รับซื้อจากฝ่ายจัดซื้อไม่ได้');
+    await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, req.idPs).input('note', sql.NVarChar(500), note)
+      .query(`UPDATE devsk.SeedReqSaleMt SET idPsReject = @ps, DateReject = GETDATE(), RejectNote = @note, RejectStep = 'buy' WHERE idOps = @id`);
+    await transaction.commit();
+    // แจ้งผล (หลังบันทึก / เบื้องหลัง — ส่งไม่สำเร็จไม่ย้อนผล)
+    res.json({ success: true });
+    opsBackground('buy-reject', async () => {
+      const doc = await loadOpsDoc(idOps);
+      // ผู้รับ: ผู้ร้องขอ + ผู้รับสำเนา (CC) ที่ผู้ร้องขอใส่ไว้ตอนส่งคำร้องเท่านั้น (ไม่ส่งผู้อนุมัติ)
+      const requester = await opsPeople(pool, [doc.requester.id]);
+      const me = (await opsPeople(pool, [req.idPs]))[0];
+      const m = buildOpsResultMail(doc, `${opsBase(req)}/over-po-sale-doc?id=${idOps}`, 'buy-reject',
+        opsDear(doc.requester), { by: `${opsFormal(me)} ฝ่ายจัดซื้อ ${doc.compTargetName}`, note });
+      await opsNotify(pool, idOps, 'buy-reject', req, requester, doc.recipients.cc, m);
+    });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('OPS buy reject error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกไม่รับซื้อไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- รายการที่รอการพิจารณาของผู้ใช้ (หน้า /over-po-sale-apv) — เฉพาะเอกสารรออนุมัติ ที่มีขั้นของคนนี้ยังไม่กด ----------
+app.get('/api/ops/apv/pending', requireLogin, async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('ps', sql.Int, req.idPs).query(`
+      SELECT m.idOps INTO #mine
+      FROM devsk.SeedReqSaleMt m
+      ${OPS_ROUND_SQL()}
+      WHERE m.DateBuy IS NOT NULL AND m.DateCancel IS NULL AND m.DateReject IS NULL AND m.DateApv IS NULL AND ISNULL(ar.ApvBack, 0) = 0
+        AND EXISTS (SELECT 1 FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL);
+
+      SELECT m.idOps, m.DocCode, m.BuyDocCode, CONVERT(varchar(16), m.DateBuy, 120) AS TxBuy, cr.CompName AS CompNameReq, pb.PsName AS PsBuy, ar.ApvDone, ar.ApvCount,
+             STUFF((SELECT ',' + a.StepCode FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL
+                    ORDER BY CASE a.StepCode WHEN 'accept' THEN 1 WHEN 'check' THEN 2 WHEN 'approve1' THEN 3 ELSE 4 END FOR XML PATH('')), 1, 1, '') AS MySteps
+      FROM devsk.SeedReqSaleMt m
+      JOIN #mine x ON x.idOps = m.idOps
+      LEFT JOIN PchInvAndProject.dbo.dCompany cr ON cr.idComp = m.idCompReq
+      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsBuy) pb
+      ${OPS_ROUND_SQL()}
+      ORDER BY m.DateBuy, m.idOps;
+
+      SELECT d.idOps, i.InvName, d.AmountBuy, d.Price, u.UnitName
+      FROM devsk.SeedReqSaleDt d
+      JOIN #mine x ON x.idOps = d.idOps
+      LEFT JOIN devsk.dInventoryMain i ON i.idInvMain = d.idInvMain
+      LEFT JOIN devsk.dInvUnit u ON u.idUnit = d.idUnit
+      WHERE d.AmountBuy > 0
+      ORDER BY d.idOps, d.idOpsDt;
+
+      DROP TABLE #mine;`);
+    const items = new Map();
+    r.recordsets[1].forEach(x => {
+      const amt = opsRound2(Number(x.AmountBuy) * Number(x.Price || 0));
+      items.set(x.idOps, [...(items.get(x.idOps) || []), { invName: x.InvName, amountBuy: Number(x.AmountBuy), price: x.Price == null ? null : Number(x.Price), unit: x.UnitName, amt }]);
+    });
+    res.json({ success: true, data: r.recordsets[0].map(m => {
+      const its = items.get(m.idOps) || [];
+      return { id: m.idOps, docNo: m.DocCode, buyDocNo: m.BuyDocCode, buyAt: m.TxBuy, reqName: m.CompNameReq, buyBy: m.PsBuy || '-',
+        done: m.ApvDone || 0, count: m.ApvCount || OPS_APV_STEPS.length, steps: String(m.MySteps || '').split(',').filter(Boolean),
+        items: its, total: opsRound2(its.reduce((s, it) => s + it.amt, 0)) };
+    }) });
+  } catch (err) {
+    console.error('OPS apv pending error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการรอพิจารณาไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ผู้อนุมัติ: ผ่าน (A) / ส่งกลับแก้ไข (B) / ไม่รับซื้อ (R) — กดได้เฉพาะขั้นของตัวเองในรอบปัจจุบัน ----------
+// body.step = ขั้นที่กด (ปุ่มแยกตามขั้น) — ไม่ระบุ = ทุกขั้นที่รอคนนี้ (เอกสารเก่าที่คนเดียวมีหลายขั้น) / ผ่านครบ 4 ขั้น → สร้าง PO + ใบสั่งขาย
+app.post('/api/ops/apv/:id', requireLogin, async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  const result = String(req.body.result || '');
+  const note = String(req.body.note || '').trim();
+  const step = req.body.step ? String(req.body.step) : null;
+  if (!idOps || !['A', 'B', 'R'].includes(result) || (step && !OPS_APV_STEPS.some(s => s.code === step))) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ถูกต้อง' });
+  if (result !== 'A' && (note.length <= 5 || /^[-0\s]+$/.test(note))) return res.status(400).json({ success: false, message: 'กรุณาระบุเหตุผล (มากกว่า 5 ตัวอักษร)' });
+  if (note.length > 500) return res.status(400).json({ success: false, message: 'เหตุผลยาวเกิน 500 ตัวอักษร' });
+  let transaction;
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const cur = await lockOpsDoc(transaction, idOps);
+    const stop = async (code, message) => { await transaction.rollback(); return res.status(code).json({ success: false, message }); };
+    if (!cur) return stop(404, 'ไม่พบเอกสาร');
+    if (opsStatus(cur) !== 'H') return stop(409, 'เอกสารไม่ได้อยู่ระหว่างรออนุมัติแล้ว (มีผู้ส่งกลับแก้ไข / ไม่รับซื้อ / อนุมัติครบ หรือยกเลิก) — กรุณาเปิดเอกสารใหม่');
+    const mine = (await new sql.Request(transaction).input('id', sql.Int, idOps).input('round', sql.Int, cur.ApvRound).input('ps', sql.Int, req.idPs).input('step', sql.VarChar(10), step)
+      .query('SELECT idApv, StepCode FROM devsk.SeedReqSaleApv WHERE idOps = @id AND ApvRound = @round AND idPsAssign = @ps AND Result IS NULL AND (@step IS NULL OR StepCode = @step)')).recordset;
+    if (!mine.length) return stop(409, 'ไม่มีรายการที่รอการพิจารณาของคุณในเอกสารนี้ (อาจพิจารณาไปแล้ว หรือฝ่ายจัดซื้อเปลี่ยนผู้อนุมัติ)');
+    const now = (await new sql.Request(transaction).query('SELECT GETDATE() AS now')).recordset[0].now;
+    await new sql.Request(transaction).input('id', sql.Int, idOps).input('round', sql.Int, cur.ApvRound).input('ps', sql.Int, req.idPs)
+      .input('res', sql.Char(1), result).input('note', sql.NVarChar(500), note || null).input('now', sql.DateTime, now).input('step', sql.VarChar(10), step)
+      .query(`UPDATE devsk.SeedReqSaleApv SET Result = @res, Note = @note, idPsAct = @ps, DateAct = @now
+              WHERE idOps = @id AND ApvRound = @round AND idPsAssign = @ps AND Result IS NULL AND (@step IS NULL OR StepCode = @step)`);
+    const steps = mine.map(x => x.StepCode);
+    let final = null;
+    if (result === 'R') {
+      await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, req.idPs).input('note', sql.NVarChar(500), note)
+        .input('step', sql.VarChar(10), steps[0]).input('now', sql.DateTime, now)
+        .query('UPDATE devsk.SeedReqSaleMt SET idPsReject = @ps, DateReject = @now, RejectNote = @note, RejectStep = @step WHERE idOps = @id');
+    } else if (result === 'A') {
+      const c = (await new sql.Request(transaction).input('id', sql.Int, idOps).input('round', sql.Int, cur.ApvRound)
+        .query(`SELECT COUNT(*) AS n, SUM(CASE WHEN Result = 'A' THEN 1 ELSE 0 END) AS ok FROM devsk.SeedReqSaleApv WHERE idOps = @id AND ApvRound = @round`)).recordset[0];
+      if (c.n === OPS_APV_STEPS.length && c.ok === c.n) {
+        final = await opsCreatePO(transaction, idOps, now);
+        await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, req.idPs).input('now', sql.DateTime, now).input('po', sql.Int, final.idPOTs)
+          .query('UPDATE devsk.SeedReqSaleMt SET idPsApv = @ps, DateApv = @now, idPOTsAuto = @po WHERE idOps = @id');
+      }
+    }
+    if (final && opsPoTestRollback()) {
+      // ดูข้อมูลที่จะถูกบันทึก (PO + ใบสั่งขาย) ก่อน rollback
+      const snap = await new sql.Request(transaction).input('po', sql.Int, final.idPOTs).query(`
+        SELECT * FROM devsk.PkPOBuyMt WHERE idPOTs = @po;
+        SELECT * FROM devsk.PkPOBuyDt WHERE idPOTs = @po;
+        SELECT * FROM dbo.SmSaleOrderMt WHERE idPOTs = @po;
+        SELECT d.* FROM dbo.SmSaleOrderDt d JOIN dbo.SmSaleOrderMt m ON m.idSaleOrder = d.idSaleOrder WHERE m.idPOTs = @po;`);
+      await transaction.rollback();
+      return res.json({ success: true, testRollback: true, steps, po: final,
+        preview: { poMt: snap.recordsets[0], poDt: snap.recordsets[1], soMt: snap.recordsets[2], soDt: snap.recordsets[3] } });
+    }
+    await transaction.commit();
+
+    // แจ้งผล (หลังบันทึก / เบื้องหลัง)
+    res.json({ success: true, steps, po: final });
+    opsBackground('apv-result', async () => {
+      const doc = await loadOpsDoc(idOps);
+      const me = (await opsPeople(pool, [req.idPs]))[0];
+      const by = opsFormal(me);
+      if (result === 'B' && doc.buy && doc.buy.by) {
+        const buyer = await opsPeople(pool, [doc.buy.by.id]);
+        await opsNotify(pool, idOps, 'apv-back', req, buyer, [],
+          buildOpsResultMail(doc, `${opsBase(req)}/over-po-sale-buy?id=${idOps}`, 'back', opsDear(doc.buy.by), { by, step: steps[0], note }));
+      } else if (result === 'R' || final) {
+        const aud = await opsSellerAudience(pool, doc);
+        await opsNotify(pool, idOps, result === 'R' ? 'rejected' : 'approved', req, aud.to, aud.cc,
+          buildOpsResultMail(doc, `${opsBase(req)}/over-po-sale-doc?id=${idOps}`, result === 'R' ? 'rejected' : 'approved', opsDear(doc.requester),
+            { by, step: steps[0], note, poCode: final && final.docCode, soCode: final && final.soCode }));
+      }
+    });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('OPS apv error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกผลการพิจารณาไม่สำเร็จ — ระบบไม่ได้บันทึกข้อมูลใดๆ', detail: err.message });
   }
 });
 
