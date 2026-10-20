@@ -817,7 +817,8 @@
   /* แถบปุ่ม + timeline กว้างเท่ากระดาษ A4 (กลางจอ) */
   .doc-toolbar{display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; align-items:center; margin:0 auto 18px; width:210mm; max-width:100%;}
   .doc-timeline{width:210mm; max-width:100%; margin:0 auto 22px;}
-  .doc-mode .page-head{width:210mm; max-width:100%; margin:0 auto;}
+  .page-head{margin-bottom:20px;}   /* เว้นระยะหัวข้อหน้า → กล่อง/แถบแรก ไม่ให้ชิดกันเกินไป */
+  .doc-mode .page-head{width:210mm; max-width:100%; margin:0 auto 20px;}
   .doc-mode .page-head h1{font-size:clamp(20px,2.4vw,24px);}   /* หน้าเอกสาร: หัวเล็กลง ให้สมดุลกับ eyebrow และตัวเอกสาร */
   .tl{list-style:none; margin:0; padding:0;}
   .tl li{position:relative; display:flex; gap:14px; padding:0 0 18px;}
@@ -1135,35 +1136,37 @@
   .decide.no:hover{background:rgba(229,83,61,.2); border-color:var(--safety-red);}
   .decide-more{display:flex; justify-content:flex-end; margin-top:12px;}
 
-  /* ---- รายการรอการพิจารณา (/over-po-sale-apv) ---- */
+  /* ---- รายการรอการพิจารณา (/over-po-sale-apv) — คลาส pa-* (ห้ามขึ้นต้นด้วย ad- : ตัวบล็อกโฆษณาใน browser ซ่อนทิ้ง) ---- */
   .apv-bulk{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:14px 0;
     padding:12px 14px; border-radius:10px; border:1px solid rgba(62,207,142,.4); background:rgba(62,207,142,.06);}
   .apv-bulk[hidden]{display:none;}
-  .ad-all{display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--concrete-200); cursor:pointer;}
-  .ad-all input, .ad-pick input{width:18px; height:18px; margin:0; padding:0; accent-color:var(--ok-green); cursor:pointer;}
+  .pa-all{display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--concrete-200); cursor:pointer;}
+  .pa-all input, .pa-pick input{width:18px; height:18px; margin:0; padding:0; accent-color:var(--ok-green); cursor:pointer;}
   .apv-cards > .doc-state{grid-column:1 / -1; min-height:40vh; display:flex; align-items:center; justify-content:center; font-size:15px;}
   .bulk-total{display:flex; justify-content:space-between; align-items:baseline; margin:-6px 0 14px; padding:8px 10px; border-top:1px solid rgba(255,255,255,.12); font-size:13.5px; color:var(--concrete-200);}
   .bulk-total b{font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--amber-500);}
   .apv-cards{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap:12px;}
   .apv-doc{display:flex; flex-direction:column; gap:10px; padding:14px 16px; border-radius:12px; border:1px solid rgba(140,180,230,.32); background:rgba(120,160,220,.09);}
   .apv-doc.on{border-color:rgba(62,207,142,.65); background:rgba(62,207,142,.07);}
-  .ad-head{display:flex; align-items:center; gap:10px;}
-  .ad-pick{display:flex;}
-  .ad-no{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:15px; color:var(--amber-500);}
-  .ad-step{margin-left:auto; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid;}
-  .ad-step.st-accept{color:#c4b5fd; border-color:rgba(177,156,245,.55); background:rgba(177,156,245,.12);}
-  .ad-step.st-check{color:#f6a55a; border-color:rgba(240,140,46,.55); background:rgba(240,140,46,.12);}
-  .ad-step.st-approve1, .ad-step.st-approve2{color:#5fd69c; border-color:rgba(52,194,127,.55); background:rgba(52,194,127,.12);}
-  .ad-meta{display:flex; flex-direction:column; gap:2px; font-size:12.5px; color:var(--concrete-400);}
-  .ad-meta b{color:var(--concrete-200); font-weight:600;}
-  .ad-items{display:flex; flex-direction:column; gap:6px; padding:10px 0; border-top:1px dashed rgba(255,255,255,.12); border-bottom:1px dashed rgba(255,255,255,.12);}
-  .ad-it{display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:0 10px; font-size:13.5px;}
-  .ad-it .nm{color:#fff; font-weight:600;}
-  .ad-it .q{grid-column:1; font-size:12.5px; color:var(--concrete-400); font-family:'JetBrains Mono',monospace;}
-  .ad-it b{grid-column:2; grid-row:1 / span 2; align-self:center; font-family:'JetBrains Mono',monospace; color:var(--concrete-200);}
-  .ad-total{display:flex; justify-content:space-between; align-items:baseline; font-size:13.5px; color:var(--concrete-200);}
-  .ad-total b{font-family:'JetBrains Mono',monospace; font-size:16px; color:var(--amber-500);}
-  .ad-actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
+  .pa-head{display:flex; align-items:center; gap:10px;}
+  .pa-pick{display:flex;}
+  .pa-no{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:15px; color:var(--amber-500);}
+  .pa-step{margin-left:auto; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid;}
+  .pa-step.st-accept{color:#c4b5fd; border-color:rgba(177,156,245,.55); background:rgba(177,156,245,.12);}
+  .pa-step.st-check{color:#f6a55a; border-color:rgba(240,140,46,.55); background:rgba(240,140,46,.12);}
+  .pa-step.st-approve1, .pa-step.st-approve2{color:#5fd69c; border-color:rgba(52,194,127,.55); background:rgba(52,194,127,.12);}
+  .pa-meta{display:flex; flex-direction:column; gap:2px; font-size:12.5px; color:var(--concrete-400);}
+  .pa-meta b{color:var(--concrete-200); font-weight:600;}
+  .pa-from{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:2px;}
+  .pa-meta b.pa-req{font-family:'JetBrains Mono',monospace; color:var(--sky-blue); font-weight:700;}
+  .pa-items{display:flex; flex-direction:column; gap:6px; padding:10px 0; border-top:1px dashed rgba(255,255,255,.12); border-bottom:1px dashed rgba(255,255,255,.12);}
+  .pa-it{display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:0 10px; font-size:13.5px;}
+  .pa-it .nm{color:#fff; font-weight:600;}
+  .pa-it .q{grid-column:1; font-size:12.5px; color:var(--concrete-400); font-family:'JetBrains Mono',monospace;}
+  .pa-it b{grid-column:2; grid-row:1 / span 2; align-self:center; font-family:'JetBrains Mono',monospace; color:var(--concrete-200);}
+  .pa-total{display:flex; justify-content:space-between; align-items:baseline; font-size:13.5px; color:var(--concrete-200);}
+  .pa-total b{font-family:'JetBrains Mono',monospace; font-size:16px; color:var(--amber-500);}
+  .pa-actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
 
   /* ---- แท็บพรีวิวเอกสาร (view=preview): ไม่มีเมนู / หัวข้อ / ปุ่ม / ประวัติ — เอกสารอย่างเดียว ---- */
   .preview-mode .sidebar, .preview-mode .sidebar-overlay, .preview-mode .topbar-mobile, .preview-mode .page-head,
@@ -1396,7 +1399,7 @@
           <h2>มี <span id="apvCount">0</span> รายการรอการพิจารณาของคุณ</h2>
           <p class="hint">ใบขออนุมัติรับซื้อเมล็ดพันธุ์ส่วนเกินใบสั่งซื้อ (Over PO) · กดรับทราบ / ตรวจสอบ / อนุมัติ ทีละรายการ หรือเลือกหลายรายการแล้วกดพร้อมกัน · ถ้าต้องส่งกลับแก้ไข / ไม่รับซื้อ ให้กด "แสดงรายละเอียด"</p>
           <div class="apv-bulk" id="apvBulkBar" hidden>
-            <label class="ad-all"><input type="checkbox" id="apvAll"> เลือกทั้งหมด</label>
+            <label class="pa-all"><input type="checkbox" id="apvAll"> เลือกทั้งหมด</label>
             <button type="button" class="btn btn-fill-green" id="apvBulkBtn" disabled>✓ พิจารณารายการที่เลือก</button>
           </div>
           <div class="apv-cards" id="apvCards"></div>
@@ -3511,20 +3514,20 @@
     box.innerHTML = apvList.map(d => {
       const step = d.steps[0], [cls, label] = APV_BTN[step];
       return `<div class="apv-doc" data-id="${d.id}">
-        <div class="ad-head">
-          <label class="ad-pick" title="เลือกรายการนี้"><input type="checkbox" data-pick="${d.id}"></label>
-          <span class="ad-no">${esc(d.buyDocNo)}</span>
-          <span class="ad-step st-${step}">${esc(stepName(step))}</span>
+        <div class="pa-head">
+          <label class="pa-pick" title="เลือกรายการนี้"><input type="checkbox" data-pick="${d.id}"></label>
+          <span class="pa-no">${esc(d.buyDocNo)}</span>
+          <span class="pa-step st-${step}">${esc(stepName(step))}</span>
         </div>
-        <div class="ad-meta">
-          <span>จาก <b>${esc(d.reqName)}</b> · คำร้อง ${esc(d.docNo)}</span>
+        <div class="pa-meta">
+          <span class="pa-from">จาก <span class="co-pill co-${d.req}" title="${esc(d.reqName)}">${esc(shortCompName(d.reqName))}</span> คำร้อง <b class="pa-req">${esc(d.docNo)}</b></span>
           <span>ขออนุมัติ ${thStamp(d.buyAt)} · โดย ${esc(fname(d.buyBy))}</span>
           <span>พิจารณาแล้ว ${d.done}/${d.count} ท่าน</span>
         </div>
-        <div class="ad-items">${d.items.map(it => `<div class="ad-it"><span class="nm">${esc(it.invName)}</span>
+        <div class="pa-items">${d.items.map(it => `<div class="pa-it"><span class="nm">${esc(it.invName)}</span>
           <span class="q">${fmtQty(it.amountBuy)} ${esc(it.unit || '')} × ${priceText(it.price)}</span><b>${money(it.amt)}</b></div>`).join('')}</div>
-        <div class="ad-total"><span>รวมเป็นเงิน</span><b>${money(d.total)} บาท</b></div>
-        <div class="ad-actions">
+        <div class="pa-total"><span>รวมเป็นเงิน</span><b>${money(d.total)} บาท</b></div>
+        <div class="pa-actions">
           <a class="btn btn-secondary btn-sm" href="/over-po-sale-opa?id=${d.id}&from=apv">แสดงรายละเอียด</a>
           <button type="button" class="btn btn-sm ${cls}" data-act="apv-one" data-id="${d.id}">✓ ${label}</button>
         </div>

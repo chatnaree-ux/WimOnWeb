@@ -6070,7 +6070,7 @@ app.get('/api/ops/apv/pending', requireLogin, async (req, res) => {
       WHERE m.DateBuy IS NOT NULL AND m.DateCancel IS NULL AND m.DateReject IS NULL AND m.DateApv IS NULL AND ISNULL(ar.ApvBack, 0) = 0
         AND EXISTS (SELECT 1 FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL);
 
-      SELECT m.idOps, m.DocCode, m.BuyDocCode, CONVERT(varchar(16), m.DateBuy, 120) AS TxBuy, cr.CompName AS CompNameReq, pb.PsName AS PsBuy, ar.ApvDone, ar.ApvCount,
+      SELECT m.idOps, m.DocCode, m.BuyDocCode, CONVERT(varchar(16), m.DateBuy, 120) AS TxBuy, m.idCompReq, cr.CompName AS CompNameReq, pb.PsName AS PsBuy, ar.ApvDone, ar.ApvCount,
              STUFF((SELECT ',' + a.StepCode FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL
                     ORDER BY CASE a.StepCode WHEN 'accept' THEN 1 WHEN 'check' THEN 2 WHEN 'approve1' THEN 3 ELSE 4 END FOR XML PATH('')), 1, 1, '') AS MySteps
       FROM devsk.SeedReqSaleMt m
@@ -6096,7 +6096,7 @@ app.get('/api/ops/apv/pending', requireLogin, async (req, res) => {
     });
     res.json({ success: true, data: r.recordsets[0].map(m => {
       const its = items.get(m.idOps) || [];
-      return { id: m.idOps, docNo: m.DocCode, buyDocNo: m.BuyDocCode, buyAt: m.TxBuy, reqName: m.CompNameReq, buyBy: m.PsBuy || '-',
+      return { id: m.idOps, docNo: m.DocCode, buyDocNo: m.BuyDocCode, buyAt: m.TxBuy, req: m.idCompReq, reqName: m.CompNameReq, buyBy: m.PsBuy || '-',
         done: m.ApvDone || 0, count: m.ApvCount || OPS_APV_STEPS.length, steps: String(m.MySteps || '').split(',').filter(Boolean),
         items: its, total: opsRound2(its.reduce((s, it) => s + it.amt, 0)) };
     }) });
