@@ -6250,6 +6250,21 @@ app.get('/api/home/summary', requireLogin, async (req, res) => {
       data.urs = { draftDocs: row.draftDocs || 0, awaitingReply: row.awaitingReply || 0, notReady: row.notReady || 0 };
     }
 
+    // ผู้อนุมัติ Over PO: ใบขออนุมัติที่รอการพิจารณาของผู้ใช้ (เงื่อนไขเดียวกับ /api/ops/apv/pending) — แสดงการ์ดเมื่อมีรายการ
+    {
+      const r = await pool.request().input('ps', sql.Int, req.idPs).query(`
+        SELECT COUNT(*) AS n, CAST(ISNULL(SUM(t.amt), 0) AS decimal(18, 2)) AS total
+        FROM (
+          SELECT (SELECT SUM(ROUND(d.AmountBuy * ISNULL(d.Price, 0), 2)) FROM devsk.SeedReqSaleDt d WHERE d.idOps = m.idOps AND d.AmountBuy > 0) AS amt
+          FROM devsk.SeedReqSaleMt m
+          ${OPS_ROUND_SQL()}
+          WHERE m.DateBuy IS NOT NULL AND m.DateCancel IS NULL AND m.DateReject IS NULL AND m.DateApv IS NULL AND ISNULL(ar.ApvBack, 0) = 0
+            AND EXISTS (SELECT 1 FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL)
+        ) t`);
+      const row = r.recordset[0];
+      if (row && row.n) data.opsApv = { pending: row.n, total: Number(row.total) || 0 };
+    }
+
     let companies = null;
     if (!access.allComps) {
       const compReq = pool.request();

@@ -657,6 +657,15 @@
         cta: 'ไปที่รายการคำร้อง'
       }));
     }
+    // ผู้อนุมัติ Over PO: มีใบขออนุมัติรอท่านพิจารณา (server ส่งมาเฉพาะเมื่อมีรายการ)
+    if (d.opsApv) {
+      cards.push(kpiCard({
+        href: '/over-po-sale-apv', icon: 'shield', label: 'รอการพิจารณาอนุมัติ (Over PO)',
+        value: d.opsApv.pending, unit: 'รายการรอท่านพิจารณา', live: true,
+        subs: [`<span>มูลค่ารวม <b>${Number(d.opsApv.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b> บาท</span>`],
+        cta: 'ไปพิจารณารายการ'
+      }));
+    }
     return cards;
   }
 

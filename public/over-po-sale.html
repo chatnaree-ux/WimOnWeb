@@ -915,6 +915,7 @@
   .ops-list-table tr.row-link{cursor:pointer;}
   .mono{font-family:'JetBrains Mono',monospace;}
   .po-auto{color:var(--ok-green); font-weight:700;}
+  .po-out{margin-top:4px; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:var(--ok-green); text-align:center; white-space:nowrap;}
   a.doc-card{display:block; color:inherit; text-decoration:none;}
   a.doc-card:hover{border-color:rgba(242,169,28,.55); background:rgba(242,169,28,.04);}
   .badge.ops-B{background:rgba(245,176,65,.14); border-color:rgba(245,176,65,.5); color:#f5b041;}
@@ -2472,7 +2473,8 @@
       const detail = docDetail(d);
       const open = detail && listOpen.has(d.id);
       const chev = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg>';
-      const statusCell = `<div class="st-cell">${statusBadge(d, true)}${detail ? `<span class="expander" title="คลิกแถวเพื่อดูรายละเอียด">${chev}</span>` : ''}</div>`;
+      const statusCell = `<div class="st-cell">${statusBadge(d, true)}${detail ? `<span class="expander" title="คลิกแถวเพื่อดูรายละเอียด">${chev}</span>` : ''}</div>`
+        + (d.poCode ? `<div class="po-out" title="ใบสั่งซื้อที่ระบบออกให้หลังอนุมัติ">PO ${esc(d.poCode)}</div>` : '');
       const sentCell = d.sentAt ? thStamp(d.sentAt) : '-';
       const mailFail = d.mailFail ? '<span class="mail-fail">⚠ ส่งอีเมลครั้งล่าสุดไม่สำเร็จบางราย</span>' : '';
       const head = (span) => `
@@ -2520,6 +2522,7 @@
           <span><span class="k">วันที่ร้องขอ</span> ${thDate(d.docDate)}</span>
           <span><span class="k">ส่งถึง</span> <span class="co-pill co-${d.target}">${esc(shortCompName(d.targetName))}</span></span>
           <span><span class="k">ผู้ร้องขอ</span> ${esc(d.requester)}</span>
+          ${d.poCode ? `<span><span class="k">PO ที่ออกให้</span> <b class="po-auto mono">${esc(d.poCode)}</b></span>` : ''}
           <span><span class="k">ส่งคำร้องเมื่อ</span> ${d.sentAt ? thStamp(d.sentAt) : '-'}</span>
         </div>
         ${d.status === 'R' && d.rejectNote ? `<div class="dc-note reject">ไม่รับซื้อ — เหตุผล: ${esc(d.rejectNote)}</div>` : ''}
