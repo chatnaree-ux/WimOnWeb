@@ -1215,6 +1215,46 @@
   .dr-info{margin:14px 0 16px; font-size:12.5px; color:var(--concrete-400);}
   .dr-info b{color:var(--concrete-200);}
 
+  /* ==== มือถือ (iPhone / Safari) ==== */
+  /* Safari ขยายตัวอักษรเอง (text autosizing) ในกล่องที่ถูกย่อ เช่น กระดาษ A4 → ตัวหนังสือในเอกสารใหญ่ผิดสัดส่วน */
+  html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  .paper, .paper *{-webkit-text-size-adjust:none; text-size-adjust:none;}
+  /* ช่องวันที่บน iOS: ไม่ให้ขยายเกินกรอบ / สูงเท่าช่องอื่น */
+  input[type=date]{-webkit-appearance:none; appearance:none; display:block; width:100%; max-width:100%; min-width:0; min-height:44px; line-height:1.2; text-align:left;}
+  input[type=date]::-webkit-date-and-time-value{text-align:left; margin:0;}
+  .warn-banner{display:block;}   /* ข้อความ + ตัวหนาในแถบแจ้ง: ไหลต่อกันเป็นประโยค ไม่แตกเป็นคอลัมน์บนจอแคบ */
+  .edit-banner.show{display:block;}
+  .edit-banner #editBannerNote{white-space:nowrap;}
+  @media (max-width: 640px){
+    /* แถบปุ่มบนหน้าเอกสาร: ปุ่มเต็มแถว เท่ากัน */
+    .doc-toolbar{gap:10px;}
+    .doc-toolbar .grp{flex:1 1 100%;}
+    .doc-toolbar .grp:has(> [hidden]:only-child), .doc-toolbar .grp:empty{display:none;}
+    .doc-toolbar .grp > .btn{flex:1; justify-content:center;}
+    /* ปุ่มพิจารณา (ผู้อนุมัติ): ผ่าน = เต็มแถว / ส่งกลับแก้ไข + ไม่รับซื้อ = ครึ่งแถวเท่ากัน */
+    .apv-panel .apv-actions{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    .apv-panel .apv-actions .btn{width:100%; min-height:50px; justify-content:center; font-size:15px;}
+    .apv-panel .apv-actions .btn[data-res="A"]{grid-column:1 / -1;}
+    /* ฝ่ายจัดซื้อ: ปุ่มตัดสินใจ + เตือนผู้อนุมัติ กว้างเท่ากัน */
+    .decide-more .btn{width:100%; justify-content:center;}
+  }
+  /* ฝ่ายจัดซื้อ (การ์ดรายการบนจอแคบ): ค่าที่แสดงอย่างเดียวเป็นกล่องสูงเท่าช่องกรอก → แถวตรงกัน */
+  @container (max-width: 760px){
+    .buy-table tbody tr{align-items:start;}
+    .buy-table td.c-of b, .buy-table td.c-amt b{display:flex; align-items:center; min-height:44px; padding:0 12px; border-radius:8px;
+      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); font-size:15px;}
+    .buy-table .qty-input{min-height:44px;}
+    .buy-table .max-note{display:none;}   /* สูงสุด = จำนวนเสนอขาย ที่อยู่ช่องข้างกัน */
+  }
+  /* ผู้ขาย (การ์ดรายการบนจอแคบมาก): บรรทัด PO = เลขที่บน / จำนวนล่าง / ปุ่ม × ขวา ไม่ทับกัน */
+  @container (max-width: 560px){
+    .item-table .po-line{grid-template-columns:minmax(0, 1fr) auto;}
+    .item-table .po-line > span:nth-child(2){grid-row:2; grid-column:1;}
+    .item-table .po-line > button{grid-row:1 / span 2; grid-column:2;}
+  }
+  /* ระหว่างเลือกโหมดหน้า (ลิงก์จากอีเมล ฯลฯ) ซ่อนเนื้อหาไว้ก่อน ไม่ให้หน้ารายการคำร้องแว้บขึ้นมา */
+  html.ops-boot main{visibility:hidden;}
+
   /* ---------- PRINT ---------- */
   @page{size:A4 portrait; margin:0;}
   @media print{
@@ -1231,6 +1271,10 @@
 
 </style>
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
+<script>
+  document.documentElement.classList.add('ops-boot');
+  setTimeout(() => document.documentElement.classList.remove('ops-boot'), 4000);
+</script>
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
 </head>
@@ -1865,6 +1909,7 @@
     }
     const params = new URLSearchParams(location.search);
     const id = parseInt(params.get('id'), 10);
+    requestAnimationFrame(() => document.documentElement.classList.remove('ops-boot'));   // เลือกโหมดด้านล่างเสร็จแล้วจึงแสดง
     if(IS_DOC_PAGE){
       if(params.get('embed') === '1') document.documentElement.classList.add('embed');   // อยู่ในหน้าต่างดูเอกสาร: พื้นโปร่ง
       if(params.get('view') === 'preview'){   // แท็บพรีวิว: เอกสารอย่างเดียว
@@ -2059,6 +2104,7 @@
   ================================================================== */
   function resetForm(){
     editing = null;
+    $('resetBtn').lastChild.textContent = ' ล้างฟอร์ม';
     $('editBanner').classList.remove('show');
     $('saveBtn').textContent = 'บันทึกและส่งคำร้อง';
     mailToId = null;
@@ -2256,15 +2302,15 @@
         : await api('/api/ops/docs', { body });
       const wasEdit = !!editing;
       resetForm();
-      $('dlgTitle').textContent = wasEdit ? 'บันทึกการแก้ไขและส่งอีเมลแล้ว' : 'บันทึกและส่งคำร้องแล้ว';
-      $('dlgBody').innerHTML = `
+      // แก้ไขเสร็จ = กลับหน้ารายการเสมอ (ไม่ค้างฟอร์ม) / สร้างใหม่ = เลือกได้ว่าทำรายการใหม่ต่อ หรือไปหน้ารายการ
+      dlg(wasEdit ? 'บันทึกการแก้ไขและส่งอีเมลแล้ว' : 'บันทึกและส่งคำร้องแล้ว', `
         <dl class="send-summary"><dt>เลขที่เอกสาร</dt><dd class="doc">${esc(r.docNo)}</dd><dt>สถานะ</dt><dd>${STATUS.S}</dd></dl>
         ${sendResultHtml({ ...r, success: false })}
         <div class="send-actions">
-          <a class="btn btn-secondary" href="/over-po-sale-doc?id=${r.id}" target="_blank" rel="noopener">ดูเอกสาร</a>
-          <button type="button" class="btn btn-secondary" data-act="list">ไปหน้ารายการ</button>
-          <button type="button" class="btn btn-primary" data-close="dlgModal">ทำรายการใหม่</button>
-        </div>`;
+          <a class="btn btn-secondary" href="/over-po-sale-doc?id=${r.id}&view=preview" data-viewer>ดูเอกสาร</a>
+          ${wasEdit ? '<button type="button" class="btn btn-primary" data-close="dlgModal">กลับหน้ารายการ</button>'
+            : '<button type="button" class="btn btn-secondary" data-act="list">ไปหน้ารายการ</button><button type="button" class="btn btn-primary" data-close="dlgModal">ทำรายการใหม่</button>'}
+        </div>`, wasEdit ? { onClose: () => { switchTab('list'); loadList(); } } : {});
     } catch(err){
       closeModal('dlgModal');
       showErrors([err.message]);
@@ -2279,6 +2325,7 @@
       if(!['D', 'S'].includes(d.status) || !d.canEdit){ alert('ฝ่ายจัดซื้อเริ่มดำเนินการแล้ว หรือเอกสารถูกยกเลิก — แก้ไขไม่ได้'); return; }
       resetForm();
       editing = { id: d.id, docNo: d.docNo, stamp: d.stamp, status: d.status };
+      $('resetBtn').lastChild.textContent = ' ยกเลิกการแก้ไข';
       $('editDocNo').textContent = d.docNo;
       $('editBannerNote').textContent = d.status === 'S'
         ? '(ส่งคำร้องแล้ว — แก้ไขได้จนกว่าฝ่ายจัดซื้อจะเริ่มตรวจสอบ บันทึกแล้วระบบส่งอีเมลแจ้งการแก้ไขถึงผู้รับทุกคน)'
@@ -3695,7 +3742,14 @@
      EVENTS
   ================================================================== */
   function attachEvents(){
-    $('navListBtn').addEventListener('click', () => { switchTab('list'); loadList(); });
+    $('navListBtn').addEventListener('click', () => {
+      if(editing){
+        if(!confirm(`ยกเลิกการแก้ไขเอกสาร ${editing.docNo}? (สิ่งที่แก้ยังไม่ได้บันทึก)`)) return;
+        resetForm();
+      }
+      switchTab('list');
+      loadList();
+    });
     $('navFormBtn').addEventListener('click', () => switchTab('form'));
 
     $('openEmployeeBtn').addEventListener('click', () => openEmployeeModal('requester'));
@@ -3734,6 +3788,12 @@
 
     $('saveBtn').addEventListener('click', handleSave);
     $('resetBtn').addEventListener('click', () => {
+      if(editing){   // โหมดแก้ไข: ปุ่มนี้ = ยกเลิกการแก้ไข แล้วกลับหน้ารายการ (เอกสารเดิมไม่เปลี่ยน)
+        if(!confirm(`ยกเลิกการแก้ไขเอกสาร ${editing.docNo}? (สิ่งที่แก้ยังไม่ได้บันทึก)`)) return;
+        resetForm();
+        switchTab('list');
+        return loadList();
+      }
       if((items.length || $('causeInput').value.trim()) && !confirm('ล้างข้อมูลในฟอร์มทั้งหมด?')) return;
       resetForm();
     });
