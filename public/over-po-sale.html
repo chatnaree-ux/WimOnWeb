@@ -307,6 +307,9 @@
   .list-pager button.on{background:var(--amber-500); border-color:var(--amber-500); color:var(--navy-950); font-weight:600;}
   .list-pager button:disabled{opacity:.4; cursor:default;}
   .list-pager .pg-gap{padding:0 4px;}
+  .list-pager button{background:rgba(78,167,224,.1); border-color:rgba(78,167,224,.45); color:#a9d8f5;}
+  .list-pager button:hover:not(:disabled){background:rgba(78,167,224,.22); border-color:var(--sky-blue); color:#fff;}
+  .list-pager button.on{background:rgba(242,169,28,.18); border-color:rgba(242,169,28,.8); color:#ffcf66;}
   .req-list-table thead tr.group-row th{
     text-align:center; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.04em;
     color:var(--navy-950); background:var(--amber-500); border-right:1px solid rgba(0,0,0,.15);
@@ -1199,11 +1202,17 @@
   .dr-sep{color:var(--concrete-400);}
   .dr-note{font-weight:500; color:var(--concrete-400); font-size:12px;}
   .dr-quick{display:flex; gap:6px; flex-wrap:wrap;}
+  @media (max-width: 640px){
+    .list-toolbar .form-group, .list-toolbar .form-group.date-range, .list-toolbar .search-inline{flex:1 1 100%; max-width:none;}
+    .dr-row input[type=date]{width:100%; min-width:0; padding-left:8px; padding-right:6px;}
+    .dr-quick{flex:1 1 auto;}
+    .dr-quick button{flex:1;}
+  }
   .dr-quick button{padding:8px 12px; border-radius:8px; cursor:pointer; font:inherit; font-size:12.5px; font-weight:600;
     background:rgba(78,167,224,.1); border:1px solid rgba(78,167,224,.45); color:#a9d8f5;}
   .dr-quick button:hover{background:rgba(78,167,224,.22); border-color:var(--sky-blue); color:#fff;}
   .dr-quick button.on{background:rgba(242,169,28,.16); border-color:rgba(242,169,28,.75); color:#ffcf66;}
-  .dr-info{margin:-4px 0 14px; font-size:12.5px; color:var(--concrete-400);}
+  .dr-info{margin:14px 0 16px; font-size:12.5px; color:var(--concrete-400);}
   .dr-info b{color:var(--concrete-200);}
 
   /* ---------- PRINT ---------- */
@@ -1332,6 +1341,7 @@
             </div>
             <div class="list-cards" id="buyListCards"></div>
           </div>
+          <div class="list-pager" id="buyPager" hidden></div>
         </div>
       </section>
 
@@ -1602,6 +1612,7 @@
           </div>
           <div class="list-cards" id="listCards"></div>
           </div>
+          <div class="list-pager" id="listPager" hidden></div>
         </div>
       </section>
     </main>
@@ -2471,6 +2482,7 @@
      LIST
   ================================================================== */
   async function loadList(){
+    pageNo.list = 1;
     const idComp = $('listCompSelect').value;
     if(!idComp){ docs = []; renderList(); return; }
     $('listLoading').hidden = false;
@@ -2506,7 +2518,10 @@
       edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>',
       cancel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>'
     };
-    $('listBody').innerHTML = list.map((d, di) => {
+    const pg = pageOf('list', list);
+    renderPager('listPager', pg);
+    $('listBody').innerHTML = pg.rows.map((d, i0) => {
+      const di = pg.start + i0;
       const n = Math.max(1, d.items.length);
       const canSend = ['D', 'S'].includes(d.status);
       const rowCls = [di % 2 ? 'doc-alt' : '', d.status === 'R' ? 'doc-reject' : '', d.status === 'C' ? 'doc-cancel' : ''].join(' ');
@@ -2539,7 +2554,7 @@
     }).join('');
 
     // ---------- กล่องเอกสาร (มือถือ): 1 กล่อง = 1 เอกสาร / รายการในเอกสารเป็นกล่องย่อยพร้อมตัวเลขสรุป ----------
-    $('listCards').innerHTML = list.map(d => {
+    $('listCards').innerHTML = pg.rows.map(d => {
       const canSend = ['D', 'S'].includes(d.status);
       const items = d.items.map(it => {
         const u = it.unit ? ` (${esc(it.unit)})` : '';
@@ -2940,6 +2955,7 @@
     if(pick) sel.value = String(pick.id);
   }
   async function loadBuyList(){
+    pageNo.buy = 1;
     const idComp = $('buyCompSelect').value;
     if(!idComp){ buyDocs = []; renderBuyList(); return; }
     $('buyListLoading').hidden = false;
@@ -2970,7 +2986,10 @@
     $('noBuyListMsg').style.display = list.length ? 'none' : '';
     if(!list.length && buyDocs.length) $('noBuyListMsg').textContent = 'ไม่มีเอกสารตามเงื่อนไขที่เลือก';
     const href = (d) => `/over-po-sale-buy?id=${d.id}`;
-    $('buyListBody').innerHTML = list.map((d, di) => {
+    const pg = pageOf('buy', list);
+    renderPager('buyPager', pg);
+    $('buyListBody').innerHTML = pg.rows.map((d, i0) => {
+      const di = pg.start + i0;
       const its = d.items.length ? d.items : [null];
       const n = its.length;
       const rowCls = [di % 2 ? 'doc-alt' : '', d.status === 'R' ? 'doc-reject' : '', d.status === 'C' ? 'doc-cancel' : ''].join(' ');
@@ -2990,7 +3009,7 @@
         return `<tr class="${rowCls} ${i === 0 ? 'doc-first' : ''} row-link" data-href="${href(d)}">${i === 0 ? head : ''}${cells}${i === 0 ? tail : ''}</tr>`;
       }).join('');
     }).join('');
-    $('buyListCards').innerHTML = list.map(d => `<a class="doc-card ${d.status === 'R' ? 'is-reject' : ''} ${d.status === 'C' ? 'is-cancel' : ''}" href="${href(d)}">
+    $('buyListCards').innerHTML = pg.rows.map(d => `<a class="doc-card ${d.status === 'R' ? 'is-reject' : ''} ${d.status === 'C' ? 'is-cancel' : ''}" href="${href(d)}">
         <div class="dc-head"><span class="dc-no">${esc(d.docNo)}</span>${buyBadge(d)}</div>
         <div class="dc-meta">
           <span><span class="k">จาก</span> <span class="co-pill co-${d.req}">${esc(shortCompName(d.reqName))}</span></span>
@@ -3622,6 +3641,29 @@
     loadApvList();
   }
 
+  /* ---------- แบ่งหน้ารายการ: ทีละ 15 เอกสาร (ข้อมูลโหลดตามเงื่อนไขมาแล้ว แบ่งแสดงในหน้าเว็บ) ---------- */
+  const PAGE_SIZE = 15;
+  const pageNo = { list: 1, buy: 1 };
+  function pageOf(key, arr){
+    const pages = Math.max(1, Math.ceil(arr.length / PAGE_SIZE));
+    if(pageNo[key] > pages) pageNo[key] = pages;
+    const p = pageNo[key];
+    return { rows: arr.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE), p, pages, total: arr.length, start: (p - 1) * PAGE_SIZE };
+  }
+  function renderPager(id, pg){
+    const el = $(id);
+    el.hidden = pg.total <= PAGE_SIZE;
+    if(el.hidden){ el.innerHTML = ''; return; }
+    const nums = [...new Set([1, pg.p - 1, pg.p, pg.p + 1, pg.pages])].filter(n => n >= 1 && n <= pg.pages).sort((a, b) => a - b);
+    const btns = [];
+    nums.forEach((n, i) => {
+      if(i && n - nums[i - 1] > 1) btns.push('<span class="pg-gap">…</span>');
+      btns.push(`<button type="button" data-page="${n}" class="${n === pg.p ? 'on' : ''}">${n}</button>`);
+    });
+    el.innerHTML = `<span>แสดง ${pg.start + 1}–${Math.min(pg.total, pg.start + PAGE_SIZE)} จาก ${pg.total} เอกสาร</span>
+      <div class="pg-btns"><button type="button" data-page="${pg.p - 1}" ${pg.p === 1 ? 'disabled' : ''}>‹</button>${btns.join('')}<button type="button" data-page="${pg.p + 1}" ${pg.p === pg.pages ? 'disabled' : ''}>›</button></div>`;
+  }
+
   /* ---------- ช่วงวันที่ร้องขอ (กรองเฉพาะเอกสารที่สิ้นสุดแล้ว — ระหว่างดำเนินการแสดงทั้งหมด) ---------- */
   const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   function rangeOf(kind){
@@ -3698,11 +3740,12 @@
 
     $('listCompSelect').addEventListener('change', loadList);
     $('listRefreshBtn').addEventListener('click', loadList);
-    $('listSearch').addEventListener('input', renderList);
+    $('listSearch').addEventListener('input', () => { pageNo.list = 1; renderList(); });
     $('statusDash').addEventListener('click', (e) => {
       const c = e.target.closest('[data-dash]');
       if(!c) return;
       dashKey = dashKey === c.dataset.dash ? 'all' : c.dataset.dash;
+      pageNo.list = 1;
       renderList();
     });
     $('listArea').addEventListener('click', (e) => {
@@ -3737,6 +3780,17 @@
       setTimeout(() => { if(history.length > 1) history.back(); else showToast('ปิดแท็บนี้ได้เลย'); }, 200);
     });
 
+    // ---- แบ่งหน้า: เปลี่ยนหน้าแล้วเลื่อนขึ้นไปต้นรายการ ----
+    [['listPager', 'list', () => renderList(), 'statusDash'], ['buyPager', 'buy', () => renderBuyList(), 'buyDash']].forEach(([id, key, render, top]) => {
+      $(id).addEventListener('click', (e) => {
+        const b = e.target.closest('[data-page]');
+        if(!b || b.disabled) return;
+        pageNo[key] = Number(b.dataset.page);
+        render();
+        $(top).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
     // ---- ช่วงวันที่ ----
     ['list', 'buy'].forEach(p => {
       const reload = () => (p === 'list' ? loadList() : loadBuyList());
@@ -3758,11 +3812,12 @@
     // ---- ฝ่ายจัดซื้อ (เฟส 2) ----
     $('buyCompSelect').addEventListener('change', loadBuyList);
     $('buyRefreshBtn').addEventListener('click', loadBuyList);
-    $('buySearch').addEventListener('input', renderBuyList);
+    $('buySearch').addEventListener('input', () => { pageNo.buy = 1; renderBuyList(); });
     $('buyDash').addEventListener('click', (e) => {
       const c = e.target.closest('[data-bdash]');
       if(!c) return;
       buyDashKey = buyDashKey === c.dataset.bdash ? 'all' : c.dataset.bdash;
+      pageNo.buy = 1;
       renderBuyList();
     });
     $('buyListArea').addEventListener('click', (e) => {
