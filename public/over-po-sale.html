@@ -546,7 +546,7 @@
   /* แบบตาราง: หัวคอลัมน์ตัดบรรทัดได้ / บรรทัด PO = เลขที่ PO บน · จำนวน PO ล่าง (ไม่ยืดคอลัมน์ชื่อจนตารางล้น) */
   .item-table thead th{white-space:normal; line-height:1.3; padding:9px 8px;}
   .item-table tbody td{padding:10px 8px;}
-  .item-table .po-line{display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:8px; row-gap:0; align-items:center; white-space:normal;}
+  .item-table .po-line{display:grid; grid-template-columns:max-content max-content; justify-content:start; column-gap:12px; row-gap:0; align-items:center; white-space:normal;}
   .item-table .po-line > span:nth-child(2){grid-row:2; grid-column:1;}
   .item-table .po-line > button{grid-row:1 / span 2; grid-column:2;}
   .item-table .po-line + .po-line{margin-top:4px;}
@@ -1197,6 +1197,7 @@
 
   /* ---- ช่วงวันที่ (กรองเฉพาะเอกสารที่สิ้นสุดแล้ว) ---- */
   .list-toolbar .form-group.date-range{flex:0 1 330px;}
+  .list-toolbar > .btn, .list-toolbar > .dr-quick button{min-height:44px; padding-top:0; padding-bottom:0; font-size:13px; font-weight:600; justify-content:center;}
   .dr-row{display:flex; align-items:center; gap:6px;}
   .dr-row input{flex:1; min-width:0;}
   .dr-sep{color:var(--concrete-400);}
@@ -1208,7 +1209,7 @@
     .dr-quick{flex:1 1 auto;}
     .dr-quick button{flex:1;}
   }
-  .dr-quick button{padding:8px 12px; border-radius:8px; cursor:pointer; font:inherit; font-size:12.5px; font-weight:600;
+  .dr-quick button{min-height:44px; padding:0 14px; border-radius:8px; cursor:pointer; font:inherit; font-size:13px; font-weight:600;
     background:rgba(78,167,224,.1); border:1px solid rgba(78,167,224,.45); color:#a9d8f5;}
   .dr-quick button:hover{background:rgba(78,167,224,.22); border-color:var(--sky-blue); color:#fff;}
   .dr-quick button.on{background:rgba(242,169,28,.16); border-color:rgba(242,169,28,.75); color:#ffcf66;}
@@ -1248,7 +1249,7 @@
   }
   /* ผู้ขาย (การ์ดรายการบนจอแคบมาก): บรรทัด PO = เลขที่บน / จำนวนล่าง / ปุ่ม × ขวา ไม่ทับกัน */
   @container (max-width: 560px){
-    .item-table .po-line{grid-template-columns:minmax(0, 1fr) auto;}
+    .item-table .po-line{grid-template-columns:max-content max-content; justify-content:start; column-gap:12px;}
     .item-table .po-line > span:nth-child(2){grid-row:2; grid-column:1;}
     .item-table .po-line > button{grid-row:1 / span 2; grid-column:2;}
   }
@@ -3377,7 +3378,7 @@
     dlg('ไม่รับซื้อ', `
       <dl class="send-summary"><dt>คำร้อง</dt><dd class="doc">${esc(d.docNo)}</dd><dt>จาก</dt><dd>${esc(d.compReqName)}</dd></dl>
       <textarea class="cancel-note" id="rejectNote" placeholder="ระบุเหตุผลที่ไม่รับซื้อ (มากกว่า 5 ตัวอักษร) — แจ้งถึงผู้ร้องขอทาง E-mail" maxlength="500"></textarea>
-      <p class="send-note">ฝ่ายจัดซื้อตัดสินไม่รับซื้อโดยไม่ผ่านผู้อนุมัติ — ระบบส่ง E-mail แจ้งผู้ร้องขอ + ผู้รับสำเนาเดิม (CC ตอนส่งคำร้อง) · ทำแล้วย้อนกลับไม่ได้</p>
+      <p class="send-note">ฝ่ายจัดซื้อตัดสินไม่รับซื้อโดยไม่ผ่านผู้อนุมัติ<br>ระบบส่ง E-mail แจ้งผู้ร้องขอ + ผู้รับสำเนาเดิม (CC ตอนส่งคำร้อง)</p>
       <div class="send-actions">
         <button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button>
         <button type="button" class="btn btn-danger" data-act="confirm-buy-reject">ยืนยันไม่รับซื้อ</button>
@@ -3498,7 +3499,7 @@
       <dl class="send-summary"><dt>ใบขออนุมัติ</dt><dd class="doc">${esc(d.buy.docNo)}</dd><dt>ในฐานะ</dt><dd>${esc(stepName(step))}</dd></dl>
       ${res === 'A' ? (last ? '<p class="send-note"><b>ผู้อนุมัติท่านสุดท้าย:</b> ระบบจะสร้างใบสั่งซื้อ (PO) ที่อนุมัติแล้ว และใบสั่งขายของผู้ขายให้อัตโนมัติ แล้วส่ง E-mail แจ้งผู้ร้องขอพร้อมเลขที่ PO</p>' : '<p class="send-note">บันทึกผลการพิจารณาของท่าน — ยังรอผู้อนุมัติท่านอื่น</p>')
         : `<textarea class="cancel-note" id="apvNote" placeholder="ระบุเหตุผล (มากกว่า 5 ตัวอักษร)" maxlength="500"></textarea>
-           <p class="send-note">${res === 'B' ? 'ส่งกลับให้ฝ่ายจัดซื้อแก้ไข (E-mail แจ้งฝ่ายจัดซื้อ) — เมื่อแก้แล้วส่งใหม่ ผู้อนุมัติทุกท่านต้องพิจารณาใหม่' : 'จบเรื่องเป็นไม่รับซื้อ — ส่ง E-mail แจ้งผู้ร้องขอพร้อมเหตุผล · ย้อนกลับไม่ได้'}</p>`}
+           <p class="send-note">${res === 'B' ? 'ส่งกลับให้ฝ่ายจัดซื้อแก้ไข (E-mail แจ้งฝ่ายจัดซื้อ) — เมื่อแก้แล้วส่งใหม่ ผู้อนุมัติทุกท่านต้องพิจารณาใหม่' : 'จบเรื่องเป็นไม่รับซื้อ — ส่ง E-mail แจ้งผู้ร้องขอพร้อมเหตุผล'}</p>`}
       <div class="send-actions">
         <button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button>
         <button type="button" class="btn ${btnCls}" data-act="confirm-apv" data-res="${res}" data-step="${step}">${esc(title)}</button>
