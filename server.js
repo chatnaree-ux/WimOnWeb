@@ -6130,7 +6130,7 @@ app.post('/api/ops/apv/:id', requireLogin, async (req, res) => {
     const cur = await lockOpsDoc(transaction, idOps);
     const stop = async (code, message) => { await transaction.rollback(); return res.status(code).json({ success: false, message }); };
     if (!cur) return stop(404, 'ไม่พบเอกสาร');
-    if (opsStatus(cur) !== 'H') return stop(409, 'เอกสารไม่ได้อยู่ระหว่างรออนุมัติแล้ว (มีผู้ส่งกลับแก้ไข / ไม่รับซื้อ / อนุมัติครบ หรือยกเลิก) — กรุณาเปิดเอกสารใหม่');
+    { const st0 = opsStatus(cur); if (st0 !== 'H') return stop(409, ({ R: 'คำร้องนี้ถูกตัดสินไม่รับซื้อไปแล้ว (ฝ่ายจัดซื้อหรือผู้อนุมัติท่านอื่นตัดสินไปก่อน) จึงพิจารณาไม่ได้', A: 'ใบขออนุมัตินี้อนุมัติครบทุกท่านแล้ว', B: 'ใบขออนุมัตินี้ถูกส่งกลับแก้ไข — รอฝ่ายจัดซื้อแก้ไขและส่งขออนุมัติใหม่', C: 'ผู้ขายยกเลิกคำร้องนี้แล้ว' })[st0] || 'เอกสารไม่ได้อยู่ระหว่างรออนุมัติแล้ว — กรุณาเปิดเอกสารใหม่'); }
     const mine = (await new sql.Request(transaction).input('id', sql.Int, idOps).input('round', sql.Int, cur.ApvRound).input('ps', sql.Int, req.idPs).input('step', sql.VarChar(10), step)
       .query('SELECT idApv, StepCode FROM devsk.SeedReqSaleApv WHERE idOps = @id AND ApvRound = @round AND idPsAssign = @ps AND Result IS NULL AND (@step IS NULL OR StepCode = @step)')).recordset;
     if (!mine.length) return stop(409, 'ไม่มีรายการที่รอการพิจารณาของคุณในเอกสารนี้ (อาจพิจารณาไปแล้ว หรือฝ่ายจัดซื้อเปลี่ยนผู้อนุมัติ)');

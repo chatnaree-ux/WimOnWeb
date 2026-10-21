@@ -1071,6 +1071,7 @@
   .paper .sb-d{color:#333;}
   .paper .sb .st-no{color:#b3261e;}
   /* แผงสถานะใบขออนุมัติ (ผู้เปิดที่ไม่ใช่ผู้อนุมัติที่รออยู่) */
+  .apv-closed{width:210mm; max-width:100%; margin:0 auto 18px;}
   .apv-panel.info{border-color:rgba(78,167,224,.5); background:rgba(78,167,224,.06);}
   .apv-panel .who{display:flex; flex-direction:column; gap:6px; margin-top:10px;}
   .apv-panel .who span{display:flex; gap:8px; align-items:baseline; font-size:13.5px; color:var(--concrete-200);}
@@ -3218,7 +3219,7 @@
         <p class="hint">เลือกอย่างใดอย่างหนึ่ง — กดแล้วมีหน้าต่างให้ตรวจสอบและยืนยัน จากนั้นระบบบันทึกและส่ง E-mail ให้ทันที</p>
         <div class="decide-grid">
           <button type="button" class="decide ok" data-act="buy-submit"><b>✓ ${submitLabel}</b><span>บันทึกจำนวน ราคา วันที่รับของ แล้วส่ง E-mail ขออนุมัติถึงทั้ง 4 ท่าน</span></button>
-          <button type="button" class="decide no" data-act="buy-reject"><b>✕ ไม่รับซื้อ</b><span>ระบุเหตุผล แล้วแจ้งผู้ร้องขอทันที — ไม่ต้องกดบันทึกอีก</span></button>
+          <button type="button" class="decide no" data-act="buy-reject"><b>✕ ไม่รับซื้อ</b><span>ระบุเหตุผลที่ไม่รับซื้อ และแจ้งผู้ร้องขอทันทีผ่าน E-Mail</span></button>
         </div>
         ${remind ? `<div class="decide-more">${remind}</div>` : ''}
       </div>`
@@ -3458,12 +3459,23 @@
       $('docBackBtn').hidden = true;
     }
   }
+  // เอกสารที่ไม่ได้อยู่ระหว่างรออนุมัติแล้ว (ไม่รับซื้อ / อนุมัติครบ / ส่งกลับแก้ไข / ยกเลิก): บอกผู้เปิดลิงก์ว่าเกิดอะไรขึ้น ไม่มีปุ่มพิจารณา
+  function opaClosedBanner(d){
+    const who = (x) => x ? `โดย ${esc(fname(x.by))}${x.step ? ` (${esc(stepName(x.step))})` : ''} · ${thStamp(x.at)}` : '';
+    let cls = '', title = '', body = '';
+    if(d.status === 'R'){ cls = 'bad'; title = 'ไม่รับซื้อแล้ว — ไม่สามารถพิจารณาได้'; body = `${who(d.reject)}${d.reject && d.reject.note ? `<span class="why">เหตุผล: ${esc(d.reject.note)}</span>` : ''}`; }
+    else if(d.status === 'A'){ cls = 'ok'; title = 'อนุมัติครบทุกท่านแล้ว'; body = d.poAuto ? `ออกใบสั่งซื้อ ${esc(d.poAuto.docNo || '-')}` : ''; }
+    else if(d.status === 'B'){ cls = 'warn'; title = 'ส่งกลับแก้ไข — รอฝ่ายจัดซื้อแก้ไขและส่งขออนุมัติใหม่'; body = 'จะมี E-mail แจ้งอีกครั้งเมื่อส่งใหม่'; }
+    else if(d.status === 'C'){ cls = 'bad'; title = 'ผู้ขายยกเลิกคำร้องแล้ว'; body = d.cancel && d.cancel.reason ? `<span class="why">สาเหตุ: ${esc(d.cancel.reason)}</span>` : ''; }
+    else return '';
+    return `<div class="st-banner ${cls} apv-closed"><b>${title}</b> ${body}</div>`;
+  }
   function renderApvPanel(){
     const d = opaDoc, box = $('apvPanel');
     if(opaFromBuy || !d.myApv || !d.myApv.length){
       const cur = curApv(d), me = currentUser();
       const mine = cur.filter(a => me && a.idPs === me.id && a.result);
-      if(d.status !== 'H'){ box.innerHTML = ''; return; }
+      if(d.status !== 'H'){ box.innerHTML = opaClosedBanner(d); return; }
       box.innerHTML = `<div class="card apv-panel info">
         <h2>สถานะการพิจารณา — พิจารณาแล้ว ${d.apvSummary.done}/${d.apvSummary.count || 4} ท่าน</h2>
         ${mine.length ? `<p>ท่านพิจารณาแล้ว (${esc(mine.map(a => stepName(a.step)).join(' / '))}) — <b class="ok" style="color:var(--ok-green)">${esc(resLabel(mine[0]))}</b> เมื่อ ${thStamp(mine[0].at)}</p>` : ''}
