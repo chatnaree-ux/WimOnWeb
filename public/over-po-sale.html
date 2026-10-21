@@ -564,7 +564,7 @@
     .item-table td.c-nm{grid-column:1 / -1; padding-right:44px;}
     .item-table td.c-del{position:absolute; top:12px; right:12px; width:auto;}
     /* บรรทัด PO: เลขที่ | จำนวน (ตัดบรรทัดได้) | ปุ่ม × อยู่บรรทัดเดียวกันเสมอ */
-    .item-table .po-line{display:grid; grid-template-columns:max-content minmax(0, 1fr) auto; align-items:center; white-space:normal;}
+    .item-table .po-line{display:grid; grid-template-columns:max-content max-content max-content; justify-content:start; column-gap:14px; align-items:center; white-space:normal;}
     .item-table .po-line > span:nth-child(2){grid-row:auto; grid-column:auto;}
     .item-table .po-line > button{grid-row:auto; grid-column:auto;}
     /* ลำดับในการ์ด: ชื่อ/PO → กล่องสรุป 3 ช่อง → ผลิตได้ / เสนอขาย → หมายเหตุ */
@@ -1260,6 +1260,41 @@
   @media (max-width: 640px){
     .list-toolbar > .btn{flex:1 1 100%; justify-content:center;}   /* ปุ่มรีเฟรช: เต็มแถวเท่าแถวปุ่มช่วงวันที่ */
   }
+  /* การ์ดรายการ (ฟอร์ม) บนจอแคบ ≤560px: กล่องสรุป 3 ช่อง (จำนวน PO / ขายแล้ว / ยอดเกิน) เรียงเป็นแถว ป้ายซ้าย-ค่าขวา
+     (เดิม 3 คอลัมน์ ตัวเลขยาว เช่น 23,083.51 ล้นกรอบ ทับกัน) */
+  @container (max-width: 560px){
+    .item-table td.c-po, .item-table td.c-rec, .item-table td.c-over{grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:baseline;
+      justify-content:space-between; gap:2px 10px; font-size:15px;}
+    .item-table td.c-po::before, .item-table td.c-rec::before, .item-table td.c-over::before{margin:0; flex:1 1 auto; min-width:0;}
+    .item-table td.c-rec .rec-sub{flex-basis:100%; text-align:right; margin-top:0;}
+  }
+  /* ฟอร์ม: ช่องกรอก + select สูงเท่ากัน (iPad/iOS แสดง select เตี้ยกว่าช่องข้างๆ) / ลูกศร select วาดเอง */
+  input:not([type=checkbox]):not([type=radio]), select{min-height:44px;}
+  select{-webkit-appearance:none; appearance:none; padding-right:36px; line-height:1.3;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a9b4c6' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; background-size:14px;}
+
+  /* การ์ดรายการบนมือถือ (แทนตาราง): แสดงเรียบๆ — ข้อมูลหลักเป็นบรรทัด + ปุ่ม "รายละเอียด" (รายละเอียดรายการอยู่ใน popup) */
+  .doc-card .dc-row{display:flex; gap:10px; align-items:baseline; font-size:13.5px; color:var(--concrete-200); padding:2px 0;}
+  .doc-card .dc-row .k{flex:0 0 96px; font-size:12.5px; color:var(--concrete-400); margin:0;}
+  .doc-card .dc-row .v{min-width:0; overflow-wrap:anywhere;}
+  .doc-card .dc-names{margin:10px 0 4px; padding-top:10px; border-top:1px dashed rgba(255,255,255,.12);}
+  .doc-card .dc-names div{font-size:14px; font-weight:600; color:#fff; padding:1px 0; overflow-wrap:anywhere;}
+  .doc-card .dc-sum{display:flex; justify-content:space-between; align-items:baseline; margin-top:6px; font-size:13.5px; color:var(--concrete-200);}
+  .doc-card .dc-sum b{font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--amber-500);}
+  .doc-card .dc-actions{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .doc-card .dc-actions .btn{min-height:44px; justify-content:center; text-align:center;}
+  .doc-card .dc-actions .btn:last-child:nth-child(odd){grid-column:1 / -1;}
+  /* popup รายละเอียดรายการ */
+  .dd-item{padding:12px 0; border-top:1px solid rgba(255,255,255,.1);}
+  .dd-item:first-child{border-top:0; padding-top:0;}
+  .dd-nm{font-weight:700; color:#fff; font-size:14.5px;}
+  .dd-po{font-size:12.5px; color:var(--concrete-400); margin:2px 0 8px; overflow-wrap:anywhere;}
+  .dd-row{display:flex; justify-content:space-between; gap:12px; font-size:13.5px; color:var(--concrete-200); padding:3px 0;}
+  .dd-row b{font-family:'JetBrains Mono',monospace; color:#fff;}
+  .dd-row.over b{color:#ff8a75;}
+  .dd-row.offer b{color:var(--amber-500);}
+
   /* ระหว่างเลือกโหมดหน้า (ลิงก์จากอีเมล ฯลฯ) ซ่อนเนื้อหาไว้ก่อน ไม่ให้หน้ารายการคำร้องแว้บขึ้นมา */
   html.ops-boot main{visibility:hidden;}
 
@@ -1943,7 +1978,7 @@
       $('listPage').classList.remove('active');
       document.body.classList.add('buy-mode');
       $('pageEyebrow').textContent = 'Seed Purchase Approval (Over-PO)';
-      $('pageTitle').textContent = 'รอการพิจารณาอนุมัติ (Over PO)';
+      $('pageTitle').textContent = 'รอการพิจารณาอนุมัติขอซื้อ (Over PO)';
       $('apvListPage').classList.add('active');
       return loadApvList();
     }
@@ -2613,42 +2648,45 @@
     // ---------- กล่องเอกสาร (มือถือ): 1 กล่อง = 1 เอกสาร / รายการในเอกสารเป็นกล่องย่อยพร้อมตัวเลขสรุป ----------
     $('listCards').innerHTML = pg.rows.map(d => {
       const canSend = ['D', 'S'].includes(d.status);
-      const items = d.items.map(it => {
-        const u = it.unit ? ` (${esc(it.unit)})` : '';
-        const box = (cls, label, v) => `<div class="dc-box ${cls}"><span class="l">${kp(label + u)}</span><b>${v}</b></div>`;
-        return `<div class="dc-item">
-          <div class="dc-nm">${esc(it.invName)}</div>
-          <div class="dc-po">PO ที่อ้างอิง: ${esc(it.poCodes || '-')}</div>
-          <div class="dc-stats">
-            ${box('b-po', 'จำนวน PO', fmtQty(it.amountPO))}
-            ${box('b-sold', 'ขายแล้ว (ผู้ขาย)', fmtQty(it.amountSold != null ? it.amountSold : it.amountRec))}
-            ${box('b-pd', 'ผลิตได้', fmtQty(it.amountProduce))}
-            ${box('b-over', 'จำนวนเกิน PO', fmtQty(round6(it.amountProduce - it.amountPO)))}
-            ${box('b-of', 'เสนอขายเพิ่ม', fmtQty(it.amountOffer))}
-          </div>
-        </div>`;
-      }).join('');
+      const row = (k, v) => `<div class="dc-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
       return `<div class="doc-card ${d.status === 'R' ? 'is-reject' : ''} ${d.status === 'C' ? 'is-cancel' : ''}">
         <div class="dc-head"><span class="dc-no">${esc(d.docNo)}</span>${statusBadge(d)}</div>
-        <div class="dc-meta">
-          <span><span class="k">วันที่ร้องขอ</span> ${thDate(d.docDate)}</span>
-          <span><span class="k">ส่งถึง</span> <span class="co-pill co-${d.target}">${esc(shortCompName(d.targetName))}</span></span>
-          <span><span class="k">ผู้ร้องขอ</span> ${esc(d.requester)}</span>
-          ${d.poCode ? `<span><span class="k">PO ที่ออกให้</span> <b class="po-auto mono">${esc(d.poCode)}</b></span>` : ''}
-          <span><span class="k">ส่งคำร้องเมื่อ</span> ${d.sentAt ? thStamp(d.sentAt) : '-'}</span>
+        <div class="dc-meta-plain">
+          ${row('วันที่ร้องขอ', thDate(d.docDate))}
+          ${row('ส่งถึง', `<span class="co-pill co-${d.target}">${esc(shortCompName(d.targetName))}</span>`)}
+          ${row('ผู้ร้องขอ', esc(d.requester))}
+          ${d.poCode ? row('PO ที่ออกให้', `<b class="po-auto mono">${esc(d.poCode)}</b>`) : ''}
         </div>
         ${d.status === 'R' && d.rejectNote ? `<div class="dc-note reject">ไม่รับซื้อ — เหตุผล: ${esc(d.rejectNote)}</div>` : ''}
         ${d.cancel ? `<div class="dc-note">ยกเลิกโดย ${esc(d.cancel.by)} · ${thStamp(d.cancel.at)} — ${esc(d.cancel.reason)}</div>` : ''}
         ${d.mailFail ? '<div class="dc-note reject">⚠ ส่งอีเมลครั้งล่าสุดไม่สำเร็จบางราย</div>' : ''}
-        ${items}
+        <div class="dc-names">${d.items.map(it => `<div>${esc(it.invName)}</div>`).join('') || '<div>-</div>'}</div>
         <div class="dc-actions">
-          <a class="btn btn-secondary btn-sm" href="/over-po-sale-doc?id=${d.id}" target="_blank" rel="noopener">เปิดเอกสาร</a>
+          <button type="button" class="btn btn-secondary btn-sm" data-detail="${d.id}">รายละเอียด</button>
+          <a class="btn btn-secondary btn-sm" href="/over-po-sale-doc?id=${d.id}&view=preview" data-viewer>ดูเอกสาร</a>
           ${canSend ? `<button type="button" class="btn btn-secondary btn-sm" data-edit="${d.id}">แก้ไข</button>
             <button type="button" class="btn btn-secondary btn-sm" data-send="${d.id}">${d.status === 'S' ? 'ส่งอีเมลอีกครั้ง' : 'ส่งคำร้อง'}</button>
             <button type="button" class="btn btn-danger btn-sm" data-cancel="${d.id}">ยกเลิก</button>` : ''}
         </div>
       </div>`;
     }).join('');
+  }
+
+  // รายละเอียดรายการของเอกสาร (การ์ดมือถือ) — แสดงเรียบๆ เป็นบรรทัด ไม่ใช้กล่องสี
+  function openDocDetail(id){
+    const d = docs.find(x => x.id === id);
+    if(!d) return;
+    const row = (cls, k, v) => `<div class="dd-row ${cls}"><span>${k}</span><b>${v}</b></div>`;
+    dlg(`รายละเอียด ${d.docNo}`, `${d.items.map(it => `<div class="dd-item">
+        <div class="dd-nm">${esc(it.invName)}</div>
+        <div class="dd-po">PO ที่อ้างอิง: ${esc(it.poCodes || '-')} · หน่วย ${esc(it.unit || '-')}</div>
+        ${row('', 'จำนวน PO', fmtQty(it.amountPO))}
+        ${row('', 'ขายแล้ว (ผู้ขาย)', fmtQty(it.amountSold != null ? it.amountSold : it.amountRec))}
+        ${row('', 'ผลิตได้ทั้งหมด', fmtQty(it.amountProduce))}
+        ${row('over', 'จำนวนเกิน PO', fmtQty(round6(it.amountProduce - it.amountPO)))}
+        ${row('offer', 'เสนอขายเพิ่ม', fmtQty(it.amountOffer))}
+      </div>`).join('')}
+      <div class="send-actions"><button type="button" class="btn btn-primary" data-close="dlgModal">ปิด</button></div>`, { w: '480px' });
   }
 
   /* ==================================================================
@@ -3066,24 +3104,21 @@
         return `<tr class="${rowCls} ${i === 0 ? 'doc-first' : ''} row-link" data-href="${href(d)}">${i === 0 ? head : ''}${cells}${i === 0 ? tail : ''}</tr>`;
       }).join('');
     }).join('');
-    $('buyListCards').innerHTML = pg.rows.map(d => `<a class="doc-card ${d.status === 'R' ? 'is-reject' : ''} ${d.status === 'C' ? 'is-cancel' : ''}" href="${href(d)}">
+    const crow = (k, v) => `<div class="dc-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+    $('buyListCards').innerHTML = pg.rows.map(d => `<div class="doc-card ${d.status === 'R' ? 'is-reject' : ''} ${d.status === 'C' ? 'is-cancel' : ''}">
         <div class="dc-head"><span class="dc-no">${esc(d.docNo)}</span>${buyBadge(d)}</div>
-        <div class="dc-meta">
-          <span><span class="k">จาก</span> <span class="co-pill co-${d.req}">${esc(shortCompName(d.reqName))}</span></span>
-          <span><span class="k">วันที่ร้องขอ</span> ${thDate(d.docDate)}</span>
-          <span><span class="k">ใบขออนุมัติ</span> ${esc(d.buyDocNo || '-')}</span>
-          <span><span class="k">PO ที่สร้าง</span> ${d.poCode ? `<span class="po-auto">${esc(d.poCode)}</span>` : '-'}</span>
+        <div class="dc-meta-plain">
+          ${crow('จาก', `<span class="co-pill co-${d.req}">${esc(shortCompName(d.reqName))}</span>`)}
+          ${crow('วันที่ร้องขอ', thDate(d.docDate))}
+          ${d.buyDocNo ? crow('ใบขออนุมัติ', esc(d.buyDocNo)) : ''}
+          ${d.poCode ? crow('PO ที่สร้าง', `<b class="po-auto mono">${esc(d.poCode)}</b>`) : ''}
         </div>
         ${d.status === 'R' && d.rejectNote ? `<div class="dc-note reject">ไม่รับซื้อ — ${esc(d.rejectNote)}</div>` : ''}
         ${d.cancel ? `<div class="dc-note">ผู้ขายยกเลิกคำร้อง — ${esc(d.cancel.reason)}</div>` : ''}
-        ${d.items.map(it => `<div class="dc-item"><div class="dc-nm">${esc(it.invName)}</div>
-          <div class="dc-po">PO ที่อ้างอิง: ${esc(it.poCodes || '-')}</div>
-          <div class="dc-stats">
-            <div class="dc-box b-of"><span class="l">${kp('เสนอขาย (' + (it.unit || '-') + ')')}</span><b>${fmtQty(it.amountOffer)}</b></div>
-            <div class="dc-box b-sold"><span class="l">${kp('รับซื้อ (' + (it.unit || '-') + ')')}</span><b>${it.amountBuy != null ? fmtQty(it.amountBuy) : '-'}</b></div>
-            <div class="dc-box b-po"><span class="l">${kp('ราคา (บาท/' + (it.unit || 'หน่วย') + ')')}</span><b>${priceText(it.price)}</b></div>
-          </div></div>`).join('')}
-      </a>`).join('');
+        <div class="dc-names">${d.items.map(it => `<div>${esc(it.invName)}</div>`).join('') || '<div>-</div>'}</div>
+        ${(() => { const t = round2(d.items.reduce((s, it) => s + (it.amountBuy > 0 && it.price > 0 ? it.amountBuy * it.price : 0), 0)); return t > 0 ? `<div class="dc-sum"><span>รวมเป็นเงิน</span><b>${money(t)} บาท</b></div>` : ''; })()}
+        <div class="dc-actions"><a class="btn btn-secondary btn-sm" href="${href(d)}">รายละเอียด</a></div>
+      </div>`).join('');
   }
 
   // ---------- หน้าจัดการคำร้อง (ฝ่ายจัดซื้อ) ----------
@@ -3819,6 +3854,8 @@
       renderList();
     });
     $('listArea').addEventListener('click', (e) => {
+      const dt = e.target.closest('[data-detail]');
+      if(dt) return openDocDetail(Number(dt.dataset.detail));
       const row = e.target.closest('tr.has-detail');
       if(row && !e.target.closest('button, a, input')){
         const id = Number(row.dataset.doc);
