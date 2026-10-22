@@ -442,6 +442,29 @@
   @media (max-width:640px){
     .filter-grid .fb-date > :first-child{grid-column:1 / -1 !important; line-height:normal; margin-bottom:-4px;}
     .filter-grid .fb-date > :last-child{grid-column:1 / -1 !important;}
+    /* ทุกบล็อกเงื่อนไข: ป้ายอยู่บน ช่องเลือก / กรอกเต็มความกว้าง (เดิมป้ายซ้าย ช่องขวาหดจนอ่านไม่ออก) */
+    .filter-panel.filter-grid{grid-template-columns:minmax(0, 1fr);}
+    .filter-grid .filter-block > :first-child, .filter-grid .filter-block > :last-child{grid-column:1 / -1 !important;}
+    .filter-grid .filter-block{display:flex; flex-direction:column; align-items:stretch; gap:6px; width:100%;}
+    .filter-grid .filter-block .input-shell{width:100%; min-height:44px;}
+    .filter-grid .filter-block .input-shell select, .filter-grid .filter-block .input-shell input{font-size:15px;}
+    .filter-grid .fb-date > .filter-block-title{line-height:normal;}
+    .filter-grid .filter-block .month-picker-shell{min-width:0;}
+    .filter-actions .filter-btn{min-height:46px; justify-content:center;}
+  }
+  html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  /* มือถือ: ตารางสรุป (Supplier / ประเภทพืช / สินค้า) เรียงเป็นการ์ด — ชื่อคอลัมน์มาจาก data-l ที่ JS ใส่ให้ทุกเซลล์ */
+  @media (max-width:700px){
+    #anResult .an-table-wrap{overflow:visible;}
+    #anResult .an-table, #anResult .an-table tbody, #anResult .an-table tfoot{display:block; width:100% !important; min-width:0 !important;}
+    #anResult .an-table thead, #anResult .an-table colgroup{display:none;}
+    #anResult .an-table tr{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:4px 14px; margin-bottom:10px; padding:12px;
+      border:1px solid rgba(140,180,230,.28); border-left:4px solid var(--amber-500); border-radius:12px; background:rgba(120,160,220,.07);}
+    #anResult .an-table td{white-space:normal; display:flex; justify-content:space-between; align-items:baseline; gap:8px; padding:2px 0 !important; border:0 !important; min-width:0; text-align:right; background:none;}
+    #anResult .an-table td::before{content:attr(data-l); color:var(--concrete-400); font-size:12px; text-align:left;}
+    #anResult .an-table td:first-child{grid-column:1 / -1; display:block; text-align:left; font-weight:700; font-size:14.5px; color:#fff; padding-bottom:6px !important;}
+    #anResult .an-table td:first-child::before{content:none;}
+    #anResult .an-table td.an-name{white-space:normal;}
   }
 
   /* ---------- ป้ายผู้ขาย (ตัวย่อ + ชื่อ มีสีเฉพาะที่ป้าย — กรอบ/แถบการ์ดใช้สีสถานะ) ---------- */
@@ -2158,12 +2181,28 @@
     const longest = Math.max(0, ...scale.ticks.map(t => Math.max(0, ...[].concat(t.label ?? '').map(s => measureLabelPx(String(s))))));
     scale.width = Math.min(Math.max(scale.width, Math.ceil(longest) + 16), Math.floor(scale.chart.width * 0.45));
   }
+  // จอแคบ: ชื่อบนแกน Y ยาวเกินช่อง → ตัดบรรทัด (ไม่เกิน 3 บรรทัด) แทนที่จะถูกตัดท้ายหาย — คืนอาร์เรย์ = Chart.js วาดหลายบรรทัด
+  function wrapTick(chart, text){
+    text = String(text ?? '');
+    const w = Math.max(10, Math.floor(chart.width * 0.45 / 7.5));
+    if (text.length <= w) return text;
+    const lines = [];
+    let cur = '';
+    text.split(/s+/).forEach(tok => {
+      while (tok.length > w) { if (cur) { lines.push(cur); cur = ''; } lines.push(tok.slice(0, w)); tok = tok.slice(w); }
+      if (cur && (cur + ' ' + tok).length > w) { lines.push(cur); cur = tok; } else cur = cur ? cur + ' ' + tok : tok;
+    });
+    if (cur) lines.push(cur);
+    if (lines.length > 3) { lines.length = 3; lines[2] = lines[2].slice(0, w - 1) + '…'; }
+    return lines;
+  }
   const chartBase = (extra = {}) => ({
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { labels: { color: AN_TICK, boxWidth: 12, font: { family: 'Inter', size: 12 } } } },
     scales: {
       x: { ticks: { color: AN_TICK, font: { family: 'Inter', size: 12 } }, grid: { color: AN_GRID } },
-      y: { ticks: { color: AN_TICK, font: { family: 'Inter', size: 12 } }, grid: { color: AN_GRID },
+      y: { ticks: { color: AN_TICK, font: { family: 'Inter', size: 12 },
+                     ...(extra.indexAxis === 'y' ? { callback(v){ return wrapTick(this.chart, this.getLabelForValue(v)); } } : {}) }, grid: { color: AN_GRID },
            ...(extra.indexAxis === 'y' ? { afterFit: fitCategoryAxis } : {}) }
     },
     ...extra
@@ -2384,9 +2423,9 @@
       const c = rows[v];
       let s = kind === 'product' ? shortInvName(this.getLabelForValue(v)) : this.getLabelForValue(v);
       // ชื่อสินค้ายาว: ตัดสั้นตามความกว้างกราฟ (จอเล็กตัดเหลือ ~16 ตัว) — ชี้ที่แท่งเห็นชื่อเต็มใน tooltip
-      const maxLen = this.chart.width < 500 ? 16 : 34;
+      const maxLen = this.chart.width < 500 ? 60 : 34;
       if (kind === 'product' && s.length > maxLen) s = s.slice(0, maxLen - 1) + '…';
-      return cap !== null && c && c.excessPct > cap ? `${s} ▸ ${c.excessPct}%` : s;
+      return wrapTick(this.chart, cap !== null && c && c.excessPct > cap ? `${s} ▸ ${c.excessPct}%` : s);
     };
     anCharts[kind] = new Chart(document.getElementById(cfg.chart), {
       type: 'bar',
@@ -2397,6 +2436,28 @@
       options: base
     });
   }
+
+  // ใส่ data-l (ชื่อคอลัมน์) ให้ทุกเซลล์ของตารางสรุป — ใช้แสดงเป็นการ์ดบนมือถือ (อ่านจากหัวตาราง 1–2 แถว รวม rowspan / colspan)
+  function labelAnTables(root){
+    root.querySelectorAll('table.an-table:not([data-labeled])').forEach(t => {
+      const grid = [];
+      [...t.tHead.rows].forEach((tr, r) => {
+        let c = 0;
+        [...tr.cells].forEach(th => {
+          while (grid[r] && grid[r][c] !== undefined) c++;
+          const clone = th.cloneNode(true);
+          clone.querySelectorAll('span').forEach(x => x.remove());
+          const text = clone.textContent.trim();
+          for (let i = 0; i < th.rowSpan; i++) for (let j = 0; j < th.colSpan; j++) { (grid[r + i] = grid[r + i] || [])[c + j] = text; }
+          c += th.colSpan;
+        });
+      });
+      const last = grid[grid.length - 1] || [];
+      t.querySelectorAll('tbody tr, tfoot tr').forEach(tr => [...tr.cells].forEach((td, i) => { if (last[i]) td.dataset.l = last[i]; }));
+      t.dataset.labeled = '1';
+    });
+  }
+  new MutationObserver(() => labelAnTables(anResult)).observe(anResult, { childList: true, subtree: true });
 
   anResult.addEventListener('click', (e) => {
     const btn = e.target.closest('.an-seg[data-kind] button');
