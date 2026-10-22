@@ -975,6 +975,13 @@
     .ip-table tbody tr.sel{border-left-color:var(--ok-green); background:rgba(242,169,28,.12);}
     .ip-table td.ctr input[type=checkbox]{width:22px; height:22px;}
     .ip-table td.qc{text-align:left !important; box-shadow:none !important;}
+    /* คุณภาพเมล็ดพันธุ์: ไม่มีเส้นเขียวชิดตัวหนังสือ — ใช้เส้นประคั่นด้านบน + หัวข้ออยู่บน ค่าอยู่ล่าง (ไม่ตกบรรทัดแตกต่างกัน) */
+    .items-table tbody tr td.qc, .ip-table tbody tr td.qc{border-left:0 !important; box-shadow:none !important;}
+    .items-table tbody tr td.qc{padding-top:8px !important; border-top:1px dashed rgba(255,255,255,.14) !important;}
+    .items-table .qc-grid{grid-template-columns:1fr 1fr; gap:8px 14px; font-size:13px;}
+    .items-table .qc-grid > span{display:flex; flex-direction:column; gap:1px; min-width:0;}
+    .items-table .qc-grid .lbl{margin:0; font-size:11.5px; color:var(--concrete-400);}
+    .items-table .qc-grid .v{font-size:15px;}
     .ip-table td.qc::before{text-align:left;}
   }
   @media (max-width:640px){
@@ -2624,11 +2631,14 @@
     setPrintFooter(d.docNo, `พิมพ์เมื่อ ${thStamp(nowStamp())}  ·  ผู้พิมพ์ ${currentUserName()}`, 'portrait');
     await Promise.all([...pa.querySelectorAll('img')].map(waitForImage));
     document.body.classList.add('printing');
-    document.body.classList.toggle('ios-print', /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+    const iosPrint = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    document.body.classList.toggle('ios-print', iosPrint);
     // ยืดตารางแต่ละหน้า: วัดตอนแสดงขนาด A4 นอกจอ (printArea ซ่อนอยู่บนจอ)
     pa.style.cssText = 'display:block; position:absolute; left:-10000px; top:0; width:210mm;';
     fitPaper(pa);
     pa.style.cssText = '';
+    // iOS กันพื้นที่ท้ายกระดาษไว้มาก (พิมพ์ได้ราว 255 มม. จาก 297) → ย่อแผ่นลงให้ลงหน้าเดียว
+    pa.querySelectorAll('.rp-page').forEach(p => { p.style.zoom = iosPrint ? '0.8' : ''; p.style.margin = iosPrint ? '0 auto' : ''; });
     window.print();
   }
   async function printDocById(id){
