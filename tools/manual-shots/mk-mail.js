@@ -35,7 +35,7 @@ fs.writeFileSync(htmlFile, '<!doctype html><meta charset="utf-8"><body style="ma
   await pg.goto('file:///' + htmlFile.split(path.sep).join('/')); await pg.waitForTimeout(500);
   // ซ่อนบรรทัดข้อความส่งอัตโนมัติ + ลิงก์ URL ท้ายอีเมล
   await pg.evaluate(() => { document.querySelectorAll('a').forEach(a => { if (/^https?:/.test(a.textContent.trim())) a.parentElement.style.display = 'none'; }); });
-  await (await pg.$('body > div')).screenshot({ path: 'D:/WimOnWeb/public/images/manual/over-po-sale/mail-approver.png' });
+  await (await pg.$('body')).screenshot({ path: 'D:/WimOnWeb/public/images/manual/over-po-sale/mail-approver.png' });
   console.log('subject:', m.subject);
   await br.close(); fs.unlinkSync(htmlFile);
 })();
