@@ -834,7 +834,6 @@
   /* พิมพ์: 1 แผ่น = 1 หน้า (ขอบล่าง 10 มม. เป็นท้ายกระดาษ) — สูง 286.5 มม. (เนื้อหา 269 มม. เท่าบนจอ) */
   #printArea.rp-print .rp.rp-page{width:210mm; max-width:none; height:283mm; margin:0; padding:12mm 12mm 2mm; border-radius:0; box-shadow:none; break-after:page;}
   #printArea.rp-print .rp.rp-page:last-child{break-after:auto;}
-  body.ios-print #printArea.rp-print .rp.rp-page{zoom:.9; margin:0 auto;}
   /* มือถือ: แสดงเป็นแผ่น A4 จริงแล้วย่อตามความกว้างจอ (เหมือนใบ OPQ / OPA) — ไม่ปรับโครงเอกสาร */
   .paper-wrap .rp{max-width:none; flex-shrink:0;}
   .rp-scale{position:relative; overflow:hidden; margin:0 auto 16px;}
@@ -2559,7 +2558,7 @@
   // แบ่งหน้าแบบฟอร์ม ERP: ทุกหน้ามีหัวเอกสาร + หัวตาราง / หน้าที่ไม่ใช่หน้าสุดท้าย = "มีต่อหน้าถัดไป" / หน้าสุดท้าย = ยอดรวม + ลายเซ็นชิดล่าง
   //   วัดความสูงจริงที่ความกว้าง A4 (นอกจอ) แล้วใส่รายการทีละแถวจนเต็มพื้นที่ (269 มม. = A4 297 − ขอบบน 12 − ขอบล่าง 16)
   const MM = 96 / 25.4;
-  async function paperPages(d, items){
+  async function paperPages(d, items, availMm = 269){
     const P = paperHtml(d, items);
     if(document.fonts && document.fonts.ready) await document.fonts.ready;
     const box = document.createElement('div');
@@ -2574,7 +2573,7 @@
     const footH = rect(full.querySelector('.rp-signs')).bottom - rect(tbl).bottom;
     const contH = rect(contPage.querySelector('.rp-cont')).bottom - rect(contPage.querySelector('.rp-tbl')).bottom;
     box.remove();
-    const avail = 269 * MM - 6;
+    const avail = availMm * MM - 6;
     const sum = (a, b) => rowH.slice(a, b).reduce((x, y) => x + y, 0);
     const ranges = [];
     for(let i = 0; i < rowH.length;){
@@ -2627,27 +2626,19 @@
   async function printDoc(d, items){
     const pa = $('printArea');
     pa.className = 'rp-print';
-    pa.innerHTML = await paperPages(d, items);
+    // iOS พิมพ์ได้เฉพาะราว 229 มม. ของ A4 (กันขอบบน / ท้ายกระดาษไว้) → แบ่งหน้าและทำแผ่นให้สูง 226 มม. ที่ขนาดจริง (ตัวอักษรไม่ย่อ) รายการมากก็ขึ้นหน้าถัดไป
+    const iosPrint = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const SHEET_IOS = 226;
+    pa.innerHTML = await paperPages(d, items, iosPrint ? SHEET_IOS - 14 : 269);
+    if(iosPrint) pa.querySelectorAll('.rp-page').forEach(p => { p.style.height = SHEET_IOS + 'mm'; });
     setPrintFooter(d.docNo, `พิมพ์เมื่อ ${thStamp(nowStamp())}  ·  ผู้พิมพ์ ${currentUserName()}`, 'portrait');
     await Promise.all([...pa.querySelectorAll('img')].map(waitForImage));
     document.body.classList.add('printing');
-    const iosPrint = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     document.body.classList.toggle('ios-print', iosPrint);
     // ยืดตารางแต่ละหน้า: วัดตอนแสดงขนาด A4 นอกจอ (printArea ซ่อนอยู่บนจอ)
     pa.style.cssText = 'display:block; position:absolute; left:-10000px; top:0; width:210mm;';
     fitPaper(pa);
     pa.style.cssText = '';
-    // iOS กันพื้นที่ท้ายกระดาษไว้มาก (พิมพ์ได้ราว 255 มม. จาก 297) → ย่อแผ่นลงให้ลงหน้าเดียว
-    // (ใช้ transform ใส่ตัวห่อที่กำหนดขนาดใหม่ — zoom ไม่มีผลตอนพิมพ์บน iOS)
-    if(iosPrint){
-      const k = 0.78;
-      pa.querySelectorAll('.rp-page').forEach((p, i, all) => {
-        const w = document.createElement('div');
-        w.style.cssText = `width:${210 * k}mm; height:${283 * k}mm; overflow:hidden; margin:0 auto; ${i < all.length - 1 ? 'break-after:page;' : ''}`;
-        p.replaceWith(w); w.appendChild(p);
-        p.style.cssText = `transform:scale(${k}); transform-origin:0 0; margin:0; break-after:auto;`;
-      });
-    }
     window.print();
   }
   async function printDocById(id){
