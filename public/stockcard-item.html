@@ -363,6 +363,24 @@
     .topbar-mobile{display:flex;}
   }
 
+  html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  /* มือถือ: แถว Stock Card เป็นการ์ด — เข้า / ออก / คงเหลือ เรียง 3 ช่อง */
+  @media screen and (max-width:700px){
+    .table-scroll{overflow:visible;}
+    .sc-table, .sc-table tbody{display:block; width:100%;}
+    .sc-table thead{display:none;}
+    .sc-table tbody tr{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px 8px; margin-bottom:10px; padding:12px;
+      border:1px solid rgba(140,180,230,.28); border-left:4px solid var(--amber-500); border-radius:12px; background:rgba(120,160,220,.07);}
+    .sc-table tbody tr:hover{background:rgba(120,160,220,.07);}
+    .sc-table tbody td{display:block; padding:0; border:0; white-space:normal; min-width:0; overflow-wrap:anywhere;}
+    .sc-table tbody td.c-date{grid-column:1 / -1; font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500); font-size:13.5px;}
+    .sc-table tbody td.detail{grid-column:1 / -1; min-width:0; color:#fff; font-size:14px;}
+    .sc-table tbody td.num{text-align:center; padding:8px 4px; border-radius:8px; background:rgba(255,255,255,.05); font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700;}
+    .sc-table tbody td.num::before{display:block; content:attr(data-l); font-family:inherit; font-size:11px; font-weight:400; color:var(--concrete-400); margin-bottom:2px;}
+    .sc-table tbody td.c-wh, .sc-table tbody td.c-lot, .sc-table tbody td.c-unit, .sc-table tbody td.c-user{grid-column:1 / -1; display:flex; gap:10px; font-size:12.5px; color:var(--concrete-200);}
+    .sc-table tbody td.c-wh::before, .sc-table tbody td.c-lot::before, .sc-table tbody td.c-unit::before, .sc-table tbody td.c-user::before{content:attr(data-l); flex:0 0 84px; color:var(--concrete-400);}
+  }
+
   /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
      และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
   select, input, textarea{max-width:100%; min-width:0;}
@@ -854,15 +872,15 @@
         ? `<a href="/stockcard?companyId=${encodeURIComponent(companyId)}&lotNo=${encodeURIComponent(r.lotNo)}" target="_blank">${r.lotNo}</a>`
         : '';
       html += `<tr>
-        <td>${r.date}</td>
+        <td class="c-date">${r.date}</td>
         <td class="detail">${r.detail}</td>
-        <td>${r.warehouse}</td>
-        <td class="lot-link">${lotLink}</td>
-        <td class="num in-qty">${fmtNum(r.inQty)}</td>
-        <td class="num out-qty">${fmtNum(r.outQty)}</td>
-        <td class="num balance">${fmtNum(r.balance)}</td>
-        <td>${r.unit}</td>
-        <td>${r.user}</td>
+        <td class="c-wh" data-l="คลัง">${r.warehouse}</td>
+        <td class="lot-link c-lot" data-l="Lot No.">${lotLink}</td>
+        <td class="num in-qty" data-l="เข้า">${fmtNum(r.inQty)}</td>
+        <td class="num out-qty" data-l="ออก">${fmtNum(r.outQty)}</td>
+        <td class="num balance" data-l="คงเหลือ">${fmtNum(r.balance)}</td>
+        <td class="c-unit" data-l="หน่วย">${r.unit}</td>
+        <td class="c-user" data-l="ผู้ทำรายการ">${r.user}</td>
       </tr>`;
     });
 
