@@ -120,7 +120,12 @@ async function go(page, url, { user, doc: d, pending = [], docs = [], poLines = 
   });
   await page.goto('http://localhost:3994' + url, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
-  await page.addStyleTag({ content: '.dry-note, .test-banner{display:none !important}' });
+  // ฟอนต์ไทยสำรองของ WebKit บน Windows (Leelawadee) วางสระ/วรรณยุกต์ซ้อนกันผิด เช่น "ตั้น" กลายเป็น "ต้น" → ให้อักษรไทยใช้ Tahoma (ถูกต้อง) ส่วนอักษรละตินยังใช้ฟอนต์ของหน้าตามเดิม
+  const NOTO_THAI = 'https://fonts.gstatic.com/s/notosansthai/v29/iJWQBXeUZi_OHPqn4wq6hQ2_hbJ1xyN9wd43SofNWcdfKI2hX2g.woff2';   // Noto Sans Thai (ชุดอักษรไทย) — วรรณยุกต์ซ้อนสระถูกต้อง
+  const thaiFix = ['Inter', 'Oswald', 'JetBrains Mono'].map(f => `@font-face{font-family:'${f}'; font-weight:100 900; src:url(${NOTO_THAI}) format('woff2'); unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC;}`).join('');
+  await page.addStyleTag({ content: '.dry-note, .test-banner{display:none !important}' + thaiFix });
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(300);
 }
 async function paper(page) { const el = await page.$('#docPaper, .paper-fit, .paper'); return el.screenshot({ type: 'png' }); }
 async function top(page, h) { const m = await page.$('main'); const b = await m.boundingBox(); return page.screenshot({ type: 'png', clip: { x: b.x, y: Math.max(0, b.y - 12), width: b.width, height: Math.min(h, b.height + 24) } }); }
