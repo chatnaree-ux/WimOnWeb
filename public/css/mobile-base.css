@@ -1,0 +1,11 @@
+/* มาตรฐานมือถือ (ใช้ทุกหน้า) — ดู memory: mobile-ui-standard
+   - ช่องกรอก / select ตัวอักษร 16px (iOS ไม่ซูมเองตอนแตะ) สูงอย่างน้อย 44px เท่ากันทุกช่อง
+   - ปุ่มสูงอย่างน้อย 40px แตะง่าย
+   - ไม่ให้ Safari ขยายตัวอักษรเอง */
+html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+@media (max-width:900px){
+  select, textarea, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]){font-size:16px !important; min-height:44px;}
+  .btn, a.btn, .perm-add-btn, .filter-btn, .tool-btn{min-height:40px;}
+  input[type=date]{-webkit-appearance:none; appearance:none; display:block; width:100%; max-width:100%; min-width:0; text-align:left;}
+  .excel-btn{min-height:44px;}
+}
