@@ -191,10 +191,10 @@
     content:""; position:absolute; right:-9px; top:50%; width:8px; height:8px; z-index:1;
     border-top:2px solid var(--steel-500); border-right:2px solid var(--steel-500); transform:translateY(-50%) rotate(45deg);
   }
-  .flow-who{font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:var(--steel-500); text-transform:uppercase; margin-bottom:6px;}
-  .flow-title{font-size:14px; font-weight:600; color:#fff; line-height:1.4; margin-bottom:8px;}
-  .flow-desc{font-size:12.5px; color:var(--concrete-400); line-height:1.55;}
-  .flow-step .badge{margin-top:8px;}
+  .flow-who{font-family:'Inter',sans-serif; font-size:14px; font-weight:700; color:var(--amber-500); margin-bottom:6px;}
+  .flow-title{font-size:17px; font-weight:700; color:#fff; line-height:1.4; margin-bottom:8px;}
+  .flow-desc{font-size:14.5px; font-weight:500; color:var(--concrete-200); line-height:1.65;}
+  .flow-step .badge{margin-top:10px; font-size:13px; font-weight:700; white-space:normal;}
   @media (max-width:1100px){
     .flow{grid-template-columns:1fr 1fr;}
     .flow-step::after{display:none;}
@@ -490,7 +490,7 @@
 
             <section class="doc-section" id="r-overview">
               <div class="sec-head"><span class="sec-no">01</span><h2>ภาพรวมการทำงาน</h2></div>
-              <p>ใช้เมื่อบริษัทผู้ขาย (โฟลเทคซีดส์ / กรีนซีดส์ / แอ๊ดว้านซ์ซีดส์) <b>ผลิตเมล็ดพันธุ์ได้เกินจำนวนในใบสั่งซื้อ (PO)</b> ของบริษัทผู้ซื้อ และต้องการเสนอขายส่วนที่เกิน ผู้ร้องขอบันทึกคำร้องในระบบ แล้วระบบส่งอีเมลถึงฝ่ายจัดซื้อให้พิจารณา ไม่ต้องทำเป็นเอกสารกระดาษหรือส่งอีเมลเอง</p>
+              <p>เมื่อบริษัทผู้ขาย <b>ผลิตเมล็ดพันธุ์ได้เกินจำนวนในใบสั่งซื้อ (PO)</b> ของบริษัทผู้ซื้อ และต้องการเสนอขายส่วนที่เกิน ผู้ร้องขอบันทึกคำร้องในระบบ แล้วระบบส่งอีเมลถึงฝ่ายจัดซื้อให้พิจารณา</p>
               <div class="flow">
                 <div class="flow-step" style="--c:var(--concrete-200)">
                   <div class="flow-who">ผู้ร้องขอ (ผู้ขาย)</div>
@@ -506,7 +506,7 @@
                 </div>
                 <div class="flow-step" style="--c:#34c27f">
                   <div class="flow-who">ระบบ</div>
-                  <div class="flow-title">3. ได้ผลและเลข PO</div>
+                  <div class="flow-title">3. ผลการพิจารณา และเลขที่ PO</div>
                   <div class="flow-desc">อนุมัติครบ ระบบสร้าง PO (OS…) และใบสั่งขายของผู้ขายให้เอง แล้วแจ้งผลทางอีเมล หรือแจ้งว่าไม่รับซื้อพร้อมเหตุผล</div>
                   <span class="badge">อนุมัติรับซื้อ / ไม่รับซื้อ</span>
                 </div>
@@ -625,7 +625,7 @@
 
             <section class="doc-section" id="b-overview">
               <div class="sec-head"><span class="sec-no">01</span><h2>ภาพรวมการทำงาน</h2></div>
-              <p>ฝั่งนี้ใช้โดย<b>ฝ่ายจัดซื้อของบริษัทผู้ซื้อ</b>และ<b>ผู้อนุมัติ 4 ท่าน</b> (ผู้รับทราบ, ผู้ตรวจสอบ, ผู้อนุมัติ 2 ท่าน) เมื่อได้รับคำร้องจากผู้ขาย ฝ่ายจัดซื้อกำหนดจำนวนที่รับซื้อจริงและราคา แล้วส่งขออนุมัติ เมื่ออนุมัติครบ ระบบสร้าง <b>PO</b> และ<b>ใบสั่งขาย</b>ให้อัตโนมัติ ไม่ต้องคีย์ซ้ำในระบบ PO</p>
+              <p>การทำงานส่วนนี้ <b>ฝ่ายจัดซื้อของบริษัทผู้ซื้อ</b>และ<b>ผู้อนุมัติ 4 ท่าน</b> (ผู้รับทราบ, ผู้ตรวจสอบ, ผู้อนุมัติ 2 ท่าน) เมื่อได้รับคำร้องจากผู้ขาย ฝ่ายจัดซื้อกำหนดจำนวนที่รับซื้อจริงและราคา แล้วส่งขออนุมัติ เมื่ออนุมัติครบ ระบบสร้าง <b>PO</b> และ<b>ใบสั่งขาย</b>ให้อัตโนมัติ ไม่ต้องคีย์ซ้ำในระบบ PO</p>
               <div class="flow">
                 <div class="flow-step" style="--c:var(--concrete-200)">
                   <div class="flow-who">ฝ่ายจัดซื้อ</div>
