@@ -919,6 +919,55 @@
     .cs-table th:nth-child(5), .cs-table td:nth-child(5){width:74px;}
   }
 
+  /* ==== มือถือ (iPhone / Samsung) ==== */
+  html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  .rc-list{display:none;}
+  @media (max-width:900px){
+    .doc-wrap .doc-table{display:none;}
+    .doc-wrap{overflow:visible; border:0; background:none;}
+    .rc-list{display:flex; flex-direction:column; gap:12px;}
+    .rc-card{border:1px solid rgba(140,180,230,.32); border-left:4px solid var(--amber-500); border-radius:12px; padding:14px 14px 12px; background:rgba(120,160,220,.07);}
+    .rc-card.cancelled{opacity:.7; border-left-color:var(--steel-500);}
+    .rc-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+    .rc-head .rc-no{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:15px; color:var(--amber-500);}
+    .rc-head .badge{margin-left:auto;}
+    .rc-head input[type=checkbox]{width:20px; height:20px; margin:0; padding:0; accent-color:var(--amber-500); min-height:0;}
+    .rc-rows{margin:8px 0 4px;}
+    .rc-row{display:flex; gap:10px; align-items:baseline; font-size:13.5px; color:var(--concrete-200); padding:2px 0;}
+    .rc-row .k{flex:0 0 92px; font-size:12.5px; color:var(--concrete-400);}
+    .rc-row .v{min-width:0; overflow-wrap:anywhere;}
+    .rc-sum{display:flex; justify-content:space-between; align-items:baseline; margin:6px 0 10px; padding-top:8px; border-top:1px dashed rgba(255,255,255,.12); font-size:13.5px; color:var(--concrete-200);}
+    .rc-sum b{font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--amber-500);}
+    .rc-acts{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+    .rc-acts .btn{display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:44px; text-align:center;}
+    .rc-acts .btn:last-child:nth-child(odd){grid-column:1 / -1;}
+    .rc-acts .btn svg{width:16px; height:16px; flex-shrink:0;}
+    .rc-dd .dd-item{padding:10px 0; border-top:1px solid rgba(255,255,255,.1);}
+    .rc-dd .dd-item:first-child{border-top:0; padding-top:0;}
+    .rc-dd .dd-nm{font-weight:700; color:#fff; font-size:14.5px;}
+    .rc-dd .dd-sub{font-size:12.5px; color:var(--concrete-400); margin:2px 0 6px; overflow-wrap:anywhere;}
+    .rc-dd .dd-row{display:flex; justify-content:space-between; gap:12px; font-size:13.5px; color:var(--concrete-200); padding:2px 0;}
+    .rc-dd .dd-row b{font-family:'JetBrains Mono',monospace; color:#fff;}
+  }
+  @media (max-width:640px){
+    /* ตัวกรองวันที่: ปุ่มโหมดเต็มแถว / ช่องวันที่ 2 ช่องแบ่งกันพอดี ไม่ล้นกรอบ */
+    .period{flex-direction:column; align-items:stretch; gap:8px;}
+    .seg{width:100%;}
+    .seg button{flex:1; min-height:42px;}
+    .period-fields{width:100%;}
+    .period-fields .date-overlay-wrap{flex:1 1 0; width:auto; min-width:0;}
+    .period-fields select{flex:1 1 0; min-width:0;}
+    .flt-item select, .flt-item input[type="text"], .flt-search .search-shell, .seg{height:44px;}
+    /* แถวปุ่มเหนือรายการ: 2 ปุ่มต่อแถว เท่ากัน */
+    .list-toolbar > div:last-child{width:100%; display:grid !important; grid-template-columns:1fr 1fr; gap:8px;}
+    .list-toolbar .btn{min-height:44px; justify-content:center;}
+    .list-toolbar > div:last-child > .btn:last-child:nth-child(odd){grid-column:1 / -1;}
+    /* แท็บ: ปุ่ม ⚙ / 📖 ติดขวาเสมอ ไม่เลื่อนหลุดจอ */
+    .tab-bar .cause-btn, .tab-bar .manual-btn{position:sticky; background:var(--navy-950); z-index:2; margin-left:0;}
+    .tab-bar .manual-btn{right:0;}
+    .tab-bar .cause-btn{right:44px;}
+  }
+
   /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
      และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
   select, input, textarea{max-width:100%; min-width:0;}
@@ -1053,6 +1102,7 @@
               </thead>
               <tbody id="docListBody"></tbody>
             </table>
+            <div class="rc-list" id="docCards"></div>
             <p class="empty-msg" id="noDocMsg" hidden>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="18" height="14" rx="2"></rect><path d="M3 7l9-4 9 4"></path></svg>
               ไม่พบใบส่งคืนสินค้าตามเงื่อนไขที่เลือก
@@ -1861,7 +1911,69 @@
         </tr>
         ${open ? `<tr class="detail-row"><td colspan="12">${detailHtml(d)}</td></tr>` : ''}`;
     }).join('');
+    $('docCards').innerHTML = rows.map(cardHtml).join('');
   }
+
+  // การ์ดรายการบนมือถือ: ข้อมูลหลักเป็นบรรทัด + ปุ่ม (รายละเอียดสินค้าอยู่ใน popup) — ใช้ data-act ชุดเดียวกับตาราง
+  const IC = (k) => svgIcon(ICON[k], 2);
+  function cardHtml(d){
+    const t = docTotals(d.items, d.type), s = STATUS[d.status], ty = typeOf(d.type);
+    const editable = d.status <= 1;
+    const row = (k, v) => `<div class="rc-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+    const share = APV ? '' : `<button type="button" class="btn btn-neutral-soft btn-sm" data-act="share" ${stepForStatus(d.status) ? '' : 'disabled'}>${IC('link')}ติดตามเอกสาร</button>`;
+    const cancel = CAN_CANCEL && !APV ? `<button type="button" class="btn btn-danger btn-sm" data-act="cancel" ${cancellable(d) ? '' : 'disabled'}>${IC('ban')}ยกเลิก</button>` : '';
+    const main = APV
+      ? `<button type="button" class="btn btn-sm ${APV_INFO[APV].cls}" data-act="open">${IC('check')}${APV_INFO[APV].name}</button>`
+      : `<button type="button" class="btn btn-neutral-soft btn-sm" data-act="open">${IC(editable ? 'edit' : 'eye')}${editable ? 'เปิด / แก้ไข' : 'เปิดดู'}</button>`;
+    return `<div class="rc-card ${d.status === 9 ? 'cancelled' : ''}" data-id="${d.id}">
+      <div class="rc-head">
+        ${APV ? `<input type="checkbox" data-act="select" ${apvCanAct(d) ? '' : 'disabled'} ${APV_SEL.has(d.id) ? 'checked' : ''}>` : ''}
+        <span class="rc-no">${esc(d.docNo)}</span>
+        <span class="badge" style="--c:${s.c}">${stLabel(d.status)}</span>
+      </div>
+      <div class="rc-rows">
+        ${row('บริษัท', `<span class="co-pill" title="${esc(d.compName)}">${esc(d.compCode || d.compName || '-')}</span>`)}
+        ${row('วันที่เอกสาร', thDate(d.docDate))}
+        ${row('Supplier', esc(d.supName || '-'))}
+        ${row('ประเภทการคืน', `<span class="type-pill" style="--c:${ty.c}"><i></i>${esc(ty.short || ty.name)}</span>`)}
+        ${row('ขั้นตอน', approvalCell(d))}
+      </div>
+      <div class="rc-sum"><span>${ty.credit ? 'ยอดลดหนี้' : 'มูลค่าคืน'}</span><b>${ty.credit ? fmtMoney(t.diff) : fmtMoney(t.cost)}</b></div>
+      <div class="rc-acts">
+        <button type="button" class="btn btn-neutral-soft btn-sm" data-act="detail">${IC('po')}รายละเอียด</button>
+        ${main}
+        <button type="button" class="btn btn-neutral-soft btn-sm" data-act="print">${IC('print')}พิมพ์</button>
+        ${share}${cancel}
+      </div>
+    </div>`;
+  }
+  // popup รายละเอียดสินค้า (มือถือ): รายการเรียงเป็นบรรทัด ไม่ใช้ตารางกว้าง
+  function openDetailDlg(d){
+    const ty = typeOf(d.type);
+    const row = (k, v) => `<div class="dd-row"><span>${k}</span><b>${v}</b></div>`;
+    confirmBox({ title: `รายละเอียด ${d.docNo}`, ok: 'ปิด', cancel: '', body: `<div class="rc-dd">${d.cancel ? `<div class="cancel-info"><b>ยกเลิกโดย</b> ${esc(d.cancel.by)} · ${thStamp(d.cancel.at)} — ${esc(d.cancel.reason)}</div>` : ''}
+      ${d.items.map((it, i) => { const c = lineCalc(it, d.type); return `<div class="dd-item">
+        <div class="dd-nm">${i + 1}. ${esc(it.name)}</div>
+        <div class="dd-sub">PO ${esc(it.po) || '-'} · รับ ${esc(it.rec) || '-'} · Lot ${esc(it.lot) || '-'} · ${esc(it.reason) || 'ไม่ระบุสาเหตุ'}</div>
+        ${row(ty.returnGoods ? 'จำนวนคืน' : 'จำนวนลดหนี้', `${fmtQty(it.qty)} ${esc(it.unit || '')}`)}
+        ${row('ต้นทุน/หน่วย', fmtMoney(it.cost))}
+        ${row('มูลค่าต้นทุน', fmtMoney(c.cost))}
+        ${ty.credit ? row('ราคาใหม่/หน่วย', fmtMoney(it.price)) + row('มูลค่าตามราคาใหม่', fmtMoney(c.buy)) + row('ยอดลดหนี้', fmtMoney(c.diff)) : ''}
+      </div>`; }).join('')}</div>` });
+  }
+  $('docCards').addEventListener('click', async (e) => {
+    const card = e.target.closest('.rc-card');
+    if(!card) return;
+    const d = DOCS.find(x => x.id === Number(card.dataset.id));
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if(!d || !act) return;
+    if(act === 'select'){ e.target.checked ? APV_SEL.add(d.id) : APV_SEL.delete(d.id); return renderApvBar(); }
+    if(act === 'open') return openDoc(d.id);
+    if(act === 'share') return openFollow(d);
+    if(act === 'cancel') return cancelDoc(d);
+    if(act === 'print') return printDocById(d.id);
+    if(act === 'detail') return openDetailDlg(d);
+  });
 
   function detailHtml(d){
     const ty = typeOf(d.type);

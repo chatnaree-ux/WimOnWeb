@@ -360,6 +360,10 @@
     .search-btn{min-width:0; width:100%;}
     .search-btn kbd{display:none;}
     .palette-foot{display:none;}
+    /* ผลค้นหาเมนู: ชื่อเมนูเต็มบรรทัด / กลุ่มเมนูอยู่บรรทัดใต้ (เดิมกลุ่มยาวดันชื่อเมนูจนอ่านไม่ออก) */
+    .palette-item{flex-wrap:wrap; gap:2px 12px;}
+    .palette-item > span:not(.grp){flex:1 1 0; min-width:0; overflow-wrap:anywhere;}
+    .palette-item .grp{margin-left:30px; flex:1 1 100%; white-space:normal;}
   }
 </style>
 </head>
