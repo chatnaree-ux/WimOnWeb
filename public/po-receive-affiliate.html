@@ -455,6 +455,16 @@
   html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
   /* มือถือ: ตารางสรุป (Supplier / ประเภทพืช / สินค้า) เรียงเป็นการ์ด — ชื่อคอลัมน์มาจาก data-l ที่ JS ใส่ให้ทุกเซลล์ */
   @media (max-width:700px){
+    #scResult .sc-table-wrap{overflow:visible; border:0;}
+    #scResult .sc-table, #scResult .sc-table tbody, #scResult .sc-table tfoot{display:block; width:100%; min-width:0;}
+    #scResult .sc-table thead{display:none;}
+    #scResult .sc-table tr{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:4px 14px; margin-bottom:10px; padding:12px;
+      border:1px solid rgba(140,180,230,.28); border-left:4px solid var(--amber-500); border-radius:12px; background:rgba(120,160,220,.07);}
+    #scResult .sc-table td{white-space:normal; overflow-wrap:anywhere; display:flex; justify-content:space-between; align-items:baseline; gap:8px; padding:2px 0; border:0; min-width:0; text-align:right; background:none !important;}
+    #scResult .sc-table td[data-l]::before{content:attr(data-l); color:var(--concrete-400); font-size:12px; text-align:left; flex-shrink:0;}
+    #scResult .sc-table td:first-child{grid-column:1 / -1; display:block; text-align:left; font-weight:700; font-size:14.5px; padding-bottom:6px;}
+    #scResult .sc-table td:first-child::before{content:none;}
+    #scResult .sc-table tfoot td[colspan]{grid-column:1 / -1; display:block; text-align:left;}
     #anResult .an-table-wrap{overflow:visible;}
     #anResult .an-table, #anResult .an-table tbody, #anResult .an-table tfoot{display:block; width:100% !important; min-width:0 !important;}
     #anResult .an-table thead, #anResult .an-table colgroup{display:none;}
@@ -2439,7 +2449,7 @@
 
   // ใส่ data-l (ชื่อคอลัมน์) ให้ทุกเซลล์ของตารางสรุป — ใช้แสดงเป็นการ์ดบนมือถือ (อ่านจากหัวตาราง 1–2 แถว รวม rowspan / colspan)
   function labelAnTables(root){
-    root.querySelectorAll('table.an-table:not([data-labeled])').forEach(t => {
+    root.querySelectorAll('table.an-table:not([data-labeled]), table.sc-table:not([data-labeled])').forEach(t => {
       const grid = [];
       [...t.tHead.rows].forEach((tr, r) => {
         let c = 0;
@@ -2453,11 +2463,12 @@
         });
       });
       const last = grid[grid.length - 1] || [];
-      t.querySelectorAll('tbody tr, tfoot tr').forEach(tr => [...tr.cells].forEach((td, i) => { if (last[i]) td.dataset.l = last[i]; }));
+      t.querySelectorAll('tbody tr, tfoot tr').forEach(tr => { let c = 0; [...tr.cells].forEach(td => { if (last[c] && td.colSpan === 1) td.dataset.l = last[c]; c += td.colSpan; }); });
       t.dataset.labeled = '1';
     });
   }
   new MutationObserver(() => labelAnTables(anResult)).observe(anResult, { childList: true, subtree: true });
+  new MutationObserver(() => labelAnTables(scResult)).observe(scResult, { childList: true, subtree: true });
 
   anResult.addEventListener('click', (e) => {
     const btn = e.target.closest('.an-seg[data-kind] button');
