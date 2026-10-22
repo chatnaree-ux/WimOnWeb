@@ -834,30 +834,11 @@
   /* พิมพ์: 1 แผ่น = 1 หน้า (ขอบล่าง 10 มม. เป็นท้ายกระดาษ) — สูง 286.5 มม. (เนื้อหา 269 มม. เท่าบนจอ) */
   #printArea.rp-print .rp.rp-page{width:210mm; max-width:none; height:286.5mm; margin:0; padding:12mm 12mm 5.5mm; border-radius:0; box-shadow:none; break-after:page;}
   #printArea.rp-print .rp.rp-page:last-child{break-after:auto;}
-  /* มือถือ: รายการเป็นการ์ด (ตาราง A4 อ่านบนจอเล็กไม่ได้) */
-  @media screen and (max-width:760px){
-    .paper-wrap .rp{padding:14px 12px; font-size:12px; min-height:0;}
-    .paper-wrap .rp .rp-items tbody.rp-fill{display:none;}
-    .paper-wrap .rp .rp-tbl > table{border-bottom:0;}
-    .paper-wrap .rp .rp-title{float:none; text-align:left; margin:0 0 8px;}
-    .paper-wrap .rp .rp-info{grid-template-columns:minmax(0,1fr);}
-    .paper-wrap .rp .rp-items colgroup, .paper-wrap .rp .rp-items thead, .paper-wrap .rp .rp-items td.no, .paper-wrap .rp .rp-items td.unit{display:none;}
-    .paper-wrap .rp .rp-items, .paper-wrap .rp .rp-items tbody, .paper-wrap .rp .rp-items tr, .paper-wrap .rp .rp-items td{display:block; width:auto;}
-    .paper-wrap .rp .rp-items tbody.pi{border:1px solid #bbb; border-radius:4px; margin-bottom:8px; padding:7px 9px;}
-    .paper-wrap .rp .rp-items td, .paper-wrap .rp .rp-items tr.sub td{border:0; padding:1px 0; font-size:11.5px;}
-    .paper-wrap .rp .rp-items .s, .paper-wrap .rp .rp-items .ref > span{font-size:11px;}
-    .paper-wrap .rp .rp-items .ref{display:flex; flex-wrap:wrap; gap:0 12px; margin:2px 0 4px;}
-    .paper-wrap .rp .rp-items td[data-l]{display:flex; justify-content:space-between; gap:10px; text-align:right;}
-    .paper-wrap .rp .rp-items td[data-l]::before{content:attr(data-l); color:#666;}
-    .paper-wrap .rp .rp-items .mno, .paper-wrap .rp .rp-items .mu{display:inline;}
-    .paper-wrap .rp .rp-items tr.sub td{margin-top:4px; padding-top:4px; border-top:1px dashed #ccc;}
-    .paper-wrap .rp .rp-foot{grid-template-columns:minmax(0,1fr);}
-    .paper-wrap .rp .rp-tot{width:100%;}
-    .paper-wrap .rp .rp-tot td{font-size:12px;}
-    .paper-wrap .rp .rp-tot tr.g td{font-size:13px;}
-    .paper-wrap .rp .rp-signs{grid-template-columns:repeat(2, minmax(0,1fr));}
-    .paper-wrap .rp .rp-void span{font-size:60px; border-width:6px;}
-  }
+  /* มือถือ: แสดงเป็นแผ่น A4 จริงแล้วย่อตามความกว้างจอ (เหมือนใบ OPQ / OPA) — ไม่ปรับโครงเอกสาร */
+  .paper-wrap .rp{max-width:none; flex-shrink:0;}
+  .rp-scale{position:relative; overflow:hidden; margin:0 auto 16px;}
+  .rp-scale > .rp{position:absolute; left:0; top:0; margin:0 !important; transform-origin:0 0;}
+  .paper-wrap .rp, .paper-wrap .rp *{-webkit-text-size-adjust:none; text-size-adjust:none;}
 
   @media print{
     body.printing{background:#fff;}
@@ -2549,10 +2530,25 @@
     return ranges.map(([a, b], k) => P.page(P.rows.slice(a, b), k === n - 1, k + 1, n, 'rp-page')).join('');
   }
   // ใบเอกสารบนจอ / พิมพ์: จอกว้าง = แผ่น A4 แบ่งหน้าตามที่จะพิมพ์ / มือถือ = แผ่นเดียวยาว (รายการเป็นการ์ด)
-  const narrowPaper = () => window.matchMedia('(max-width:760px)').matches;
-  async function renderPaper(el, d, items, paged = !narrowPaper()){
-    el.innerHTML = paged ? await paperPages(d, items) : paperHtml(d, items).all;
+  async function renderPaper(el, d, items){
+    el.innerHTML = await paperPages(d, items);
     fitPaper(el);
+    scalePaper(el);
+  }
+  // จอแคบกว่า A4 (210 มม.) = ย่อทั้งแผ่นตามความกว้าง (ใส่ตัวห่อกำหนดความสูงใหม่ เพราะ transform ไม่ดันความสูง)
+  function scalePaper(el){
+    el.querySelectorAll('.rp-scale').forEach(w => { const p = w.firstElementChild; p.style.transform = ''; w.replaceWith(p); });
+    const pages = [...el.querySelectorAll('.rp')];
+    if(!pages.length) return;
+    const full = pages[0].offsetWidth, avail = el.clientWidth;
+    if(!full || avail >= full) return;
+    const k = avail / full;
+    pages.forEach(p => {
+      const h = p.offsetHeight, w = document.createElement('div');
+      w.className = 'rp-scale'; w.style.cssText = `width:${full * k}px; height:${h * k}px;`;
+      p.replaceWith(w); w.appendChild(p);
+      p.style.transform = `scale(${k})`;
+    });
   }
   // พิมพ์ใบเอกสาร (A4 แนวตั้ง) — รอโลโก้ / ลายเซ็นโหลดก่อน (โหลดไม่ได้ = ว่างไว้)
   // ยืดแถวว่างท้ายตาราง ให้ตาราง (เส้นคอลัมน์) ยาวถึงยอดรวมด้านล่าง — กล่อง .rp-tbl ยืดเต็มพื้นที่ที่เหลือของหน้าอยู่แล้ว
@@ -3328,7 +3324,7 @@
     // แถวเดียว: [กลับ] จุดขั้นตอน (ไม่มีป้ายสถานะ — หัวข้อบอกขั้นอยู่แล้ว) ... ปุ่ม
     $('vwActions').innerHTML = BACK_BTN + `<div class="vw-steps">${approvalCell(d)}</div>${why ? `<span class="vw-why">${esc(why)}</span>` : ''}<div class="vw-right">${right}</div>`;
   }
-  window.matchMedia('(max-width:760px)').addEventListener('change', () => { if(V.doc) renderPaper($('vwPaper'), V.doc, V.doc.items); });
+  window.addEventListener('resize', () => { if(V.doc && $('vwPaper')) scalePaper($('vwPaper')); });
   // กลับหน้ารายการ: มาจากหน้ารายการ = ย้อนกลับ (ตัวกรองเดิม) / เปิดจากลิงก์ = รายการรอขั้นที่เอกสารอยู่ (ถ้ามีสิทธิ์) → รายการหลัก → หน้าหลัก
   function backToList(){
     try {
