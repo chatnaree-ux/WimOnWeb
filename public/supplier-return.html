@@ -834,6 +834,7 @@
   /* พิมพ์: 1 แผ่น = 1 หน้า (ขอบล่าง 10 มม. เป็นท้ายกระดาษ) — สูง 286.5 มม. (เนื้อหา 269 มม. เท่าบนจอ) */
   #printArea.rp-print .rp.rp-page{width:210mm; max-width:none; height:283mm; margin:0; padding:12mm 12mm 2mm; border-radius:0; box-shadow:none; break-after:page;}
   #printArea.rp-print .rp.rp-page:last-child{break-after:auto;}
+  body.ios-print #printArea.rp-print .rp.rp-page{zoom:.9; margin:0 auto;}
   /* มือถือ: แสดงเป็นแผ่น A4 จริงแล้วย่อตามความกว้างจอ (เหมือนใบ OPQ / OPA) — ไม่ปรับโครงเอกสาร */
   .paper-wrap .rp{max-width:none; flex-shrink:0;}
   .rp-scale{position:relative; overflow:hidden; margin:0 auto 16px;}
@@ -942,7 +943,7 @@
       text-align:left; white-space:normal; overflow-wrap:anywhere; font-size:14px;}
     .items-table td[data-l]::before, .ip-table td[data-l]::before{content:attr(data-l); display:block; margin-bottom:3px; font-size:11.5px; font-weight:400; color:var(--concrete-400);}
     .items-table td.c-no, .items-table td.c-del{flex:0 0 auto;}
-    .items-table td.c-no{order:-5; align-self:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500); font-size:15px;}
+    .items-table td.c-no{order:-6; align-self:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500); font-size:15px;}
     .items-table td.c-del{order:-5; margin-left:auto;}
     .items-table td.c-no::before{content:"#"; display:inline; margin:0; font-size:inherit; color:inherit;}
     .items-table td.c-del::before, .items-table td.wrap::before, .items-table td.c-ref::before, .items-table td.qc::before{content:none;}
@@ -953,10 +954,19 @@
     .items-table .qc-grid{grid-template-columns:1fr 1fr; white-space:normal;}
     .items-table .cell-in, .items-table .cell-in.price, .items-table select.reason{width:100%; min-height:44px; font-size:16px;}
     .items-table td.num{text-align:left;}
-    .modal-wide{height:92vh;}
-    .ip-filter{flex-direction:column; align-items:stretch; flex-wrap:nowrap; gap:8px; padding:12px 14px;}
+    #itemModal{padding:8px;}
+    .modal-wide{height:calc(100dvh - 16px); max-height:none;}
+    #itemModal .modal-header{padding:10px 14px;}
+    #itemModal .modal-header h3{font-size:15px;}
+    #itemModal .modal-header .m-sub{display:none;}
+    .ip-filter{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:8px; padding:8px 14px;}
+    .ip-filter .search-shell{grid-column:1 / -1;}
     .ip-filter .search-shell, .ip-filter select{flex:none; width:100%; max-width:none; min-height:44px; height:44px; font-size:16px;}
-    .ip-filter .ip-count{margin-left:0; text-align:right;}
+    .ip-filter .switch{grid-column:1 / 2; align-self:center; font-size:13px;}
+    .ip-filter .ip-count{grid-column:2 / 3; margin-left:0; text-align:right;}
+    #itemModal .modal-foot{padding:8px 14px; gap:8px;}
+    #itemModal #ipHint{display:none;}
+    #itemModal .modal-foot .btn{flex:1;}
     .ip-wrap{margin:10px 14px; border:0; overflow:auto;}
     .ip-table td.ctr{position:absolute; top:12px; right:12px; flex:none !important;}
     .ip-table td.lot-wh{flex-basis:100%; order:-1;}
@@ -1459,7 +1469,7 @@
   let CAN_EDIT = false;
   const APV_INFO = {
     ack:     { name:'รับทราบ', btn:'รับทราบ',     cls:'btn-fill-violet',    menu:'รายการรอรับทราบ เอกสารส่งคืนสินค้า' },
-    check:   { name:'ตรวจสอบ', btn:'ตรวจสอบผ่าน', cls:'btn-fill-orange',    menu:'รายการรอตรวจสอบ เอกสารส่งคืนสินค้า' },
+    check:   { name:'ตรวจสอบ', btn:'ตรวจสอบ', cls:'btn-fill-orange',    menu:'รายการรอตรวจสอบ เอกสารส่งคืนสินค้า' },
     approve: { name:'อนุมัติ',  btn:'อนุมัติ',      cls:'btn-fill-green', menu:'รายการรออนุมัติ เอกสารส่งคืนสินค้า' }
   };
   const stepForStatus = (st) => st === 1 ? 'ack' : (st === 2 || st === 3) ? 'check' : st === 4 ? 'approve' : null;
@@ -2614,6 +2624,7 @@
     setPrintFooter(d.docNo, `พิมพ์เมื่อ ${thStamp(nowStamp())}  ·  ผู้พิมพ์ ${currentUserName()}`, 'portrait');
     await Promise.all([...pa.querySelectorAll('img')].map(waitForImage));
     document.body.classList.add('printing');
+    document.body.classList.toggle('ios-print', /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
     // ยืดตารางแต่ละหน้า: วัดตอนแสดงขนาด A4 นอกจอ (printArea ซ่อนอยู่บนจอ)
     pa.style.cssText = 'display:block; position:absolute; left:-10000px; top:0; width:210mm;';
     fitPaper(pa);

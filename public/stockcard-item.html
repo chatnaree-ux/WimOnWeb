@@ -389,7 +389,7 @@
     .sc-table tbody td.num{text-align:center; padding:8px 4px; border-radius:8px; background:rgba(255,255,255,.05); font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700;}
     .sc-table tbody td.num::before{display:block; content:attr(data-l); font-family:inherit; font-size:11px; font-weight:400; color:var(--concrete-400); margin-bottom:2px;}
     .sc-table tbody td.c-wh, .sc-table tbody td.c-lot, .sc-table tbody td.c-unit, .sc-table tbody td.c-user{grid-column:1 / -1; display:flex; gap:10px; font-size:12.5px; color:var(--concrete-200);}
-    .sc-table tbody td.c-wh::before, .sc-table tbody td.c-lot::before, .sc-table tbody td.c-unit::before, .sc-table tbody td.c-user::before{content:attr(data-l); flex:0 0 78px; text-align:left; color:var(--concrete-400);}
+    .sc-table tbody td.c-wh::before, .sc-table tbody td.c-lot::before, .sc-table tbody td.c-unit::before, .sc-table tbody td.c-user::before{content:attr(data-l); flex:0 0 auto; text-align:left; color:var(--concrete-400);}
   }
 
   /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
