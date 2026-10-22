@@ -4755,6 +4755,18 @@ function opsMailer() {
 }
 // ส่ง 1 ฉบับ -> { ok: Set(อีเมลที่ server รับ), error } (dry run = เขียน .eml แล้วถือว่าส่งสำเร็จทุกคน)
 // MAIL_REDIRECT_TO: ส่งไปอีเมลทดสอบแทน — ถ้าส่งถึงอีเมลทดสอบได้ ถือว่าผู้รับจริงทุกคน "ส่งแล้ว" (log เก็บผู้รับจริง)
+// HTML อีเมล → ข้อความธรรมดา (ลิงก์ต่อท้ายชื่อปุ่ม / ลิงก์เป็น "ชื่อ: URL")
+function opsHtmlToText(html) {
+  const dec = (t) => t.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+  let t = String(html || '')
+    .replace(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (m, href, label) => {
+      const text = label.replace(/<[^>]+>/g, '').trim();
+      return !text || text === href ? href : `${text}: ${href}`;
+    })
+    .replace(/<\/(p|div|tr|h[1-6]|li|table)>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<\/t[dh]>/gi, '  ')
+    .replace(/<[^>]+>/g, '');
+  return dec(t).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 async function opsSendMail({ to, cc, subject, html }) {
   const from = process.env.MAIL_FROM || 'WIM <no-reply@localhost>';
   const redirect = opsMailRedirect();
@@ -4768,7 +4780,8 @@ async function opsSendMail({ to, cc, subject, html }) {
     cc = [];
   }
   try {
-    const info = await opsMailer().sendMail({ from, to, cc, subject, html });
+    // ส่งทั้ง HTML + ข้อความธรรมดา (multipart/alternative) และ Reply-To (ถ้าตั้ง MAIL_REPLY_TO) — ช่วยให้ตัวกรองสแปมไว้ใจมากขึ้น
+    const info = await opsMailer().sendMail({ from, to, cc, subject, html, text: opsHtmlToText(html), ...(process.env.MAIL_REPLY_TO ? { replyTo: process.env.MAIL_REPLY_TO } : {}) });
     if (opsMailDryRun()) {
       const dir = path.join(__dirname, 'mail-outbox');
       fs.mkdirSync(dir, { recursive: true });
