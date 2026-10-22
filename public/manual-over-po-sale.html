@@ -441,6 +441,14 @@
   .mtab.active{color:var(--amber-500); border-bottom-color:var(--amber-500);}
   .mtab.active small{color:var(--concrete-400);}
   .mpanel[hidden]{display:none;}
+  .badge.ops-S{background:rgba(78,167,224,.14); border-color:rgba(78,167,224,.45); color:var(--sky-blue);}
+  .badge.ops-H{background:rgba(167,139,250,.14); border-color:rgba(167,139,250,.45); color:#c4b5fd;}
+  .badge.ops-A{background:rgba(62,207,142,.12); border-color:rgba(62,207,142,.45); color:var(--ok-green);}
+  .badge.ops-R{background:rgba(229,83,61,.2); border-color:rgba(229,83,61,.6); color:#ff8a75;}
+  .badge.ops-C{background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.22); color:var(--concrete-400);}
+  .flow-st{margin-top:14px; padding-top:12px; border-top:1px dashed rgba(255,255,255,.16); display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center;}
+  .flow-st-l{flex:0 0 100%; font-size:12.5px; font-weight:700; color:var(--concrete-400);}
+  .flow-st .badge{margin-top:0; font-size:13.5px; padding:4px 12px;}
   @media (max-width:640px){ .mtab{flex:1 1 100%; text-align:left; border-bottom:1px solid rgba(255,255,255,.08); margin-bottom:0;} .mtab.active{border-bottom-color:var(--amber-500);} }
 </style>
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
@@ -496,19 +504,19 @@
                   <div class="flow-who">ผู้ร้องขอ (ผู้ขาย)</div>
                   <div class="flow-title">1. บันทึกคำร้อง</div>
                   <div class="flow-desc">เลือก PO ที่อ้างอิง ระบุยอดที่ผลิตได้ และจำนวนที่เสนอขายเพิ่ม ระบบออกเลข OPQ ให้และส่งอีเมลถึงฝ่ายจัดซื้อทันที</div>
-                  <span class="badge">รอผู้รับคำร้องดำเนินการ</span>
+                  <div class="flow-st"><span class="flow-st-l">สถานะเอกสาร</span><span class="badge ops-S">รอผู้รับคำร้องดำเนินการ</span></div>
                 </div>
                 <div class="flow-step" style="--c:#b19cf5">
                   <div class="flow-who">ฝ่ายจัดซื้อ + ผู้อนุมัติ 4 ท่าน</div>
                   <div class="flow-title">2. พิจารณาและอนุมัติ</div>
                   <div class="flow-desc">ฝ่ายจัดซื้อกำหนดจำนวนรับซื้อและราคา แล้วขออนุมัติ ผู้อนุมัติกดผ่านอีเมลทีละขั้น ผู้ร้องขอดูความคืบหน้าได้ในหน้ารายการ</div>
-                  <span class="badge">รอพิจารณา</span>
+                  <div class="flow-st"><span class="flow-st-l">สถานะเอกสาร</span><span class="badge ops-H">รอพิจารณา</span></div>
                 </div>
                 <div class="flow-step" style="--c:#34c27f">
                   <div class="flow-who">ระบบ</div>
                   <div class="flow-title">3. ผลการพิจารณา และเลขที่ PO</div>
                   <div class="flow-desc">อนุมัติครบ ระบบสร้าง PO (OS…) และใบสั่งขายของผู้ขายให้เอง แล้วแจ้งผลทางอีเมล หรือแจ้งว่าไม่รับซื้อพร้อมเหตุผล</div>
-                  <span class="badge">อนุมัติรับซื้อ / ไม่รับซื้อ</span>
+                  <div class="flow-st"><span class="flow-st-l">สถานะเอกสาร</span><span class="badge ops-A">อนุมัติรับซื้อ</span><span class="badge ops-R">ไม่รับซื้อ</span></div>
                 </div>
               </div>
             </section>
@@ -564,7 +572,7 @@
 
             <section class="doc-section" id="r-result">
               <div class="sec-head"><span class="sec-no">06</span><h2>ผลการพิจารณา</h2></div>
-              <p>เมื่อผู้อนุมัติ<b>ครบทั้ง 4 ท่าน</b> ระบบแจ้งผลทางอีเมล และในหน้ารายการสถานะเปลี่ยนเป็น <span class="badge">อนุมัติรับซื้อ</span> พร้อมแสดงเลข <b>PO ที่ออกให้</b> (OS…) ถ้าฝ่ายจัดซื้อหรือผู้อนุมัติเลือก <b>ไม่รับซื้อ</b> สถานะเป็น <span class="badge">ไม่รับซื้อ</span> และแสดงเหตุผล (กดรายละเอียดเพื่ออ่าน)</p>
+              <p>เมื่อผู้อนุมัติ<b>ครบทั้ง 4 ท่าน</b> ระบบแจ้งผลทางอีเมล และในหน้ารายการสถานะเปลี่ยนเป็น <span class="badge ops-A">อนุมัติรับซื้อ</span> พร้อมแสดงเลข <b>PO ที่ออกให้</b> (OS…) ถ้าฝ่ายจัดซื้อหรือผู้อนุมัติเลือก <b>ไม่รับซื้อ</b> สถานะเป็น <span class="badge ops-R">ไม่รับซื้อ</span> และแสดงเหตุผล (กดรายละเอียดเพื่ออ่าน)</p>
               <div class="callout tip"><span class="ic">💡</span><span>PO ที่ระบบออกให้เป็น PO ซื้อเมล็ดพันธุ์ส่วนเกินใบสั่งซื้อ (ขึ้นต้น <b>OS</b> ย่อจาก Overstock Seeds) ใช้ติดตามการรับเข้าคลังในรายงานรับสินค้าจากบริษัทในเครือตามปกติ</span></div>
             </section>
 
@@ -573,11 +581,11 @@
               <div class="ref-table-wrap"><table class="ref-table">
                 <thead><tr><th>สถานะ</th><th>ความหมาย</th><th>ผู้ร้องขอทำอะไรได้</th></tr></thead>
                 <tbody>
-                  <tr><td><b>รอผู้รับคำร้องดำเนินการ</b></td><td>ส่งอีเมลถึงฝ่ายจัดซื้อแล้ว ยังไม่เริ่มพิจารณา</td><td>แก้ไข / ยกเลิก / พิมพ์</td></tr>
-                  <tr><td><b>รอพิจารณา</b></td><td>ฝ่ายจัดซื้อกำลังพิจารณา หรืออยู่ระหว่างขออนุมัติ 4 ขั้น</td><td>ดูความคืบหน้า / พิมพ์</td></tr>
-                  <tr><td><b>อนุมัติรับซื้อ</b></td><td>อนุมัติครบ ระบบออก PO และใบสั่งขายแล้ว</td><td>ดูเลข PO ที่ออกให้</td></tr>
-                  <tr><td><b>ไม่รับซื้อ</b></td><td>ฝ่ายจัดซื้อหรือผู้อนุมัติไม่รับซื้อ (มีเหตุผล)</td><td>อ่านเหตุผล</td></tr>
-                  <tr><td><b>ยกเลิก</b></td><td>ผู้ร้องขอยกเลิกเอง</td><td>ดูประวัติ</td></tr>
+                  <tr><td><span class="badge ops-S">รอผู้รับคำร้องดำเนินการ</span></td><td>ส่งอีเมลถึงฝ่ายจัดซื้อแล้ว ยังไม่เริ่มพิจารณา</td><td>แก้ไข / ยกเลิก / พิมพ์</td></tr>
+                  <tr><td><span class="badge ops-H">รอพิจารณา</span></td><td>ฝ่ายจัดซื้อกำลังพิจารณา หรืออยู่ระหว่างขออนุมัติ 4 ขั้น</td><td>ดูความคืบหน้า / พิมพ์</td></tr>
+                  <tr><td><span class="badge ops-A">อนุมัติรับซื้อ</span></td><td>อนุมัติครบ ระบบออก PO และใบสั่งขายแล้ว</td><td>ดูเลข PO ที่ออกให้</td></tr>
+                  <tr><td><span class="badge ops-R">ไม่รับซื้อ</span></td><td>ฝ่ายจัดซื้อหรือผู้อนุมัติไม่รับซื้อ (มีเหตุผล)</td><td>อ่านเหตุผล</td></tr>
+                  <tr><td><span class="badge ops-C">ยกเลิก</span></td><td>ผู้ร้องขอยกเลิกเอง</td><td>ดูประวัติ</td></tr>
                 </tbody>
               </table></div>
             </section>
@@ -631,19 +639,19 @@
                   <div class="flow-who">ฝ่ายจัดซื้อ</div>
                   <div class="flow-title">1. พิจารณา</div>
                   <div class="flow-desc">ตรวจคำร้องและเอกสารแนบ ระบุจำนวนรับซื้อ ราคา วันที่รับของ และผู้อนุมัติ 4 ท่าน แล้วกดบันทึกพร้อมส่งขออนุมัติ (หรือไม่รับซื้อ)</div>
-                  <span class="badge">รอพิจารณา</span>
+                  <div class="flow-st"><span class="flow-st-l">สถานะเอกสาร</span><span class="badge ops-S">รอดำเนินการ</span></div>
                 </div>
                 <div class="flow-step" style="--c:#b19cf5">
                   <div class="flow-who">ผู้อนุมัติ 4 ท่าน</div>
                   <div class="flow-title">2. อนุมัติทีละขั้น</div>
                   <div class="flow-desc">ระบบออกใบขออนุมัติ (OPA) และส่งอีเมลถึงทั้ง 4 ท่านพร้อมกัน ท่านใดก็กดได้ทันที ไม่ต้องรอลำดับ</div>
-                  <span class="badge">รอพิจารณา</span>
+                  <div class="flow-st"><span class="flow-st-l">สถานะเอกสาร</span><span class="badge ops-H">รออนุมัติ</span></div>
                 </div>
                 <div class="flow-step" style="--c:#34c27f">
                   <div class="flow-who">ระบบ</div>
                   <div class="flow-title">3. สร้าง PO และใบสั่งขาย</div>
                   <div class="flow-desc">ครบ 4 ท่าน ระบบสร้าง PO (OS…) พร้อมชื่อผู้อนุมัติและวันที่ และใบสั่งขายของบริษัทผู้ขาย แล้วแจ้งผลทางอีเมล</div>
-                  <span class="badge">อนุมัติรับซื้อ</span>
+                  <div class="flow-st"><span class="flow-st-l">สถานะเอกสาร</span><span class="badge ops-A">อนุมัติรับซื้อ</span><span class="badge ops-R">ไม่รับซื้อ</span></div>
                 </div>
               </div>
               <div class="ref-table-wrap"><table class="ref-table">
