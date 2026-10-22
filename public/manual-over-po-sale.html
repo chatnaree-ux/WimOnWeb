@@ -490,7 +490,7 @@
 
             <section class="doc-section" id="r-overview">
               <div class="sec-head"><span class="sec-no">01</span><h2>ภาพรวมการทำงาน</h2></div>
-              <p>เมื่อบริษัทผู้ขาย <b>ผลิตเมล็ดพันธุ์ได้เกินจำนวนในใบสั่งซื้อ (PO)</b> ของบริษัทผู้ซื้อ และต้องการเสนอขายส่วนที่เกิน ผู้ร้องขอบันทึกคำร้องในระบบ แล้วระบบส่งอีเมลถึงฝ่ายจัดซื้อให้พิจารณา</p>
+              <p>ใช้เมื่อบริษัทผู้ขาย (โฟลเทคซีดส์ / กรีนซีดส์ / แอ๊ดว้านซ์ซีดส์) <b>ผลิตเมล็ดพันธุ์ได้เกินจำนวนในใบสั่งซื้อ (PO)</b> ของบริษัทผู้ซื้อ และต้องการเสนอขายส่วนที่เกิน ผู้ร้องขอบันทึกคำร้องในระบบ แล้วระบบส่งอีเมลถึงฝ่ายจัดซื้อให้พิจารณา ไม่ต้องทำเป็นเอกสารกระดาษหรือส่งอีเมลเอง</p>
               <div class="flow">
                 <div class="flow-step" style="--c:var(--concrete-200)">
                   <div class="flow-who">ผู้ร้องขอ (ผู้ขาย)</div>
@@ -506,7 +506,7 @@
                 </div>
                 <div class="flow-step" style="--c:#34c27f">
                   <div class="flow-who">ระบบ</div>
-                  <div class="flow-title">3. ผลการพิจารณา และเลขที่ PO</div>
+                  <div class="flow-title">3. ได้ผลและเลข PO</div>
                   <div class="flow-desc">อนุมัติครบ ระบบสร้าง PO (OS…) และใบสั่งขายของผู้ขายให้เอง แล้วแจ้งผลทางอีเมล หรือแจ้งว่าไม่รับซื้อพร้อมเหตุผล</div>
                   <span class="badge">อนุมัติรับซื้อ / ไม่รับซื้อ</span>
                 </div>
@@ -516,7 +516,7 @@
             <section class="doc-section" id="r-open">
               <div class="sec-head"><span class="sec-no">02</span><h2>เข้าสู่เมนูและส่วนประกอบของหน้า</h2></div>
               <p>เปิดเมนู <span class="ui">คำร้องขอ › ร้องขอขายเมล็ดพันธุ์ (Over PO) › แจ้งคำร้องขอขาย</span> หน้านี้มี 2 แท็บ: <span class="ui">รายการคำร้อง</span> (ดูและติดตาม) และ <span class="ui">เพิ่มคำร้อง</span> (สร้างคำร้องใหม่)</p>
-              <figure class="shot"><a href="images/manual/over-po-sale/list-req.jpg" target="_blank"><img src="images/manual/over-po-sale/list-req.jpg" alt="หน้ารายการคำร้อง" loading="lazy"></a><figcaption>แท็บรายการคำร้อง: เลือกบริษัทที่ร้องขอ ค้นหา และเลือกช่วงวันที่ (คลิกที่ภาพเพื่อดูขนาดเต็ม)</figcaption></figure>
+              <figure class="shot"><a href="images/manual/over-po-sale/list-req.png" target="_blank"><img src="images/manual/over-po-sale/list-req.png" alt="หน้ารายการคำร้อง" loading="lazy"></a><figcaption>แท็บรายการคำร้อง: เลือกบริษัทที่ร้องขอ ค้นหา และเลือกช่วงวันที่ (คลิกที่ภาพเพื่อดูขนาดเต็ม)</figcaption></figure>
               <ul class="bullets">
                 <li><b>บริษัทที่ร้องขอ</b> เลือกได้เฉพาะบริษัทที่คุณมีสิทธิ์</li>
                 <li><b>การ์ดสรุปสถานะ</b> (ทั้งหมด / รอผู้รับคำร้องดำเนินการ / รอพิจารณา / อนุมัติรับซื้อ / ไม่รับซื้อ / ยกเลิก) กดเพื่อกรองรายการ</li>
@@ -528,12 +528,12 @@
             <section class="doc-section" id="r-create">
               <div class="sec-head"><span class="sec-no">03</span><h2>สร้างคำร้อง</h2></div>
               <p>กดแท็บ <span class="ui">เพิ่มคำร้อง</span> แล้วกรอกตามลำดับ</p>
-              <figure class="shot"><a href="images/manual/over-po-sale/form.jpg" target="_blank"><img src="images/manual/over-po-sale/form.jpg" alt="ฟอร์มสร้างคำร้อง" loading="lazy"></a><figcaption>ฟอร์มเพิ่มคำร้อง: ข้อมูลคำร้องและผู้รับอีเมล</figcaption></figure>
-              <figure class="shot"><a href="images/manual/over-po-sale/form-items.jpg" target="_blank"><img src="images/manual/over-po-sale/form-items.jpg" alt="รายการ PO อ้างอิงและยอดที่เสนอขาย" loading="lazy"></a><figcaption>รายการ PO อ้างอิง ยอดที่ผลิตได้ จำนวนที่เสนอขายเพิ่ม และสาเหตุ</figcaption></figure>
+              <figure class="shot"><a href="images/manual/over-po-sale/form.png" target="_blank"><img src="images/manual/over-po-sale/form.png" alt="ฟอร์มสร้างคำร้อง" loading="lazy"></a><figcaption>ฟอร์มเพิ่มคำร้อง: ข้อมูลคำร้องและผู้รับอีเมล</figcaption></figure>
+              <figure class="shot"><a href="images/manual/over-po-sale/form-items.png" target="_blank"><img src="images/manual/over-po-sale/form-items.png" alt="รายการ PO อ้างอิงและยอดที่เสนอขาย" loading="lazy"></a><figcaption>รายการ PO อ้างอิง ยอดที่ผลิตได้ จำนวนที่เสนอขายเพิ่ม และสาเหตุ</figcaption></figure>
               <ol class="steps">
                 <li><b>บริษัทที่ร้องขอ (ผู้ขาย)</b> เลือกบริษัทของคุณ และ <b>ส่งคำร้องถึง (ผู้ซื้อ)</b> เลือกบริษัทที่เป็นผู้ซื้อตาม PO เลขที่เอกสาร (OPQ…) ระบบออกให้เอง</li>
                 <li>กด <span class="ui">เลือก PO</span> ติ๊กเลือก PO ที่ต้องการอ้างอิง (เลือกได้หลายใบ ถ้าเป็นสินค้าเดียวกัน ระบบรวมยอดให้) ถ้า PO ใดเคยถูกอ้างอิงในคำร้องอื่นแล้ว จะมีป้ายเตือน
-                  <figure class="shot"><a href="images/manual/over-po-sale/po-picker.jpg" target="_blank"><img src="images/manual/over-po-sale/po-picker.jpg" alt="เลือก PO" loading="lazy"></a><figcaption>หน้าต่างเลือก PO</figcaption></figure>
+                  <figure class="shot"><a href="images/manual/over-po-sale/po-picker.png" target="_blank"><img src="images/manual/over-po-sale/po-picker.png" alt="เลือก PO" loading="lazy"></a><figcaption>หน้าต่างเลือก PO</figcaption></figure>
                 </li>
                 <li>ในตารางรายการ ระบบแสดง <b>ยอด PO รวม</b> และ <b>ขายแล้ว (ผู้ขาย)</b> ให้ คุณกรอก <b>ผลิตได้ทั้งหมด</b> ระบบคำนวณ <b>ยอดเกิน PO</b> แล้วกรอก <b>เสนอขายเพิ่ม</b> ซึ่งต้อง<b>ไม่เกิน ผลิตได้ทั้งหมด − ขายแล้ว</b> (ช่องแสดง "สูงสุด" ให้ดู)</li>
                 <li>กรอก <b>สาเหตุการผลิตเกิน PO</b> (จำเป็น) ส่วน <b>หมายเหตุ</b> ไม่บังคับ</li>
@@ -545,7 +545,7 @@
             <section class="doc-section" id="r-send">
               <div class="sec-head"><span class="sec-no">04</span><h2>บันทึกและส่งคำร้อง</h2></div>
               <p>กด <span class="ui">บันทึกและส่งคำร้อง</span> ระบบจะแสดงหน้าต่างยืนยัน บอกว่าอีเมลจะไปถึงใคร (TO / CC) และรายการที่เสนอขาย ตรวจแล้วกด <span class="ui">ยืนยันบันทึกและส่ง E-mail</span></p>
-              <figure class="shot"><a href="images/manual/over-po-sale/confirm-req.jpg" target="_blank"><img src="images/manual/over-po-sale/confirm-req.jpg" alt="ยืนยันบันทึกและส่งคำร้อง" loading="lazy"></a><figcaption>หน้าต่างยืนยันก่อนส่ง</figcaption></figure>
+              <figure class="shot"><a href="images/manual/over-po-sale/confirm-req.png" target="_blank"><img src="images/manual/over-po-sale/confirm-req.png" alt="ยืนยันบันทึกและส่งคำร้อง" loading="lazy"></a><figcaption>หน้าต่างยืนยันก่อนส่ง</figcaption></figure>
               <p>หลังบันทึก ระบบส่งอีเมลถึงฝ่ายจัดซื้อทันที หน้าตาอีเมลที่ฝ่ายจัดซื้อได้รับ:</p>
               <figure class="shot"><a href="images/manual/over-po-sale/mail-purchasing.png" target="_blank"><img src="images/manual/over-po-sale/mail-purchasing.png" alt="อีเมลถึงฝ่ายจัดซื้อ" style="aspect-ratio:969/440; object-fit:cover; object-position:top;" loading="lazy"></a><figcaption>อีเมลถึงฝ่ายจัดซื้อ มีปุ่มเปิดเอกสารเพื่อดำเนินการ</figcaption></figure>
               <div class="callout warn"><span class="ic">⚠️</span><span>แก้ไขหรือยกเลิกคำร้องได้<b>จนกว่าฝ่ายจัดซื้อจะเริ่มตรวจสอบ</b> เมื่อแก้ไข ระบบส่งอีเมลแจ้งการแก้ไขให้อัตโนมัติ</span></div>
@@ -554,7 +554,7 @@
             <section class="doc-section" id="r-doc">
               <div class="sec-head"><span class="sec-no">05</span><h2>ใบร้องขอ (OPQ) พิมพ์ แก้ไข ยกเลิก</h2></div>
               <p>กด <span class="ui">ดูเอกสาร</span> ในรายการเพื่อเปิดใบร้องขอแบบเต็มหน้า A4 และพิมพ์ได้ (เอกสารนี้ถูกแนบไปให้ฝ่ายจัดซื้อและผู้อนุมัติด้วย)</p>
-              <figure class="shot"><a href="images/manual/over-po-sale/doc-opq.jpg" target="_blank"><img src="images/manual/over-po-sale/doc-opq.jpg" alt="ใบร้องขอ OPQ" loading="lazy"></a><figcaption>ใบร้องขอขายเมล็ดพันธุ์ส่วนเกินใบสั่งซื้อ (OPQ)</figcaption></figure>
+              <figure class="shot"><a href="images/manual/over-po-sale/doc-opq.png" target="_blank"><img src="images/manual/over-po-sale/doc-opq.png" alt="ใบร้องขอ OPQ" loading="lazy"></a><figcaption>ใบร้องขอขายเมล็ดพันธุ์ส่วนเกินใบสั่งซื้อ (OPQ)</figcaption></figure>
               <ul class="bullets">
                 <li><b>แก้ไข</b>: ใช้ได้ตอนสถานะ รอผู้รับคำร้องดำเนินการ ระบบเปิดฟอร์มเดิมให้แก้แล้วบันทึกใหม่</li>
                 <li><b>ยกเลิก</b>: ระบุสาเหตุ เอกสารเปลี่ยนเป็นสถานะ ยกเลิก (เก็บประวัติไว้ ไม่ถูกลบ)</li>
@@ -625,7 +625,7 @@
 
             <section class="doc-section" id="b-overview">
               <div class="sec-head"><span class="sec-no">01</span><h2>ภาพรวมการทำงาน</h2></div>
-              <p>การทำงานส่วนนี้ <b>ฝ่ายจัดซื้อของบริษัทผู้ซื้อ</b>และ<b>ผู้อนุมัติ 4 ท่าน</b> (ผู้รับทราบ, ผู้ตรวจสอบ, ผู้อนุมัติ 2 ท่าน) เมื่อได้รับคำร้องจากผู้ขาย ฝ่ายจัดซื้อกำหนดจำนวนที่รับซื้อจริงและราคา แล้วส่งขออนุมัติ เมื่ออนุมัติครบ ระบบสร้าง <b>PO</b> และ<b>ใบสั่งขาย</b>ให้อัตโนมัติ ไม่ต้องคีย์ซ้ำในระบบ PO</p>
+              <p>ฝั่งนี้ใช้โดย<b>ฝ่ายจัดซื้อของบริษัทผู้ซื้อ</b>และ<b>ผู้อนุมัติ 4 ท่าน</b> (ผู้รับทราบ, ผู้ตรวจสอบ, ผู้อนุมัติ 2 ท่าน) เมื่อได้รับคำร้องจากผู้ขาย ฝ่ายจัดซื้อกำหนดจำนวนที่รับซื้อจริงและราคา แล้วส่งขออนุมัติ เมื่ออนุมัติครบ ระบบสร้าง <b>PO</b> และ<b>ใบสั่งขาย</b>ให้อัตโนมัติ ไม่ต้องคีย์ซ้ำในระบบ PO</p>
               <div class="flow">
                 <div class="flow-step" style="--c:var(--concrete-200)">
                   <div class="flow-who">ฝ่ายจัดซื้อ</div>
@@ -658,12 +658,12 @@
             <section class="doc-section" id="b-list">
               <div class="sec-head"><span class="sec-no">02</span><h2>รายการคำร้องที่รอพิจารณา</h2></div>
               <p>เปิดเมนู <span class="ui">คำร้องขอ › ร้องขอขายเมล็ดพันธุ์ (Over PO) › พิจารณาคำร้องขอขาย</span> หน้านี้แสดงคำร้องที่ส่งมาถึงบริษัทของคุณ เลือกบริษัทและช่วงวันที่ได้ กดรายการเพื่อเข้าหน้าพิจารณา อีเมลที่ได้รับก็เปิดหน้าเดียวกันนี้ได้โดยตรงจากปุ่มในอีเมล</p>
-              <figure class="shot"><a href="images/manual/over-po-sale/buy-list.jpg" target="_blank"><img src="images/manual/over-po-sale/buy-list.jpg" alt="รายการคำร้องฝั่งจัดซื้อ" loading="lazy"></a><figcaption>รายการคำร้องฝั่งฝ่ายจัดซื้อ</figcaption></figure>
+              <figure class="shot"><a href="images/manual/over-po-sale/buy-list.png" target="_blank"><img src="images/manual/over-po-sale/buy-list.png" alt="รายการคำร้องฝั่งจัดซื้อ" loading="lazy"></a><figcaption>รายการคำร้องฝั่งฝ่ายจัดซื้อ</figcaption></figure>
             </section>
 
             <section class="doc-section" id="b-consider">
               <div class="sec-head"><span class="sec-no">03</span><h2>พิจารณาคำร้อง</h2></div>
-              <figure class="shot"><a href="images/manual/over-po-sale/buy-consider.jpg" target="_blank"><img src="images/manual/over-po-sale/buy-consider.jpg" alt="หน้าพิจารณาคำร้อง" loading="lazy"></a><figcaption>หน้าพิจารณาคำร้อง</figcaption></figure>
+              <figure class="shot"><a href="images/manual/over-po-sale/buy-consider.png" target="_blank"><img src="images/manual/over-po-sale/buy-consider.png" alt="หน้าพิจารณาคำร้อง" loading="lazy"></a><figcaption>หน้าพิจารณาคำร้อง</figcaption></figure>
               <ol class="steps">
                 <li>อ่านข้อมูลคำร้อง สาเหตุการผลิตเกิน PO และกด <span class="ui">ดูเอกสาร</span> เพื่อดูใบร้องขอ (OPQ) ที่แนบมา</li>
                 <li>ในรายการรับซื้อ ช่อง <b>รับซื้อจริง</b> เริ่มต้นเท่ากับจำนวนที่ผู้ขายเสนอ แก้ได้แต่ไม่เกินที่เสนอ (ใส่ 0 = ไม่รับรายการนี้) แล้วกรอก <b>ราคา/หน่วย</b> ระบบคำนวณยอดเงินและรวมเป็นเงินให้</li>
@@ -671,17 +671,17 @@
                 <li>ตรวจ <b>ผู้อนุมัติ 4 ท่าน</b> ระบบตั้งค่าเริ่มต้นตามผู้อนุมัติใน PO ที่อ้างอิง แตะการ์ดเพื่อเปลี่ยนบุคคลได้ ทั้ง 4 ท่านต้องเป็นคนละคนและมีอีเมลในระบบ HR</li>
                 <li>กด <span class="ui">บันทึกพร้อมส่งขออนุมัติ</span> หรือ <span class="ui">ไม่รับซื้อ</span> (ต้องระบุเหตุผล ระบบแจ้งผู้ร้องขอ)</li>
               </ol>
-              <figure class="shot"><a href="images/manual/over-po-sale/buy-approvers.jpg" target="_blank"><img src="images/manual/over-po-sale/buy-approvers.jpg" alt="ผู้อนุมัติ 4 ท่านและผลการพิจารณา" loading="lazy"></a><figcaption>ส่วน "การอนุมัติ": การ์ดผู้อนุมัติ 4 ท่าน (ภาพนี้หลังอนุมัติครบ จึงแสดงผลของแต่ละท่าน)</figcaption></figure>
+              <figure class="shot"><a href="images/manual/over-po-sale/buy-approvers.png" target="_blank"><img src="images/manual/over-po-sale/buy-approvers.png" alt="ผู้อนุมัติ 4 ท่านและผลการพิจารณา" loading="lazy"></a><figcaption>ส่วน "การอนุมัติ": การ์ดผู้อนุมัติ 4 ท่าน (ภาพนี้หลังอนุมัติครบ จึงแสดงผลของแต่ละท่าน)</figcaption></figure>
               <div class="callout tip"><span class="ic">💡</span><span>ถ้าข้อมูลของผู้ขายไม่ถูกต้อง กด <span class="ui">ส่งกลับแก้ไข</span> พร้อมเหตุผล ผู้ร้องขอจะได้อีเมลให้แก้และส่งใหม่</span></div>
             </section>
 
             <section class="doc-section" id="b-send">
               <div class="sec-head"><span class="sec-no">04</span><h2>ส่งขออนุมัติและใบขออนุมัติ (OPA)</h2></div>
               <p>เมื่อกดบันทึกพร้อมส่งขออนุมัติ ระบบแสดงหน้าต่างยืนยัน สรุปรายการ ยอดเงิน วันที่รับของ และรายชื่อผู้อนุมัติที่จะได้อีเมล ตรวจแล้วกด <span class="ui">ยืนยันบันทึกและส่ง E-mail</span></p>
+              <figure class="shot"><a href="images/manual/over-po-sale/confirm-buy.png" target="_blank"><img src="images/manual/over-po-sale/confirm-buy.png" alt="ยืนยันส่งขออนุมัติ" loading="lazy"></a><figcaption>หน้าต่างยืนยันส่งขออนุมัติ: สรุปรายการ ยอดเงิน วันที่รับของ และผู้อนุมัติที่จะได้อีเมล</figcaption></figure>
               <p>ระบบออก <b>ใบขออนุมัติรับซื้อ (OPA)</b> เลขใหม่ และส่งอีเมลถึงผู้อนุมัติทั้ง 4 ท่านพร้อมกัน (1 ฉบับต่อคน) ใบ OPA แนบใบร้องขอจากผู้ขายไว้ด้วย พิมพ์ได้</p>
-              <figure class="shot"><a href="images/manual/over-po-sale/doc-opa.jpg" target="_blank"><img src="images/manual/over-po-sale/doc-opa.jpg" alt="ใบขออนุมัติ OPA" loading="lazy"></a><figcaption>ใบขออนุมัติรับซื้อ (OPA) พร้อมช่องลายเซ็นผู้อนุมัติ 4 ท่าน</figcaption></figure>
-              <figure class="shot"><a href="images/manual/over-po-sale/opa-sign.jpg" target="_blank"><img src="images/manual/over-po-sale/opa-sign.jpg" alt="ช่องการพิจารณาอนุมัติในใบ OPA" loading="lazy"></a><figcaption>ท้ายใบ OPA: ช่อง "การพิจารณาอนุมัติ (Approvals)" ติ๊กผลตามที่ผู้อนุมัติแต่ละท่านกด</figcaption></figure>
-              <figure class="shot"><a href="images/manual/over-po-sale/opa-timeline.jpg" target="_blank"><img src="images/manual/over-po-sale/opa-timeline.jpg" alt="ประวัติการดำเนินการ" loading="lazy"></a><figcaption>ประวัติการดำเนินการใต้ใบ OPA: ใคร ทำอะไร เมื่อไร จนออกเลข PO และใบสั่งขาย</figcaption></figure>
+              <figure class="shot"><a href="images/manual/over-po-sale/doc-opa.png" target="_blank"><img src="images/manual/over-po-sale/doc-opa.png" alt="ใบขออนุมัติ OPA" loading="lazy"></a><figcaption>ใบขออนุมัติรับซื้อ (OPA) ท้ายใบมีช่อง "การพิจารณาอนุมัติ" ของผู้อนุมัติ 4 ท่าน ติ๊กผลตามที่แต่ละท่านกด</figcaption></figure>
+              <figure class="shot"><a href="images/manual/over-po-sale/opa-timeline.png" target="_blank"><img src="images/manual/over-po-sale/opa-timeline.png" alt="ประวัติการดำเนินการ" loading="lazy"></a><figcaption>ประวัติการดำเนินการใต้ใบ OPA: ใคร ทำอะไร เมื่อไร จนออกเลข PO และใบสั่งขาย</figcaption></figure>
               <p>ถ้าผู้อนุมัติบางท่านยังไม่กด ฝ่ายจัดซื้อกด <span class="ui">แจ้งเตือนผู้อนุมัติ</span> เพื่อส่งอีเมลซ้ำถึงเฉพาะท่านที่ค้างอยู่</p>
             </section>
 
@@ -690,12 +690,14 @@
               <p>ท่านจะได้อีเมลขออนุมัติ กดปุ่ม <span class="ui">เปิดใบขออนุมัติ … เพื่อพิจารณา</span> (ต้องเข้าสู่ระบบ WIM ก่อน) ผู้อนุมัติแต่ละท่านพิจารณาได้ทันที ไม่ต้องรอท่านอื่น</p>
               <figure class="shot"><a href="images/manual/over-po-sale/mail-approver.png" target="_blank"><img src="images/manual/over-po-sale/mail-approver.png" alt="อีเมลขออนุมัติ" style="aspect-ratio:1134/485; object-fit:cover; object-position:top;" loading="lazy"></a><figcaption>อีเมลขออนุมัติที่ผู้อนุมัติได้รับ</figcaption></figure>
               <p>หน้าใบขออนุมัติมีกรอบ <b>รอการพิจารณาของคุณ</b> ให้เลือกผล <b>ทีละขั้นตามหน้าที่ของคุณ</b></p>
+              <figure class="shot"><a href="images/manual/over-po-sale/apv-page.png" target="_blank"><img src="images/manual/over-po-sale/apv-page.png" alt="หน้าพิจารณาของผู้อนุมัติ" loading="lazy"></a><figcaption>ตัวอย่างหน้าของผู้รับทราบ: ปุ่มรับทราบ / ส่งกลับแก้ไข / ไม่รับซื้อ อยู่เหนือตัวเอกสาร (ผู้ตรวจสอบ/ผู้อนุมัติจะเห็นปุ่มของขั้นตัวเอง)</figcaption></figure>
               <ul class="bullets">
                 <li><span class="ui">✓ รับทราบ</span> / <span class="ui">✓ ตรวจสอบผ่าน</span> / <span class="ui">✓ อนุมัติ</span> = ผ่านในขั้นของท่าน</li>
                 <li><span class="ui">↩ ส่งกลับแก้ไข</span> = ให้ฝ่ายจัดซื้อแก้ไขใบขออนุมัติ (ใส่เหตุผล) ผลของทุกขั้นเริ่มรอบใหม่หลังแก้ไข</li>
                 <li><span class="ui">✕ ไม่รับซื้อ</span> = ปิดคำร้อง ระบบแจ้งผู้ร้องขอพร้อมเหตุผล</li>
               </ul>
               <p>มีหลายใบรอพิจารณาพร้อมกัน เปิดหน้ารายการรอพิจารณาของท่านจากลิงก์ในอีเมล ("ดูรายการที่รอการพิจารณาของท่านทั้งหมด") เลือกหลายรายการแล้วกดผ่านพร้อมกันได้</p>
+              <figure class="shot"><a href="images/manual/over-po-sale/apv-list.png" target="_blank"><img src="images/manual/over-po-sale/apv-list.png" alt="รายการรอพิจารณาของผู้อนุมัติ" loading="lazy"></a><figcaption>หน้ารายการรอพิจารณาของผู้อนุมัติ: เลือกหลายรายการแล้วกดผ่านพร้อมกันได้</figcaption></figure>
               <div class="callout warn"><span class="ic">⚠️</span><span>ถ้าเอกสารถูกปิดไปแล้ว (เช่น ฝ่ายจัดซื้อไม่รับซื้อก่อนท่านกด) หน้าจะแสดงแถบแจ้งว่าปิดแล้ว และกดผลไม่ได้</span></div>
             </section>
 
