@@ -405,6 +405,12 @@
     .topbar-mobile{display:flex;}
     .mock-grid{grid-template-columns:1fr 1fr;}
   }
+  html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  @media (max-width:640px){
+    /* ปุ่มหัวคู่มือ: เต็มแถว กว้างเท่ากัน ข้อความกลางปุ่ม */
+    .hero-actions{display:grid; grid-template-columns:1fr; gap:10px;}
+    .hero-actions .btn{width:100%; min-height:46px; justify-content:center; text-align:center; white-space:normal;}
+  }
   @media (max-width:560px){
     .toc ol{columns:1;}
     .mock-grid{grid-template-columns:1fr;}
