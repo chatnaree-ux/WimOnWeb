@@ -4724,7 +4724,7 @@ const OPS_APV_STEPS = [
 // อนุมัติ 1 กับ 2 ต้องเป็นคนละคน — PO เดิมได้คนเดียวกัน (ระบบอนุมัติ PO ใส่ซ้ำ) → ค่าเริ่มต้น อนุมัติ 1 = ชัชวาล / อนุมัติ 2 = อนวัช
 const OPS_APV_FIX = { approve1: 9, approve2: 7 };
 const OPS_PO_TYPE = 8;          // PkPOBuyMt.TypeTs ของ PO ซื้อส่วนเกินใบสั่งซื้อ (7 มีเอกสาร E ใช้อยู่)
-const OPS_PO_PREFIX = 'X';      // DocCode X{yy}/{mm}/{0000} — ใช้ไปก่อนจนกว่าฝ่ายจัดซื้อแจ้งรหัสที่ต้องการ
+const OPS_PO_PREFIX = 'OS';     // DocCode OS{yy}/{mm}/{0000} — OS = Overstock Seeds (ฝ่ายจัดซื้อกำหนด; เดิมใช้ X)
 const OPS_PO_SYS = 3;           // Sys* ของการอนุมัติ = 3 (อนุมัติผ่านใบขออนุมัติ OPA ในระบบนี้ / 1 = โปรแกรม, 2 = เว็บอนุมัติ)
 // OPS_PO_TEST_ROLLBACK=1 (.env): อนุมัติครบแล้วสร้าง PO + ใบสั่งขายจริงใน transaction แล้ว rollback ทั้งหมด (ทดสอบโดยไม่ทิ้งข้อมูล)
 const opsPoTestRollback = () => process.env.OPS_PO_TEST_ROLLBACK === '1';
@@ -5827,7 +5827,7 @@ async function opsSendApvMails(transaction, idOps, kind, req, onlyPending = fals
 // ---------- สร้าง PO + ใบสั่งขายฝั่งผู้ขาย (ภายใน transaction ของการอนุมัติขั้นสุดท้าย) ----------
 // หัว PO: คัดลอก ที่อยู่ / เครดิต / ประเภทบิล / สถานะเร่งด่วน / ออกบิลอัตโนมัติ จาก PO ที่อ้างอิงล่าสุด
 // รายการ: จำนวนรับซื้อจริง (> 0) × ราคา / คุณภาพ + ฤดูผลิต จากบรรทัด PO อ้างอิงล่าสุดของรายการนั้น / idDtRef = idOpsDt
-// เลขที่ X{yy}/{mm}/{0000}: รันแบบโปรแกรม PO เดิม (TypeTs + เดือน/ปีของ create_date + บริษัท)
+// เลขที่ OS{yy}/{mm}/{0000}: รันแบบโปรแกรม PO เดิม (TypeTs + เดือน/ปีของ create_date + บริษัท)
 async function opsCreatePO(transaction, idOps, now) {
   const rq = () => new sql.Request(transaction);
   const r = await rq().input('id', sql.Int, idOps).query(`
@@ -5856,7 +5856,7 @@ async function opsCreatePO(transaction, idOps, now) {
   const last = (await rq().input('type', sql.Int, OPS_PO_TYPE).input('comp', sql.Int, h.idCompTarget).input('now', sql.DateTime, now).query(`
     SELECT MAX(DocCode) AS last FROM devsk.PkPOBuyMt WITH (UPDLOCK, HOLDLOCK)
     WHERE stGenDoc IS NOT NULL AND TypeTs = @type AND YEAR(create_date) = YEAR(@now) AND MONTH(create_date) = MONTH(@now) AND idComp = @comp`)).recordset[0].last;
-  const run = last ? (parseInt(String(last).substring(7, 11), 10) || 0) + 1 : 1;
+  const run = last ? (parseInt(String(last).substring(OPS_PO_PREFIX.length + 6, OPS_PO_PREFIX.length + 10), 10) || 0) + 1 : 1;
   const docCode = `${OPS_PO_PREFIX}${String(now.getFullYear() + 543).slice(-2)}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(run).padStart(4, '0')}`;
   const note = `ซื้อเมล็ดพันธุ์ส่วนเกินใบสั่งซื้อ (Over PO) ตามใบขออนุมัติ ${h.BuyDocCode} / ใบร้องขอ ${h.DocCode} ของ ${h.CompNameReq || ''}\r\nอ้างอิง PO: ${h.POCodes || '-'}`
     + (h.BuyNote ? `\r\n${h.BuyNote}` : '');
