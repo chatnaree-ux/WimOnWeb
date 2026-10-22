@@ -952,7 +952,7 @@
     .items-table td.c-reason, .items-table td.qc{flex-basis:100%;}
     .items-table .ref-grid{white-space:normal;}
     .items-table .qc-grid{grid-template-columns:1fr 1fr; white-space:normal;}
-    .items-table .cell-in, .items-table .cell-in.price, .items-table select.reason{width:100%; min-height:44px; font-size:16px;}
+    .items-table .cell-in, .items-table .cell-in.price, .items-table select.reason{width:100%; min-height:38px; height:38px; padding:4px 10px; font-size:16px;}
     .items-table td.num{text-align:left;}
     #itemModal{padding:8px;}
     .modal-wide{height:calc(100dvh - 16px); max-height:none;}
@@ -976,7 +976,7 @@
     .ip-table td.ctr input[type=checkbox]{width:22px; height:22px;}
     .ip-table td.qc{text-align:left !important; box-shadow:none !important;}
     /* คุณภาพเมล็ดพันธุ์: ไม่มีเส้นเขียวชิดตัวหนังสือ — ใช้เส้นประคั่นด้านบน + หัวข้ออยู่บน ค่าอยู่ล่าง (ไม่ตกบรรทัดแตกต่างกัน) */
-    .items-table tbody tr td.qc, .ip-table tbody tr td.qc{border-left:0 !important; box-shadow:none !important;}
+    .items-table tbody tr td.qc, .ip-table tbody tr td.qc:nth-child(n){border-left:0 !important; box-shadow:none !important;}
     .items-table tbody tr td.qc{padding-top:8px !important; border-top:1px dashed rgba(255,255,255,.14) !important;}
     .items-table .qc-grid{grid-template-columns:1fr 1fr; gap:8px 14px; font-size:13px;}
     .items-table .qc-grid > span{display:flex; flex-direction:column; gap:1px; min-width:0;}
@@ -2638,7 +2638,16 @@
     fitPaper(pa);
     pa.style.cssText = '';
     // iOS กันพื้นที่ท้ายกระดาษไว้มาก (พิมพ์ได้ราว 255 มม. จาก 297) → ย่อแผ่นลงให้ลงหน้าเดียว
-    pa.querySelectorAll('.rp-page').forEach(p => { p.style.zoom = iosPrint ? '0.8' : ''; p.style.margin = iosPrint ? '0 auto' : ''; });
+    // (ใช้ transform ใส่ตัวห่อที่กำหนดขนาดใหม่ — zoom ไม่มีผลตอนพิมพ์บน iOS)
+    if(iosPrint){
+      const k = 0.78;
+      pa.querySelectorAll('.rp-page').forEach((p, i, all) => {
+        const w = document.createElement('div');
+        w.style.cssText = `width:${210 * k}mm; height:${283 * k}mm; overflow:hidden; margin:0 auto; ${i < all.length - 1 ? 'break-after:page;' : ''}`;
+        p.replaceWith(w); w.appendChild(p);
+        p.style.cssText = `transform:scale(${k}); transform-origin:0 0; margin:0; break-after:auto;`;
+      });
+    }
     window.print();
   }
   async function printDocById(id){
@@ -2947,7 +2956,7 @@
         while(grid[r] && grid[r][c] !== undefined) c++;
         const k = th.cloneNode(true);
         k.querySelectorAll('span,button').forEach(x => x.remove());
-        k.querySelectorAll('br').forEach(x => x.replaceWith(/[A-Za-z0-9]$/.test((x.previousSibling && x.previousSibling.textContent || '').slice(-1)) ? ' ' : ''));
+        k.querySelectorAll('br').forEach(x => x.replaceWith(/[A-Za-z0-9]$/.test((x.previousSibling && x.previousSibling.textContent || '').slice(-1)) || /^[A-Za-z0-9]/.test((x.nextSibling && x.nextSibling.textContent || '').slice(0, 1)) ? ' ' : ''));
         const text = k.textContent.replace(/\s+/g, ' ').trim();
         for(let i = 0; i < th.rowSpan; i++) for(let j = 0; j < th.colSpan; j++) (grid[r + i] = grid[r + i] || [])[c + j] = text;
         c += th.colSpan;
@@ -3699,7 +3708,7 @@
         <td class="num">${fmtQty(l.rcvQty)}</td>
         <td class="num onhand">${fmtQty(l.onHand)}${l.pendingQty > 0 ? `<span class="pend-hint" title="จองในเอกสารส่งคืนอื่นที่ยังไม่อนุมัติ (หักจากคงเหลือแล้ว)">รอคืน ${fmtQty(l.pendingQty)}</span>` : ''}</td><td>${esc(l.unit)}</td>
         <td class="num">${l.cost == null ? '<span style="color:#ff8a75">-</span>' : fmtMoney(l.cost)}</td>
-        <td class="qc">${fmtPct(l.gp)}</td><td class="qc">${fmtPct(l.gpPaper)}</td><td class="qc">${fmtPct(l.gpMedia)}</td><td class="qc">${fmtPct(l.aa)}</td>
+        <td class="qc">${fmtPct(l.gp) || '-'}</td><td class="qc">${fmtPct(l.gpPaper) || '-'}</td><td class="qc">${fmtPct(l.gpMedia) || '-'}</td><td class="qc">${fmtPct(l.aa) || '-'}</td>
       </tr>`;
     }).join('') : (soldOn && IP.soldState !== 'done' && IP.soldState !== 'truncated' ? ''
       : `<tr><td colspan="14"><div class="state-box">ไม่พบรายการ${soldOn || $('ipSoldWrap').hidden ? '' : ' — ลองเปิด "แสดงสินค้าที่หมดแล้ว"'}</div></td></tr>`)) + soldNoteHtml();
