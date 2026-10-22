@@ -4749,6 +4749,8 @@ function opsMailer() {
         host: process.env.SMTP_HOST,
         port: parseInt(process.env.SMTP_PORT, 10) || 587,
         secure: process.env.SMTP_SECURE === 'true',
+        // family 4: ไม่ลอง IPv6 ก่อน (บน server ที่ IPv6 ออกไม่ได้ จะรอ timeout หลายวินาทีทุกครั้งที่ต่อ Gmail) / timeout สั้นลง ส่งไม่ได้จะรู้เร็ว
+        family: 4, connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 30000,
         auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined
       });
   return opsTransport;
