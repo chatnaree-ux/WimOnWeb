@@ -360,11 +360,13 @@
 
   /* ---------- PRINT ---------- */
   .print-head{display:none;}
+  #printArea{display:none;}
   @media print{
     @page{ size: A4 landscape; margin: 10mm; }
-    body *{visibility:hidden;}
-    #resultPanel, #resultPanel *{visibility:visible;}
-    #resultPanel{position:absolute; top:0; left:0; width:100%; border:none; background:#fff !important;}
+    html, body{background:#fff !important; min-height:0 !important;}
+    body.printing > *:not(#printArea){display:none !important;}
+    #printArea{display:block !important; color:#000; background:#fff;}
+    #printArea .result-panel{border:none !important; background:#fff !important; box-shadow:none !important; border-radius:0 !important;}
     .result-head{display:none;}
     .pager{display:none !important;}
     .view-toggle{display:none;}
@@ -885,7 +887,14 @@
   window.addEventListener('beforeprint', () => { if (lastProcessedRows.length) renderPage(true); });
   window.addEventListener('afterprint',  () => { if (lastProcessedRows.length) renderPage(); });
 
-  printBtn.addEventListener('click', () => window.print());
+  printBtn.addEventListener('click', () => {
+    let pa = document.getElementById('printArea');
+    if (!pa) { pa = document.createElement('div'); pa.id = 'printArea'; document.body.appendChild(pa); }
+    pa.innerHTML = '<div class="result-panel">' + document.getElementById('resultPanel').innerHTML + '</div>';
+    document.body.classList.add('printing');
+    window.print();
+  });
+  window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); const pa = document.getElementById('printArea'); if (pa) pa.innerHTML = ''; });
 
   exportBtn.addEventListener('click', () => {
     if (!lastProcessedRows.length) return;

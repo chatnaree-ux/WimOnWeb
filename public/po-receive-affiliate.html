@@ -453,6 +453,16 @@
     .filter-actions .filter-btn{min-height:46px; justify-content:center;}
   }
   html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  /* กราฟแท่งบนมือถือ (HTML) */
+  .an-bars{display:flex; flex-direction:column; gap:14px; padding:4px 0;}
+  .ab-legend{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12.5px; color:var(--concrete-200);}
+  .ab-legend i{display:inline-block; width:11px; height:11px; border-radius:2px; margin-right:6px; vertical-align:-1px;}
+  .ab-name{font-size:14px; font-weight:600; color:#fff; line-height:1.35; overflow-wrap:anywhere; margin-bottom:5px;}
+  .ab-line{display:flex; align-items:center; gap:10px;}
+  .ab-track{flex:1; display:flex; height:20px; border-radius:5px; background:rgba(255,255,255,.06); overflow:hidden; min-width:0;}
+  .ab-track span{display:block; height:100%;}
+  .ab-line b{flex:0 0 auto; min-width:46px; text-align:right; font-size:14px; color:#fff; font-family:'JetBrains Mono',monospace;}
+  .ab-note{margin-top:4px; font-size:12px; color:var(--concrete-400);}
   /* มือถือ: ตารางสรุป (Supplier / ประเภทพืช / สินค้า) เรียงเป็นการ์ด — ชื่อคอลัมน์มาจาก data-l ที่ JS ใส่ให้ทุกเซลล์ */
   @media (max-width:700px){
     #scResult .sc-table-wrap{overflow:visible; border:0;}
@@ -2392,8 +2402,37 @@
       </tbody></table></div>${more}`;
   }
 
+  // มือถือ: กราฟแนวนอนบน canvas วาดชื่อแกนไม่พอ (ชื่อยาว / Safari วัดฟอนต์ไทยเพี้ยน) → แสดงเป็นแท่ง HTML: ชื่อเต็มอยู่บรรทัดบน แท่งอยู่บรรทัดล่าง
+  const narrowCharts = () => window.matchMedia('(max-width:640px)').matches;
+  function mobileBars(canvasId, rows, legend){
+    const box = document.getElementById(canvasId).closest('.an-chart');
+    box.style.display = 'none';
+    if (box.nextElementSibling && box.nextElementSibling.classList.contains('an-bars')) box.nextElementSibling.remove();
+    const max = Math.max(1, ...rows.map(r => r.total));
+    const el = document.createElement('div');
+    el.className = 'an-bars';
+    el.innerHTML = (legend ? `<div class="ab-legend">${legend.map(l => `<span><i style="background:${l.color}"></i>${escHtml(l.label)}</span>`).join('')}</div>` : '') +
+      rows.map(r => `<div class="ab-row">
+        <div class="ab-name">${escHtml(r.label)}</div>
+        <div class="ab-line"><div class="ab-track">${r.segs.map(g => g.v > 0 ? `<span style="width:${(g.v / max * 100).toFixed(2)}%; background:${g.color}" title="${escHtml(g.title || '')}"></span>` : '').join('')}</div><b>${escHtml(r.text)}</b></div>
+        ${r.note ? `<div class="ab-note">${escHtml(r.note)}</div>` : ''}
+      </div>`).join('');
+    box.after(el);
+  }
+
   function renderSupplierChart(d){
     const sups = d.suppliers;
+    if (narrowCharts()) {
+      const st = [['pending', 'ยังไม่รับ'], ['partial', 'รับบางส่วน'], ['complete', 'รับครบ'], ['excess', 'รับเกิน 1–20%'], ['over', 'รับเกิน 20%']];
+      mobileBars('anSupChart', sups.map(x => ({
+        label: (SUPPLIER_TAG[x.idSup] || [null, x.supName])[1],
+        total: st.reduce((a, [k]) => a + (x.status[k] || 0), 0),
+        segs: st.map(([k, l]) => ({ v: x.status[k] || 0, color: AN_STATUS_COLOR[k], title: l })),
+        text: fmtInt(st.reduce((a, [k]) => a + (x.status[k] || 0), 0)) + ' PO',
+        note: st.filter(([k]) => x.status[k]).map(([k, l]) => l + ' ' + fmtInt(x.status[k])).join(' · ')
+      })), st.map(([k, l]) => ({ label: l, color: AN_STATUS_COLOR[k] })));
+      return;
+    }
     const labels = sups.map(s => (SUPPLIER_TAG[s.idSup] || [null, s.supName])[1]);
     const ds = [['pending', 'ยังไม่รับ'], ['partial', 'รับบางส่วน'], ['complete', 'รับครบ'], ['excess', 'รับเกิน 1–20%'], ['over', 'รับเกิน 20%']]
       .map(([k, label]) => ({ label, data: sups.map(s => s.status[k]), backgroundColor: AN_STATUS_COLOR[k], borderWidth: 0, maxBarThickness: 46 }));
@@ -2409,6 +2448,25 @@
     const over = anMode[kind] === 'over';
     document.getElementById(cfg.sub).textContent = dimSubText(kind);
     if (anCharts[kind]) { anCharts[kind].destroy(); delete anCharts[kind]; }
+    if (narrowCharts()) {
+      let cap = null;
+      if (over && rows.length >= 3) { const c = Math.max(20, Math.ceil(rows[2].excessPct * 2 / 10) * 10); if (rows[0].excessPct > c) cap = c; }
+      const color = over ? cfg.colors.over : cfg.colors.short;
+      mobileBars(cfg.chart, rows.map(c => {
+        const v = over ? c.excessPct : c.shortEndedLines;
+        return {
+          label: kind === 'product' ? shortInvName(cfg.label(c)) : cfg.label(c),
+          total: cap ? Math.min(v, cap) : v,
+          segs: [{ v: cap ? Math.min(v, cap) : v, color }],
+          text: over ? v + '%' : fmtInt(v) + ' รายการ',
+          note: over ? `รับเกิน ${fmtQty(c.excessQty)} ${c.unit} จากยอด PO ${fmtQty(c.poRecQty)} ${c.unit}` : `ปิด PO-รับไม่ครบ ${c.shortEndedLines} จาก ${c.lineCount} รายการ`
+        };
+      }));
+      return;
+    }
+    const barsPrev = document.getElementById(cfg.chart).closest('.an-chart');
+    barsPrev.style.display = '';
+    if (barsPrev.nextElementSibling && barsPrev.nextElementSibling.classList.contains('an-bars')) barsPrev.nextElementSibling.remove();
     const base = chartBase({ indexAxis: 'y' });
     base.plugins.legend = { display: false };
     base.plugins.tooltip = { callbacks: {

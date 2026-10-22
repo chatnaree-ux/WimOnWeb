@@ -254,7 +254,11 @@
   }
   .tool-btn svg{width:14px; height:14px; flex-shrink:0;}
   .tool-btn:hover:not(:disabled){border-color:var(--amber-500); background:rgba(242,169,28,.08); color:var(--amber-500);}
-  .tool-btn:disabled{opacity:.35; cursor:not-allowed;}
+  .tool-btn:disabled{opacity:.45; cursor:not-allowed;}
+  #printBtn{color:#9cc9ff; background:rgba(78,163,255,.14); border-color:rgba(78,163,255,.6);}
+  #exportBtn{color:#7ee7ac; background:rgba(62,207,142,.14); border-color:rgba(62,207,142,.6);}
+  #printBtn:hover:not(:disabled){color:#c8e1ff; background:rgba(78,163,255,.26); border-color:#4ea3ff;}
+  #exportBtn:hover:not(:disabled){color:#b4f5d2; background:rgba(62,207,142,.26); border-color:#3ecf8e;}
 
   .table-scroll{overflow-x:auto;}
   .sc-table{width:100%; border-collapse:collapse; font-size:12.8px;}
@@ -325,12 +329,14 @@
   .item-modal-row .choose-btn:hover{background:var(--amber-500); color:var(--navy-950);}
 
   /* ---------- print ---------- */
+  #printArea{display:none;}
   .sc-print-head{display:none;}
   @media print{
     @page{ size: A4 landscape; margin: 12mm; }
-    body *{visibility:hidden;}
-    #resultPanel, #resultPanel *{visibility:visible;}
-    #resultPanel{position:absolute; top:0; left:0; width:100%; border:none; background:#fff !important;}
+    html, body{background:#fff !important; min-height:0 !important;}
+    body.printing > *:not(#printArea){display:none !important;}
+    #printArea{display:block !important; color:#000; background:#fff;}
+    #printArea .result-panel{border:none !important; background:#fff !important; box-shadow:none !important; border-radius:0 !important;}
     .result-head{display:none;}
     .sc-print-head{display:block; padding:12px 8px 16px; color:#000; font-family:'Inter',sans-serif;}
     .sc-print-head .company{font-family:'Oswald',sans-serif; font-size:18px; font-weight:700; margin-bottom:4px;}
@@ -366,6 +372,11 @@
   html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
   /* มือถือ: แถว Stock Card เป็นการ์ด — เข้า / ออก / คงเหลือ เรียง 3 ช่อง */
   @media screen and (max-width:700px){
+    .result-head{flex-direction:column; align-items:stretch; padding:14px 16px;}
+    .result-head > div:last-child{display:grid !important; grid-template-columns:1fr 1fr; gap:8px !important; width:100%;}
+    .result-head .count{grid-column:1 / -1;}
+    .tool-btn{justify-content:center; min-height:46px; font-size:13px; padding:0 10px;}
+    .sc-table tbody td{text-align:left;}
     .table-scroll{overflow:visible;}
     .sc-table, .sc-table tbody{display:block; width:100%;}
     .sc-table thead{display:none;}
@@ -378,7 +389,7 @@
     .sc-table tbody td.num{text-align:center; padding:8px 4px; border-radius:8px; background:rgba(255,255,255,.05); font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700;}
     .sc-table tbody td.num::before{display:block; content:attr(data-l); font-family:inherit; font-size:11px; font-weight:400; color:var(--concrete-400); margin-bottom:2px;}
     .sc-table tbody td.c-wh, .sc-table tbody td.c-lot, .sc-table tbody td.c-unit, .sc-table tbody td.c-user{grid-column:1 / -1; display:flex; gap:10px; font-size:12.5px; color:var(--concrete-200);}
-    .sc-table tbody td.c-wh::before, .sc-table tbody td.c-lot::before, .sc-table tbody td.c-unit::before, .sc-table tbody td.c-user::before{content:attr(data-l); flex:0 0 84px; color:var(--concrete-400);}
+    .sc-table tbody td.c-wh::before, .sc-table tbody td.c-lot::before, .sc-table tbody td.c-unit::before, .sc-table tbody td.c-user::before{content:attr(data-l); flex:0 0 78px; text-align:left; color:var(--concrete-400);}
   }
 
   /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
@@ -891,7 +902,14 @@
     exportBtn.disabled = false;
   }
 
-  printBtn.addEventListener('click', () => window.print());
+  printBtn.addEventListener('click', () => {
+    let pa = document.getElementById('printArea');
+    if (!pa) { pa = document.createElement('div'); pa.id = 'printArea'; document.body.appendChild(pa); }
+    pa.innerHTML = '<div class="result-panel">' + document.getElementById('resultPanel').innerHTML + '</div>';
+    document.body.classList.add('printing');
+    window.print();
+  });
+  window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); const pa = document.getElementById('printArea'); if (pa) pa.innerHTML = ''; });
 
   exportBtn.addEventListener('click', () => {
     if (!lastProcessedRows.length) return;
