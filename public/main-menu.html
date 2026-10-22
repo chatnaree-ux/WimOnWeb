@@ -607,7 +607,8 @@
   // ยอดแยกรายบริษัท — แต่ละแถวลิงก์ไปหน้านั้นพร้อมเลือกบริษัทไว้ (?comp=)
   // numText(c) = ข้อความตัวเลขของบริษัทนั้น (ต่างกันระหว่างเคลือบ / ลดความชื้น)
   function compList(href, byComp, numText) {
-    if (!byComp || byComp.length === 0) return '<div class="comp-list"><div class="comp-none">ไม่มีงานค้างในบริษัทที่คุณมีสิทธิ์</div></div>';
+    if (!Array.isArray(byComp)) return '';   // server.js รุ่นเก่ายังไม่ส่งยอดแยกบริษัท -> ไม่แสดงส่วนนี้ (ไม่ขึ้นว่าไม่มีงานค้างผิดๆ)
+    if (byComp.length === 0) return '<div class="comp-list"><div class="comp-none">ไม่มีงานค้างในบริษัทที่คุณมีสิทธิ์</div></div>';
     return `
       <div class="comp-list">
         <div class="comp-list-label">แยกตามบริษัท</div>
@@ -626,28 +627,35 @@
     const cards = [];
     // companies = บริษัทที่มีสิทธิ์ (null = ทุกบริษัท) / มีสิทธิ์บริษัทเดียว -> ไม่ต้องแยก แค่บอกชื่อบริษัท
     const single = Array.isArray(companies) && companies.length === 1 ? companies[0] : null;
-    const pageHref = (href) => single ? `${href}?comp=${encodeURIComponent(single.id)}` : href;
-    const allLabel = single ? '' : ' <span>(รวมทุกบริษัท)</span>';
+
+    // แยกรายบริษัทเฉพาะเมื่องานค้างมาจาก 2 บริษัทขึ้นไป / มาจากบริษัทเดียว -> ป้ายชื่อบริษัท + ลิงก์เปิดบริษัทนั้น
+    function compView(href, byComp, numText) {
+      const rows = Array.isArray(byComp) ? byComp : null;
+      const only = single || (rows && rows.length === 1 ? rows[0] : null);
+      if (only) return { href: `${href}?comp=${encodeURIComponent(only.id)}`, compTag: only.name, allLabel: '', comps: '' };
+      if (!rows || rows.length === 0) return { href, compTag: null, allLabel: '', comps: '' };
+      return { href, compTag: null, allLabel: ' <span>(รวมทุกบริษัท)</span>', comps: compList(href, rows, numText) };
+    }
 
     if (d.coating) {
+      const v = compView('/coating', d.coating.byComp,
+        c => `กำลังเคลือบ <b>${nf(c.inprogress)}</b> · รอคิว <b>${nf(c.waiting)}</b>`);
       cards.push(kpiCard({
-        href: pageHref('/coating'), icon: 'seed', label: 'เคลือบเมล็ด', compTag: single && single.name,
+        href: v.href, icon: 'seed', label: 'เคลือบเมล็ด', compTag: v.compTag,
         value: d.coating.inprogress, unit: 'รายการกำลังเคลือบ', live: d.coating.inprogress > 0,
-        subs: [`<span>รอคิว <b>${nf(d.coating.waiting)}</b> รายการ${allLabel}</span>`],
-        comps: single ? '' : compList('/coating', d.coating.byComp,
-          c => `กำลังเคลือบ <b>${nf(c.inprogress)}</b> · รอคิว <b>${nf(c.waiting)}</b>`),
+        subs: [`<span>รอคิว <b>${nf(d.coating.waiting)}</b> รายการ${v.allLabel}</span>`],
+        comps: v.comps,
         cta: 'ไปลงเวลาเคลือบเมล็ด'
       }));
     }
     if (d.moisture) {
+      const v = compView('/moisture', d.moisture.byComp,
+        c => `กำลังทำ <b>${nf(c.inprogress)}</b> · รอคิว <b>${nf(c.waiting)}</b>`);
       cards.push(kpiCard({
-        href: pageHref('/moisture'), icon: 'drop', label: 'ลดความชื้น', compTag: single && single.name,
+        href: v.href, icon: 'drop', label: 'ลดความชื้น', compTag: v.compTag,
         value: d.moisture.inprogress, unit: 'รายการกำลังลดความชื้น', live: d.moisture.inprogress > 0,
-        subs: [
-          `<span>รอคิว <b>${nf(d.moisture.waiting)}</b> รายการ${allLabel}</span>`
-        ],
-        comps: single ? '' : compList('/moisture', d.moisture.byComp,
-          c => `กำลังทำ <b>${nf(c.inprogress)}</b> · รอคิว <b>${nf(c.waiting)}</b>`),
+        subs: [`<span>รอคิว <b>${nf(d.moisture.waiting)}</b> รายการ${v.allLabel}</span>`],
+        comps: v.comps,
         cta: 'ไปลงเวลาลดความชื้น'
       }));
     }
