@@ -745,6 +745,9 @@
   .recip .tag{font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:1px 7px; border-radius:4px; background:rgba(242,169,28,.14); color:var(--amber-500);}
   .recip .ok{color:var(--ok-green); font-weight:700; font-size:12px;}
   .recip .ng{color:#ff8a75; font-weight:700; font-size:12px;}
+  .recip .pend{color:var(--amber-500); font-weight:700; font-size:12px;}
+  .junk-hint{margin:12px 0 4px; padding:10px 12px; border-radius:8px; font-size:13px; line-height:1.6; color:var(--concrete-200); background:rgba(78,167,224,.08); border:1px solid rgba(78,167,224,.35);}
+  .junk-hint b{color:#fff;}
   .sec-title{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em; color:var(--concrete-400); text-transform:uppercase; margin:4px 0 8px;}
   .dry-note{font-size:12px; color:var(--amber-500); margin:0 0 12px;}
 
@@ -2352,7 +2355,7 @@
       items: items.map(it => ({ idInvMain: it.idInvMain, amountProduce: it.amountProduce, amountOffer: it.amountOffer, note: it.note || '', poLines: it.pos.map(p => p.idPODt) }))
     };
     btn.disabled = true;
-    btn.textContent = 'กำลังบันทึกและส่งอีเมล…';
+    btn.textContent = 'กำลังบันทึก…';
     $('saveBtn').disabled = true;
     try{
       const r = editing
@@ -2361,7 +2364,7 @@
       const wasEdit = !!editing;
       resetForm();
       // แก้ไขเสร็จ = กลับหน้ารายการเสมอ (ไม่ค้างฟอร์ม) / สร้างใหม่ = เลือกได้ว่าทำรายการใหม่ต่อ หรือไปหน้ารายการ
-      dlg(wasEdit ? 'บันทึกการแก้ไขและส่งอีเมลแล้ว' : 'บันทึกและส่งคำร้องแล้ว', `
+      dlg(wasEdit ? 'บันทึกการแก้ไขแล้ว — กำลังส่งอีเมลแจ้ง' : 'บันทึกคำร้องแล้ว — กำลังส่งอีเมล', `
         <dl class="send-summary"><dt>เลขที่เอกสาร</dt><dd class="doc">${esc(r.docNo)}</dd><dt>สถานะ</dt><dd>${STATUS.S}</dd></dl>
         ${sendResultHtml({ ...r, success: false })}
         <div class="send-actions">
@@ -2753,7 +2756,7 @@
     btn.textContent = 'กำลังส่ง…';
     try{
       const r = await api(`/api/ops/docs/${btn.dataset.id}/send`, { body: { origin: location.origin } });
-      $('dlgTitle').textContent = 'ส่งคำร้องสำเร็จ';
+      $('dlgTitle').textContent = 'กำลังส่งอีเมลคำร้อง';
       $('dlgBody').innerHTML = sendResultHtml(r);
       loadList();
     } catch(err){
@@ -2763,11 +2766,15 @@
       loadList();
     }
   }
+  // ข้อความแนะนำผู้รับที่ยังไม่เคยได้อีเมลจากระบบ (อีเมลครั้งแรกมักเข้ากล่องขยะ) — แสดงในหน้าต่างหลังส่งทุกจุด
+  const JUNK_HINT = '<div class="junk-hint">📬 <b>ผู้รับครั้งแรก:</b> ถ้าไม่พบอีเมลในกล่องจดหมายหลัก ให้ตรวจที่ <b>กล่องขยะ (Junk / Spam)</b> แล้วกด "ไม่ใช่ขยะ" (Not junk) อีเมลถัดไปจะเข้ากล่องหลักตามปกติ — ควรแจ้งผู้รับให้ทราบด้วย</div>';
   function sendResultHtml(r){
-    return `${r.dryRun ? '<p class="dry-note">🧪 โหมดทดสอบ: บันทึกอีเมลเป็นไฟล์บน server (ไม่ได้ส่งจริง)</p>'
+    return `${r.mailPending ? '<p class="send-note">ระบบบันทึกเรียบร้อยแล้ว และกำลังส่งอีเมลเบื้องหลัง — ถ้าส่งไม่สำเร็จ ระบบลองใหม่ให้อัตโนมัติ และแจ้งเตือนในหน้ารายการ (ส่งซ้ำได้จากปุ่ม "ส่งอีเมลคำร้องอีกครั้ง")</p>' : ''}
+      ${r.dryRun ? '<p class="dry-note">🧪 โหมดทดสอบ: บันทึกอีเมลเป็นไฟล์บน server (ไม่ได้ส่งจริง)</p>'
       : mailRedirect ? `<p class="dry-note">🧪 ช่วงทดสอบ: อีเมลทุกฉบับส่งไปที่ ${esc(mailRedirect)} แทนผู้รับด้านล่าง</p>` : ''}
       <div class="recip-list">${(r.results || []).map(x => `<div class="recip"><span class="tag">${x.type.toUpperCase()}</span>
-        <span class="mail" style="flex:1">${esc(x.email)}</span>${x.ok ? '<span class="ok">✓ ส่งแล้ว</span>' : '<span class="ng">✗ ไม่สำเร็จ</span>'}</div>`).join('')}</div>
+        <span class="mail" style="flex:1">${esc(x.email)}</span>${x.pending ? '<span class="pend">⏳ กำลังส่ง…</span>' : x.ok ? '<span class="ok">✓ ส่งแล้ว</span>' : '<span class="ng">✗ ไม่สำเร็จ</span>'}</div>`).join('')}</div>
+      ${(r.mailPending || (r.results || []).length) ? JUNK_HINT : ''}
       ${r.success ? '<div class="send-actions"><button type="button" class="btn btn-primary" data-close="dlgModal">ปิด</button></div>' : ''}`;
   }
 
@@ -3385,6 +3392,7 @@
       const r = await api(`/api/ops/buy/${d.id}/submit`, { body });
       dlg('บันทึกและส่งขออนุมัติแล้ว', `<dl class="send-summary"><dt>ใบขออนุมัติ</dt><dd class="doc">${esc(r.buyDocNo)}</dd></dl>
         <p class="send-note">ระบบกำลังส่ง E-mail ขออนุมัติถึงผู้อนุมัติทั้ง 4 ท่าน (${(r.mailTo || []).map(x => esc(fname(x.name))).join(', ')})${mailRedirect ? ` — ช่วงทดสอบ: ส่งไปที่ ${esc(mailRedirect)}` : ''}</p>
+        ${JUNK_HINT}
         <div class="send-actions"><button type="button" class="btn btn-primary" data-close="dlgModal">กลับหน้ารายการคำร้อง</button></div>`,
         { w: '520px', onClose: () => { location.href = '/over-po-sale-buy'; } });
     } catch(err){
@@ -3442,7 +3450,7 @@
     btn.disabled = true;
     try{
       const r = await api(`/api/ops/buy/${buyDoc.id}/remind`, { body: {} });
-      dlg('ส่ง E-mail เตือนแล้ว', sendResultHtml({ ...r, success: true }));
+      dlg('กำลังส่ง E-mail เตือน', sendResultHtml({ ...r, success: true }));
     } catch(err){ alert(err.message); }
     btn.disabled = false;
   }

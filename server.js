@@ -4769,7 +4769,7 @@ function opsHtmlToText(html) {
     .replace(/<[^>]+>/g, '');
   return dec(t).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
-async function opsSendMail({ to, cc, subject, html }) {
+async function opsSendMailOnce({ to, cc, subject, html }) {
   const from = process.env.MAIL_FROM || 'WIM <no-reply@localhost>';
   const redirect = opsMailRedirect();
   const real = [...to, ...cc];
@@ -4800,6 +4800,38 @@ async function opsSendMail({ to, cc, subject, html }) {
     return { ok: new Set(), error: err.message };
   }
 }
+
+// ส่งพร้อมลองใหม่อัตโนมัติ (ล้มเหลวชั่วคราว เช่น Gmail ช้า / เครือข่ายหลุด): ครั้งที่ 1 ทันที / 2 หลัง 8 วินาที / 3 หลัง 40 วินาที — ลองซ้ำเฉพาะผู้รับที่ยังไม่สำเร็จ
+// ใช้เบื้องหลังเท่านั้น (opsBackground) — ห้ามให้ผู้ใช้รอ
+const OPS_MAIL_RETRY_MS = [0, 8000, 40000];
+async function opsSendMail({ to, cc, subject, html }) {
+  const all = [...to, ...cc].map(e => e.toLowerCase());
+  const done = new Set();
+  let error = null;
+  for (let i = 0; i < OPS_MAIL_RETRY_MS.length; i++) {
+    if (OPS_MAIL_RETRY_MS[i]) await new Promise(r => setTimeout(r, OPS_MAIL_RETRY_MS[i]));
+    const pendTo = to.filter(e => !done.has(e.toLowerCase())), pendCc = cc.filter(e => !done.has(e.toLowerCase()));
+    if (!pendTo.length && !pendCc.length) break;
+    const r = await opsSendMailOnce({ to: pendTo.length ? pendTo : pendCc, cc: pendTo.length ? pendCc : [], subject, html });
+    r.ok.forEach(e => done.add(e));
+    error = r.error;
+    if (all.every(e => done.has(e))) break;
+    console.error(`OPS mail attempt ${i + 1}/${OPS_MAIL_RETRY_MS.length} incomplete: ${r.error}`);
+  }
+  const complete = all.every(e => done.has(e));
+  return { ok: done, error: complete ? null : (error || 'ส่งไม่สำเร็จ') };
+}
+
+// ตรวจการเชื่อมต่อ SMTP เป็นระยะ (เบื้องหลัง) — ถ้าตอนนี้ต่อ Gmail ไม่ได้ จะไม่รับบันทึกคำร้อง (ผู้ใช้รู้ทันที แทนที่จะบันทึกแล้วอีเมลไม่ไป)
+const opsMailHealth = { ok: true, error: null, at: 0 };
+async function opsMailCheck() {
+  if (opsMailDryRun() || !opsMailReady()) return;
+  try { await opsMailer().verify(); opsMailHealth.ok = true; opsMailHealth.error = null; }
+  catch (e) { opsMailHealth.ok = false; opsMailHealth.error = e.message; console.error('OPS mail health check failed:', e.message); }
+  opsMailHealth.at = Date.now();
+}
+if (!opsMailDryRun() && opsMailReady()) { setTimeout(opsMailCheck, 3000); setInterval(opsMailCheck, 60000).unref(); }
+const OPS_MAIL_DOWN_MSG = 'ระบบอีเมลติดต่อเซิร์ฟเวอร์ส่งอีเมล (Gmail) ไม่ได้ในขณะนี้ — ยังไม่ได้บันทึก กรุณาลองใหม่อีกครั้งในอีกสักครู่';
 
 // ---------- สถานะเอกสาร (ดูจากวันที่ของแต่ละขั้น ไม่มีคอลัมน์สถานะ) ----------
 // D = ร่าง (ยังไม่ส่ง) / S = ส่งคำร้องแล้ว รอฝ่ายจัดซื้อ / H = ฝ่ายจัดซื้อส่งขออนุมัติแล้ว รออนุมัติ (4 ขั้น)
@@ -5340,6 +5372,7 @@ app.get('/api/ops/doc/:id', requireLogin, async (req, res) => {
 // ---------- บันทึกและส่งคำร้อง: บันทึก + ส่งอีเมลใน transaction เดียว — ส่งถึงผู้รับคำร้องไม่สำเร็จ = ไม่บันทึกอะไรเลย ----------
 app.post('/api/ops/docs', requireMenu(MENU_OPS, { companyParam: 'idCompReq' }), async (req, res) => {
   if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — บันทึกและส่งคำร้องไม่ได้ ติดต่อผู้ดูแลระบบ' });
+  if (!opsMailHealth.ok) return res.status(503).json({ success: false, message: OPS_MAIL_DOWN_MSG });
   let transaction;
   try {
     const pool = await poolPromise;
@@ -5361,13 +5394,12 @@ app.post('/api/ops/docs', requireMenu(MENU_OPS, { companyParam: 'idCompReq' }), 
     const idOps = mt.recordset[0].id;
     await insertOpsItems(transaction, idOps, items);
     await saveOpsRecipients(transaction, idOps, head, req.idPs);
-    const sent = await deliverOpsMails(transaction, idOps, 'send', req);
-    if (!sent.ok) {
-      await transaction.rollback();
-      return res.status(502).json({ success: false, message: `${sent.message} — ระบบยังไม่ได้บันทึกเอกสาร กรุณาลองใหม่`, results: sent.results });
-    }
+    const plan = await opsMailPlan(transaction, idOps);
+    if (!plan.ok) { await transaction.rollback(); return res.status(400).json({ success: false, message: `${plan.message} — ระบบยังไม่ได้บันทึกเอกสาร` }); }
+    await opsMarkSent(transaction, idOps, req.idPs);
     await transaction.commit();
-    res.json({ success: true, id: idOps, docNo: docCode, dryRun: sent.dryRun, results: sent.results });
+    res.json({ success: true, id: idOps, docNo: docCode, mailPending: true, results: opsPendingResults(plan) });
+    opsBackground('send', () => deliverOpsMails(idOps, 'send', req));
   } catch (err) {
     if (transaction) { try { await transaction.rollback(); } catch (e) {} }
     console.error('OPS save error:', err);
@@ -5381,6 +5413,7 @@ app.put('/api/ops/docs/:id', requireMenu(MENU_OPS), async (req, res) => {
   const idOps = parseInt(req.params.id, 10);
   if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
   if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — ติดต่อผู้ดูแลระบบ' });
+  if (!opsMailHealth.ok) return res.status(503).json({ success: false, message: OPS_MAIL_DOWN_MSG });
   let transaction;
   const fail = async (code, message, extra = {}) => { await transaction.rollback(); return res.status(code).json({ success: false, message, ...extra }); };
   try {
@@ -5407,10 +5440,13 @@ app.put('/api/ops/docs/:id', requireMenu(MENU_OPS), async (req, res) => {
               DELETE FROM devsk.SeedReqSaleDt WHERE idOps = @id;`);
     await insertOpsItems(transaction, idOps, items);
     await saveOpsRecipients(transaction, idOps, head, req.idPs);
-    const sent = await deliverOpsMails(transaction, idOps, st === 'S' ? 'edit' : 'send', req);
-    if (!sent.ok) return fail(502, `${sent.message} — ระบบยังไม่ได้บันทึกการแก้ไข กรุณาลองใหม่`, { results: sent.results });
+    const kind = st === 'S' ? 'edit' : 'send';
+    const plan = await opsMailPlan(transaction, idOps);
+    if (!plan.ok) return fail(400, `${plan.message} — ระบบยังไม่ได้บันทึกการแก้ไข`);
+    await opsMarkSent(transaction, idOps, req.idPs);
     await transaction.commit();
-    res.json({ success: true, id: idOps, docNo: cur.DocCode, dryRun: sent.dryRun, results: sent.results });
+    res.json({ success: true, id: idOps, docNo: cur.DocCode, mailPending: true, results: opsPendingResults(plan) });
+    opsBackground('send-' + kind, () => deliverOpsMails(idOps, kind, req));
   } catch (err) {
     if (transaction) { try { await transaction.rollback(); } catch (e) {} }
     console.error('OPS edit error:', err);
@@ -5594,44 +5630,46 @@ function buildOpsMail(doc, link, kind, role, to, cc) {
 // ส่งอีเมลของเอกสาร (ภายใน transaction ของการบันทึก/แก้ไข/ส่งซ้ำ): ผู้รับคำร้อง 1 ฉบับ + สำเนา (CC ทุกคน) อีก 1 ฉบับ
 // ส่งถึงผู้รับคำร้องไม่สำเร็จ = { ok: false } ให้ผู้เรียก rollback ทั้งหมด / สำเร็จ = เขียน log + ตั้ง DateSent (ครั้งแรก)
 // เอกสารเก่าที่ยังไม่มีผู้รับรายเอกสาร → ใช้ผู้รับค่าเริ่มต้นของบริษัทผู้ซื้อ
-async function deliverOpsMails(transaction, idOps, kind, req) {
-  const doc = await loadOpsDoc(idOps, transaction);
+// วางแผนผู้รับ (เรียกก่อนบันทึก): ต้องมีผู้รับคำร้อง (TO) ที่มีอีเมลถูกต้อง ไม่มี = ไม่บันทึก
+async function opsMailPlan(runner, idOps) {
+  const doc = await loadOpsDoc(idOps, runner);
   let { to } = doc.recipients;
   const cc = doc.recipients.cc.filter(x => opsValidEmail(x.email));
-  if (!to) to = (await opsRecipients(transaction, doc.compTarget)).find(x => opsValidEmail(x.email)) || null;
-  if (!to || !opsValidEmail(to.email)) return { ok: false, message: 'ไม่พบผู้รับคำร้องที่มีอีเมล', results: [] };
-
+  if (!to) to = (await opsRecipients(runner, doc.compTarget)).find(x => opsValidEmail(x.email)) || null;
+  if (!to || !opsValidEmail(to.email)) return { ok: false, message: 'ไม่พบผู้รับคำร้องที่มีอีเมล' };
+  return { ok: true, doc, to, cc };
+}
+// รายชื่อผู้รับที่ส่งให้หน้าจอแสดง (สถานะ "กำลังส่ง")
+const opsPendingResults = (plan) => [{ type: 'to', email: plan.to.email, pending: true }, ...plan.cc.map(x => ({ type: 'cc', email: x.email, pending: true }))];
+// ตั้งสถานะ "ส่งคำร้องแล้ว" ตอนบันทึก (ไม่รอผลส่งอีเมล)
+async function opsMarkSent(transaction, idOps, idPs) {
+  await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, idPs)
+    .query('UPDATE devsk.SeedReqSaleMt SET idPsSent = @ps, DateSent = GETDATE() WHERE idOps = @id AND DateSent IS NULL');
+}
+// ส่งอีเมลคำร้อง: เรียกหลัง commit ผ่าน opsBackground เท่านั้น — TO และ CC ส่งพร้อมกัน (มีลองใหม่อัตโนมัติใน opsSendMail) แล้วเก็บ log ผลลัพธ์
+async function deliverOpsMails(idOps, kind, req) {
+  const pool = await poolPromise;
+  const plan = await opsMailPlan(pool, idOps);
+  if (!plan.ok) { console.error('OPS mail plan failed:', idOps, plan.message); return plan; }
+  const { doc, to, cc } = plan;
   const base = (process.env.APP_BASE_URL || '').replace(/\/+$/, '') || ursReplyOrigin(req);
   const link = `${base}/over-po-sale-doc?id=${idOps}`;          // CC: ดูเอกสารอย่างเดียว
   const buyLink = `${base}/over-po-sale-buy?id=${idOps}`;      // ผู้รับคำร้อง: หน้าจัดการคำร้องของฝ่ายจัดซื้อ
-  const logs = [];
-  const m1 = buildOpsMail(doc, buyLink, kind, 'to', to, cc);
-  const r1 = await opsSendMail({ to: [to.email], cc: [], subject: m1.subject, html: m1.html });
-  const toOk = r1.ok.has(to.email.toLowerCase());
-  logs.push({ type: 'to', idPs: to.idPs, email: to.email, ok: toOk, err: toOk ? null : (r1.error || 'ส่งไม่สำเร็จ') });
-  if (!toOk) return { ok: false, message: `ส่งอีเมลถึงผู้รับคำร้องไม่สำเร็จ: ${r1.error || 'ไม่ทราบสาเหตุ'}`, results: logs.map(({ type, email, ok }) => ({ type, email, ok })) };
-  if (cc.length) {
-    const m2 = buildOpsMail(doc, link, kind, 'cc', to, cc);
-    const r2 = await opsSendMail({ to: cc.map(x => x.email), cc: [], subject: m2.subject, html: m2.html });
-    cc.forEach(x => {
-      const ok = r2.ok.has(x.email.toLowerCase());
-      logs.push({ type: 'cc', idPs: x.idPs, email: x.email, ok, err: ok ? null : (r2.error || 'ส่งไม่สำเร็จ') });
-    });
-  }
-
-  const now = (await new sql.Request(transaction).query('SELECT GETDATE() AS now')).recordset[0].now;
+  const jobs = [{ type: 'to', list: [to], mail: buildOpsMail(doc, buyLink, kind, 'to', to, cc) }];
+  if (cc.length) jobs.push({ type: 'cc', list: cc, mail: buildOpsMail(doc, link, kind, 'cc', to, cc) });
+  const logs = (await Promise.all(jobs.map(async j => {
+    const r = await opsSendMail({ to: j.list.map(x => x.email), cc: [], subject: j.mail.subject, html: j.mail.html });
+    return j.list.map(x => { const ok = r.ok.has(x.email.toLowerCase()); return { type: j.type, idPs: x.idPs, email: x.email, ok, err: ok ? null : (r.error || 'ส่งไม่สำเร็จ') }; });
+  }))).flat();
   for (const l of logs) {
-    await new sql.Request(transaction)
+    await pool.request()
       .input('id', sql.Int, idOps).input('step', sql.VarChar(20), kind).input('type', sql.VarChar(3), l.type)
       .input('ps', sql.Int, l.idPs).input('mail', sql.NVarChar(255), l.email).input('ok', sql.Bit, l.ok)
-      .input('err', sql.NVarChar(1000), l.err ? String(l.err).slice(0, 1000) : null)
-      .input('by', sql.Int, req.idPs).input('now', sql.DateTime, now)
+      .input('err', sql.NVarChar(1000), l.err ? String(l.err).slice(0, 1000) : null).input('by', sql.Int, req.idPs)
       .query(`INSERT INTO devsk.SeedReqSaleMailLog (idOps, Step, RecvType, idPs, Email, stSend, ErrMsg, idPsSend, DateSend)
-              VALUES (@id, @step, @type, @ps, @mail, @ok, @err, @by, @now)`);
+              VALUES (@id, @step, @type, @ps, @mail, @ok, @err, @by, GETDATE())`);
   }
-  await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, req.idPs).input('now', sql.DateTime, now)
-    .query('UPDATE devsk.SeedReqSaleMt SET idPsSent = @ps, DateSent = @now WHERE idOps = @id AND DateSent IS NULL');
-  return { ok: true, dryRun: opsMailDryRun(), results: logs.map(({ type, email, ok }) => ({ type, email, ok })) };
+  return { ok: logs.every(l => l.ok), results: logs.map(({ type, email, ok }) => ({ type, email, ok })) };
 }
 
 // ---------- ส่งอีเมลซ้ำ (เอกสารที่ส่งแล้ว ฝั่งผู้ซื้อยังไม่ดำเนินการ) / ส่งเอกสารร่างเดิม (ก่อนมีปุ่มบันทึกและส่ง) ----------
@@ -5639,6 +5677,7 @@ app.post('/api/ops/docs/:id/send', requireMenu(MENU_OPS), async (req, res) => {
   const idOps = parseInt(req.params.id, 10);
   if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
   if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — ติดต่อผู้ดูแลระบบ' });
+  if (!opsMailHealth.ok) return res.status(503).json({ success: false, message: OPS_MAIL_DOWN_MSG });
   let transaction;
   try {
     const pool = await poolPromise;
@@ -5650,10 +5689,13 @@ app.post('/api/ops/docs/:id/send', requireMenu(MENU_OPS), async (req, res) => {
     if (!hasComp(req.access, cur.idCompReq)) return stop(403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
     const st = opsStatus(cur);
     if (!['D', 'S'].includes(st)) return stop(409, 'เอกสารถูกยกเลิก หรือฝั่งผู้ซื้อดำเนินการแล้ว — ส่งไม่ได้');
-    const sent = await deliverOpsMails(transaction, idOps, st === 'S' ? 'resend' : 'send', req);
-    if (!sent.ok) return stop(502, sent.message, { results: sent.results });
+    const kind = st === 'S' ? 'resend' : 'send';
+    const plan = await opsMailPlan(transaction, idOps);
+    if (!plan.ok) return stop(400, plan.message);
+    await opsMarkSent(transaction, idOps, req.idPs);
     await transaction.commit();
-    res.json({ success: true, dryRun: sent.dryRun, results: sent.results });
+    res.json({ success: true, mailPending: true, results: opsPendingResults(plan) });
+    opsBackground('send-' + kind, () => deliverOpsMails(idOps, kind, req));
   } catch (err) {
     if (transaction) { try { await transaction.rollback(); } catch (e) {} }
     console.error('OPS send error:', err);
@@ -5740,6 +5782,7 @@ const opsMailWrap = (body, link, btn, color, foot) => `<div style="font-family:T
     ${body}
     ${link ? `<p style="margin:22px 0"><a href="${opsEsc(link)}" style="background:${color};color:#111;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:700">${opsEsc(btn)}</a></p>` : ''}
     <p style="color:#888;font-size:12px">อีเมลนี้ส่งอัตโนมัติจากระบบ WIM${foot ? ` — ${foot}` : ''} (ต้องเข้าสู่ระบบก่อนเปิดเอกสาร)${link ? `<br>${opsEsc(link)}` : ''}</p>
+    <p style="color:#888;font-size:12px">หากอีเมลนี้อยู่ในกล่องขยะ (Junk / Spam) กรุณากด "ไม่ใช่ขยะ" (Not junk) และเพิ่มผู้ส่งเป็นผู้ติดต่อ เพื่อให้อีเมลจากระบบ WIM เข้ากล่องจดหมายหลักในครั้งถัดไป</p>
   </div>`;
 const opsKv = (rows) => `<table style="border-collapse:collapse;margin:8px 0 14px">${rows.filter(Boolean).map(([k, v]) =>
   `<tr><td style="padding:2px 12px 2px 0;color:#555;vertical-align:top;white-space:nowrap">${k}</td><td>${v}</td></tr>`).join('')}</table>`;
@@ -5937,6 +5980,7 @@ app.post('/api/ops/buy/:id/submit', requireMenu(MENU_OPS_BUY), async (req, res) 
   const idOps = parseInt(req.params.id, 10);
   if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
   if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — ติดต่อผู้ดูแลระบบ' });
+  if (!opsMailHealth.ok) return res.status(503).json({ success: false, message: OPS_MAIL_DOWN_MSG });
   let transaction;
   const fail = async (code, message, extra = {}) => { await transaction.rollback(); return res.status(code).json({ success: false, message, ...extra }); };
   try {
@@ -6020,14 +6064,17 @@ app.post('/api/ops/buy/:id/remind', requireMenu(MENU_OPS_BUY), async (req, res) 
   const idOps = parseInt(req.params.id, 10);
   if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
   if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — ติดต่อผู้ดูแลระบบ' });
+  if (!opsMailHealth.ok) return res.status(503).json({ success: false, message: OPS_MAIL_DOWN_MSG });
   try {
     const pool = await poolPromise;
     const doc = await loadOpsDoc(idOps);
     if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบเอกสาร' });
     if (!hasComp(req.access, doc.compTarget)) return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้' });
     if (doc.status !== 'H') return res.status(409).json({ success: false, message: 'เอกสารไม่ได้อยู่ระหว่างรออนุมัติ' });
-    const sent = await opsSendApvMails(pool, idOps, 'remind', req, true);
-    res.json({ success: true, dryRun: opsMailDryRun(), results: sent.results });
+    const seen = new Set();
+    const pend = doc.approvals.filter(a => a.round === doc.apvRound && !a.result && a.email && !seen.has(a.idPs) && seen.add(a.idPs));
+    res.json({ success: true, mailPending: true, results: pend.map(a => ({ type: 'to', email: a.email, pending: true })) });
+    opsBackground('apv-remind', () => opsSendApvMails(pool, idOps, 'remind', req, true));
   } catch (err) {
     console.error('OPS buy remind error:', err);
     res.status(500).json({ success: false, message: 'ส่งอีเมลเตือนไม่สำเร็จ', detail: err.message });
