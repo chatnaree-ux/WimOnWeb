@@ -38,7 +38,7 @@ function doc(over = {}) {
 
 const PEND = (n) => ({ id: 9, buyDocNo: 'OPA6910/0006', docNo: 'OPQ6910/0009', req: 2, reqName: 'บริษัท โฟลเทคซีดส์ จำกัด', buyAt: '2026-10-22 11:37', buyBy: P.lakkhana.name, done: 0, count: 4, steps: ['accept'],
   items: [{ invName: 'เมล็ดพันธุ์ มะระขี้นก OP', amountBuy: 10, unit: 'กิโลกรัม', price: 120, amt: 1200 }], total: 1200 });
-const LIST_ITEM = { invName: 'เมล็ดพันธุ์ มะระขี้นก OP', cropName: 'มะระ', unit: 'กิโลกรัม', amountOffer: 10, amountBuy: 10, price: 120, poCodes: ['S69/09/0019'], poCode: 'S69/09/0019' };
+const LIST_ITEM = { invName: 'เมล็ดพันธุ์ มะระขี้นก OP', cropName: 'มะระ', unit: 'กิโลกรัม', amountPO: 22.1, amountRec: 0, amountSold: 140.7, amountProduce: 160, amountOffer: 10, amountBuy: 10, price: 120, poCodes: 'S69/09/0019' };
 const LISTDOC = (over = {}) => ({ id: 9, docNo: 'OPQ6910/0009', docDate: '2026-10-22', req: 2, reqName: 'บริษัท โฟลเทคซีดส์ จำกัด', target: 4, targetName: 'บริษัท แอ๊ดว้านซ์ซีดส์ จำกัด', requester: P.teerasit.name, subject: 'แจ้งร้องขอขายเมล็ดพันธุ์ที่เกินใบสั่งซื้อ (Over PO)',
   cause: 'ผลผลิตจากแปลงสูงกว่าที่ประมาณการไว้ ทำให้ผลิตได้เกินยอดใบสั่งซื้อ', status: 'A', sentAt: '2026-10-22 11:35', lastMail: '2026-10-22 11:35', mailFail: false, cancel: null, rejectNote: '', reject: null,
   buyDocNo: 'OPA6910/0006', buy: { by: P.lakkhana.name, at: '2026-10-22 11:37' }, apvDone: 4, apvCount: 4, apvActed: 4, poCode: 'OS69/10/0001', items: [LIST_ITEM], ...over });
@@ -53,7 +53,7 @@ const SHOTS = {
     await page.selectOption('#buyCompSelect', '4'); await page.waitForTimeout(1200); return top(page, 640);
   },
   async 'form'(page) { await formPage(page); return region(page, null, 'รายการ PO อ้างอิง และยอดที่เสนอขาย', true); },
-  async 'po-picker'(page) { await formPage(page, { picker: true }); return page.locator('#poModal .modal-box').screenshot({ type: 'png' }); },
+  async 'po-picker'(page) { await formPage(page, { picker: true }); await page.addStyleTag({ content: '#poModal .modal-box{height:auto !important; min-height:0 !important} #poModal .modal-body, #poModal .po-wrap, #poModal .table-scroll{min-height:0 !important; height:auto !important; flex:none !important}' }); await page.waitForTimeout(300); return page.locator('#poModal .modal-box').screenshot({ type: 'png' }); },
   async 'confirm-req'(page) { await formPage(page, { fill: true }); await page.click('#saveBtn'); await page.waitForTimeout(800); return page.locator('.modal-box:visible').first().screenshot({ type: 'png' }); },
   async 'form-items'(page) { await formPage(page, { fill: true }); return region(page, 'รายการ PO อ้างอิง และยอดที่เสนอขาย', 'สาเหตุการผลิตเกิน PO', false); },
   async 'doc-opq'(page) { await go(page, '/over-po-sale-doc?id=9', { user: P.teerasit, doc: doc({ status: 'H' }) }); return trimmed(page, '#docPaper .paper-fit >> nth=0'); },
@@ -137,7 +137,7 @@ async function top(page, h) { const m = await page.$('main'); const b = await m.
   const b = await webkit.launch();
   for (const [name, fn] of Object.entries(SHOTS)) {
     if (only.length && !only.includes(name)) continue;
-    const ctx = await b.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
+    const ctx = await b.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1.5 });
     const page = await ctx.newPage(); page.on('pageerror', e => console.log('  pageerror', e.message.slice(0, 120)));
     try { const buf = await fn(page); fs.writeFileSync(path.join(process.argv.includes('--tmp') ? __dirname : OUT, name + '.png'), buf); console.log('✓', name); }
     catch (e) { console.log('✗', name, e.message.split('\n')[0]); }
