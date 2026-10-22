@@ -361,6 +361,22 @@
     .topbar-mobile{display:flex;}
   }
 
+  html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  /* มือถือ: เสร็จแล้ว = การ์ด (ไม่ใช่ตารางกว้าง) */
+  .done-cards{display:none;}
+  .dn-btn{display:flex; align-items:center; justify-content:center; width:100%; min-height:44px; margin-top:10px; border-radius:8px; cursor:pointer; font-family:inherit; font-size:14px; font-weight:600;
+    color:var(--concrete-200); background:rgba(140,180,230,.1); border:1px solid rgba(140,180,230,.45);}
+  .dd-overlay{position:fixed; inset:0; z-index:3000; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(5,10,18,.72);}
+  .dd-box{width:100%; max-width:480px; max-height:86vh; overflow-y:auto; padding:18px; border-radius:14px; background:var(--navy-900); border:1px solid rgba(255,255,255,.14);}
+  .dd-title{font-size:16px; font-weight:700; color:#fff; margin-bottom:10px;}
+  .dd-row{display:flex; justify-content:space-between; gap:14px; padding:7px 0; border-top:1px solid rgba(255,255,255,.08); font-size:13.5px; color:var(--concrete-200);}
+  .dd-row b{color:#fff; text-align:right; min-width:0; overflow-wrap:anywhere;}
+  @media (max-width:900px){
+    .kb-col.done .table-scroll{display:none;}
+    .done-cards{display:flex; flex-direction:column; gap:10px; padding:12px;}
+    .done-cards .kb-card{margin:0;}
+  }
+
   /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
      และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
   select, input, textarea{max-width:100%; min-width:0;}
@@ -710,8 +726,48 @@
       </tr>`;
   }
 
-  function doneTableHtml(rows){
+  // มือถือ: รายการเสร็จแล้วเป็นการ์ดแบบเดียวกับรายการอื่น + ปุ่ม "แสดงรายละเอียด" เปิด popup (เดสก์ท็อปยังเป็นตาราง)
+  let doneRows = [];
+  function doneCardHtml(row, i){
     return `
+      <div class="kb-card">
+        <div class="card-top-row"><div class="doc-code">${esc(row.DocCode)}</div></div>
+        <div class="seed-name">${esc(row.SeedName)}</div>
+        <div class="meta-row">
+          <span>วันที่ต้องการ: <b>${fmtDateOnly(row.DateReq) || '-'}</b></span>
+          <span>การจัดการ : <b>${esc(row.StrMC) || '-'}</b></span>
+          <span>น้ำหนัก: <b>${fmtWeight(row.WBefore)} → ${fmtWeight(row.WAfter)} ${esc(row.UnitName) || ''}</b></span>
+        </div>
+        <button type="button" class="dn-btn" data-done-idx="${i}">แสดงรายละเอียด</button>
+      </div>`;
+  }
+  function openDoneDetail(row){
+    const line = (k, v) => `<div class="dd-row"><span>${k}</span><b>${v}</b></div>`;
+    const unit = esc(row.UnitName) || '';
+    const body = [
+      line('เลขที่เอกสาร', esc(row.DocCode)), line('วันที่เอกสาร', fmtDateOnly(row.DateDoc) || '-'), line('วันที่ต้องการ', fmtDateOnly(row.DateReq) || '-'),
+      line('ประเภทพืช', esc(row.SeedName)), line('หมายเหตุ', row.Note ? esc(row.Note) : '-'),
+      line('การจัดการ', esc(row.StrMC) || '-'), line('นน.ก่อนจัดการ', `${fmtWeight(row.WBefore)} ${unit}`), line('นน.หลังจัดการ', `${fmtWeight(row.WAfter)} ${unit}`),
+      line('ห้อง', esc(row.RoomName) || '-'), line('อุณหภูมิ', row.Temp ?? '-'), line('ความชื้น', row.Humidity ?? '-'),
+      line('เวลาเริ่มต้น', fmtDateOnly(row.DateRdHmS) || '-'), line('เวลาสิ้นสุด', fmtDateOnly(row.DateRdHmE) || '-'),
+      line('รวมระยะเวลา', fmtDuration(row.DateRdHmS, row.DateRdHmE)), line('ความชื้นหลังจัดการ', row.MCAfter ?? '-')
+    ].join('');
+    const ov = document.createElement('div');
+    ov.className = 'dd-overlay';
+    ov.innerHTML = `<div class="dd-box" role="dialog" aria-modal="true"><div class="dd-title">รายละเอียด ${esc(row.DocCode)}</div><div class="dd-body">${body}</div><button type="button" class="dn-btn dn-close">ปิด</button></div>`;
+    const close = () => ov.remove();
+    ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('.dn-close')) close(); });
+    document.body.appendChild(ov);
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-done-idx]');
+    if (b && doneRows[Number(b.dataset.doneIdx)]) openDoneDetail(doneRows[Number(b.dataset.doneIdx)]);
+  });
+
+  function doneTableHtml(rows){
+    doneRows = rows;
+    return `
+      <div class="done-cards">${rows.map(doneCardHtml).join('')}</div>
       <div class="table-scroll">
         <table class="done-table">
           <thead>
