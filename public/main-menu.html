@@ -551,7 +551,7 @@
   function lockSidebar() {
     if (!allowedCodes) return;
     document.querySelectorAll('#sidebar [data-menu]').forEach(el => {
-      if (allowedCodes.has(el.getAttribute('data-menu')) || el.classList.contains('menu-locked')) return;
+      if ((el.getAttribute('data-menu') || '').split(',').some(c => allowedCodes.has(c.trim())) || el.classList.contains('menu-locked')) return;
       el.classList.add('menu-locked');
       el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
       el.addEventListener('click', (e) => e.preventDefault());

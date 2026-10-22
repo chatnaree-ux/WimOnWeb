@@ -109,11 +109,13 @@
 
   // ---------- เมนู On process (WIMWebMenu.stWip) ----------
   // ผู้ใช้ทั่วไป: ซ่อนเมนู (ไม่ใช่ล็อก 🔒) + ซ่อนกลุ่มที่ไม่เหลือเมนู / กลุ่มระบบ: เห็นได้ มีป้าย WIP กำกับ
+  // data-menu เป็นรหัสเดียว หรือหลายรหัสคั่นด้วย , (ลิงก์ที่เปิดได้เมื่อมีสิทธิ์อย่างใดอย่างหนึ่ง เช่น คู่มือที่มี 2 ฝั่ง)
+  const menuCodes = (el) => (el.getAttribute('data-menu') || '').split(',').map(x => x.trim()).filter(Boolean);
   function applyWipMenus(root, wipCodes, unrestricted) {
     const wip = new Set(wipCodes || []);
     if (!wip.size) return;
     root.querySelectorAll('[data-menu]').forEach(el => {
-      if (!wip.has(el.getAttribute('data-menu'))) return;
+      if (!menuCodes(el).every(c => wip.has(c))) return;
       if (unrestricted) {
         el.classList.add('menu-wip');
         el.setAttribute('title', 'On process — กำลังพัฒนา ผู้ใช้ทั่วไปยังไม่เห็นเมนูนี้');
@@ -141,7 +143,7 @@
 
       const allowed = new Set(data.allowedMenuCodes);
       document.querySelectorAll('[data-menu]').forEach(el => {
-        if (allowed.has(el.getAttribute('data-menu'))) return;
+        if (menuCodes(el).some(c => allowed.has(c))) return;
         el.classList.add('menu-locked');
         el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
         el.addEventListener('click', (e) => e.preventDefault());
