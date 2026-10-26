@@ -1882,6 +1882,31 @@ app.get('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
   }
 });
 
+// ---------- บันทึกประวัติการเปลี่ยนสิทธิ์ (WIMWebPermLog) — ใคร/เมื่อไร/ย้ายจากกลุ่มไหน/เมนู-บริษัทที่เพิ่ม-เอาออก ----------
+// conn = pool หรือ transaction (ส่ง transaction มาเพื่อให้ log บันทึกพร้อมกับการแก้สิทธิ์)
+async function writePermLog(conn, req, { actionType, idGroup = null, idGroupOld = null, idPsTarget = null, added = null, removed = null }) {
+  await new sql.Request(conn)
+    .input('actionType', sql.NVarChar(30), actionType)
+    .input('idGroup', sql.Int, idGroup)
+    .input('idGroupOld', sql.Int, idGroupOld)
+    .input('idPsTarget', sql.Int, idPsTarget)
+    .input('added', sql.NVarChar(sql.MAX), added && added.length ? added.join(',') : null)
+    .input('removed', sql.NVarChar(sql.MAX), removed && removed.length ? removed.join(',') : null)
+    .input('idPsAction', sql.Int, req.idPs || null)
+    .input('ip', sql.VarChar(45), (req.ip || '').slice(0, 45) || null)
+    .query(`INSERT INTO WIMWebPermLog (ActionType, idGroup, idGroupOld, idPsTarget, Added, Removed, idPsAction, IpAddress)
+            VALUES (@actionType, @idGroup, @idGroupOld, @idPsTarget, @added, @removed, @idPsAction, @ip)`);
+}
+
+// เทียบชุด id เดิมกับชุดใหม่ → { added, removed } (เรียงตามเลข)
+function diffIds(oldIds, newIds) {
+  const o = new Set(oldIds.map(Number)), n = new Set(newIds.map(Number));
+  return {
+    added: [...n].filter(x => !o.has(x)).sort((a, b) => a - b),
+    removed: [...o].filter(x => !n.has(x)).sort((a, b) => a - b)
+  };
+}
+
 app.post('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
   const { groupName } = req.body;
   if (!groupName || !groupName.trim()) {
@@ -1892,7 +1917,10 @@ app.post('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
     const result = await pool.request()
       .input('groupName', sql.NVarChar, groupName.trim())
       .query(`INSERT INTO WIMWebUserGroup (GroupName) OUTPUT INSERTED.idGroup VALUES (@groupName)`);
-    res.json({ success: true, idGroup: result.recordset[0].idGroup });
+    const newIdGroup = result.recordset[0].idGroup;
+    try { await writePermLog(pool, req, { actionType: 'GROUP_CREATE', idGroup: newIdGroup }); }
+    catch (e) { console.error('Perm log (GROUP_CREATE) error:', e); }
+    res.json({ success: true, idGroup: newIdGroup });
   } catch (err) {
     console.error('Usergroups create error:', err);
     res.status(500).json({ success: false, message: 'สร้างกลุ่มไม่สำเร็จ', detail: err.message });
@@ -1947,20 +1975,39 @@ app.post('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req
   const { idPs } = req.body;
   if (!idGroup || !idPs) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน' });
 
+  let transaction;
   try {
     const pool = await poolPromise;
-    await pool.request()
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    // กลุ่มเดิมของผู้ใช้ (ไว้บันทึกว่าย้ายมาจากกลุ่มไหน)
+    const oldRs = await new sql.Request(transaction)
+      .input('idPs', sql.Int, idPs)
+      .query('SELECT TOP 1 idGroup FROM WIMWebUserGroupMember WHERE idPs = @idPs AND stDel IS NULL ORDER BY idMember DESC');
+    const idGroupOld = oldRs.recordset.length ? oldRs.recordset[0].idGroup : null;
+
+    await new sql.Request(transaction)
       .input('idPs', sql.Int, idPs)
       .query('DELETE FROM WIMWebUserGroupMember WHERE idPs = @idPs');
 
-    await pool.request()
+    await new sql.Request(transaction)
       .input('idPs', sql.Int, idPs)
       .input('idGroup', sql.Int, idGroup)
       .query('INSERT INTO WIMWebUserGroupMember (idPs, idGroup) VALUES (@idPs, @idGroup)');
 
+    if (idGroupOld !== idGroup) {
+      await writePermLog(transaction, req, {
+        actionType: idGroupOld ? 'MEMBER_MOVE' : 'MEMBER_ADD',
+        idGroup, idGroupOld, idPsTarget: parseInt(idPs, 10)
+      });
+    }
+
+    await transaction.commit();
     clearAccessCache();
     res.json({ success: true });
   } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
     console.error('Add member error:', err);
     res.status(500).json({ success: false, message: 'เพิ่มสมาชิกไม่สำเร็จ', detail: err.message });
   }
@@ -1971,15 +2018,23 @@ app.delete('/api/usergroups/:idGroup/members/:idPs', requireMenu(MENU_ADMIN), as
   const idPs = parseInt(req.params.idPs, 10);
   if (!idGroup || !idPs) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน' });
 
+  let transaction;
   try {
     const pool = await poolPromise;
-    await pool.request()
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const del = await new sql.Request(transaction)
       .input('idPs', sql.Int, idPs)
       .input('idGroup', sql.Int, idGroup)
       .query('DELETE FROM WIMWebUserGroupMember WHERE idPs = @idPs AND idGroup = @idGroup');
+    if (del.rowsAffected[0] > 0) {
+      await writePermLog(transaction, req, { actionType: 'MEMBER_REMOVE', idGroup, idPsTarget: idPs });
+    }
+    await transaction.commit();
     clearAccessCache();
     res.json({ success: true });
   } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
     console.error('Remove member error:', err);
     res.status(500).json({ success: false, message: 'ลบสมาชิกไม่สำเร็จ', detail: err.message });
   }
@@ -2014,6 +2069,11 @@ app.post('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async 
     transaction = new sql.Transaction(pool);
     await transaction.begin();
 
+    const oldMenus = (await new sql.Request(transaction)
+      .input('idGroup', sql.Int, idGroup)
+      .query('SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL'))
+      .recordset.map(r => r.idMenu);
+
     await new sql.Request(transaction)
       .input('idGroup', sql.Int, idGroup)
       .query('DELETE FROM WIMWebMenuPermission WHERE idGroup = @idGroup');
@@ -2029,6 +2089,16 @@ app.post('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async 
          SELECT @idGroup, idMenu, 1${idPsCreate ? ', @idPsCreate' : ''}
          FROM WIMWebMenu WHERE idMenu = @idMenu AND ISNULL(stWip, 0) = 0`
       );
+    }
+
+    // เทียบกับที่บันทึกจริง (เมนู On process ถูกข้ามไป) — บันทึก log เฉพาะเมื่อมีการเปลี่ยน
+    const newMenus = (await new sql.Request(transaction)
+      .input('idGroup', sql.Int, idGroup)
+      .query('SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1'))
+      .recordset.map(r => r.idMenu);
+    const menuDiff = diffIds(oldMenus, newMenus);
+    if (menuDiff.added.length || menuDiff.removed.length) {
+      await writePermLog(transaction, req, { actionType: 'MENU_SET', idGroup, ...menuDiff });
     }
 
     await transaction.commit();
@@ -3225,6 +3295,11 @@ app.post('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN)
     transaction = new sql.Transaction(pool);
     await transaction.begin();
 
+    const oldComps = (await new sql.Request(transaction)
+      .input('idGroup', sql.Int, idGroup)
+      .query('SELECT idComp FROM WIMWebGroupCompPer WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL'))
+      .recordset.map(r => r.idComp);
+
     await new sql.Request(transaction)
       .input('idGroup', sql.Int, idGroup)
       .query('DELETE FROM WIMWebGroupCompPer WHERE idGroup = @idGroup');
@@ -3238,6 +3313,11 @@ app.post('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN)
         `INSERT INTO WIMWebGroupCompPer (idGroup, idComp, stAllow${idPsCreate ? ', idPsCreate' : ''})
          VALUES (@idGroup, @idComp, 1${idPsCreate ? ', @idPsCreate' : ''})`
       );
+    }
+
+    const compDiff = diffIds(oldComps, compIds);
+    if (compDiff.added.length || compDiff.removed.length) {
+      await writePermLog(transaction, req, { actionType: 'COMP_SET', idGroup, ...compDiff });
     }
 
     await transaction.commit();
