@@ -1949,7 +1949,7 @@ app.get('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req,
   }
 });
 
-app.get('/api/usergroups/available-users', requireMenu([MENU_ADMIN, 'urs_request', 'supplier_return', 'over_po_sale', 'over_po_sale_mailto', 'over_po_sale_buy']), async (req, res) => {
+app.get('/api/usergroups/available-users', requireMenu([MENU_ADMIN, 'urs_request', 'supplier_return', 'over_po_sale', 'over_po_sale_mailto', 'over_po_sale_buy', 'stock_count']), async (req, res) => {
   const keyword = (req.query.keyword || '').trim();
   try {
     const pool = await poolPromise;
@@ -6331,6 +6331,1375 @@ app.post('/api/ops/apv/:id', requireLogin, async (req, res) => {
     console.error('OPS apv error:', err);
     res.status(500).json({ success: false, message: 'บันทึกผลการพิจารณาไม่สำเร็จ — ระบบไม่ได้บันทึกข้อมูลใดๆ', detail: err.message });
   }
+});
+
+// ==================================================================
+// ---------- ตรวจนับสต๊อก (Stock Count: SC) + อนุมัติปรับยอดสต๊อก (RQ) — sql/stock-count-setup.sql ----------
+// ==================================================================
+// สร้างเอกสาร SC (DRAFT) → เริ่มตรวจนับ / พิมพ์ใบนับ = snapshot ยอด ERP ลง dInvCountDt (COUNT)
+// → บันทึกยอดนับ (dInvCountEntry) → ปิดการนับ (REVIEW) → ผู้ตรวจสอบผลต่างเลือกรายการปรับ
+// → ส่งขออนุมัติ = สร้าง RQ 1 ใบใน dInvReqCountMt/Dt (SrcType = 'SC') → APPROVE / ไม่มีรายการต้องปรับ → DONE
+// → หน้าอนุมัติ (RQ ทุกใบ ทั้งจาก ERP desktop และ SC) รับทราบ / ตรวจสอบ / อนุมัติ กดก่อนหลังได้
+// - หน่วย = dInventoryMain.idUnit / ยอด ERP = dInvLotRefWh.Amount (ไม่ใช้ dInvLotRefWh.idUnit)
+// - ขั้นสุดท้ายที่ทำให้ครบ 3 ขั้นยังกดบนเว็บไม่ได้ จนกว่าจะทำส่วนปรับสต๊อกจริง (SC_POSTING_READY) — กันสต๊อกไม่ถูกปรับแต่ RQ ปลดล็อก Lot
+const MENU_SC = 'stock_count';
+const MENU_SC_REVIEW = 'stock_count_review';
+const MENU_SC_CANCEL = 'stock_count_cancel';
+const MENU_SC_SETUP = 'stock_count_setup';
+const MENU_ADJ_CHECK = 'stock_adjust_check';
+const MENU_ADJ_ACK = 'stock_adjust_ack';
+const MENU_ADJ_APPROVE = 'stock_adjust_approve';
+const MENU_ADJ = [MENU_ADJ_ACK, MENU_ADJ_CHECK, MENU_ADJ_APPROVE];
+const MENU_SC_VIEW = [MENU_SC, MENU_SC_REVIEW, ...MENU_ADJ];
+const SC_POSTING_READY = false;
+const SC_EPS = 1e-6;
+const SC_MAX_ENTRY_BATCH = 2000;
+const SC_EXCLUDED_WH = [5503];   // Seeds Stock QA
+const SC_EXCLUDED_WH_SQL = SC_EXCLUDED_WH.join(', ');
+// ขั้นอนุมัติ RQ → คอลัมน์เดิมของ ERP (ชื่อตามที่ ERP desktop ใช้)
+const ADJ_STEPS = {
+  ack: { menu: MENU_ADJ_ACK, name: 'รับทราบ', ps: 'idPsAccept', date: 'DateAccept', st: 'stAct', log: 'accept' },
+  check: { menu: MENU_ADJ_CHECK, name: 'ตรวจสอบ', ps: 'idPsCheck', date: 'DateCheck', st: 'stChk', log: 'check' },
+  approve: { menu: MENU_ADJ_APPROVE, name: 'อนุมัติปรับยอด', ps: 'idPsApprove', date: 'DateApprove', st: 'stApv', log: 'approve' }
+};
+
+app.get(['/stock-adjust-approve', '/stock-adjust-approve.html'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'stock-adjust-approve.html')));
+
+const scInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
+const scNum = (v) => { if (v === null || v === undefined || v === '') return null; const n = Number(String(v).replace(/,/g, '')); return Number.isFinite(n) ? n : null; };
+const scRound = (n) => Math.round((Number(n) + Number.EPSILON) * 1e6) / 1e6;
+const scFail = (res, status, message) => res.status(status).json({ success: false, message });
+const scText = (v, max) => { const s = String(v == null ? '' : v).trim(); return s ? s.slice(0, max) : null; };
+
+// ---------- เลขเอกสาร SC{yy พ.ศ.}{mm}/{0000} รันแยกบริษัท เริ่มใหม่ทุกปี (เรียกใน transaction เดียวกับ INSERT) ----------
+async function getNextScDocCode(transaction, idComp, date) {
+  const yy = String(date.getFullYear() + 543).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const r = await new sql.Request(transaction)
+    .input('idComp', sql.Int, idComp)
+    .input('pat', sql.VarChar, `SC${yy}__/%`)
+    .query(`SELECT MAX(TRY_CAST(RIGHT(DocCode, 4) AS INT)) AS last
+            FROM devsk.dInvCountMt WITH (UPDLOCK, HOLDLOCK)
+            WHERE idComp = @idComp AND DocCode LIKE @pat`);
+  return `SC${yy}${mm}/${String((r.recordset[0].last || 0) + 1).padStart(4, '0')}`;
+}
+
+// ---------- เลข RQ: ชุดเดียวกับ ERP desktop (RunTsNumber) ----------
+// MAX(DocCode) ของบริษัทในปี ค.ศ. ปัจจุบัน (YEAR(DateTs)) → ตัด 7 ตัวแรก ("RQyymm/") +1 เป็น 5 หลัก / prefix = RQ + yymm พ.ศ. ของวันนี้
+// ล็อกตอนอ่าน กันเว็บออกเลขชนกันเอง / ชนกับ desktop → scFixRqDup เปลี่ยนเลขของใบเว็บหลัง commit
+async function getNextRqDocCode(runner, idComp, date) {
+  const r = await new sql.Request(runner)
+    .input('idComp', sql.Int, idComp)
+    .input('y', sql.Int, date.getFullYear())
+    .query(`SELECT MAX(DocCode) AS mx FROM devsk.dInvReqCountMt WITH (UPDLOCK, HOLDLOCK)
+            WHERE idComp = @idComp AND YEAR(DateTs) = @y`);
+  const mx = r.recordset[0].mx;
+  const last = mx ? parseInt(String(mx).substring(7), 10) || 0 : 0;
+  const yymm = String(date.getFullYear() + 543).slice(-2) + String(date.getMonth() + 1).padStart(2, '0');
+  return `RQ${yymm}/${String(last + 1).padStart(5, '0')}`;
+}
+async function scFixRqDup(idRqUpdate) {
+  for (let i = 0; i < 3; i++) {
+    const pool = await poolPromise;
+    const d = await pool.request().input('id', sql.Int, idRqUpdate).query(
+      `SELECT m.idComp, m.DocCode,
+              (SELECT COUNT(*) FROM devsk.dInvReqCountMt x WITH (NOLOCK) WHERE x.idComp = m.idComp AND x.DocCode = m.DocCode AND x.idRqUpdate <> m.idRqUpdate) AS dup
+       FROM devsk.dInvReqCountMt m WITH (NOLOCK) WHERE m.idRqUpdate = @id`);
+    const row = d.recordset[0];
+    if (!row || !row.dup) return row ? row.DocCode : null;
+    const t = new sql.Transaction(pool);
+    await t.begin();
+    try {
+      const code = await getNextRqDocCode(t, row.idComp, new Date());
+      await new sql.Request(t).input('id', sql.Int, idRqUpdate).input('code', sql.VarChar, code)
+        .query(`UPDATE devsk.dInvReqCountMt SET DocCode = @code WHERE idRqUpdate = @id`);
+      await t.commit();
+      console.warn(`SC: RQ ${row.DocCode} ซ้ำกับ ERP desktop → เปลี่ยนเป็น ${code} (idRqUpdate ${idRqUpdate})`);
+    } catch (e) { try { await t.rollback(); } catch (x) {} throw e; }
+  }
+  return null;
+}
+
+async function scLog(runner, idCount, act, detail, idPs) {
+  await new sql.Request(runner)
+    .input('id', sql.Int, idCount).input('act', sql.VarChar, act)
+    .input('detail', sql.NVarChar, detail ? String(detail).slice(0, 500) : null).input('ps', sql.Int, idPs)
+    .query(`INSERT INTO devsk.dInvCountLog (idCount, ActCode, Detail, idPsTs, DateTs) VALUES (@id, @act, @detail, @ps, GETDATE())`);
+}
+async function rqLog(runner, idRqUpdate, step, note, idPs) {
+  await new sql.Request(runner)
+    .input('id', sql.Int, idRqUpdate).input('step', sql.VarChar, step)
+    .input('note', sql.NVarChar, note ? String(note).slice(0, 500) : null).input('ps', sql.Int, idPs)
+    .query(`INSERT INTO devsk.dInvReqCountLog (idRqUpdate, StepCode, Note, idPsTs, DateTs) VALUES (@id, @step, @note, @ps, GETDATE())`);
+}
+
+// หัวเอกสาร + ล็อกแถว (ใช้ก่อนแก้ไขทุกครั้ง) / เช็คสิทธิ์บริษัท
+async function scLockDoc(transaction, idCount, access) {
+  const r = await new sql.Request(transaction).input('id', sql.Int, idCount).query(
+    `SELECT * FROM devsk.dInvCountMt WITH (UPDLOCK, ROWLOCK) WHERE idCount = @id`);
+  const doc = r.recordset[0];
+  if (!doc) { const e = new Error('ไม่พบเอกสารตรวจนับ'); e.status = 404; throw e; }
+  if (access && !hasComp(access, doc.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+  return doc;
+}
+function scNeed(doc, statuses, msg) {
+  if (!statuses.includes(doc.StatusCode)) { const e = new Error(msg || 'สถานะเอกสารเปลี่ยนไปแล้ว กรุณาโหลดหน้าใหม่'); e.status = 409; throw e; }
+}
+// ทำงานใน transaction เดียว: fn(t) / error ที่มี status → ส่งข้อความนั้นกลับ
+async function scTx(res, label, fn) {
+  let t = null;
+  try {
+    const pool = await poolPromise;
+    t = new sql.Transaction(pool);
+    await t.begin();
+    const out = await fn(t);
+    await t.commit();
+    return out;
+  } catch (err) {
+    if (t) { try { await t.rollback(); } catch (e) {} }
+    if (err.status) { scFail(res, err.status, err.message); return undefined; }
+    console.error(`SC ${label} error:`, err);
+    res.status(500).json({ success: false, message: `${label}ไม่สำเร็จ — ระบบไม่ได้บันทึกข้อมูลใดๆ`, detail: err.message });
+    return undefined;
+  }
+}
+
+// ยอดนับของรายการ = รวม entry ที่ไม่ยกเลิกของรอบนับล่าสุด (R = แทนที่ค่าก่อนหน้า / A = บวกเพิ่ม เรียงตามเวลา)
+async function scRecalcLines(transaction, idCount, ids = null) {
+  const req = new sql.Request(transaction).input('id', sql.Int, idCount);
+  const idFilter = ids && ids.length ? `AND d.idCountDt IN (${ids.map(Number).filter(Number.isFinite).join(',')})` : '';
+  await req.query(
+    `;WITH e AS (
+       SELECT e.idCountDt, e.Qty, e.EntryMode, e.idEntry, e.idPsTs, e.DateTs,
+              MAX(CASE WHEN e.EntryMode = 'R' THEN e.idEntry END) OVER (PARTITION BY e.idCountDt) AS lastR
+       FROM devsk.dInvCountEntry e
+       JOIN devsk.dInvCountDt d ON d.idCountDt = e.idCountDt AND e.RecountNo = d.RecountNo
+       WHERE d.idCount = @id ${idFilter} AND e.stVoid IS NULL
+     ), s AS (
+       SELECT idCountDt, SUM(CASE WHEN lastR IS NULL OR idEntry >= lastR THEN Qty ELSE 0 END) AS Qty, MAX(idEntry) AS lastId
+       FROM e GROUP BY idCountDt
+     )
+     UPDATE d SET AmountCount = s.Qty,
+                  idPsCount = (SELECT idPsTs FROM devsk.dInvCountEntry WHERE idEntry = s.lastId),
+                  DateCountLn = (SELECT DateTs FROM devsk.dInvCountEntry WHERE idEntry = s.lastId)
+     FROM devsk.dInvCountDt d LEFT JOIN s ON s.idCountDt = d.idCountDt
+     WHERE d.idCount = @id ${idFilter};`);
+}
+
+// ---------- ข้อมูลตั้งต้น: ประเภท / สาเหตุ / บริษัท / สิทธิ์ ----------
+app.get('/api/stock-count/meta', requireMenu(MENU_SC_VIEW), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const request = pool.request();
+    const compSql = compFilter(req.access, request, 'c.idComp');
+    const r = await request.query(
+      `SELECT idCountType, TypeCode, TypeName, TypeNameEn, CASE WHEN stDel IS NULL THEN 0 ELSE 1 END AS inactive
+       FROM devsk.dInvCountType WITH (NOLOCK) ORDER BY SortOrder, idCountType;
+       SELECT idCountCause, CauseName, CASE WHEN stDel IS NULL THEN 0 ELSE 1 END AS inactive
+       FROM devsk.dInvCountCause WITH (NOLOCK) ORDER BY SortOrder, idCountCause;
+       SELECT c.idComp, LTRIM(RTRIM(c.CompCode)) AS CompCode, c.CompName
+       FROM PchInvAndProject.dbo.dCompany c WITH (NOLOCK)
+       WHERE c.stDel IS NULL AND c.CompName IS NOT NULL ${compSql}
+       ORDER BY c.CompCode, c.CompName;`);
+    const a = req.access;
+    res.json({
+      success: true,
+      types: r.recordsets[0].map(t => ({ id: t.idCountType, code: t.TypeCode, name: t.TypeName, nameEn: t.TypeNameEn, inactive: !!t.inactive })),
+      causes: r.recordsets[1].map(c => ({ id: c.idCountCause, name: c.CauseName, inactive: !!c.inactive })),
+      companies: r.recordsets[2].map(c => ({ id: c.idComp, code: c.CompCode || c.CompName, name: c.CompName })),
+      can: {
+        edit: hasMenu(a, MENU_SC), review: hasMenu(a, MENU_SC_REVIEW), cancel: hasMenu(a, MENU_SC_CANCEL), setup: hasMenu(a, MENU_SC_SETUP),
+        ack: hasMenu(a, MENU_ADJ_ACK), check: hasMenu(a, MENU_ADJ_CHECK), approve: hasMenu(a, MENU_ADJ_APPROVE)
+      },
+      postingReady: SC_POSTING_READY,
+      me: req.idPs
+    });
+  } catch (err) {
+    console.error('SC meta error:', err);
+    res.status(500).json({ success: false, message: 'โหลดข้อมูลตั้งต้นไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- คลัง: คลังหลัก (idParrent = 0) + โหนดย่อยที่มีตำแหน่งอยู่ข้างใต้ (เลือกเป็นขอบเขตได้) ----------
+// nLot = จำนวนรายการ (Lot × ตำแหน่ง) ที่มียอด ≠ 0 ใต้โหนดนั้น
+// ระดับการตรวจนับ (อายุนับจากวันที่ตรวจนับล่าสุดของ Lot ในตำแหน่ง — 1 Lot ต่อตำแหน่ง = idRefLot)
+//   < 90 วัน = 1 / 90–180 = 2 / 181–365 = 3 / ≥ 366 = 4 / ยังไม่เคยนับ = 0
+//   นับ = อยู่ในเอกสารตรวจนับบนเว็บที่ปิดการนับแล้ว (REVIEW ขึ้นไป ไม่รวมยกเลิก) มียอดนับ และไม่ได้ตั้งเป็นไม่นำมาคิด
+const SC_LAST_COUNT_SQL = `SELECT d.idRefLot, MAX(m.DateCount) AS LastDt
+  FROM devsk.dInvCountDt d WITH (NOLOCK) JOIN devsk.dInvCountMt m WITH (NOLOCK) ON m.idCount = d.idCount
+  WHERE m.StatusCode IN ('REVIEW', 'APPROVE', 'DONE', 'POSTED') AND d.SrcType <> 'U' AND d.stExclude = 0
+    AND d.AmountCount IS NOT NULL AND d.idRefLot IS NOT NULL
+  GROUP BY d.idRefLot`;
+const scLevelSql = (dt) => `CASE WHEN ${dt} IS NULL THEN 0 WHEN DATEDIFF(day, ${dt}, CAST(GETDATE() AS date)) < 90 THEN 1
+  WHEN DATEDIFF(day, ${dt}, CAST(GETDATE() AS date)) <= 180 THEN 2 WHEN DATEDIFF(day, ${dt}, CAST(GETDATE() AS date)) <= 365 THEN 3 ELSE 4 END`;
+// จำนวน Lot แต่ละระดับ (คอลัมน์ n0..n4) + วันที่นับล่าสุด / นานสุด
+const SC_LEVEL_AGG = `COUNT(*) AS nLot,
+  SUM(CASE WHEN lv.L = 0 THEN 1 ELSE 0 END) AS n0, SUM(CASE WHEN lv.L = 1 THEN 1 ELSE 0 END) AS n1,
+  SUM(CASE WHEN lv.L = 2 THEN 1 ELSE 0 END) AS n2, SUM(CASE WHEN lv.L = 3 THEN 1 ELSE 0 END) AS n3,
+  SUM(CASE WHEN lv.L = 4 THEN 1 ELSE 0 END) AS n4, MAX(lc.LastDt) AS LastDt, MIN(lc.LastDt) AS OldDt`;
+// ระดับของคลัง / ตำแหน่ง = Lot ที่นานสุด (มี Lot ที่ยังไม่เคยนับ = ยังไม่เคยนับ)
+const scLevelOf = (x) => !x.nLot ? null : x.n0 ? 0 : x.n4 ? 4 : x.n3 ? 3 : x.n2 ? 2 : 1;
+const scLevelObj = (x) => ({ level: scLevelOf(x), n: [x.n0 || 0, x.n1 || 0, x.n2 || 0, x.n3 || 0, x.n4 || 0], lastDt: x.LastDt || null, oldDt: x.OldDt || null });
+
+app.get('/api/stock-count/warehouses', requireMenu(MENU_SC, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = scInt(req.query.idComp);
+  if (!idComp) return scFail(res, 400, 'กรุณาเลือกบริษัท');
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('idComp', sql.Int, idComp).query(
+      `;WITH t AS (
+         SELECT w.idWh, w.idParrent, w.idParent0, CAST(w.WareHouseName AS nvarchar(400)) AS path, 0 AS lvl, w.idWh AS anc
+         FROM dbo.ssWarehouse w WITH (NOLOCK)
+         WHERE w.idComp = @idComp AND w.stDel = 0 AND ISNULL(w.idParrent, 0) = 0
+         UNION ALL
+         SELECT c.idWh, c.idParrent, t.idParent0, CAST(t.path + N' › ' + c.WareHouseName AS nvarchar(400)), t.lvl + 1, c.idWh
+         FROM dbo.ssWarehouse c WITH (NOLOCK)
+         JOIN t ON c.idParrent = t.idWh
+         WHERE c.stDel = 0 AND t.lvl < 8
+       )
+       SELECT t.idWh, t.idParrent, t.idParent0, t.path, t.lvl,
+              (SELECT COUNT(*) FROM dbo.ssWarehouse k WITH (NOLOCK) WHERE k.idParrent = t.idWh AND k.stDel = 0) AS nChild
+       INTO #t FROM t OPTION (MAXRECURSION 10);
+
+       ;WITH up AS (
+         SELECT x.idWh AS leaf, x.idWh AS node, x.idParrent FROM #t x
+         UNION ALL
+         SELECT up.leaf, p.idWh, p.idParrent FROM up JOIN #t p ON p.idWh = up.idParrent
+       ), lc AS (${SC_LAST_COUNT_SQL}
+       ), cnt AS (
+         SELECT r.idWh, ${SC_LEVEL_AGG}
+         FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+         LEFT JOIN lc ON lc.idRefLot = r.idRefLot
+         CROSS APPLY (SELECT ${scLevelSql('lc.LastDt')} AS L) lv
+         WHERE r.Amount <> 0 AND r.idWh IN (SELECT idWh FROM #t)
+         GROUP BY r.idWh
+       )
+       SELECT t.idWh, t.idParent0, t.path, t.lvl, t.nChild, ISNULL(SUM(c.nLot), 0) AS nLot,
+              SUM(c.n0) AS n0, SUM(c.n1) AS n1, SUM(c.n2) AS n2, SUM(c.n3) AS n3, SUM(c.n4) AS n4, MAX(c.LastDt) AS LastDt, MIN(c.OldDt) AS OldDt
+       FROM #t t
+       LEFT JOIN up ON up.node = t.idWh
+       LEFT JOIN cnt c ON c.idWh = up.leaf
+       WHERE (t.lvl = 0 OR t.nChild > 0) AND ISNULL(t.idParent0, t.idWh) NOT IN (${SC_EXCLUDED_WH_SQL}) AND t.idWh NOT IN (${SC_EXCLUDED_WH_SQL})
+       GROUP BY t.idWh, t.idParent0, t.path, t.lvl, t.nChild
+       ORDER BY t.path
+       OPTION (MAXRECURSION 10);`);
+    res.json({ success: true, data: r.recordset.map(x => ({ id: x.idWh, parent0: x.idParent0, path: x.path, lvl: x.lvl, nLot: x.nLot, ...scLevelObj(x) })) });
+  } catch (err) {
+    console.error('SC warehouses error:', err);
+    res.status(500).json({ success: false, message: 'โหลดข้อมูลคลังไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ตำแหน่งทั้งหมดใต้โหนด (รวมตัวเอง) → #scope(idWh)
+const SC_SCOPE_SQL = `
+  ;WITH s AS (
+     SELECT w.idWh FROM dbo.ssWarehouse w WITH (NOLOCK) WHERE w.idWh = @scope
+     UNION ALL
+     SELECT c.idWh FROM dbo.ssWarehouse c WITH (NOLOCK) JOIN s ON c.idParrent = s.idWh WHERE c.stDel = 0
+  )
+  SELECT idWh INTO #scope FROM s OPTION (MAXRECURSION 10);`;
+
+// ---------- รายการเอกสาร (ตามบริษัท + ช่วงวันที่ตรวจนับ) พร้อมตัวเลขสรุป ----------
+const SC_HEAD_SELECT = `
+  m.idCount, m.DocCode, m.DateDoc, m.idComp, LTRIM(RTRIM(co.CompCode)) AS CompCode, co.CompName,
+  m.idParent0, ISNULL(NULLIF(LTRIM(RTRIM(w0.short_lock)), ''), w0.WareHouseName) AS WhName,
+  m.idWhScope, ISNULL(ws.full_lock, ws.WareHouseName) AS ScopePath,
+  m.DateCount, m.CountRound, m.idCountType, ty.TypeName, m.CountMode, m.SheetType, m.stBlind,
+  m.idPsCounter, pc.PsName AS CounterName, pc.PsFullName AS CounterFull, pc.PositionName AS CounterPos,
+  m.idPsReviewer, pr.PsName AS ReviewerName, pr.PsFullName AS ReviewerFull, pr.PositionName AS ReviewerPos,
+  m.TolerancePct, m.Note, m.StatusCode, m.DateStart, m.DateClose, m.UncountedRule, m.DateSubmit, m.ApvRound,
+  m.idRqUpdate, rq.DocCode AS RqCode, m.DatePosted, m.SendBackNote, m.DateSendBack, psb.PsName AS SendBackName,
+  m.CancelNote, m.DateCancel, pcc.PsName AS CancelName, m.idPsTs, pts.PsName AS CreatorName, m.DateTs,
+  rq.idPsAccept, rq.DateAccept, rq.idPsCheck, rq.DateCheck, rq.idPsApprove, rq.DateApprove`;
+const SC_HEAD_JOIN = `
+  LEFT JOIN PchInvAndProject.dbo.dCompany co WITH (NOLOCK) ON co.idComp = m.idComp
+  LEFT JOIN dbo.ssWarehouse w0 WITH (NOLOCK) ON w0.idWh = m.idParent0
+  LEFT JOIN dbo.ssWarehouse ws WITH (NOLOCK) ON ws.idWh = m.idWhScope
+  LEFT JOIN devsk.dInvCountType ty WITH (NOLOCK) ON ty.idCountType = m.idCountType
+  LEFT JOIN devsk.vPersonxSelect pc ON pc.idPs = m.idPsCounter
+  LEFT JOIN devsk.vPersonxSelect pr ON pr.idPs = m.idPsReviewer
+  LEFT JOIN devsk.vPersonxSelect psb ON psb.idPs = m.idPsSendBack
+  LEFT JOIN devsk.vPersonxSelect pcc ON pcc.idPs = m.idPsCancel
+  LEFT JOIN devsk.vPersonxSelect pts ON pts.idPs = m.idPsTs
+  LEFT JOIN devsk.dInvReqCountMt rq WITH (NOLOCK) ON rq.idRqUpdate = m.idRqUpdate`;
+// สถิติต่อเอกสาร: ทั้งหมด / นับแล้ว / ตรงกัน / ขาด / เกิน / ไม่นำมาคิด / รายการไม่พบในระบบที่ยังไม่จัดการ / มูลค่าผลต่าง
+const SC_STATS_APPLY = `
+  OUTER APPLY (
+    SELECT COUNT(*) AS nAll,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL THEN 1 ELSE 0 END) AS nCounted,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NULL THEN 1 ELSE 0 END) AS nNotCounted,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND ABS(d.AmountCount - ISNULL(d.AmountErp, 0)) < 0.000001 THEN 1 ELSE 0 END) AS nMatch,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND d.AmountCount - ISNULL(d.AmountErp, 0) <= -0.000001 THEN 1 ELSE 0 END) AS nShort,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND d.AmountCount - ISNULL(d.AmountErp, 0) >= 0.000001 THEN 1 ELSE 0 END) AS nOver,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 1 THEN 1 ELSE 0 END) AS nExclude,
+           SUM(CASE WHEN d.SrcType = 'U' AND ISNULL(d.MapStatus, 'P') = 'P' THEN 1 ELSE 0 END) AS nUmPending,
+           SUM(CASE WHEN d.SrcType = 'U' THEN 1 ELSE 0 END) AS nUm,
+           SUM(CASE WHEN d.stAdjust = 1 THEN 1 ELSE 0 END) AS nAdjust,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL THEN (d.AmountCount - ISNULL(d.AmountErp, 0)) * ISNULL(d.CostPerUnit, 0) ELSE 0 END) AS DiffValue
+    FROM devsk.dInvCountDt d WITH (NOLOCK) WHERE d.idCount = m.idCount) st`;
+function scMapHead(x) {
+  const n = (v) => (v == null ? 0 : Number(v));
+  return {
+    id: x.idCount, docCode: x.DocCode, dateDoc: x.DateDoc, idComp: x.idComp, compCode: x.CompCode, compName: x.CompName,
+    idParent0: x.idParent0, whName: x.WhName, idWhScope: x.idWhScope, scopePath: x.ScopePath,
+    dateCount: x.DateCount, round: x.CountRound, idCountType: x.idCountType, typeName: x.TypeName,
+    mode: x.CountMode, sheetType: x.SheetType, blind: !!x.stBlind,
+    counter: { id: x.idPsCounter, name: x.CounterName, full: (x.CounterFull || '').trim(), position: x.CounterPos || '' },
+    reviewer: { id: x.idPsReviewer, name: x.ReviewerName, full: (x.ReviewerFull || '').trim(), position: x.ReviewerPos || '' },
+    tolerance: x.TolerancePct == null ? null : Number(x.TolerancePct), note: x.Note, status: x.StatusCode,
+    dateStart: x.DateStart, dateClose: x.DateClose, uncountedRule: x.UncountedRule, dateSubmit: x.DateSubmit, apvRound: x.ApvRound,
+    idRq: x.idRqUpdate, rqCode: x.RqCode, datePosted: x.DatePosted,
+    sendBack: x.DateSendBack ? { note: x.SendBackNote, at: x.DateSendBack, by: x.SendBackName } : null,
+    cancel: x.DateCancel ? { note: x.CancelNote, at: x.DateCancel, by: x.CancelName } : null,
+    creator: { id: x.idPsTs, name: x.CreatorName }, dateTs: x.DateTs,
+    rqSteps: x.idRqUpdate ? { ack: x.DateAccept || null, check: x.DateCheck || null, approve: x.DateApprove || null } : null,
+    stats: x.nAll === undefined ? undefined : {
+      all: n(x.nAll), counted: n(x.nCounted), notCounted: n(x.nNotCounted), match: n(x.nMatch), short: n(x.nShort), over: n(x.nOver),
+      exclude: n(x.nExclude), um: n(x.nUm), umPending: n(x.nUmPending), adjust: n(x.nAdjust), diffValue: Number(x.DiffValue || 0)
+    }
+  };
+}
+
+app.get('/api/stock-count/list', requireMenu(MENU_SC_VIEW, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = scInt(req.query.idComp);
+  try {
+    const pool = await poolPromise;
+    const request = pool.request();
+    let where = 'WHERE 1 = 1';
+    if (idComp) { request.input('idComp', sql.Int, idComp); where += ' AND m.idComp = @idComp'; }
+    else where += ' ' + compFilter(req.access, request, 'm.idComp');
+    // open=1 (แท็บงานของฉัน): เอกสารที่ยังต้องทำต่อทั้งหมด ไม่ขึ้นกับช่วงวันที่
+    if (req.query.open === '1') where += " AND m.StatusCode IN ('DRAFT', 'COUNT', 'REVIEW')";
+    else {
+      if (req.query.from) { request.input('from', sql.Date, req.query.from); where += ' AND m.DateCount >= @from'; }
+      if (req.query.to) { request.input('to', sql.Date, req.query.to); where += ' AND m.DateCount <= @to'; }
+    }
+    const r = await request.query(
+      `SELECT TOP 1000 ${SC_HEAD_SELECT}, st.*
+       FROM devsk.dInvCountMt m WITH (NOLOCK) ${SC_HEAD_JOIN} ${SC_STATS_APPLY}
+       ${where}
+       ORDER BY m.DateCount DESC, m.idCount DESC`);
+    res.json({ success: true, data: r.recordset.map(x => scHideErp(scMapHead(x), req.access)) });
+  } catch (err) {
+    console.error('SC list error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการเอกสารไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// Blind count / ใบนับเปล่า ระหว่างนับ: ไม่ส่งยอด ERP (และจำนวนตรง/ขาด/เกิน) ให้ผู้ที่ไม่มีสิทธิ์ตรวจสอบผลต่าง — ซ่อนที่ต้นทาง ไม่ใช่แค่บนหน้าจอ
+function scHideErp(doc, access) {
+  if (!doc || doc.status !== 'COUNT' || !(doc.blind || doc.sheetType === 'B') || hasMenu(access, MENU_SC_REVIEW)) return doc;
+  doc.erpHidden = true;
+  if (doc.stats) { doc.stats.match = null; doc.stats.short = null; doc.stats.over = null; }
+  (doc.lines || []).forEach(l => { l.erp = null; l.erpNow = null; l.cost = null; });
+  return doc;
+}
+
+// ---------- เอกสารใบเดียว: หัว + รายการ + ประวัติ ----------
+async function scLoadDoc(idCount, access) {
+  const pool = await poolPromise;
+  const r = await pool.request().input('id', sql.Int, idCount).query(
+    `SELECT ${SC_HEAD_SELECT}, st.*
+     FROM devsk.dInvCountMt m WITH (NOLOCK) ${SC_HEAD_JOIN} ${SC_STATS_APPLY}
+     WHERE m.idCount = @id;
+
+     SELECT d.idCountDt, d.SeqNo, d.SrcType, d.idRefLot, d.idLot, d.idInvMain, i.InvCode, i.InvName, d.LotNo,
+            d.idWh, ISNULL(NULLIF(LTRIM(RTRIM(w.WareHouseName)), ''), w.short_lock) AS LocName, w.full_lock AS LocPath,
+            d.idUnit, u.UnitName, d.AmountErp, d.AmountCount, d.AmountErpNow, d.CostPerUnit, d.DateExp, d.QualityCode,
+            d.idCountCause, d.NoteDt, d.ActionCode, d.stAdjust, d.stExclude, d.RecountNo,
+            d.InputText, d.ItemText, d.LocText, d.UnitText, d.MapStatus, d.idCountDtMap, d.MapNote,
+            d.idPsCount, pc.PsName AS CountName, d.DateCountLn,
+            (SELECT COUNT(*) FROM devsk.dInvCountEntry e WITH (NOLOCK) WHERE e.idCountDt = d.idCountDt AND e.stVoid IS NULL AND e.RecountNo = d.RecountNo) AS nEntry,
+            (SELECT MAX(m2.DateCount) FROM devsk.dInvCountDt d2 WITH (NOLOCK) JOIN devsk.dInvCountMt m2 WITH (NOLOCK) ON m2.idCount = d2.idCount
+             WHERE d2.idRefLot = d.idRefLot AND m2.idCount <> d.idCount AND m2.StatusCode IN ('REVIEW', 'APPROVE', 'DONE', 'POSTED')
+               AND d2.SrcType <> 'U' AND d2.stExclude = 0 AND d2.AmountCount IS NOT NULL
+               AND m2.DateCount <= (SELECT x.DateCount FROM devsk.dInvCountMt x WHERE x.idCount = d.idCount)) AS PrevCount
+     FROM devsk.dInvCountDt d WITH (NOLOCK)
+     LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+     LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = d.idWh
+     LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = d.idUnit
+     LEFT JOIN devsk.vPersonxSelect pc ON pc.idPs = d.idPsCount
+     WHERE d.idCount = @id
+     ORDER BY d.SeqNo;
+
+     SELECT l.ActCode, l.Detail, l.DateTs, p.PsName
+     FROM devsk.dInvCountLog l WITH (NOLOCK) LEFT JOIN devsk.vPersonxSelect p ON p.idPs = l.idPsTs
+     WHERE l.idCount = @id ORDER BY l.idLog;`);
+  const head = r.recordsets[0][0];
+  if (!head) return null;
+  if (access && !hasComp(access, head.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+  const num = (v) => (v == null ? null : Number(v));
+  return {
+    ...scMapHead(head),
+    lines: r.recordsets[1].map(d => ({
+      id: d.idCountDt, seq: d.SeqNo, src: d.SrcType, idRefLot: d.idRefLot, idLot: d.idLot, idInvMain: d.idInvMain,
+      invCode: d.InvCode, invName: d.InvName, lotNo: d.LotNo, idWh: d.idWh, loc: d.LocName, locPath: d.LocPath,
+      idUnit: d.idUnit, unit: d.UnitName, erp: num(d.AmountErp), count: num(d.AmountCount), erpNow: num(d.AmountErpNow),
+      cost: num(d.CostPerUnit), exp: d.DateExp, quality: d.QualityCode, idCause: d.idCountCause, note: d.NoteDt,
+      action: d.ActionCode, adjust: !!d.stAdjust, exclude: !!d.stExclude, recount: d.RecountNo,
+      inputText: d.InputText, itemText: d.ItemText, locText: d.LocText, unitText: d.UnitText,
+      mapStatus: d.MapStatus, mapTo: d.idCountDtMap, mapNote: d.MapNote,
+      countBy: d.CountName, countAt: d.DateCountLn, nEntry: d.nEntry, prevCount: d.PrevCount
+    })),
+    log: r.recordsets[2].map(l => ({ act: l.ActCode, detail: l.Detail, at: l.DateTs, by: l.PsName }))
+  };
+}
+
+app.get('/api/stock-count/doc/:id', requireMenu(MENU_SC_VIEW), async (req, res) => {
+  try {
+    const doc = await scLoadDoc(scInt(req.params.id), req.access);
+    if (!doc) return scFail(res, 404, 'ไม่พบเอกสารตรวจนับ');
+    res.json({ success: true, data: scHideErp(doc, req.access) });
+  } catch (err) {
+    if (err.status) return scFail(res, err.status, err.message);
+    console.error('SC doc error:', err);
+    res.status(500).json({ success: false, message: 'โหลดเอกสารไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ภาพรวม (แท็บภาพรวม): ตัวเลขสรุป 30 วัน + ความครอบคลุมการนับรายคลังหลัก ----------
+// kpi: เอกสารที่ปิดการนับใน 30 วัน (ไม่นับยกเลิก) — รายการที่นับ / ตรงกัน / ขาด / เกิน / ความแม่นยำ (จำนวนรายการ ยังไม่แสดงมูลค่า)
+//      + เอกสารที่ยังไม่ปิด: ร่าง / กำลังนับ / รอตรวจสอบ / รออนุมัติ
+// coverage: คลังหลักของบริษัทที่มีสต๊อก หรือเคยนับ — นับล่าสุดเมื่อไร (เฉพาะเอกสารบนเว็บ ไม่รวมประวัติจาก WIM Desktop)
+app.get('/api/stock-count/overview', requireMenu(MENU_SC_VIEW, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = scInt(req.query.idComp);
+  if (!idComp) return scFail(res, 400, 'กรุณาเลือกบริษัท');
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('idComp', sql.Int, idComp).query(
+      `SELECT COUNT(DISTINCT m.idCount) AS nDoc,
+              SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL THEN 1 ELSE 0 END) AS nCounted,
+              SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND ABS(d.AmountCount - ISNULL(d.AmountErp, 0)) < 0.000001 THEN 1 ELSE 0 END) AS nMatch,
+              SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND d.AmountCount - ISNULL(d.AmountErp, 0) <= -0.000001 THEN 1 ELSE 0 END) AS nShort,
+              SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND d.AmountCount - ISNULL(d.AmountErp, 0) >= 0.000001 THEN 1 ELSE 0 END) AS nOver,
+              SUM(CASE WHEN d.SrcType = 'U' THEN 1 ELSE 0 END) AS nUm
+       FROM devsk.dInvCountMt m WITH (NOLOCK)
+       LEFT JOIN devsk.dInvCountDt d WITH (NOLOCK) ON d.idCount = m.idCount
+       WHERE m.idComp = @idComp AND m.StatusCode IN ('REVIEW', 'APPROVE', 'POSTED', 'DONE') AND m.DateClose >= DATEADD(day, -30, GETDATE());
+
+       SELECT SUM(CASE WHEN StatusCode = 'DRAFT' THEN 1 ELSE 0 END) AS nDraft,
+              SUM(CASE WHEN StatusCode = 'COUNT' THEN 1 ELSE 0 END) AS nCounting,
+              SUM(CASE WHEN StatusCode = 'REVIEW' THEN 1 ELSE 0 END) AS nReview,
+              SUM(CASE WHEN StatusCode = 'APPROVE' THEN 1 ELSE 0 END) AS nApprove
+       FROM devsk.dInvCountMt WITH (NOLOCK)
+       WHERE idComp = @idComp AND StatusCode IN ('DRAFT', 'COUNT', 'REVIEW', 'APPROVE');
+
+       ;WITH lc AS (${SC_LAST_COUNT_SQL}
+       ), lots AS (
+         SELECT w.idParent0, ${SC_LEVEL_AGG}
+         FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+         JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh
+         LEFT JOIN lc ON lc.idRefLot = r.idRefLot
+         CROSS APPLY (SELECT ${scLevelSql('lc.LastDt')} AS L) lv
+         WHERE w.idComp = @idComp AND r.Amount <> 0
+         GROUP BY w.idParent0
+       ), cnt AS (
+         SELECT m.idParent0, MAX(m.DateCount) AS LastCount, COUNT(*) AS nDoc,
+                SUM(CASE WHEN m.DateCount >= DATEADD(day, -90, GETDATE()) THEN 1 ELSE 0 END) AS nDoc90
+         FROM devsk.dInvCountMt m WITH (NOLOCK)
+         WHERE m.idComp = @idComp AND m.StatusCode NOT IN ('CANCEL', 'DRAFT')
+         GROUP BY m.idParent0
+       )
+       SELECT w.idWh, ISNULL(NULLIF(LTRIM(RTRIM(w.short_lock)), ''), w.WareHouseName) AS WhName, ISNULL(l.nLot, 0) AS nLot,
+              l.n0, l.n1, l.n2, l.n3, l.n4, l.LastDt, l.OldDt,
+              c.LastCount, ISNULL(c.nDoc, 0) AS nDoc, ISNULL(c.nDoc90, 0) AS nDoc90,
+              (SELECT TOP 1 x.DocCode FROM devsk.dInvCountMt x WITH (NOLOCK)
+               WHERE x.idComp = @idComp AND x.idParent0 = w.idWh AND x.StatusCode NOT IN ('CANCEL', 'DRAFT')
+               ORDER BY x.DateCount DESC, x.idCount DESC) AS LastDoc
+       FROM dbo.ssWarehouse w WITH (NOLOCK)
+       LEFT JOIN lots l ON l.idParent0 = w.idWh
+       LEFT JOIN cnt c ON c.idParent0 = w.idWh
+       WHERE w.idComp = @idComp AND w.stDel = 0 AND ISNULL(w.idParrent, 0) = 0 AND (l.nLot > 0 OR c.nDoc > 0)
+         AND w.idWh NOT IN (${SC_EXCLUDED_WH_SQL})
+       ORDER BY CASE WHEN c.LastCount IS NULL THEN 0 ELSE 1 END, c.LastCount, l.nLot DESC;
+
+       -- สาเหตุผลต่าง (รายการที่ขาด / เกิน ของเอกสารที่ปิดการนับใน 30 วัน) — ยังไม่ระบุ = ยังไม่ได้ตรวจสอบผลต่าง
+       SELECT ISNULL(c.CauseName, N'ยังไม่ระบุสาเหตุ') AS CauseName, CASE WHEN c.CauseName IS NULL THEN 1 ELSE 0 END AS noCause,
+              SUM(CASE WHEN d.AmountCount - ISNULL(d.AmountErp, 0) < 0 THEN 1 ELSE 0 END) AS nShort,
+              SUM(CASE WHEN d.AmountCount - ISNULL(d.AmountErp, 0) > 0 THEN 1 ELSE 0 END) AS nOver
+       FROM devsk.dInvCountMt m WITH (NOLOCK)
+       JOIN devsk.dInvCountDt d WITH (NOLOCK) ON d.idCount = m.idCount
+       LEFT JOIN devsk.dInvCountCause c WITH (NOLOCK) ON c.idCountCause = d.idCountCause
+       WHERE m.idComp = @idComp AND m.StatusCode IN ('REVIEW', 'APPROVE', 'POSTED', 'DONE') AND m.DateClose >= DATEADD(day, -30, GETDATE())
+         AND d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND ABS(d.AmountCount - ISNULL(d.AmountErp, 0)) >= 0.000001
+       GROUP BY c.CauseName
+       ORDER BY CASE WHEN c.CauseName IS NULL THEN 1 ELSE 0 END, COUNT(*) DESC;
+
+       -- สินค้าที่ขาดบ่อย 10 อันดับ (90 วัน): จำนวนครั้งที่ขาด / จำนวนเอกสาร / ยอดที่ขาดรวม (หน่วยหลักของสินค้า)
+       SELECT TOP 10 i.InvCode, i.InvName, u.UnitName, COUNT(*) AS nShort, COUNT(DISTINCT m.idCount) AS nDoc,
+              SUM(ISNULL(d.AmountErp, 0) - d.AmountCount) AS QtyShort
+       FROM devsk.dInvCountMt m WITH (NOLOCK)
+       JOIN devsk.dInvCountDt d WITH (NOLOCK) ON d.idCount = m.idCount
+       JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+       LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = i.idUnit
+       WHERE m.idComp = @idComp AND m.StatusCode IN ('REVIEW', 'APPROVE', 'POSTED', 'DONE') AND m.DateClose >= DATEADD(day, -90, GETDATE())
+         AND d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND d.AmountCount - ISNULL(d.AmountErp, 0) <= -0.000001
+       GROUP BY i.InvCode, i.InvName, u.UnitName
+       ORDER BY COUNT(*) DESC, SUM(ISNULL(d.AmountErp, 0) - d.AmountCount) DESC;`);
+    const k = r.recordsets[0][0] || {};
+    res.json({
+      success: true,
+      kpi: {
+        docs30: k.nDoc || 0, counted30: k.nCounted || 0, match30: k.nMatch || 0,
+        accuracy30: k.nCounted ? Number(k.nMatch) / Number(k.nCounted) * 100 : null,
+        short30: k.nShort || 0, over30: k.nOver || 0, um30: k.nUm || 0,
+        open: { draft: r.recordsets[1][0].nDraft || 0, counting: r.recordsets[1][0].nCounting || 0, review: r.recordsets[1][0].nReview || 0, approve: r.recordsets[1][0].nApprove || 0 }
+      },
+      causes: r.recordsets[3].map(x => ({ name: x.CauseName, noCause: !!x.noCause, short: x.nShort || 0, over: x.nOver || 0 })),
+      topShort: r.recordsets[4].map(x => ({ invCode: x.InvCode, invName: x.InvName, unit: x.UnitName, times: x.nShort, docs: x.nDoc, qty: Number(x.QtyShort || 0) })),
+      coverage: r.recordsets[2].map(x => ({
+        idWh: x.idWh, whName: x.WhName, nLot: x.nLot, lastCount: x.LastCount, lastDoc: x.LastDoc, ...scLevelObj(x),
+        days: x.LastCount ? Math.floor((Date.now() - new Date(x.LastCount).getTime()) / 864e5) : null, nDoc: x.nDoc, nDoc90: x.nDoc90
+      }))
+    });
+  } catch (err) {
+    console.error('SC overview error:', err);
+    res.status(500).json({ success: false, message: 'โหลดภาพรวมไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- เตือนสร้างซ้ำ: เอกสารที่ยังไม่ปิด (ร่าง / กำลังนับ / รอตรวจสอบ) ที่พื้นที่ทับกับพื้นที่ที่เลือก ----------
+// ทับกัน = โหนดเดียวกัน / โหนดของเอกสารอยู่เหนือพื้นที่ที่เลือก (คลังหลักครอบโซน) / อยู่ใต้พื้นที่ที่เลือก — เตือนเท่านั้น สร้างต่อได้ (ตั้งใจนับซ้ำ)
+app.get('/api/stock-count/overlap', requireMenu(MENU_SC, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = scInt(req.query.idComp), scope = scInt(req.query.idWhScope);
+  if (!idComp || !scope) return res.json({ success: true, data: [] });
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('idComp', sql.Int, idComp).input('scope', sql.Int, scope).input('ex', sql.Int, scInt(req.query.exceptId) || 0).query(
+      `;WITH up AS (
+         SELECT w.idWh, w.idParrent, 0 AS lvl FROM dbo.ssWarehouse w WITH (NOLOCK) WHERE w.idWh = @scope
+         UNION ALL
+         SELECT p.idWh, p.idParrent, up.lvl + 1 FROM dbo.ssWarehouse p WITH (NOLOCK) JOIN up ON p.idWh = up.idParrent WHERE up.lvl < 10
+       ), down AS (
+         SELECT w.idWh, 0 AS lvl FROM dbo.ssWarehouse w WITH (NOLOCK) WHERE w.idWh = @scope
+         UNION ALL
+         SELECT c.idWh, down.lvl + 1 FROM dbo.ssWarehouse c WITH (NOLOCK) JOIN down ON c.idParrent = down.idWh WHERE c.stDel = 0 AND down.lvl < 10
+       )
+       SELECT m.idCount, m.DocCode, m.StatusCode, m.DateCount, m.CountRound, ISNULL(ws.full_lock, ws.WareHouseName) AS ScopePath
+       FROM devsk.dInvCountMt m WITH (NOLOCK)
+       LEFT JOIN dbo.ssWarehouse ws WITH (NOLOCK) ON ws.idWh = m.idWhScope
+       WHERE m.idComp = @idComp AND m.idCount <> @ex AND m.StatusCode IN ('DRAFT', 'COUNT', 'REVIEW')
+         AND (m.idWhScope IN (SELECT idWh FROM up) OR m.idWhScope IN (SELECT idWh FROM down))
+       ORDER BY m.DateCount DESC
+       OPTION (MAXRECURSION 20);`);
+    res.json({ success: true, data: r.recordset.map(x => ({ id: x.idCount, docCode: x.DocCode, status: x.StatusCode, dateCount: x.DateCount, round: x.CountRound, scopePath: x.ScopePath })) });
+  } catch (err) {
+    console.error('SC overlap error:', err);
+    res.status(500).json({ success: false, message: 'ตรวจเอกสารซ้ำไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ครั้งที่นับถัดไป (คลังหลัก + วันที่ตรวจนับเดียวกัน ไม่นับที่ยกเลิก) ----------
+app.get('/api/stock-count/next-round', requireMenu(MENU_SC, { companyParam: 'idComp' }), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request()
+      .input('idComp', sql.Int, scInt(req.query.idComp)).input('wh', sql.Int, scInt(req.query.idParent0))
+      .input('d', sql.Date, req.query.date || null).input('ex', sql.Int, scInt(req.query.exceptId) || 0)
+      .query(`SELECT ISNULL(MAX(CountRound), 0) + 1 AS n FROM devsk.dInvCountMt WITH (NOLOCK)
+              WHERE idComp = @idComp AND idParent0 = @wh AND DateCount = @d AND StatusCode <> 'CANCEL' AND idCount <> @ex`);
+    res.json({ success: true, round: r.recordset[0].n });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'คำนวณครั้งที่นับไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- สร้าง / แก้ไขหัวเอกสาร (แก้ได้เฉพาะ DRAFT) ----------
+async function scParseHead(runner, b, access) {
+  const h = {
+    idComp: scInt(b.idComp), idWhScope: scInt(b.idWhScope), dateCount: String(b.dateCount || '').slice(0, 10),
+    round: scInt(b.round), idCountType: scInt(b.idCountType), counter: scInt(b.idPsCounter), reviewer: scInt(b.idPsReviewer),
+    tolerance: scNum(b.tolerance), blind: !!b.blind, note: scText(b.note, 1000)
+  };
+  const errs = [];
+  if (!h.idComp) errs.push('บริษัท');
+  if (!h.idWhScope) errs.push('คลัง / พื้นที่ที่ตรวจนับ');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(h.dateCount)) errs.push('วันที่ตรวจนับ');
+  if (!h.round || h.round < 1) errs.push('ครั้งที่นับ');
+  if (!h.idCountType) errs.push('ประเภทการตรวจนับ');
+  if (!h.counter) errs.push('ผู้ตรวจนับ');
+  if (!h.reviewer) errs.push('ผู้ตรวจสอบ');
+  if (errs.length) { const e = new Error('กรุณาระบุ: ' + errs.join(', ')); e.status = 400; throw e; }
+  if (h.tolerance != null && (h.tolerance < 0 || h.tolerance > 100)) { const e = new Error('ค่ายอมรับผลต่างต้องอยู่ระหว่าง 0–100%'); e.status = 400; throw e; }
+  if (!hasComp(access, h.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+  const w = await new sql.Request(runner).input('wh', sql.Int, h.idWhScope).query(
+    `SELECT idWh, idComp, idParent0, stDel FROM dbo.ssWarehouse WITH (NOLOCK) WHERE idWh = @wh`);
+  const wh = w.recordset[0];
+  if (!wh || wh.stDel || wh.idComp !== h.idComp) { const e = new Error('คลังที่เลือกไม่ใช่ของบริษัทนี้ หรือถูกปิดใช้งานแล้ว'); e.status = 400; throw e; }
+  h.idParent0 = wh.idParent0 || wh.idWh;
+  if (SC_EXCLUDED_WH.includes(h.idParent0) || SC_EXCLUDED_WH.includes(wh.idWh)) { const e = new Error('คลังนี้ไม่อยู่ในขอบเขตการตรวจนับ'); e.status = 400; throw e; }
+  return h;
+}
+const scBindHead = (rq, h) => rq
+  .input('idComp', sql.Int, h.idComp).input('p0', sql.Int, h.idParent0).input('scope', sql.Int, h.idWhScope)
+  .input('dc', sql.Date, h.dateCount).input('round', sql.Int, h.round).input('type', sql.Int, h.idCountType)
+  .input('blind', sql.Bit, h.blind ? 1 : 0).input('counter', sql.Int, h.counter).input('reviewer', sql.Int, h.reviewer)
+  .input('tol', sql.Decimal(9, 4), h.tolerance).input('note', sql.NVarChar, h.note);
+
+app.post('/api/stock-count', requireMenu(MENU_SC, { companyParam: 'idComp' }), async (req, res) => {
+  const out = await scTx(res, 'บันทึกเอกสาร', async (t) => {
+    const h = await scParseHead(t, req.body || {}, req.access);
+    const now = new Date();
+    const code = await getNextScDocCode(t, h.idComp, now);
+    const r = await scBindHead(new sql.Request(t), h).input('code', sql.VarChar, code).input('ps', sql.Int, req.idPs).query(
+      `INSERT INTO devsk.dInvCountMt (DocCode, DateDoc, idComp, idParent0, idWhScope, DateCount, CountRound, idCountType, stBlind,
+                                      idPsCounter, idPsReviewer, TolerancePct, Note, StatusCode, idPsTs, DateTs)
+       OUTPUT INSERTED.idCount
+       VALUES (@code, GETDATE(), @idComp, @p0, @scope, @dc, @round, @type, @blind, @counter, @reviewer, @tol, @note, 'DRAFT', @ps, GETDATE())`);
+    const id = r.recordset[0].idCount;
+    await scLog(t, id, 'create', `สร้างเอกสาร ${code}`, req.idPs);
+    return { id, docCode: code };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+app.put('/api/stock-count/doc/:id', requireMenu(MENU_SC, { companyParam: 'idComp' }), async (req, res) => {
+  const id = scInt(req.params.id);
+  const out = await scTx(res, 'แก้ไขเอกสาร', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['DRAFT'], 'แก้ไขหัวเอกสารได้เฉพาะก่อนเริ่มตรวจนับ');
+    const h = await scParseHead(t, req.body || {}, req.access);
+    if (h.idComp !== doc.idComp) { const e = new Error('เปลี่ยนบริษัทของเอกสารไม่ได้'); e.status = 400; throw e; }
+    await scBindHead(new sql.Request(t), h).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvCountMt SET idParent0 = @p0, idWhScope = @scope, DateCount = @dc, CountRound = @round, idCountType = @type,
+              stBlind = @blind, idPsCounter = @counter, idPsReviewer = @reviewer, TolerancePct = @tol, Note = @note,
+              idPsEdit = @ps, DateEdit = GETDATE()
+       WHERE idCount = @id`);
+    await scLog(t, id, 'edit', 'แก้ไขหัวเอกสาร', req.idPs);
+    return { id };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- เริ่มตรวจนับ / พิมพ์ใบนับ = snapshot ยอด ERP ทุก Lot × ตำแหน่งในขอบเขต ที่ยอด ≠ 0 ----------
+app.post('/api/stock-count/doc/:id/start', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const mode = req.body && req.body.mode === 'L' ? 'L' : req.body && req.body.mode === 'O' ? 'O' : null;
+  const sheet = mode === 'O' ? (req.body.sheetType === 'B' ? 'B' : 'P') : null;
+  if (!mode) return scFail(res, 400, 'กรุณาเลือกวิธีนับ');
+  const out = await scTx(res, 'เริ่มตรวจนับ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['DRAFT'], 'เอกสารนี้เริ่มตรวจนับไปแล้ว');
+    const r = await new sql.Request(t).input('id', sql.Int, id).input('scope', sql.Int, doc.idWhScope).query(
+      `${SC_SCOPE_SQL}
+       INSERT INTO devsk.dInvCountDt (idCount, SeqNo, SrcType, idRefLot, idLot, idInvMain, LotNo, idWh, idUnit, AmountErp, CostPerUnit, DateExp)
+       SELECT @id, ROW_NUMBER() OVER (ORDER BY ISNULL(w.full_lock, w.WareHouseName), i.InvName, lm.LotNo, r.idRefLot),
+              'S', r.idRefLot, r.idLot, lm.idInvMain, lm.LotNo, r.idWh, i.idUnit, r.Amount, lm.CostPerUnit, lm.DateExp
+       FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+       JOIN #scope s ON s.idWh = r.idWh
+       JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = r.idLot AND lm.stDel IS NULL
+       JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = lm.idInvMain
+       LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh
+       WHERE r.Amount <> 0;
+       SELECT @@ROWCOUNT AS n;`);
+    const n = r.recordset[0].n;
+    await new sql.Request(t).input('id', sql.Int, id).input('mode', sql.Char, mode).input('sheet', sql.Char, sheet).input('ps', sql.Int, req.idPs)
+      .query(`UPDATE devsk.dInvCountMt SET CountMode = @mode, SheetType = @sheet, StatusCode = 'COUNT', idPsStart = @ps, DateStart = GETDATE()
+              WHERE idCount = @id`);
+    await scLog(t, id, 'start', `เริ่มตรวจนับแบบ ${mode === 'L' ? 'Live Count' : `Offline Count Sheet (${sheet === 'B' ? 'ใบนับเปล่า' : 'ใบนับแบบมีรายการ'})`} · snapshot ยอด ERP ${n.toLocaleString('en-US')} รายการ`, req.idPs);
+    return { lines: n };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- บันทึกยอดนับ (หลายรายการต่อครั้ง: ใบนับ / Live) ----------
+// entries: [{ idCountDt, qty, mode: 'R'|'A', method: 'S'|'K'|'B' }] / qty = null + mode R = ล้างยอดนับ (void entry ของรอบนี้)
+app.post('/api/stock-count/doc/:id/entries', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const list = Array.isArray(req.body && req.body.entries) ? req.body.entries : [];
+  if (!list.length) return scFail(res, 400, 'ไม่มีรายการให้บันทึก');
+  if (list.length > SC_MAX_ENTRY_BATCH) return scFail(res, 400, `บันทึกได้ครั้งละไม่เกิน ${SC_MAX_ENTRY_BATCH} รายการ`);
+  const out = await scTx(res, 'บันทึกยอดนับ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT'], 'บันทึกยอดนับได้เฉพาะระหว่างตรวจนับ');
+    const ids = [];
+    for (const e of list) {
+      const dt = scInt(e.idCountDt);
+      const mode = e.mode === 'A' ? 'A' : 'R';
+      const method = ['S', 'K', 'B'].includes(e.method) ? e.method : 'K';
+      const qty = scNum(e.qty);
+      if (!dt) continue;
+      if (qty != null && (qty < 0 || qty > 1e12)) { const er = new Error('ยอดนับต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป'); er.status = 400; throw er; }
+      const rq = new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, dt).input('ps', sql.Int, req.idPs);
+      if (qty == null) {
+        if (mode === 'A') continue;
+        await rq.query(`UPDATE e SET stVoid = 1, idPsVoid = @ps, DateVoid = GETDATE()
+                        FROM devsk.dInvCountEntry e JOIN devsk.dInvCountDt d ON d.idCountDt = e.idCountDt AND d.RecountNo = e.RecountNo
+                        WHERE d.idCount = @id AND d.idCountDt = @dt AND e.stVoid IS NULL`);
+      } else {
+        const r = await rq.input('qty', sql.Decimal(18, 6), scRound(qty)).input('mode', sql.Char, mode).input('method', sql.Char, method).query(
+          `INSERT INTO devsk.dInvCountEntry (idCount, idCountDt, Qty, EntryMode, Method, RecountNo, idPsTs, DateTs)
+           SELECT @id, d.idCountDt, @qty, @mode, @method, d.RecountNo, @ps, GETDATE()
+           FROM devsk.dInvCountDt d WHERE d.idCount = @id AND d.idCountDt = @dt AND d.stExclude = 0;
+           SELECT @@ROWCOUNT AS n;`);
+        if (!r.recordset[0].n) { const er = new Error('ไม่พบรายการในเอกสารนี้ (อาจถูกตั้งเป็นไม่นำมาคิด)'); er.status = 400; throw er; }
+      }
+      ids.push(dt);
+    }
+    if (ids.length) await scRecalcLines(t, id, ids);
+    return { saved: ids.length };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- แก้รายละเอียดรายการ (วันหมดอายุ / คุณภาพ / สาเหตุ / หมายเหตุ / ส่งปรับยอด) ----------
+// ระหว่างนับ (COUNT) แก้ได้: วันหมดอายุ คุณภาพ หมายเหตุ / ตรวจสอบผลต่าง (REVIEW + สิทธิ์ review) แก้ได้ทั้งหมด
+app.put('/api/stock-count/doc/:id/lines', requireMenu([MENU_SC, MENU_SC_REVIEW]), async (req, res) => {
+  const id = scInt(req.params.id);
+  const list = Array.isArray(req.body && req.body.lines) ? req.body.lines : [];
+  if (!list.length) return scFail(res, 400, 'ไม่มีรายการให้บันทึก');
+  const out = await scTx(res, 'บันทึกรายละเอียด', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT', 'REVIEW'], 'แก้ไขรายละเอียดได้เฉพาะระหว่างตรวจนับ / ตรวจสอบผลต่าง');
+    const review = doc.StatusCode === 'REVIEW';
+    if (review && !hasMenu(req.access, MENU_SC_REVIEW)) { const e = new Error('ไม่มีสิทธิ์ตรวจสอบผลต่าง'); e.status = 403; throw e; }
+    if (!review && !hasMenu(req.access, MENU_SC)) { const e = new Error('ไม่มีสิทธิ์บันทึกการตรวจนับ'); e.status = 403; throw e; }
+    const QUAL = ['NORMAL', 'QC', 'HOLD', 'REJECT'];
+    for (const l of list) {
+      const dt = scInt(l.id);
+      if (!dt) continue;
+      const sets = [];
+      const rq = new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, dt);
+      if ('exp' in l) { sets.push('DateExp = @exp'); rq.input('exp', sql.Date, l.exp ? String(l.exp).slice(0, 10) : null); }
+      if ('quality' in l && QUAL.includes(l.quality)) { sets.push('QualityCode = @q'); rq.input('q', sql.VarChar, l.quality); }
+      if ('note' in l) { sets.push('NoteDt = @note'); rq.input('note', sql.NVarChar, scText(l.note, 500)); }
+      if (review && 'idCause' in l) { sets.push('idCountCause = @cause'); rq.input('cause', sql.Int, scInt(l.idCause)); }
+      if (review && 'adjust' in l) {
+        // ส่งปรับยอดได้เฉพาะรายการที่มีผลต่าง / ไม่ส่ง = ไม่ต้องดำเนินการ
+        sets.push(`stAdjust = CASE WHEN @adj = 1 AND SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NOT NULL
+                                    AND ABS(AmountCount - ISNULL(AmountErp, 0)) >= 0.000001 THEN 1 ELSE 0 END`);
+        sets.push(`ActionCode = CASE WHEN @adj = 1 AND SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NOT NULL
+                                      AND ABS(AmountCount - ISNULL(AmountErp, 0)) >= 0.000001 THEN 'PENDING' ELSE 'NONE' END`);
+        rq.input('adj', sql.Bit, l.adjust ? 1 : 0);
+      }
+      if (!sets.length) continue;
+      await rq.query(`UPDATE devsk.dInvCountDt SET ${sets.join(', ')} WHERE idCount = @id AND idCountDt = @dt`);
+    }
+    return { saved: list.length };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- ค้นหา Lot / รหัสสินค้า (Live Count + ใบนับเปล่า) ----------
+// inDoc = รายการในเอกสาร / outScope = Lot ของคลังหลักเดียวกันที่ยังไม่อยู่ในเอกสาร (เพิ่มเป็นรายการ A ได้) / near = Lot ใกล้เคียง (พิมพ์ผิด)
+app.get('/api/stock-count/doc/:id/find', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.json({ success: true, inDoc: [], outScope: [], near: [] });
+  try {
+    const pool = await poolPromise;
+    const d = await pool.request().input('id', sql.Int, id).query(`SELECT idComp, idParent0, StatusCode, stBlind, SheetType FROM devsk.dInvCountMt WITH (NOLOCK) WHERE idCount = @id`);
+    const doc = d.recordset[0];
+    if (!doc) return scFail(res, 404, 'ไม่พบเอกสารตรวจนับ');
+    if (!hasComp(req.access, doc.idComp)) return scFail(res, 403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    const r = await pool.request().input('id', sql.Int, id).input('q', sql.VarChar, q).input('like', sql.VarChar, `%${q}%`)
+      .input('p0', sql.Int, doc.idParent0).query(
+      `SELECT TOP 30 d.idCountDt FROM devsk.dInvCountDt d WITH (NOLOCK)
+       LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+       WHERE d.idCount = @id AND d.SrcType <> 'U' AND (d.LotNo = @q OR i.InvCode = @q)
+       ORDER BY d.SeqNo;
+
+       SELECT TOP 30 r.idRefLot, r.idLot, lm.LotNo, i.idInvMain, i.InvCode, i.InvName, r.idWh, w.WareHouseName AS LocName, w.full_lock AS LocPath,
+              r.Amount, u.UnitName
+       FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+       JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh AND w.idParent0 = @p0
+       JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = r.idLot AND lm.stDel IS NULL
+       JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = lm.idInvMain
+       LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = i.idUnit
+       WHERE (lm.LotNo = @q OR i.InvCode = @q)
+         AND NOT EXISTS (SELECT 1 FROM devsk.dInvCountDt x WHERE x.idCount = @id AND x.idRefLot = r.idRefLot)
+       ORDER BY CASE WHEN r.Amount <> 0 THEN 0 ELSE 1 END, w.full_lock;
+
+       SELECT TOP 8 d.idCountDt FROM devsk.dInvCountDt d WITH (NOLOCK)
+       LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+       WHERE d.idCount = @id AND d.SrcType <> 'U' AND d.LotNo <> @q AND (d.LotNo LIKE @like OR i.InvName LIKE @like OR i.InvCode LIKE @like)
+       ORDER BY d.SeqNo;`);
+    res.json({
+      success: true,
+      inDoc: r.recordsets[0].map(x => x.idCountDt),
+      outScope: r.recordsets[1].map(x => ({
+        idRefLot: x.idRefLot, lotNo: x.LotNo, invCode: x.InvCode, invName: x.InvName, loc: x.LocName, locPath: x.LocPath,
+        erp: (doc.stBlind || doc.SheetType === 'B') && !hasMenu(req.access, MENU_SC_REVIEW) ? null : Number(x.Amount), unit: x.UnitName
+      })),
+      near: r.recordsets[2].map(x => x.idCountDt)
+    });
+  } catch (err) {
+    console.error('SC find error:', err);
+    res.status(500).json({ success: false, message: 'ค้นหาไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- เพิ่มรายการระหว่างนับ: Lot นอกขอบเขต (A) / ของที่ไม่พบในระบบ (U) ----------
+app.post('/api/stock-count/doc/:id/add-line', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const b = req.body || {};
+  const out = await scTx(res, 'เพิ่มรายการ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT'], 'เพิ่มรายการได้เฉพาะระหว่างตรวจนับ');
+    const seq = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT ISNULL(MAX(SeqNo), 0) + 1 AS n FROM devsk.dInvCountDt WHERE idCount = @id`)).recordset[0].n;
+    let idDt, detail;
+    if (b.idRefLot) {
+      const r = await new sql.Request(t).input('id', sql.Int, id).input('ref', sql.Int, scInt(b.idRefLot)).input('seq', sql.Int, seq).input('p0', sql.Int, doc.idParent0).query(
+        `INSERT INTO devsk.dInvCountDt (idCount, SeqNo, SrcType, idRefLot, idLot, idInvMain, LotNo, idWh, idUnit, AmountErp, CostPerUnit, DateExp)
+         OUTPUT INSERTED.idCountDt, INSERTED.LotNo
+         SELECT @id, @seq, 'A', r.idRefLot, r.idLot, lm.idInvMain, lm.LotNo, r.idWh, i.idUnit, r.Amount, lm.CostPerUnit, lm.DateExp
+         FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+         JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh AND w.idParent0 = @p0
+         JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = r.idLot AND lm.stDel IS NULL
+         JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = lm.idInvMain
+         WHERE r.idRefLot = @ref AND NOT EXISTS (SELECT 1 FROM devsk.dInvCountDt x WHERE x.idCount = @id AND x.idRefLot = r.idRefLot)`);
+      if (!r.recordset[0]) { const e = new Error('เพิ่มไม่ได้: Lot นี้อยู่ในเอกสารแล้ว หรือไม่ได้อยู่ในคลังหลักของเอกสาร'); e.status = 400; throw e; }
+      idDt = r.recordset[0].idCountDt;
+      detail = `เพิ่มรายการนอกขอบเขต Lot ${r.recordset[0].LotNo}`;
+    } else {
+      const input = scText(b.inputText, 100);
+      if (!input && !scText(b.itemText, 300)) { const e = new Error('กรุณาระบุ Lot / รหัส หรือชื่อสินค้าที่พบ'); e.status = 400; throw e; }
+      const r = await new sql.Request(t).input('id', sql.Int, id).input('seq', sql.Int, seq)
+        .input('inp', sql.NVarChar, input).input('item', sql.NVarChar, scText(b.itemText, 300))
+        .input('loc', sql.NVarChar, scText(b.locText, 100)).input('unit', sql.NVarChar, scText(b.unitText, 50))
+        .input('note', sql.NVarChar, scText(b.note, 500)).query(
+        `INSERT INTO devsk.dInvCountDt (idCount, SeqNo, SrcType, InputText, ItemText, LocText, UnitText, NoteDt, MapStatus, ActionCode)
+         OUTPUT INSERTED.idCountDt VALUES (@id, @seq, 'U', @inp, @item, @loc, @unit, @note, 'P', 'PENDING')`);
+      idDt = r.recordset[0].idCountDt;
+      detail = `บันทึกรายการไม่พบในระบบ "${input || b.itemText}"`;
+    }
+    const qty = scNum(b.qty);
+    if (qty != null) {
+      if (qty < 0) { const e = new Error('ยอดนับต้องไม่ติดลบ'); e.status = 400; throw e; }
+      await new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, idDt).input('qty', sql.Decimal(18, 6), scRound(qty))
+        .input('method', sql.Char, ['S', 'K', 'B'].includes(b.method) ? b.method : 'K').input('ps', sql.Int, req.idPs).query(
+        `INSERT INTO devsk.dInvCountEntry (idCount, idCountDt, Qty, EntryMode, Method, RecountNo, idPsTs, DateTs)
+         VALUES (@id, @dt, @qty, 'R', @method, 0, @ps, GETDATE())`);
+      await scRecalcLines(t, id, [idDt]);
+    }
+    await scLog(t, id, 'add_line', detail, req.idPs);
+    return { idCountDt: idDt };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- นำเข้าใบนับเปล่า (Excel): จับคู่ด้วย Lot No. (+ ตำแหน่ง เมื่อ Lot เดียวกันอยู่หลายตำแหน่ง) ----------
+// พบในเอกสาร → ใส่ยอด / อยู่ในคลังหลักแต่นอกขอบเขต → เพิ่มรายการ (A) / ไม่พบ → รายการไม่พบในระบบ (U)
+// ยอดของ Lot เดียวกันหลายแถวในไฟล์ = รวมกัน แล้วแทนที่ยอดเดิม (นำเข้าไฟล์เดิมซ้ำได้ ยอดไม่เบิ้ล)
+const SC_MAX_BLANK_ROWS = 3000;
+app.post('/api/stock-count/doc/:id/import-blank', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
+  if (!rows.length) return scFail(res, 400, 'ไม่พบแถวที่กรอกยอดในไฟล์');
+  if (rows.length > SC_MAX_BLANK_ROWS) return scFail(res, 400, `นำเข้าได้ครั้งละไม่เกิน ${SC_MAX_BLANK_ROWS} แถว`);
+  const QUAL = ['NORMAL', 'QC', 'HOLD', 'REJECT'];
+  const norm = (s) => String(s == null ? '' : s).replace(/\s+/g, '').toUpperCase();
+  const out = await scTx(res, 'นำเข้าใบนับเปล่า', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT'], 'นำเข้ายอดนับได้เฉพาะระหว่างตรวจนับ');
+    if (doc.SheetType !== 'B') { const e = new Error('เอกสารนี้ไม่ได้ใช้ใบนับเปล่า'); e.status = 400; throw e; }
+    // ตำแหน่งที่ผู้นับเขียน เทียบได้ทั้งชื่อตำแหน่ง / ชื่อย่อ / path เต็ม / ชื่อท้ายสุดของ path (ไม่สนช่องว่าง ตัวพิมพ์)
+    const locKeys = (x) => [x.WareHouseName, x.short_lock, x.full_lock, String(x.full_lock || '').split('>').pop()].map(norm).filter(Boolean);
+    const docLines = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT d.idCountDt, d.LotNo, d.idWh, d.SrcType, d.stExclude, w.WareHouseName, w.short_lock, w.full_lock
+       FROM devsk.dInvCountDt d LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = d.idWh
+       WHERE d.idCount = @id AND d.SrcType <> 'U' ORDER BY d.stExclude, d.SeqNo`)).recordset;
+    const uLines = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT idCountDt, InputText, ItemText, LocText FROM devsk.dInvCountDt WHERE idCount = @id AND SrcType = 'U'`)).recordset;
+    // Lot ในคลังหลักของเอกสาร ที่ยังไม่อยู่ในเอกสาร (เฉพาะ Lot ที่อยู่ในไฟล์)
+    const lots = [...new Set(rows.map(r => scText(r.lotNo, 100)).filter(Boolean))];
+    const outScope = [];
+    for (let i = 0; i < lots.length; i += 500) {
+      const chunk = lots.slice(i, i + 500);
+      const rq = new sql.Request(t).input('id', sql.Int, id).input('p0', sql.Int, doc.idParent0);
+      chunk.forEach((l, k) => rq.input('l' + k, sql.VarChar, l));
+      outScope.push(...(await rq.query(
+        `SELECT r.idRefLot, lm.LotNo, r.idWh, w.WareHouseName, w.short_lock, w.full_lock
+         FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+         JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh AND w.idParent0 = @p0
+         JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = r.idLot AND lm.stDel IS NULL
+         WHERE lm.LotNo IN (${chunk.map((_, k) => '@l' + k).join(',')})
+           AND NOT EXISTS (SELECT 1 FROM devsk.dInvCountDt x WHERE x.idCount = @id AND x.idRefLot = r.idRefLot)
+         ORDER BY r.idRefLot`)).recordset);
+    }
+    // Lot เดียวกันหลาย ref ในตำแหน่งเดียวกัน (ERP แยกตามเอกสารรับเข้า) นับเป็นที่เดียว → ใช้รายการแรก
+    const oneWh = (arr) => arr.length > 0 && arr.every(c => c.idWh === arr[0].idWh);
+    const pick = (cands, loc) => {
+      if (loc) {
+        const m = cands.filter(c => locKeys(c).includes(norm(loc)));
+        if (m.length === 1 || oneWh(m)) return { one: m[0] };
+        // ชื่อตำแหน่งซ้ำกันหลายที่ → เลือกรายการในเอกสารก่อน (ถ้ามีที่เดียว)
+        if (m.length > 1) { const d = m.filter(c => c.kind === 'D'); return d.length === 1 ? { one: d[0] } : { many: true }; }
+      }
+      // ไม่ระบุตำแหน่ง / ตำแหน่งที่จดไม่ตรงระบบ → รายการในเอกสารก่อน แล้วค่อย Lot นอกขอบเขต (ต้องมีที่เดียว)
+      for (const kind of ['D', 'A']) {
+        let k = cands.filter(c => c.kind === kind);
+        // ไม่ระบุตำแหน่ง แต่ Lot อยู่ในเอกสารหลายที่ (เพิ่มนอกขอบเขตภายหลัง) → ใช้รายการจากยอด ERP ตอนเริ่มนับ (นำเข้าไฟล์เดิมซ้ำได้ผลเหมือนเดิม)
+        if (!loc && kind === 'D' && k.length > 1 && !oneWh(k)) { const s = k.filter(c => c.SrcType === 'S'); if (s.length === 1 || oneWh(s)) k = s; }
+        if (k.length === 1 || oneWh(k)) return { one: k[0], locDiff: !!loc };
+        if (k.length > 1) return { many: true };
+      }
+      return {};
+    };
+    const errors = [], target = new Map();
+    let seq = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT ISNULL(MAX(SeqNo), 0) AS n FROM devsk.dInvCountDt WHERE idCount = @id`)).recordset[0].n;
+    for (const r of rows) {
+      const lot = scText(r.lotNo, 100), loc = scText(r.loc, 100), item = scText(r.itemText, 300);
+      const qty = r.qty === '' || r.qty == null ? null : scNum(r.qty);
+      if (qty == null || Number.isNaN(qty)) { errors.push({ row: r.row, msg: 'ไม่ได้กรอกยอดนับ' }); continue; }
+      if (qty < 0 || qty > 1e12) { errors.push({ row: r.row, msg: 'ยอดนับต้องเป็นตัวเลขตั้งแต่ 0' }); continue; }
+      if (!lot && !item) { errors.push({ row: r.row, msg: 'ไม่ได้ระบุ Lot No. หรือชื่อสินค้า' }); continue; }
+      let key = null, kind = null, ref = null, rowNote = scText(r.note, 500);
+      if (lot) {
+        // ผู้สมัคร = รายการในเอกสาร (D) + Lot ในคลังหลักที่อยู่นอกขอบเขต (A) → ตำแหน่งที่จดใช้แยกเมื่อมีหลายที่
+        const cands = [...docLines.filter(d => norm(d.LotNo) === norm(lot)).map(d => ({ ...d, kind: 'D', ref: d.idCountDt })),
+                       ...outScope.filter(o => norm(o.LotNo) === norm(lot)).map(o => ({ ...o, kind: 'A', ref: o.idRefLot }))];
+        const p = pick(cands, loc);
+        let locNote = null;
+        if (p.many) { errors.push({ row: r.row, msg: `Lot ${lot} อยู่หลายตำแหน่ง — ระบุตำแหน่งจัดเก็บแบบเต็ม (path) ให้ตรงกับระบบ` }); continue; }
+        if (p.one) {
+          if (p.one.kind === 'D' && p.one.stExclude) { errors.push({ row: r.row, msg: `Lot ${lot} ถูกตั้งเป็นไม่นำมาคิด` }); continue; }
+          kind = p.one.kind; ref = p.one.ref; key = kind + ref;
+          if (p.locDiff) locNote = 'ตำแหน่งที่จด: ' + loc;
+        }
+        rowNote = [scText(r.note, 400), locNote].filter(Boolean).join(' · ');
+      }
+      if (!kind) { kind = 'U'; key = 'U' + norm(lot) + '|' + norm(item) + '|' + norm(loc); }
+      const cur = target.get(key) || { kind, ref, lot, loc, item, unit: scText(r.unit, 50), qty: 0, quality: null, note: null };
+      cur.qty += qty;
+      if (QUAL.includes(r.quality)) cur.quality = r.quality;
+      const nt = scText(rowNote, 500);
+      if (nt) cur.note = cur.note && cur.note !== nt ? `${cur.note} / ${nt}`.slice(0, 500) : nt;
+      target.set(key, cur);
+    }
+    const ids = [];
+    let nDoc = 0, nAdd = 0, nU = 0;
+    for (const x of target.values()) {
+      let dt = x.kind === 'D' ? x.ref : null;
+      if (x.kind === 'A') {
+        seq++;
+        const r = await new sql.Request(t).input('id', sql.Int, id).input('ref', sql.Int, x.ref).input('seq', sql.Int, seq).query(
+          `INSERT INTO devsk.dInvCountDt (idCount, SeqNo, SrcType, idRefLot, idLot, idInvMain, LotNo, idWh, idUnit, AmountErp, CostPerUnit, DateExp)
+           OUTPUT INSERTED.idCountDt
+           SELECT @id, @seq, 'A', r.idRefLot, r.idLot, lm.idInvMain, lm.LotNo, r.idWh, i.idUnit, r.Amount, lm.CostPerUnit, lm.DateExp
+           FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+           JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = r.idLot
+           JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = lm.idInvMain
+           WHERE r.idRefLot = @ref`);
+        dt = r.recordset[0].idCountDt; nAdd++;
+      } else if (x.kind === 'U') {
+        // นำเข้าไฟล์เดิมซ้ำ → ใช้รายการไม่พบในระบบเดิม (Lot / ชื่อ / ตำแหน่ง เดียวกัน)
+        const ex = uLines.find(u => norm(u.InputText) === norm(x.lot) && norm(u.ItemText) === norm(x.item) && norm(u.LocText) === norm(x.loc));
+        if (ex) dt = ex.idCountDt;
+        else {
+          seq++;
+          const r = await new sql.Request(t).input('id', sql.Int, id).input('seq', sql.Int, seq)
+            .input('inp', sql.NVarChar, x.lot).input('item', sql.NVarChar, x.item).input('loc', sql.NVarChar, x.loc).input('unit', sql.NVarChar, x.unit).query(
+            `INSERT INTO devsk.dInvCountDt (idCount, SeqNo, SrcType, InputText, ItemText, LocText, UnitText, MapStatus, ActionCode)
+             OUTPUT INSERTED.idCountDt VALUES (@id, @seq, 'U', @inp, @item, @loc, @unit, 'P', 'PENDING')`);
+          dt = r.recordset[0].idCountDt;
+        }
+        nU++;
+      } else nDoc++;
+      // ยอดในไฟล์แทนที่ยอดเดิม: void entry เดิมของรอบนับปัจจุบัน แล้วบันทึกยอดรวมจากไฟล์
+      await new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, dt).input('ps', sql.Int, req.idPs).input('qty', sql.Decimal(18, 6), scRound(x.qty)).query(
+        `UPDATE e SET stVoid = 1, idPsVoid = @ps, DateVoid = GETDATE()
+         FROM devsk.dInvCountEntry e JOIN devsk.dInvCountDt d ON d.idCountDt = e.idCountDt AND d.RecountNo = e.RecountNo
+         WHERE d.idCount = @id AND d.idCountDt = @dt AND e.stVoid IS NULL;
+         INSERT INTO devsk.dInvCountEntry (idCount, idCountDt, Qty, EntryMode, Method, RecountNo, idPsTs, DateTs)
+         SELECT @id, idCountDt, @qty, 'R', 'S', RecountNo, @ps, GETDATE() FROM devsk.dInvCountDt WHERE idCountDt = @dt;`);
+      const sets = [], rq = new sql.Request(t).input('dt', sql.Int, dt);
+      if (x.quality) { sets.push('QualityCode = @q'); rq.input('q', sql.VarChar, x.quality); }
+      if (x.note) { sets.push('NoteDt = @note'); rq.input('note', sql.NVarChar, x.note); }
+      if (sets.length) await rq.query(`UPDATE devsk.dInvCountDt SET ${sets.join(', ')} WHERE idCountDt = @dt`);
+      ids.push(dt);
+    }
+    if (ids.length) await scRecalcLines(t, id, ids);
+    await scLog(t, id, 'import', `นำเข้าใบนับเปล่า ${rows.length} แถว · ในเอกสาร ${nDoc} · เพิ่ม Lot นอกขอบเขต ${nAdd} · ไม่พบในระบบ ${nU}${errors.length ? ` · ข้าม ${errors.length} แถว` : ''}`, req.idPs);
+    return { inDoc: nDoc, added: nAdd, unmatched: nU, errors };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- จัดการรายการไม่พบในระบบ (U): จับคู่ (M → ยอดบวกเข้ารายการที่เลือก) / ทิ้ง (D) / ส่งตั้งรหัสใหม่ (N) / กลับเป็นรอ (P) ----------
+app.post('/api/stock-count/doc/:id/unmatched/:dt', requireMenu([MENU_SC, MENU_SC_REVIEW]), async (req, res) => {
+  const id = scInt(req.params.id), dt = scInt(req.params.dt);
+  const st = String((req.body && req.body.status) || '');
+  if (!['M', 'D', 'N', 'P'].includes(st)) return scFail(res, 400, 'สถานะไม่ถูกต้อง');
+  const out = await scTx(res, 'จัดการรายการ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT', 'REVIEW'], 'จัดการรายการได้เฉพาะระหว่างตรวจนับ / ตรวจสอบผลต่าง');
+    const u = (await new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, dt).query(
+      `SELECT * FROM devsk.dInvCountDt WHERE idCount = @id AND idCountDt = @dt AND SrcType = 'U'`)).recordset[0];
+    if (!u) { const e = new Error('ไม่พบรายการ'); e.status = 404; throw e; }
+    const note = scText(req.body.note, 500);
+    const mapTo = st === 'M' ? scInt(req.body.mapTo) : null;
+    // ยกเลิกการจับคู่เดิม (ถอนยอดที่เคยบวกเข้ารายการปลายทาง)
+    if (u.MapStatus === 'M' && u.idCountDtMap && u.AmountCount != null) {
+      await new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, u.idCountDtMap).input('qty', sql.Decimal(18, 6), u.AmountCount).input('ps', sql.Int, req.idPs).query(
+        `UPDATE devsk.dInvCountEntry SET stVoid = 1, idPsVoid = @ps, DateVoid = GETDATE()
+         WHERE idEntry = (SELECT TOP 1 idEntry FROM devsk.dInvCountEntry
+                          WHERE idCount = @id AND idCountDt = @dt AND stVoid IS NULL AND Method = 'X' AND EntryMode = 'A' AND Qty = @qty
+                          ORDER BY idEntry DESC)`);
+      await scRecalcLines(t, id, [u.idCountDtMap]);
+    }
+    if (st === 'M') {
+      const target = (await new sql.Request(t).input('id', sql.Int, id).input('to', sql.Int, mapTo).query(
+        `SELECT idCountDt, LotNo FROM devsk.dInvCountDt WHERE idCount = @id AND idCountDt = @to AND SrcType <> 'U' AND stExclude = 0`)).recordset[0];
+      if (!target) { const e = new Error('กรุณาเลือกรายการในเอกสารที่จะจับคู่'); e.status = 400; throw e; }
+      if (u.AmountCount != null) {
+        await new sql.Request(t).input('id', sql.Int, id).input('to', sql.Int, mapTo).input('qty', sql.Decimal(18, 6), u.AmountCount).input('ps', sql.Int, req.idPs).query(
+          `INSERT INTO devsk.dInvCountEntry (idCount, idCountDt, Qty, EntryMode, Method, RecountNo, idPsTs, DateTs)
+           SELECT @id, idCountDt, @qty, 'A', 'X', RecountNo, @ps, GETDATE() FROM devsk.dInvCountDt WHERE idCountDt = @to`);
+        await scRecalcLines(t, id, [mapTo]);
+      }
+    }
+    await new sql.Request(t).input('dt', sql.Int, dt).input('st', sql.Char, st).input('to', sql.Int, mapTo).input('note', sql.NVarChar, note).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvCountDt SET MapStatus = @st, idCountDtMap = @to, MapNote = @note,
+              idPsMap = CASE WHEN @st = 'P' THEN NULL ELSE @ps END, DateMap = CASE WHEN @st = 'P' THEN NULL ELSE GETDATE() END,
+              ActionCode = CASE WHEN @st = 'P' THEN 'PENDING' ELSE 'DONE' END
+       WHERE idCountDt = @dt`);
+    const label = { M: 'จับคู่', D: 'ทิ้งรายการ', N: 'ส่งตั้งรหัสใหม่', P: 'กลับเป็นรอตัดสินใจ' }[st];
+    await scLog(t, id, 'unmatched', `${label}: "${u.InputText || u.ItemText}"`, req.idPs);
+    return { id: dt };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- ปิดการนับ → REVIEW: รายการที่ไม่ได้นับ Z = ถือเป็น 0 (entry ระบบ) / X = ไม่นำมาคิด ----------
+// ตั้งค่าเริ่มต้นการส่งปรับยอด: มีผลต่าง และเกินค่ายอมรับ (TolerancePct) → ส่งปรับ / ตรงกัน หรืออยู่ในเกณฑ์ → ไม่ต้องดำเนินการ
+app.post('/api/stock-count/doc/:id/close', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const rule = req.body && req.body.rule === 'X' ? 'X' : 'Z';
+  const out = await scTx(res, 'ปิดการนับ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT'], 'เอกสารนี้ปิดการนับไปแล้ว');
+    const rq = new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).input('rule', sql.Char, rule)
+      .input('tol', sql.Decimal(9, 4), doc.TolerancePct || 0);
+    const r = await rq.query(
+      `DECLARE @nUn int = (SELECT COUNT(*) FROM devsk.dInvCountDt WHERE idCount = @id AND SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NULL);
+       IF @rule = 'Z'
+         INSERT INTO devsk.dInvCountEntry (idCount, idCountDt, Qty, EntryMode, Method, RecountNo, idPsTs, DateTs)
+         SELECT @id, idCountDt, 0, 'R', 'X', RecountNo, @ps, GETDATE()
+         FROM devsk.dInvCountDt WHERE idCount = @id AND SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NULL;
+       ELSE
+         UPDATE devsk.dInvCountDt SET stExclude = 1 WHERE idCount = @id AND SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NULL;
+       SELECT @nUn AS nUn;`);
+    if (rule === 'Z') await scRecalcLines(t, id);
+    await new sql.Request(t).input('id', sql.Int, id).input('tol', sql.Decimal(9, 4), doc.TolerancePct || 0)
+      .input('ps', sql.Int, req.idPs).input('rule', sql.Char, rule).query(
+      `UPDATE devsk.dInvCountDt SET
+         stAdjust = CASE WHEN SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NOT NULL
+                          AND ABS(AmountCount - ISNULL(AmountErp, 0)) >= 0.000001
+                          AND (@tol = 0 OR ISNULL(AmountErp, 0) = 0 OR ABS(AmountCount - AmountErp) * 100.0 / ABS(AmountErp) > @tol) THEN 1 ELSE 0 END,
+         ActionCode = CASE WHEN SrcType = 'U' THEN CASE WHEN ISNULL(MapStatus, 'P') = 'P' THEN 'PENDING' ELSE 'DONE' END
+                           WHEN stExclude = 1 OR AmountCount IS NULL OR ABS(AmountCount - ISNULL(AmountErp, 0)) < 0.000001 THEN 'NONE'
+                           WHEN @tol > 0 AND ISNULL(AmountErp, 0) <> 0 AND ABS(AmountCount - AmountErp) * 100.0 / ABS(AmountErp) <= @tol THEN 'NONE'
+                           ELSE 'PENDING' END
+       WHERE idCount = @id;
+       UPDATE devsk.dInvCountMt SET StatusCode = 'REVIEW', idPsClose = @ps, DateClose = GETDATE(), UncountedRule = @rule WHERE idCount = @id;`);
+    const nUn = r.recordset[0].nUn;
+    await scLog(t, id, 'close', `ปิดการนับ${nUn ? ` · รายการที่ไม่ได้นับ ${nUn} รายการ: ${rule === 'Z' ? 'ถือเป็น 0' : 'ไม่นำมาคิด'}` : ''}`, req.idPs);
+    return { notCounted: nUn };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- เปิดการนับต่อ (REVIEW → COUNT): ถอน entry ระบบ (ถือเป็น 0) + รายการไม่นำมาคิดที่ระบบตั้ง ----------
+app.post('/api/stock-count/doc/:id/reopen', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const out = await scTx(res, 'เปิดการนับต่อ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['REVIEW'], 'เปิดการนับต่อได้เฉพาะเอกสารที่รอตรวจสอบผลต่าง');
+    await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvCountEntry SET stVoid = 1, idPsVoid = @ps, DateVoid = GETDATE()
+       WHERE idCount = @id AND Method = 'X' AND EntryMode = 'R' AND stVoid IS NULL;
+       UPDATE devsk.dInvCountDt SET stExclude = 0 WHERE idCount = @id AND stExclude = 1 AND ${doc.UncountedRule === 'X' ? '1 = 1' : '1 = 0'};
+       UPDATE devsk.dInvCountDt SET ActionCode = 'PENDING', stAdjust = 0 WHERE idCount = @id AND SrcType <> 'U';
+       UPDATE devsk.dInvCountMt SET StatusCode = 'COUNT', idPsClose = NULL, DateClose = NULL, UncountedRule = NULL WHERE idCount = @id;`);
+    await scRecalcLines(t, id);
+    await scLog(t, id, 'reopen', 'เปิดการนับต่อ', req.idPs);
+    return { id };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- สั่งนับซ้ำเฉพาะรายการที่เลือก (REVIEW → COUNT) ----------
+app.post('/api/stock-count/doc/:id/recount', requireMenu(MENU_SC_REVIEW), async (req, res) => {
+  const id = scInt(req.params.id);
+  const ids = (Array.isArray(req.body && req.body.ids) ? req.body.ids : []).map(scInt).filter(Boolean);
+  if (!ids.length) return scFail(res, 400, 'กรุณาเลือกรายการที่จะนับซ้ำ');
+  const out = await scTx(res, 'สั่งนับซ้ำ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['REVIEW'], 'สั่งนับซ้ำได้เฉพาะเอกสารที่รอตรวจสอบผลต่าง');
+    const r = await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvCountEntry SET stVoid = 1, idPsVoid = @ps, DateVoid = GETDATE()
+       WHERE idCount = @id AND Method = 'X' AND EntryMode = 'R' AND stVoid IS NULL AND idCountDt NOT IN (${ids.join(',')});
+       UPDATE devsk.dInvCountDt SET RecountNo = RecountNo + 1, AmountCount = NULL, idPsCount = NULL, DateCountLn = NULL,
+              stAdjust = 0, ActionCode = 'FIX', stExclude = 0
+       WHERE idCount = @id AND SrcType <> 'U' AND idCountDt IN (${ids.join(',')});
+       SELECT @@ROWCOUNT AS n;
+       UPDATE devsk.dInvCountDt SET stExclude = 0 WHERE idCount = @id AND stExclude = 1 AND ${doc.UncountedRule === 'X' ? '1 = 1' : '1 = 0'};
+       UPDATE devsk.dInvCountMt SET StatusCode = 'COUNT', idPsClose = NULL, DateClose = NULL, UncountedRule = NULL WHERE idCount = @id;`);
+    await scRecalcLines(t, id);
+    const n = r.recordset[0].n;
+    await scLog(t, id, 'recount', `สั่งนับซ้ำ ${n} รายการ`, req.idPs);
+    return { recount: n };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- ส่งขออนุมัติปรับยอด: สร้าง RQ 1 ใบ (รายการที่ stAdjust = 1) / ไม่มีรายการ → DONE ----------
+// AmountBefore = ยอด ERP ปัจจุบัน / ปรับ = ยอดนับ − ยอด snapshot (ผลต่างจากการนับเท่านั้น) / After = Before ± ปรับ
+// idPsCommand = ผู้ตรวจสอบผลต่าง / idPsAction = ผู้ตรวจนับ / Lot ใน RQ ถูกล็อกโดย view ของ ERP จนอนุมัติครบ
+app.post('/api/stock-count/doc/:id/submit', requireMenu(MENU_SC_REVIEW), async (req, res) => {
+  const id = scInt(req.params.id);
+  const out = await scTx(res, 'ส่งขออนุมัติปรับยอด', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['REVIEW'], 'ส่งขออนุมัติปรับยอดได้เฉพาะเอกสารที่รอตรวจสอบผลต่าง');
+    const um = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT COUNT(*) AS n FROM devsk.dInvCountDt WHERE idCount = @id AND SrcType = 'U' AND ISNULL(MapStatus, 'P') = 'P'`)).recordset[0].n;
+    if (um) { const e = new Error(`ยังมีรายการไม่พบในระบบที่ยังไม่ได้จัดการ ${um} รายการ`); e.status = 409; throw e; }
+    const miss = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT COUNT(*) AS n FROM devsk.dInvCountDt WHERE idCount = @id AND stAdjust = 1 AND idCountCause IS NULL`)).recordset[0].n;
+    if (miss) { const e = new Error(`กรุณาระบุสาเหตุของรายการที่ส่งปรับยอดให้ครบ (ยังขาด ${miss} รายการ)`); e.status = 400; throw e; }
+    // ยอด ERP ปัจจุบัน (เตือนเคลื่อนไหวหลัง snapshot) — ล็อกแถวสต๊อกกันเปลี่ยนระหว่างสร้าง RQ
+    await new sql.Request(t).input('id', sql.Int, id).query(
+      `UPDATE d SET AmountErpNow = r.Amount
+       FROM devsk.dInvCountDt d JOIN devsk.dInvLotRefWh r WITH (UPDLOCK) ON r.idRefLot = d.idRefLot
+       WHERE d.idCount = @id AND d.stAdjust = 1`);
+    const lines = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT d.idCountDt, d.idLot, d.idRefLot, d.idInvMain, d.LotNo, d.idUnit, d.AmountErp, d.AmountCount, d.AmountErpNow, d.NoteDt, c.CauseName
+       FROM devsk.dInvCountDt d LEFT JOIN devsk.dInvCountCause c ON c.idCountCause = d.idCountCause
+       WHERE d.idCount = @id AND d.stAdjust = 1 ORDER BY d.SeqNo`)).recordset;
+    if (!lines.length) {
+      await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).query(
+        `UPDATE devsk.dInvCountDt SET ActionCode = 'NONE' WHERE idCount = @id AND SrcType <> 'U';
+         UPDATE devsk.dInvCountMt SET StatusCode = 'DONE', idPsSubmit = @ps, DateSubmit = GETDATE() WHERE idCount = @id;`);
+      await scLog(t, id, 'done', 'ปิดเอกสาร ไม่มีรายการต้องปรับยอด', req.idPs);
+      return { done: true };
+    }
+    const now = new Date();
+    const rqCode = await getNextRqDocCode(t, doc.idComp, now);
+    const typeName = (await new sql.Request(t).input('ty', sql.Int, doc.idCountType).query(
+      `SELECT TypeName FROM devsk.dInvCountType WHERE idCountType = @ty`)).recordset[0];
+    const noteReq = `ตรวจนับสต๊อก ${doc.DocCode}${typeName ? ` (${typeName.TypeName})` : ''}${doc.Note ? ` · ${doc.Note}` : ''}`.slice(0, 500);
+    const m = await new sql.Request(t)
+      .input('code', sql.VarChar, rqCode).input('cmd', sql.Int, doc.idPsReviewer).input('note', sql.VarChar, noteReq)
+      .input('act', sql.Int, doc.idPsCounter).input('comp', sql.Int, doc.idComp).input('ps', sql.Int, req.idPs).input('idc', sql.Int, id)
+      .query(`INSERT INTO devsk.dInvReqCountMt (DocCode, idPsCommand, NoteReq, idPsAction, idComp, idPsTs, DateTs, idCount, SrcType)
+              OUTPUT INSERTED.idRqUpdate
+              VALUES (@code, @cmd, @note, @act, @comp, @ps, GETDATE(), @idc, 'SC')`);
+    const idRq = m.recordset[0].idRqUpdate;
+    for (const l of lines) {
+      const diff = scRound(Number(l.AmountCount) - Number(l.AmountErp || 0));
+      const before = Number(l.AmountErpNow == null ? l.AmountErp : l.AmountErpNow);
+      const after = scRound(before + diff);
+      const note = [l.CauseName, l.NoteDt].filter(Boolean).join(' · ').slice(0, 500);
+      await new sql.Request(t)
+        .input('rq', sql.Int, idRq).input('lot', sql.Int, l.idLot).input('ref', sql.Int, l.idRefLot).input('inv', sql.Int, l.idInvMain)
+        .input('lotNo', sql.VarChar, String(l.LotNo || '').slice(0, 50)).input('unit', sql.Int, l.idUnit)
+        .input('before', sql.Decimal(18, 6), before).input('op', sql.VarChar, diff >= 0 ? '+' : '-')
+        .input('amt', sql.Decimal(18, 6), Math.abs(diff)).input('after', sql.Decimal(18, 6), after)
+        .input('note', sql.VarChar, note).input('dt', sql.Int, l.idCountDt)
+        .query(`INSERT INTO devsk.dInvReqCountDt (idRqUpdate, idLot, idRefLot, idInvMain, LotNo, idUnit, AmountBefore, Operate, AmountOperate, AmountAfter, NoteDt, idCountDt)
+                VALUES (@rq, @lot, @ref, @inv, @lotNo, @unit, @before, @op, @amt, @after, @note, @dt)`);
+    }
+    await new sql.Request(t).input('id', sql.Int, id).input('rq', sql.Int, idRq).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvCountDt SET ActionCode = CASE WHEN stAdjust = 1 THEN 'WAIT' WHEN SrcType = 'U' THEN ActionCode ELSE 'NONE' END WHERE idCount = @id;
+       UPDATE devsk.dInvCountMt SET StatusCode = 'APPROVE', idRqUpdate = @rq, ApvRound = ApvRound + 1,
+              idPsSubmit = @ps, DateSubmit = GETDATE(), SendBackNote = NULL, idPsSendBack = NULL, DateSendBack = NULL
+       WHERE idCount = @id;`);
+    await rqLog(t, idRq, 'submit', `สร้างจากเอกสารตรวจนับ ${doc.DocCode} (${lines.length} รายการ)`, req.idPs);
+    await scLog(t, id, 'submit', `ส่งขออนุมัติปรับยอด ${rqCode} (${lines.length} รายการ)`, req.idPs);
+    return { idRq, rqCode, lines: lines.length };
+  });
+  if (!out) return;
+  if (out.idRq) {
+    try { const code = await scFixRqDup(out.idRq); if (code) out.rqCode = code; } catch (e) { console.error('SC RQ dup check error:', e); }
+  }
+  res.json({ success: true, ...out });
+});
+
+// ---------- ยกเลิกเอกสาร (ทุกสถานะก่อนปรับสต๊อก) — มี RQ ค้างอยู่ → ยกเลิก RQ ด้วย (ปลดล็อก Lot) ----------
+app.post('/api/stock-count/doc/:id/cancel', requireMenu(MENU_SC_CANCEL), async (req, res) => {
+  const id = scInt(req.params.id);
+  const note = scText(req.body && req.body.note, 500);
+  if (!note) return scFail(res, 400, 'กรุณาระบุเหตุผลการยกเลิก');
+  const out = await scTx(res, 'ยกเลิกเอกสาร', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['DRAFT', 'COUNT', 'REVIEW', 'APPROVE'], 'ยกเลิกไม่ได้: เอกสารปรับสต๊อก / ปิดไปแล้ว');
+    if (doc.idRqUpdate && doc.StatusCode === 'APPROVE') {
+      const rq = (await new sql.Request(t).input('rq', sql.Int, doc.idRqUpdate).query(
+        `SELECT idRqUpdate, idPsCancel, idPsAccept, idPsCheck, idPsApprove FROM devsk.dInvReqCountMt WITH (UPDLOCK) WHERE idRqUpdate = @rq`)).recordset[0];
+      if (rq && rq.idPsAccept && rq.idPsCheck && rq.idPsApprove) { const e = new Error('ยกเลิกไม่ได้: ใบขอปรับยอดอนุมัติครบแล้ว'); e.status = 409; throw e; }
+      if (rq && !rq.idPsCancel) {
+        await new sql.Request(t).input('rq', sql.Int, doc.idRqUpdate).input('ps', sql.Int, req.idPs).input('note', sql.VarChar, `ยกเลิกเอกสารตรวจนับ ${doc.DocCode}: ${note}`.slice(0, 500))
+          .query(`UPDATE devsk.dInvReqCountMt SET idPsCancel = @ps, DateCancel = GETDATE(), CancelNote = @note WHERE idRqUpdate = @rq`);
+        await rqLog(t, doc.idRqUpdate, 'cancel', note, req.idPs);
+      }
+    }
+    await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).input('note', sql.NVarChar, note).query(
+      `UPDATE devsk.dInvCountMt SET StatusCode = 'CANCEL', idPsCancel = @ps, DateCancel = GETDATE(), CancelNote = @note WHERE idCount = @id`);
+    await scLog(t, id, 'cancel', note, req.idPs);
+    return { id };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ==================================================================
+// ---------- อนุมัติปรับยอดสต๊อก: RQ ทุกใบ (ERP desktop + ตรวจนับ) ----------
+// ==================================================================
+const ADJ_HEAD_SELECT = `
+  m.idRqUpdate, m.DocCode, m.idComp, LTRIM(RTRIM(co.CompCode)) AS CompCode, co.CompName, m.NoteReq, m.DateTs, m.SrcType, m.idCount,
+  sc.DocCode AS ScCode, sc.StatusCode AS ScStatus,
+  m.idPsTs, pts.PsName AS CreatorName, m.idPsCommand, pcm.PsName AS CommandName, m.idPsAction, pac.PsName AS ActionName,
+  m.idPsAccept, pa.PsName AS AcceptName, m.DateAccept, m.idPsCheck, pk.PsName AS CheckName, m.DateCheck,
+  m.idPsApprove, pp.PsName AS ApproveName, m.DateApprove, m.idPsCancel, m.DateCancel, m.CancelNote,
+  (SELECT COUNT(*) FROM devsk.dInvReqCountDt d WITH (NOLOCK) WHERE d.idRqUpdate = m.idRqUpdate) AS nLine,
+  (SELECT SUM(CASE WHEN d.Operate = '+' THEN 1 ELSE 0 END) FROM devsk.dInvReqCountDt d WITH (NOLOCK) WHERE d.idRqUpdate = m.idRqUpdate) AS nPlus,
+  (SELECT SUM(CASE WHEN d.Operate = '-' THEN 1 ELSE 0 END) FROM devsk.dInvReqCountDt d WITH (NOLOCK) WHERE d.idRqUpdate = m.idRqUpdate) AS nMinus,
+  (SELECT SUM(CASE WHEN d.Operate = '-' THEN -1 ELSE 1 END * d.AmountOperate * ISNULL(lm.CostPerUnit, 0))
+     FROM devsk.dInvReqCountDt d WITH (NOLOCK) LEFT JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = d.idLot
+     WHERE d.idRqUpdate = m.idRqUpdate) AS AdjValue`;
+const ADJ_HEAD_JOIN = `
+  LEFT JOIN PchInvAndProject.dbo.dCompany co WITH (NOLOCK) ON co.idComp = m.idComp
+  LEFT JOIN devsk.dInvCountMt sc WITH (NOLOCK) ON sc.idCount = m.idCount
+  LEFT JOIN devsk.vPersonxSelect pts ON pts.idPs = m.idPsTs
+  LEFT JOIN devsk.vPersonxSelect pcm ON pcm.idPs = m.idPsCommand
+  LEFT JOIN devsk.vPersonxSelect pac ON pac.idPs = m.idPsAction
+  LEFT JOIN devsk.vPersonxSelect pa ON pa.idPs = m.idPsAccept
+  LEFT JOIN devsk.vPersonxSelect pk ON pk.idPs = m.idPsCheck
+  LEFT JOIN devsk.vPersonxSelect pp ON pp.idPs = m.idPsApprove`;
+function adjMapHead(x) {
+  const step = (id, name, at) => (id ? { id, by: name || '-', at } : null);
+  return {
+    id: x.idRqUpdate, docCode: x.DocCode, idComp: x.idComp, compCode: x.CompCode, compName: x.CompName, note: x.NoteReq, dateTs: x.DateTs,
+    src: x.SrcType || null, idCount: x.idCount, scCode: x.ScCode, scStatus: x.ScStatus,
+    creator: x.CreatorName, command: x.CommandName, action: x.ActionName,
+    steps: { ack: step(x.idPsAccept, x.AcceptName, x.DateAccept), check: step(x.idPsCheck, x.CheckName, x.DateCheck), approve: step(x.idPsApprove, x.ApproveName, x.DateApprove) },
+    cancel: x.idPsCancel ? { at: x.DateCancel, note: x.CancelNote } : null,
+    nLine: x.nLine || 0, nPlus: x.nPlus || 0, nMinus: x.nMinus || 0, adjValue: Number(x.AdjValue || 0)
+  };
+}
+
+// รายการรออนุมัติ (ยังไม่ยกเลิก + ยังไม่ครบ 3 ขั้น) / done=1 → ที่ครบแล้ว 90 วันล่าสุด
+app.get('/api/stock-adjust/list', requireMenu(MENU_ADJ, { companyParam: 'idComp' }), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const request = pool.request();
+    let where = req.query.done === '1'
+      ? `WHERE m.idPsCancel IS NULL AND m.idPsAccept IS NOT NULL AND m.idPsCheck IS NOT NULL AND m.idPsApprove IS NOT NULL AND m.DateTs >= DATEADD(day, -90, GETDATE())`
+      : `WHERE m.idPsCancel IS NULL AND (m.idPsAccept IS NULL OR m.idPsCheck IS NULL OR m.idPsApprove IS NULL)`;
+    const idComp = scInt(req.query.idComp);
+    if (idComp) { request.input('idComp', sql.Int, idComp); where += ' AND m.idComp = @idComp'; }
+    else where += ' ' + compFilter(req.access, request, 'm.idComp');
+    const r = await request.query(
+      `SELECT TOP 500 ${ADJ_HEAD_SELECT} FROM devsk.dInvReqCountMt m WITH (NOLOCK) ${ADJ_HEAD_JOIN} ${where} ORDER BY m.DateTs DESC, m.idRqUpdate DESC`);
+    res.json({ success: true, data: r.recordset.map(adjMapHead), postingReady: SC_POSTING_READY, me: req.idPs,
+      can: { ack: hasMenu(req.access, MENU_ADJ_ACK), check: hasMenu(req.access, MENU_ADJ_CHECK), approve: hasMenu(req.access, MENU_ADJ_APPROVE), review: hasMenu(req.access, MENU_SC_REVIEW) } });
+  } catch (err) {
+    console.error('ADJ list error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการขอปรับยอดไม่สำเร็จ', detail: err.message });
+  }
+});
+
+app.get('/api/stock-adjust/doc/:id', requireMenu([...MENU_ADJ, MENU_SC_REVIEW, MENU_SC]), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('id', sql.Int, scInt(req.params.id)).query(
+      `SELECT ${ADJ_HEAD_SELECT} FROM devsk.dInvReqCountMt m WITH (NOLOCK) ${ADJ_HEAD_JOIN} WHERE m.idRqUpdate = @id;
+
+       SELECT d.idRqUpdateDt, d.idLot, d.idRefLot, d.LotNo, i.InvCode, i.InvName, u.UnitName,
+              w.WareHouseName AS LocName, w.full_lock AS LocPath,
+              d.AmountBefore, d.Operate, d.AmountOperate, d.AmountAfter, d.NoteDt, lm.CostPerUnit,
+              r.Amount AS AmountNow, cd.AmountErp, cd.AmountCount
+       FROM devsk.dInvReqCountDt d WITH (NOLOCK)
+       LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+       LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = i.idUnit
+       LEFT JOIN devsk.dInvLotRefWh r WITH (NOLOCK) ON r.idRefLot = d.idRefLot
+       LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh
+       LEFT JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = d.idLot
+       LEFT JOIN devsk.dInvCountDt cd WITH (NOLOCK) ON cd.idCountDt = d.idCountDt
+       WHERE d.idRqUpdate = @id ORDER BY d.idRqUpdateDt;
+
+       SELECT l.StepCode, l.Note, l.DateTs, p.PsName FROM devsk.dInvReqCountLog l WITH (NOLOCK)
+       LEFT JOIN devsk.vPersonxSelect p ON p.idPs = l.idPsTs WHERE l.idRqUpdate = @id ORDER BY l.idLog;`);
+    const head = r.recordsets[0][0];
+    if (!head) return scFail(res, 404, 'ไม่พบใบขอปรับยอด');
+    if (!hasComp(req.access, head.idComp)) return scFail(res, 403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    const num = (v) => (v == null ? null : Number(v));
+    res.json({
+      success: true, postingReady: SC_POSTING_READY, me: req.idPs,
+      can: { ack: hasMenu(req.access, MENU_ADJ_ACK), check: hasMenu(req.access, MENU_ADJ_CHECK), approve: hasMenu(req.access, MENU_ADJ_APPROVE) },
+      data: {
+        ...adjMapHead(head),
+        lines: r.recordsets[1].map(d => ({
+          id: d.idRqUpdateDt, lotNo: d.LotNo, invCode: d.InvCode, invName: d.InvName, unit: d.UnitName, loc: d.LocName, locPath: d.LocPath,
+          before: num(d.AmountBefore), op: d.Operate, amount: num(d.AmountOperate), after: num(d.AmountAfter), note: d.NoteDt,
+          cost: num(d.CostPerUnit), now: num(d.AmountNow), erp: num(d.AmountErp), count: num(d.AmountCount)
+        })),
+        log: r.recordsets[2].map(l => ({ step: l.StepCode, note: l.Note, at: l.DateTs, by: l.PsName }))
+      }
+    });
+  } catch (err) {
+    console.error('ADJ doc error:', err);
+    res.status(500).json({ success: false, message: 'โหลดใบขอปรับยอดไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- กดขั้น รับทราบ / ตรวจสอบ / อนุมัติ (ก่อนหลังได้) ----------
+// ขั้นที่จะทำให้ครบ 3 ขั้น: ยังไม่เปิดจนกว่าจะมีส่วนปรับสต๊อกจริง (กัน view ปลดล็อก Lot ทั้งที่สต๊อกยังไม่ถูกปรับ)
+app.post('/api/stock-adjust/doc/:id/step', requireMenu(MENU_ADJ), async (req, res) => {
+  const id = scInt(req.params.id);
+  const step = ADJ_STEPS[String((req.body && req.body.step) || '')];
+  if (!step) return scFail(res, 400, 'ขั้นตอนไม่ถูกต้อง');
+  if (!hasMenu(req.access, step.menu)) return scFail(res, 403, `ไม่มีสิทธิ์${step.name}`);
+  const note = scText(req.body.note, 500);
+  const out = await scTx(res, `บันทึก${step.name}`, async (t) => {
+    const m = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT * FROM devsk.dInvReqCountMt WITH (UPDLOCK, ROWLOCK) WHERE idRqUpdate = @id`)).recordset[0];
+    if (!m) { const e = new Error('ไม่พบใบขอปรับยอด'); e.status = 404; throw e; }
+    if (!hasComp(req.access, m.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+    if (m.idPsCancel) { const e = new Error('ใบขอปรับยอดนี้ถูกยกเลิกแล้ว'); e.status = 409; throw e; }
+    if (m[step.ps]) { const e = new Error(`ขั้น${step.name}ถูกบันทึกไปแล้ว`); e.status = 409; throw e; }
+    const others = Object.values(ADJ_STEPS).filter(s => s !== step);
+    if (others.every(s => m[s.ps]) && !SC_POSTING_READY) {
+      const e = new Error('ขั้นสุดท้าย (ครบ 3 ขั้น = ปรับสต๊อกจริง) ยังเปิดใช้บนเว็บไม่ได้ — อยู่ระหว่างพัฒนาส่วนปรับสต๊อก กรุณาอนุมัติปรับยอดขั้นนี้ในโปรแกรม WIM Desktop');
+      e.status = 409; throw e;
+    }
+    await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvReqCountMt SET ${step.ps} = @ps, ${step.date} = GETDATE(), ${step.st} = 1 WHERE idRqUpdate = @id`);
+    await rqLog(t, id, step.log, note, req.idPs);
+    if (m.idCount) await scLog(t, m.idCount, 'apv_' + step.log, `${step.name} ${m.DocCode}${note ? ` · ${note}` : ''}`, req.idPs);
+    return { id };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- ส่งกลับแก้ไข (เฉพาะ RQ ที่มาจากการตรวจนับ): ยกเลิก RQ (ปลดล็อก Lot) → เอกสาร SC กลับไปรอตรวจสอบผลต่าง ----------
+app.post('/api/stock-adjust/doc/:id/send-back', requireMenu(MENU_ADJ), async (req, res) => {
+  const id = scInt(req.params.id);
+  const note = scText(req.body && req.body.note, 500);
+  if (!note) return scFail(res, 400, 'กรุณาระบุเหตุผลที่ส่งกลับแก้ไข');
+  const out = await scTx(res, 'ส่งกลับแก้ไข', async (t) => {
+    const m = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT * FROM devsk.dInvReqCountMt WITH (UPDLOCK, ROWLOCK) WHERE idRqUpdate = @id`)).recordset[0];
+    if (!m) { const e = new Error('ไม่พบใบขอปรับยอด'); e.status = 404; throw e; }
+    if (!hasComp(req.access, m.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+    if (m.SrcType !== 'SC' || !m.idCount) { const e = new Error('ใบขอปรับยอดจาก WIM Desktop ส่งกลับแก้ไขบนเว็บไม่ได้'); e.status = 400; throw e; }
+    if (m.idPsCancel) { const e = new Error('ใบขอปรับยอดนี้ถูกยกเลิกแล้ว'); e.status = 409; throw e; }
+    if (m.idPsAccept && m.idPsCheck && m.idPsApprove) { const e = new Error('อนุมัติปรับยอดครบแล้ว ส่งกลับไม่ได้'); e.status = 409; throw e; }
+    const doc = await scLockDoc(t, m.idCount, req.access);
+    await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).input('note', sql.VarChar, `ส่งกลับแก้ไข: ${note}`.slice(0, 500)).query(
+      `UPDATE devsk.dInvReqCountMt SET idPsCancel = @ps, DateCancel = GETDATE(), CancelNote = @note WHERE idRqUpdate = @id`);
+    await rqLog(t, id, 'sendback', note, req.idPs);
+    if (doc.StatusCode === 'APPROVE' && doc.idRqUpdate === id) {
+      await new sql.Request(t).input('sc', sql.Int, doc.idCount).input('ps', sql.Int, req.idPs).input('note', sql.NVarChar, note).query(
+        `UPDATE devsk.dInvCountDt SET ActionCode = 'FIX' WHERE idCount = @sc AND ActionCode = 'WAIT';
+         UPDATE devsk.dInvCountMt SET StatusCode = 'REVIEW', SendBackNote = @note, idPsSendBack = @ps, DateSendBack = GETDATE() WHERE idCount = @sc;`);
+      await scLog(t, doc.idCount, 'sendback', `${m.DocCode} ส่งกลับแก้ไข: ${note}`, req.idPs);
+    }
+    return { id, idCount: m.idCount };
+  });
+  if (out) res.json({ success: true, ...out });
 });
 
 // ==================================================================
