@@ -6341,7 +6341,7 @@ app.post('/api/ops/apv/:id', requireLogin, async (req, res) => {
 // → ส่งขออนุมัติ = สร้าง RQ 1 ใบใน dInvReqCountMt/Dt (SrcType = 'SC') → APPROVE / ไม่มีรายการต้องปรับ → DONE
 // → หน้าอนุมัติ (RQ ทุกใบ ทั้งจาก ERP desktop และ SC) รับทราบ / ตรวจสอบ / อนุมัติ กดก่อนหลังได้
 // - หน่วย = dInventoryMain.idUnit / ยอด ERP = dInvLotRefWh.Amount (ไม่ใช้ dInvLotRefWh.idUnit)
-// - ขั้นสุดท้ายที่ทำให้ครบ 3 ขั้นยังกดบนเว็บไม่ได้ จนกว่าจะทำส่วนปรับสต๊อกจริง (SC_POSTING_READY) — กันสต๊อกไม่ถูกปรับแต่ RQ ปลดล็อก Lot
+// - ขั้นที่ทำให้ครบ 3 ขั้น = ปรับสต๊อกจริงใน transaction เดียวกัน (adjPost — ชุดเดียวกับ WIM Desktop) / SC_POSTING_READY = false ปิดไว้ได้
 const MENU_SC = 'stock_count';
 const MENU_SC_REVIEW = 'stock_count_review';
 const MENU_SC_CANCEL = 'stock_count_cancel';
@@ -6353,7 +6353,7 @@ const MENU_ADJ = [MENU_ADJ_ACK, MENU_ADJ_CHECK, MENU_ADJ_APPROVE];
 // รายการขอปรับยอดสต๊อก (เจ้าหน้าที่): ติดตาม / ส่งต่อ / พิมพ์ RQ ทุกใบ (ทั้งจาก WIM Desktop และการตรวจนับ) — ดูอย่างเดียว
 const MENU_ADJ_TRACK = 'stock_adjust_track';
 const MENU_SC_VIEW = [MENU_SC, MENU_SC_REVIEW, ...MENU_ADJ, MENU_ADJ_TRACK];
-const SC_POSTING_READY = false;
+const SC_POSTING_READY = true;
 const SC_EPS = 1e-6;
 const SC_MAX_ENTRY_BATCH = 2000;
 const SC_LIST_MAX = 1000;   // รายการเอกสารตรวจนับ: ดึงสูงสุดกี่ใบล่าสุด (เกิน = หน้าเว็บเตือนให้ระบุช่วงวันที่)
@@ -7687,7 +7687,8 @@ app.get('/api/stock-adjust/doc/:id', requireMenu([...MENU_ADJ, MENU_ADJ_TRACK, M
        WHERE d.idRqUpdate = @id ORDER BY d.idRqUpdateDt;
 
        SELECT l.StepCode, l.Note, l.DateTs, p.PsName FROM devsk.dInvReqCountLog l WITH (NOLOCK)
-       LEFT JOIN devsk.vPersonxSelect p ON p.idPs = l.idPsTs WHERE l.idRqUpdate = @id ORDER BY l.idLog;`);
+       LEFT JOIN devsk.vPersonxSelect p ON p.idPs = l.idPsTs WHERE l.idRqUpdate = @id ORDER BY l.idLog;
+       SELECT TOP 1 lc.idUpdate, lc.DocCode, lc.DateTs FROM devsk.dInvLotCountMt lc WITH (NOLOCK) WHERE lc.idRqUpdate = @id ORDER BY lc.idUpdate DESC;`);
     const head = r.recordsets[0][0];
     if (!head) return scFail(res, 404, 'ไม่พบใบขอปรับยอดสต๊อก');
     if (!hasComp(req.access, head.idComp)) return scFail(res, 403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
@@ -7720,6 +7721,7 @@ app.get('/api/stock-adjust/doc/:id', requireMenu([...MENU_ADJ, MENU_ADJ_TRACK, M
           cost: num(d.CostPerUnit), now: num(d.AmountNow), erp: num(d.AmountErp), count: num(d.AmountCount)
         })),
         log: r.recordsets[2].map(l => ({ step: l.StepCode, note: l.Note, at: l.DateTs, by: l.PsName })),
+        posted: r.recordsets[3][0] ? { id: r.recordsets[3][0].idUpdate, docCode: r.recordsets[3][0].DocCode, at: r.recordsets[3][0].DateTs } : null,
         sc
       }
     });
@@ -7731,6 +7733,86 @@ app.get('/api/stock-adjust/doc/:id', requireMenu([...MENU_ADJ, MENU_ADJ_TRACK, M
 
 // ---------- กดขั้น รับทราบ / ตรวจสอบ / อนุมัติ (ก่อนหลังได้) ----------
 // ขั้นที่จะทำให้ครบ 3 ขั้น: ยังไม่เปิดจนกว่าจะมีส่วนปรับสต๊อกจริง (กัน view ปลดล็อก Lot ทั้งที่สต๊อกยังไม่ถูกปรับ)
+// ---------- ปรับสต๊อกจริง (ครบ 3 ขั้น) — ชุดเดียวกับ WIM Desktop: InsertLotCountMt / InsertLotCountDt / InvLotMainUpdate / InvLotStockCard ----------
+// เลขที่ dInvLotCountMt = RunTsLotCount: MAX(DocCode) ของบริษัทในปี ค.ศ. (YEAR(DateTs)) → ตัด 5 ตัวแรก ("yymm/") +1 เป็น 5 หลัก / prefix = yymm พ.ศ. ของวันนี้
+const ADJ_CARD_NOTE = 'เมนูทำรายการปรับ/ตรวจนับสต็อก';
+const ADJ_CARD_TYPE = { '+': 1, '-': 2, '=': 3 };   // dInvLotStockCard.typeTs: 1 เพิ่ม (QtyIn) / 2 ลด (QtyOut) / 3 ตั้งยอดใหม่ (QtyIn)
+async function getNextLotCountCode(runner, idComp, date) {
+  const r = await new sql.Request(runner)
+    .input('idComp', sql.Int, idComp).input('y', sql.Int, date.getFullYear())
+    .query(`SELECT MAX(DocCode) AS mx FROM devsk.dInvLotCountMt WITH (UPDLOCK, HOLDLOCK) WHERE idComp = @idComp AND YEAR(DateTs) = @y`);
+  const mx = r.recordset[0].mx;
+  const last = mx ? parseInt(String(mx).substring(5), 10) || 0 : 0;
+  const yymm = String(date.getFullYear() + 543).slice(-2) + String(date.getMonth() + 1).padStart(2, '0');
+  return `${yymm}/${String(last + 1).padStart(5, '0')}`;
+}
+// m = แถว dInvReqCountMt (ล็อกแล้ว) / ทุกอย่างอยู่ใน transaction t — พลาดตรงไหน = rollback ทั้งใบ (รวมขั้นที่เพิ่งกด)
+// ยอดเปลี่ยนระหว่างรออนุมัติ: ปรับตามจำนวนที่ขอจากยอดปัจจุบัน (เหมือน Desktop) / ปรับลดจนติดลบ = ไม่ให้ปรับทั้งใบ
+async function adjPost(t, m, req) {
+  const lines = (await new sql.Request(t).input('id', sql.Int, m.idRqUpdate).query(
+    `SELECT d.idRqUpdateDt, d.idLot, d.idRefLot, d.idInvMain, d.LotNo, d.idUnit, d.AmountBefore, d.Operate, d.AmountOperate, d.AmountAfter, d.NoteDt,
+            w.Amount AS AmountNow, w.idWh, w.idRefLot AS whRef
+     FROM devsk.dInvReqCountDt d
+     LEFT JOIN devsk.dInvLotRefWh w WITH (UPDLOCK, ROWLOCK) ON w.idRefLot = d.idRefLot
+     WHERE d.idRqUpdate = @id ORDER BY d.idRqUpdateDt`)).recordset;
+  if (!lines.length) { const e = new Error('ใบขอปรับยอดสต๊อกนี้ไม่มีรายการ — ปรับสต๊อกไม่ได้'); e.status = 409; throw e; }
+  const problems = [];
+  for (const l of lines) {
+    const op = String(l.Operate || '').trim(), qty = Number(l.AmountOperate || 0);
+    l.op = op;
+    if (!l.whRef) { problems.push(`Lot ${l.LotNo}: ไม่พบตำแหน่งจัดเก็บในระบบ`); continue; }
+    if (!ADJ_CARD_TYPE[op]) { problems.push(`Lot ${l.LotNo}: เครื่องหมายปรับไม่ถูกต้อง (${op || '-'})`); continue; }
+    const now = Number(l.AmountNow || 0);
+    l.newAmt = scRound(op === '+' ? now + qty : op === '-' ? now - qty : qty);
+    if (l.newAmt < -SC_EPS) problems.push(`Lot ${l.LotNo}: ยอดไม่พอ (คงเหลือ ${scRound(now)} ปรับลด ${scRound(qty)})`);
+  }
+  if (problems.length) {
+    const e = new Error(`ปรับสต๊อกไม่ได้ — ${problems.slice(0, 5).join(' / ')}${problems.length > 5 ? ` และอีก ${problems.length - 5} รายการ` : ''}`);
+    e.status = 409; throw e;
+  }
+  const code = await getNextLotCountCode(t, m.idComp, new Date());
+  const mt = await new sql.Request(t)
+    .input('rq', sql.Int, m.idRqUpdate).input('code', sql.VarChar(15), code).input('ts', sql.Int, m.idPsTs)
+    .input('cmd', sql.Int, m.idPsCommand).input('act', sql.Int, m.idPsAction).input('note', sql.VarChar(500), erpText(m.NoteReq).slice(0, 500))
+    .input('comp', sql.Int, m.idComp)
+    .query(`INSERT INTO devsk.dInvLotCountMt (idRqUpdate, DocCode, idPsTs, DateTs, idPsCommand, idPsAction, Note, idComp)
+            OUTPUT INSERTED.idUpdate VALUES (@rq, @code, @ts, GETDATE(), @cmd, @act, @note, @comp)`);
+  const idUpdate = mt.recordset[0].idUpdate;
+  for (const l of lines) {
+    const qty = Number(l.AmountOperate || 0), type = ADJ_CARD_TYPE[l.op];
+    await new sql.Request(t)
+      .input('up', sql.Int, idUpdate).input('rqdt', sql.Int, l.idRqUpdateDt).input('lot', sql.Int, l.idLot).input('ref', sql.Int, l.idRefLot)
+      .input('inv', sql.Int, l.idInvMain).input('lotNo', sql.VarChar(50), String(l.LotNo || '').slice(0, 50)).input('unit', sql.Int, l.idUnit)
+      .input('before', sql.Decimal(18, 6), l.AmountBefore).input('op', sql.VarChar(2), l.op).input('amt', sql.Decimal(18, 6), qty)
+      .input('after', sql.Decimal(18, 6), l.AmountAfter).input('note', sql.VarChar(255), erpText(l.NoteDt).slice(0, 255))
+      .input('newAmt', sql.Decimal(20, 6), l.newAmt).input('ps', sql.Int, req.idPs)
+      .query(`INSERT INTO devsk.dInvLotCountDt (idUpdate, idRqUpdateDt, idLot, idRefLot, idInvMain, lotNo, idUnit, AmountBefore, Operate, AmountOperate, AmountAfter, Note)
+              VALUES (@up, @rqdt, @lot, @ref, @inv, @lotNo, @unit, @before, @op, @amt, @after, @note);
+              UPDATE devsk.dInvLotRefWh SET Amount = @newAmt WHERE idRefLot = @ref;
+              UPDATE devsk.dInvLotMain SET idPsUpDate = @ps, DateUpDate = GETDATE() WHERE idLot = @lot;`);
+    const bal = (await new sql.Request(t).input('lot', sql.Int, l.idLot).input('inv', sql.Int, l.idInvMain).query(
+      `SELECT (SELECT ISNULL(SUM(Amount), 0) FROM devsk.dInvLotRefWh WHERE idLot = @lot) AS lotBal,
+              (SELECT ISNULL(SUM(wh.Amount), 0) FROM devsk.dInvLotRefWh wh LEFT JOIN devsk.dInvLotMain lm ON wh.idLot = lm.idLot
+               WHERE lm.idInvMain = @inv AND lm.CompRec = (SELECT CompRec FROM devsk.dInvLotMain WHERE idLot = @lot) AND lm.stDel IS NULL) AS invBal`)).recordset[0];
+    await new sql.Request(t)
+      .input('inv', sql.Int, l.idInvMain).input('lot', sql.Int, l.idLot).input('lotNo', sql.VarChar(100), String(l.LotNo || '')).input('wh', sql.Int, l.idWh)
+      .input('ref', sql.Int, l.idRefLot).input('type', sql.Int, type).input('qty', sql.Decimal(20, 6), qty).input('bal', sql.Decimal(20, 6), bal.lotBal)
+      .input('note', sql.VarChar(200), ADJ_CARD_NOTE).input('ps', sql.Int, req.idPs).input('up', sql.Int, idUpdate).input('balInv', sql.Decimal(20, 6), bal.invBal)
+      .query(`INSERT INTO devsk.dInvLotStockCard (idInvMain, idLot, LotNo, idWh, idRefLot, typeTs, ${type === 2 ? 'QtyOut' : 'QtyIn'}, QtyBalance, Note, idPsTs, DateTs, idRef, RefSys, RefTable, QtyBalInv)
+              VALUES (@inv, @lot, @lotNo, @wh, @ref, @type, @qty, @bal, @note, @ps, GETDATE(), @up, 'WIM', 'dInvLotCountMt', @balInv)`);
+  }
+  // เอกสารตรวจนับต้นทาง → ปรับสต๊อกแล้ว / รายการที่รออนุมัติ → ดำเนินการแล้ว
+  if (m.idCount && m.SrcType === 'SC') {
+    await new sql.Request(t).input('sc', sql.Int, m.idCount).input('rq', sql.Int, m.idRqUpdate).query(
+      `UPDATE devsk.dInvCountMt SET StatusCode = 'POSTED', DatePosted = GETDATE() WHERE idCount = @sc AND idRqUpdate = @rq AND StatusCode = 'APPROVE';
+       UPDATE devsk.dInvCountDt SET ActionCode = 'DONE' WHERE idCount = @sc AND ActionCode = 'WAIT'
+         AND idCountDt IN (SELECT idCountDt FROM devsk.dInvReqCountDt WHERE idRqUpdate = @rq);`);
+    await scLog(t, m.idCount, 'posted', `ปรับสต๊อก ${code} ตามใบขอปรับยอดสต๊อก ${m.DocCode} (${lines.length} รายการ)`, req.idPs);
+  }
+  await rqLog(t, m.idRqUpdate, 'post', `ปรับสต๊อก ${code} (${lines.length} รายการ)`, req.idPs);
+  return { postCode: code, idUpdate, nLine: lines.length };
+}
+
 async function adjDoStep(t, id, step, note, req) {
   const m = (await new sql.Request(t).input('id', sql.Int, id).query(
     `SELECT * FROM devsk.dInvReqCountMt WITH (UPDLOCK, ROWLOCK) WHERE idRqUpdate = @id`)).recordset[0];
@@ -7739,7 +7821,8 @@ async function adjDoStep(t, id, step, note, req) {
   if (m.idPsCancel) { const e = new Error('ใบขอปรับยอดสต๊อกนี้ถูกยกเลิกแล้ว'); e.status = 409; throw e; }
   if (m[step.ps]) { const e = new Error(`ขั้น${step.name}ถูกบันทึกไปแล้ว`); e.status = 409; throw e; }
   const others = Object.values(ADJ_STEPS).filter(s => s !== step);
-  if (others.every(s => m[s.ps]) && !SC_POSTING_READY) {
+  const completes = others.every(s => m[s.ps]);   // ขั้นนี้ทำให้ครบ 3 ขั้น = ปรับสต๊อกจริง
+  if (completes && !SC_POSTING_READY) {
     const e = new Error('ขั้นสุดท้าย (ครบ 3 ขั้น = ปรับสต๊อกจริง) ยังเปิดใช้บนเว็บไม่ได้ — อยู่ระหว่างพัฒนาส่วนปรับสต๊อก กรุณาอนุมัติปรับยอดขั้นนี้ในโปรแกรม WIM Desktop');
     e.status = 409; throw e;
   }
@@ -7747,7 +7830,8 @@ async function adjDoStep(t, id, step, note, req) {
     `UPDATE devsk.dInvReqCountMt SET ${step.ps} = @ps, ${step.date} = GETDATE(), ${step.st} = 1 WHERE idRqUpdate = @id`);
   await rqLog(t, id, step.log, note, req.idPs);
   if (m.idCount) await scLog(t, m.idCount, 'apv_' + step.log, `${step.name} ${m.DocCode}${note ? ` · ${note}` : ''}`, req.idPs);
-  return { id, docCode: m.DocCode };
+  const post = completes ? await adjPost(t, m, req) : null;
+  return { id, docCode: m.DocCode, ...(post || {}) };
 }
 app.post('/api/stock-adjust/doc/:id/step', requireMenu(MENU_ADJ), async (req, res) => {
   const id = scInt(req.params.id);
@@ -7778,7 +7862,7 @@ app.post('/api/stock-adjust/bulk-step', requireMenu(MENU_ADJ), async (req, res) 
       try {
         const x = await adjDoStep(t, id, step, note, req);
         await t.commit();
-        results.push({ id, ok: true, docCode: x.docCode });
+        results.push({ id, ok: true, docCode: x.docCode, postCode: x.postCode || null });
       } catch (err) {
         try { await t.rollback(); } catch (e) { /* rolled back already */ }
         if (!err.status) console.error('ADJ bulk step error:', id, err);
