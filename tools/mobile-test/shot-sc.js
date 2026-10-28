@@ -42,7 +42,7 @@ function head(id, status, mode) {
     idWhScope: 5201, scopePath: 'คลังสินค้าวัตถุดิบ > คลังวัตถุดิบ 2 > RACK A', dateCount: '2026-10-26', round: 1, idCountType: 5, typeName: 'ประจำสัปดาห์', mode, sheetType: mode === 'O' ? 'P' : null, blind: false,
     counter: { id: 1, name: 'สมชาย ใจดี (ชาย)', full: 'นางสาว ฉัตรนรี พิมพิรัตน์', position: 'เจ้าหน้าที่คลังสินค้า' }, reviewer: { id: 2, name: 'ประเสริฐ ตรวจดี (เสริฐ)', full: 'นางสาว ภัทราภรณ์ ชวนชัย', position: 'หัวหน้าคลังสินค้า' }, tolerance: 2, note: '', status,
     dateStart: '2026-10-26T09:05:00', dateClose: null, apvRound: status === 'APPROVE' ? 1 : 0, idRq: status === 'APPROVE' ? 890 : null, rqCode: status === 'APPROVE' ? 'RQ6910/00098' : null,
-    sendBack: null, cancel: null, creator: { id: 1, name: 'สมชาย ใจดี (ชาย)' }, dateTs: '2026-10-26T09:00:00', rqSteps: status === 'APPROVE' ? { ack: '2026-10-26T11:00:00', check: null, approve: null } : null };
+    sendBack: null, cancel: null, creator: { id: 1, name: 'สมชาย ใจดี (ชาย)' }, dateTs: '2026-10-26T09:00:00', rqSteps: status === 'APPROVE' ? { ack: { by: 'สมหญิง รักงาน (หญิง)', at: '2026-10-26T11:00:00' }, check: null, approve: null } : null };
 }
 const DOCS = { 1: ['COUNT', 'O'], 2: ['COUNT', 'L'], 3: ['REVIEW', 'O'], 4: ['APPROVE', 'L'], 5: ['DRAFT', null], 6: ['CANCEL', 'O'] };
 function docData(id) {
@@ -52,7 +52,8 @@ function docData(id) {
 }
 const rq = (id, src) => ({ id, docCode: 'RQ6910/000' + (90 + id), idComp: 4, compCode: 'AV', compName: 'บริษัท แอ๊ดว้านซ์ซีดส์ จำกัด', note: src === 'SC' ? 'ตรวจนับสต๊อก SC6910/0004 (ประจำสัปดาห์)' : 'เนื่องจากหน้างานชั่ง นน.ผิด', dateTs: '2026-10-26T10:00:00',
   src, idCount: src === 'SC' ? 4 : null, scCode: src === 'SC' ? 'SC6910/0004' : null, creator: 'ปรียานุช จันทร์เขียว (กิ๊ฟ)', command: 'ชาญวุฒิ เฮงหิรัญ (ตุ้ม)', action: 'ปรียานุช จันทร์เขียว (กิ๊ฟ)',
-  steps: { ack: id === 1 ? { id: 3, by: 'มาลี บัญชีดี', at: '2026-10-26T11:00:00' } : null, check: null, approve: null }, cancel: null, nLine: 3, nPlus: 1, nMinus: 2, adjValue: -1250.5 });
+  commandPs: { id: 5, name: 'ชาญวุฒิ เฮงหิรัญ (ตุ้ม)', full: 'นาย ชาญวุฒิ เฮงหิรัญ', position: 'หัวหน้าคลังสินค้า' }, actionPs: { id: 6, name: 'ปรียานุช จันทร์เขียว (กิ๊ฟ)', full: 'นางสาว ปรียานุช จันทร์เขียว', position: 'พนักงานคลังสินค้า' },
+  steps: { ack: id === 1 ? { id: 3, by: 'มาลี บัญชีดี (มาลี)', full: 'นางสาว มาลี บัญชีดี', position: 'เจ้าหน้าที่บัญชี', at: '2026-10-26T11:00:00' } : null, check: null, approve: null }, cancel: null, nLine: 3, nPlus: 1, nMinus: 2, adjValue: -1250.5 });
 
 function fixture(url) {
   const u = new URL(url), p = u.pathname;
@@ -74,10 +75,21 @@ function fixture(url) {
   if (p === '/api/stock-count/list') return { success: true, data: Object.keys(DOCS).map(id => { const d = docData(+id); delete d.lines; delete d.log; return d; }) };
   const m = p.match(/^\/api\/stock-count\/doc\/(\d+)$/);
   if (m) return { success: true, data: docData(+m[1]) };
+  if (p === '/api/stock-adjust/bulk-step') return { success: true, ok: 2, results: [{ id: 1, ok: true }, { id: 2, ok: true }] };
+  if (p === '/api/stock-adjust/track') {
+    const tab = u.searchParams.get('tab') || 'pending';
+    const st = { id: 7, by: 'วิชัย ผู้อนุมัติ (ชัย)', full: 'นาย วิชัย ผู้อนุมัติ', position: 'ผู้จัดการคลัง', at: '2026-10-27T09:15:00' };
+    const done = (id) => ({ ...rq(id, id % 2 ? 'SC' : null), dateTs: '2026-10-20T10:00:00', steps: { ack: st, check: st, approve: st } });
+    const old = { ...rq(5, null), docCode: 'RQ6705/00012', dateTs: '2024-05-12T10:00:00' };
+    const data = tab === 'done' ? [done(11), done(12)] : tab === 'cancel' ? [{ ...rq(9, 'SC'), cancel: { at: '2026-10-25T15:00:00', note: 'ส่งกลับแก้ไข' } }] : [rq(1, 'SC'), rq(2, null), rq(3, null), old];
+    return { success: true, tab, data, more: false, max: 1000, counts: { pending: 4, cancel: 1 }, ranged: false, me: 1 };
+  }
   if (p === '/api/stock-adjust/list') return { success: true, data: [rq(1, 'SC'), rq(2, null), rq(3, null)], can, postingReady: false, me: 1 };
-  if (p.startsWith('/api/stock-adjust/doc/')) return { success: true, can, postingReady: false, me: 1, data: { ...rq(1, 'SC'), lines: [
+  if (p.startsWith('/api/stock-adjust/doc/')) return { success: true, can, postingReady: false, me: 1, data: { ...rq(1, 'SC'), compInfo: { nameEn: 'ADVANCE SEEDS CO.,LTD.', address: '99/9 หมู่ 4 ต.สวนพริกไทย อ.เมืองปทุมธานี', addressEn: '99/9 Village No.4, Suan Phrik Thai, Muang Pathum Thani, Pathum Thani', province: 'ปทุมธานี', postCode: '12000', tel: '029588476', fax: '029589792', taxId: '0105512345678' }, lines: [
     { id: 1, lotNo: '684-040-00009', invCode: 'CUC101156', invName: 'เมล็ดพันธุ์ แตงร้าน CL-751', unit: 'กิโลกรัม', loc: 'RM2 A-1-3', before: 9, op: '+', amount: 1, after: 10, note: 'นับคลาดเคลื่อน', now: 9, erp: 9, count: 10 },
-    { id: 2, lotNo: '684-041-00005', invCode: 'CUC101156', invName: 'เมล็ดพันธุ์ แตงร้าน CL-751', unit: 'กิโลกรัม', loc: 'RM2 A-1-3', before: 5.7, op: '-', amount: 1, after: 4.7, note: 'ชำรุด-เสื่อมสภาพ', now: 5.2, erp: 5.7, count: 4.7 }],
+    { id: 2, lotNo: '684-041-00005', invCode: 'CUC101156', invName: 'เมล็ดพันธุ์ แตงร้าน CL-751', unit: 'กิโลกรัม', loc: 'RM2 A-1-3', before: 5.7, op: '-', amount: 1, after: 4.7, note: 'ชำรุด-เสื่อมสภาพ', now: 5.2, erp: 5.7, count: 4.7 },
+    { id: 3, lotNo: 'SKC-2569-0812345-AB', invCode: 'TOM202211', invName: 'เมล็ดพันธุ์ มะเขือเทศ ลูกผสม สีดา TOM-2211 ขนาดบรรจุ 50 กรัม', unit: 'ซอง', loc: 'RM2 ชั้นวาง B-12-04 (ห้องเย็น)', before: 120, op: '-', amount: 2, after: 118, note: 'ซองฉีกขาดระหว่างจัดเก็บ', now: 120, erp: 120, count: 118 }],
+    sc: { id: 4, docCode: 'SC6910/0004', status: 'APPROVE', typeName: 'ประจำสัปดาห์', dateCount: '2026-10-26T00:00:00', round: 1, mode: 'O', blind: false, scope: 'คลังสินค้าวัตถุดิบ > RM2', counter: { id: 6, name: 'ปรียานุช จันทร์เขียว (กิ๊ฟ)', full: 'นางสาว ปรียานุช จันทร์เขียว', position: 'พนักงานคลังสินค้า' }, reviewer: { id: 5, name: 'ชาญวุฒิ เฮงหิรัญ (ตุ้ม)', full: 'นาย ชาญวุฒิ เฮงหิรัญ', position: 'หัวหน้าคลังสินค้า' }, dateClose: '2026-10-26T09:30:00', stats: { counted: 42, match: 38, short: 2, over: 2, exclude: 1 } },
     log: [{ step: 'submit', note: 'สร้างจากเอกสารตรวจนับ SC6910/0004 (2 รายการ)', at: '2026-10-26T10:00:00', by: 'ประเสริฐ ตรวจดี' }, { step: 'accept', note: null, at: '2026-10-26T11:00:00', by: 'มาลี บัญชีดี' }] } };
   return { success: true, data: [] };
 }

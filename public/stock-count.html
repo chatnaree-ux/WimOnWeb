@@ -399,6 +399,14 @@
   /* ปุ่มคัดลอกไปวางใน LINE: สีเขียว LINE + ไอคอน */
   .btn-line{background:#06c755; color:#fff;}
   .btn-line svg{width:17px; height:17px;}
+  /* ส่งต่อใบขอปรับยอดสต๊อก: แยกลิงก์ตามขั้น */
+  .share .msg-box.all{min-height:230px;}
+  .share .sh-seg{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px;}
+  .share .sh-seg button:disabled{opacity:.55; cursor:default; border-color:rgba(62,207,142,.45); color:#7fe0b4; background:rgba(62,207,142,.08);}
+  .share .msg-box{min-height:150px;}
+  @media (max-width:560px){ .share .msg-box{min-height:200px;} }
+  .rq-made{display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13.5px; margin:0 0 12px; padding:10px 12px; border-radius:8px; background:rgba(62,207,142,.07); border:1px solid rgba(62,207,142,.3);}
+  .rq-made b.mono{color:#ffcf66;}
 
   /* ---------- MODAL ---------- */
   .modal-overlay{
@@ -407,6 +415,14 @@
     align-items:center; justify-content:center; padding:20px;
   }
   .modal-overlay.show{display:flex;}
+  /* ใบขอปรับยอดสต๊อก: เปิดซ้อนบนหน้าเอกสารตรวจนับ (iframe) — ปิดแล้วอยู่หน้าเดิม */
+  .modal-box.modal-view{max-width:1000px; height:92vh; max-height:none;}
+  .modal-view .view-acts{display:flex; align-items:center; gap:8px;}
+  .modal-view .view-acts .btn{display:inline-flex; align-items:center; gap:6px;}
+  .modal-view .view-body{flex:1 1 auto; padding:0 !important; position:relative; background:#525659; overflow:hidden; display:flex;}
+  #rqViewFrame{flex:1 1 auto; width:100%; height:100%; border:0; background:#525659;}
+  .view-load{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#e6e9ee; font-size:14px; padding:20px; text-align:center; background:#525659;}
+  @media (max-width:700px){ #rqViewModal{padding:0;} .modal-box.modal-view{height:100%; border-radius:0;} }
   .modal-box{
     width:100%; max-width:760px; max-height:85vh; display:flex; flex-direction:column;
     background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
@@ -545,6 +561,7 @@
   .chip{display:inline-block; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:700; border:1px solid currentColor; white-space:nowrap;}
   .chip.df-MATCH{background:rgba(62,207,142,.1);} .chip.df-SHORT{background:rgba(229,83,61,.1);} .chip.df-OVER{background:rgba(78,167,224,.1);}
   .chip.df-NC, .chip.df-EX{background:rgba(255,255,255,.04);}
+  .chip.rq-wait{border-style:dashed;}
   .send-back-box{display:flex; gap:10px; align-items:flex-start; background:rgba(229,83,61,.08); border:1px solid rgba(229,83,61,.4); border-left:3px solid var(--safety-red);
     border-radius:8px; padding:12px 16px; margin-bottom:18px; font-size:13px; color:var(--concrete-200);}
   .send-back-box b{color:#ff8a75;}
@@ -748,6 +765,30 @@
   .hbar .tr{height:8px; border-radius:99px; background:rgba(255,255,255,.07); overflow:hidden;}
   .hbar .tr span{display:block; height:100%; background:var(--c, var(--sky-blue));}
   .mini-title{font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:.03em; color:#fff; margin:0 0 10px;}
+  .list-more{margin:0 0 12px; padding:10px 14px; border-radius:8px; font-size:14px; color:#ffcf66; background:rgba(242,169,28,.1); border:1px solid rgba(242,169,28,.45);}
+  /* ---------- การ์ดสรุป / Dashboard: ตัวหนังสือใหญ่ ชัด อ่านง่าย (หน้ารายการเอกสาร / ภาพรวม / Dashboard สรุปผลการตรวจนับ) ---------- */
+  .dash{grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px;}
+  #listDash{grid-template-columns:repeat(auto-fit, minmax(128px, 1fr));}   /* การ์ดสถานะ 7 ใบ: บรรทัดเดียวบนจอคอม */
+  .dash-card{padding:12px 16px;}
+  .dash-card .lbl{font-size:15px; font-weight:600; color:#d5dde8; gap:8px; line-height:1.3;}
+  .dash-card .lbl i{width:10px; height:10px;}
+  .dash-card .val{font-size:32px; margin-top:4px;}
+  .dash-card small, .dash-card .val small, .dash-card .val .unit{font-size:15px; color:#b8c3d1;}
+  .dash-card .sub{font-size:13px; color:#b8c3d1;}
+  .dash-card .desc{font-size:12.5px; color:#b8c3d1;}
+  .mini-title{font-size:17px; margin-bottom:12px;}
+  .hbar .lb{font-size:15px; color:#e6e9ee; margin-bottom:5px;}
+  .hbar .lb b{font-size:15px; color:#fff;}
+  .hbar .tr{height:10px;}
+  .hbars{gap:11px;}
+  .hb-sub{font-size:13px; color:#b8c3d1;}
+  .rb-legend{font-size:14.5px;}
+  .rb-legend.sm{font-size:13.5px;}
+  .dash2 .box p{font-size:14.5px !important; line-height:1.55;}
+  .ov-sub{font-size:13.5px;}
+  /* มือถือ: 2 คอลัมน์ — ไม่มีจุดสี (ขอบบนการ์ดบอกสีอยู่แล้ว) ชื่อการ์ดได้ที่เต็มความกว้าง (ชื่อยาวขึ้นบรรทัดสองตามคำ) */
+  @media (max-width:560px){ .dash{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;} .dash-card{padding:10px 12px;} .dash-card .lbl{display:block; font-size:14px;} .dash-card .lbl i{display:none;} .dash-card .val{font-size:28px;} }
+  @media (max-width:360px){ .dash-card{padding:9px 10px;} .dash-card .lbl{font-size:13px;} .dash-card .val{font-size:26px;} }
   .box{border:1px solid rgba(255,255,255,.08); border-radius:9px; padding:14px 16px; background:rgba(255,255,255,.02);}
 
   /* ---------- ตารางรายการนับ ---------- */
@@ -939,6 +980,14 @@
   /* ---------- พิมพ์ใบนับ (#printArea พื้นขาว) ---------- */
   #printArea{display:none;}
   @page{size:A4 portrait; margin:8mm;}
+  /* โหมดฝัง (?embed=1): หน้านี้แสดงแค่ใบสรุปผลการตรวจนับเป็นแผ่น A4 (เปิดใน popup ของหน้าอนุมัติปรับยอด) — ย่อให้พอดีจอด้วย --pvz */
+  @media screen{
+    body.pv{background:#525659 !important; padding:12px 0 !important; overflow-x:hidden;}
+    body.pv > *:not(#printArea){display:none !important;}
+    body.pv #printArea{display:block; margin:0 auto; background:transparent; zoom:var(--pvz, 1);}
+    body.pv #printArea .ps-pg{box-sizing:content-box; height:auto !important; overflow:visible; background:#fff; padding:8mm; margin:0 auto 12px; box-shadow:0 2px 12px rgba(0,0,0,.45);}
+    body.pv #printArea .pv-msg{background:#fff; padding:16px; border-radius:8px; font-size:14px;}
+  }
   @media print{
     body.printing{background:#fff !important;}
     body.printing > *:not(#printArea){display:none !important;}
@@ -965,6 +1014,10 @@
   #printArea .ps-loc td{background:#f4f4f4 !important; font-weight:700;}
   #printArea .ps-sign{display:grid; grid-template-columns:repeat(2, 1fr); gap:10mm; margin-top:8mm; font-size:10pt; text-align:center;}
   #printArea .ps-sign .l{border-top:1px solid #000; margin:12mm 8mm 1mm; }
+  /* รูปลายเซ็น (eSign ตาม idPs) เหนือเส้นลงนาม — สูงเท่าระยะเว้นเดิม (12 มม.) ไม่มีรูป = ว่างไว้เซ็นเอง */
+  #printArea .ps-sign .sg{height:11mm; margin:1mm 8mm 0; display:flex; align-items:flex-end; justify-content:center;}
+  #printArea .ps-sign .sg img{max-height:11mm; max-width:100%; object-fit:contain;}
+  #printArea .ps-sign .sg + .l{margin-top:0;}
   #printArea .ps-16 th, #printArea .ps-16 td{font-size:7.6pt; padding:1.2mm 1.1mm;}
   #printArea .ps-sum{margin:0 0 4mm; table-layout:fixed;}
   #printArea .ps-sum td{text-align:center; padding:1.6mm 1mm;}
@@ -990,8 +1043,6 @@
   #printArea .ps-head.cols{grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) auto auto; column-gap:6mm;}
   #printArea .ps-head .ps-sm{font-size:8.5pt; color:#333;}
   /* ใบสรุป (แนวนอน): ลงนามแถวเดียว ชิดขึ้น */
-  #printArea .ps-sign.s5{grid-template-columns:repeat(5, 1fr); gap:5mm; font-size:9pt;}
-  #printArea .ps-sign.s5 .l{margin:10mm 3mm 1mm;}
 </style>
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
@@ -1038,7 +1089,7 @@
             <div class="stp-item"><span class="n">1</span><div><b>สร้างเอกสาร</b><span>เลือกบริษัท คลัง / พื้นที่ วันที่ ประเภท ผู้ตรวจนับ และผู้ตรวจสอบ</span></div></div>
             <div class="stp-item"><span class="n">2</span><div><b>เลือกวิธีนับ แล้วเริ่มตรวจนับ</b><span>Offline Count Sheet (พิมพ์ใบนับ / Excel) หรือ Live Count (สแกนนับผ่านมือถือ) — ระบบเก็บยอด ERP ณ ตอนเริ่ม</span></div></div>
             <div class="stp-item"><span class="n">3</span><div><b>นับ แล้วปิดการนับ</b><span>กรอก / สแกนยอดที่นับได้ครบแล้ว กดปิดการนับ ระบบสรุป ตรงกัน / ขาด / เกิน ให้</span></div></div>
-            <div class="stp-item"><span class="n">4</span><div><b>ตรวจสอบผลต่าง แล้วส่งขออนุมัติปรับยอด</b><span>ผู้ตรวจสอบเลือกรายการที่ต้องปรับ ใส่สาเหตุ ส่งให้ ตรวจสอบ / รับทราบ / อนุมัติปรับยอดสต๊อก</span></div></div>
+            <div class="stp-item"><span class="n">4</span><div><b>ตรวจสอบผลต่าง แล้วส่งขออนุมัติปรับยอด</b><span>ผู้ตรวจสอบเลือกรายการที่ต้องปรับ ใส่สาเหตุ ส่งให้ รับทราบ / ตรวจสอบ / อนุมัติปรับยอดสต๊อก</span></div></div>
           </div>
 
           <div class="tab-bar list-tabs">
@@ -1108,6 +1159,7 @@
               </button>
             </div>
 
+            <p class="list-more" id="listMore" hidden></p>
             <div class="list-area" id="listArea">
               <div class="table-responsive">
                 <table class="sc-table">
@@ -1263,12 +1315,24 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="rqViewModal">
+  <div class="modal-box modal-view">
+    <div class="modal-header">
+      <h3 id="rqViewTitle">ใบขอปรับยอดสต๊อก</h3>
+      <div class="view-acts"><button type="button" class="btn btn-secondary btn-sm" id="rqViewPrint" data-printrqv="1" disabled>พิมพ์</button>
+      <button type="button" class="modal-close" data-closerqv="1" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button></div>
+    </div>
+    <div class="modal-body view-body"><div class="view-load" id="rqViewLoad">กำลังโหลดใบขอปรับยอดสต๊อก…</div><iframe id="rqViewFrame" title="ใบขอปรับยอดสต๊อก"></iframe></div>
+  </div>
+</div>
 <input type="file" id="xlsFile" accept=".xlsx,.xls" hidden>
 <div class="toast" id="toast"></div>
 <div id="printArea"></div>
 
 <script>
-  function loadSidebar() { return WIMSidebar.load({ menuCode: 'stock_count' }); }
+  function loadSidebar() { return WIMSidebar.load({ menuCode: new URLSearchParams(location.search).get('print') === 'summary' ? null : 'stock_count' }); }
   document.addEventListener('DOMContentLoaded', loadSidebar);
 </script>
 <script>
@@ -1309,6 +1373,7 @@
     send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>',
     scan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 12h10"/></svg>',
     cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
     link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg>',
     search: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>'
   };
@@ -1389,17 +1454,9 @@
     return { st: Math.abs(d) < EPS ? 'MATCH' : d < 0 ? 'SHORT' : 'OVER', diff: d, pct: l.erp ? d / l.erp * 100 : (d ? 100 : 0), value: d * (l.cost || 0) };
   };
   // ระดับการตรวจนับ: < 90 วัน = 1 / 90–180 = 2 / 181–365 = 3 / ≥ 366 = 4 / ยังไม่เคยนับ = 0 (ระดับคลัง = Lot ที่นานสุด — server คำนวณ)
-  const levelOfDays = (d) => d == null ? 0 : d < 90 ? 1 : d <= 180 ? 2 : d <= 365 ? 3 : 4;
   const LV_TEXT = { 0: 'ยังไม่เคยนับ', 1: 'ระดับ 1', 2: 'ระดับ 2', 3: 'ระดับ 3', 4: 'ระดับ 4' };
   const lvChip = (lv, title, sm) => lv == null ? '' : `<span class="lv lv-${lv}${sm ? ' sm' : ''}" title="${esc(title || '')}">${sm ? (lv ? lv : 'ไม่เคยนับ') : LV_TEXT[lv]}</span>`;
   const LV_LEGEND = [['0', 'ยังไม่เคยนับ', ''], ['4', 'ระดับ 4', '≥ 366 วัน'], ['3', 'ระดับ 3', '181–365 วัน'], ['2', 'ระดับ 2', '90–180 วัน'], ['1', 'ระดับ 1', '&lt; 90 วัน']].map(([k, c, x]) => `<span class="nw"><span class="lv lv-${k}">${c}</span> ${x}</span>`).join('');
-  // วันที่นับครั้งก่อนของ Lot ในตำแหน่งนั้น (เทียบกับวันที่ตรวจนับของเอกสารนี้)
-  function lineLv(l){
-    if(l.src === 'U' || !l.idRefLot) return '';
-    if(!l.prevCount) return lvChip(0, 'ยังไม่เคยนับ (บนเว็บ)', true);
-    const days = Math.round((new Date(String(doc.dateCount).slice(0, 10)) - new Date(String(l.prevCount).slice(0, 10))) / 864e5);
-    return lvChip(levelOfDays(days), `นับครั้งก่อน ${thDate(l.prevCount)} · ${fmtInt(days)} วัน`, true);
-  }
   const statusBadge = (st) => `<span class="badge st-${st}">${esc(STATUS[st] || st)}</span>`;
 
   /* ==================================================================
@@ -1407,6 +1464,7 @@
   ================================================================== */
   let meta = null;           // ประเภท / สาเหตุ / บริษัท / สิทธิ์
   let docs = [];             // รายการเอกสาร
+  let docsMore = 0;          // > 0 = มีเอกสารมากกว่าที่ดึงมา (แสดง n ใบล่าสุด)
   let listFilter = null;     // กดการ์ดสถานะ = กรอง
   let doc = null;            // เอกสารที่เปิดอยู่
   let lineById = new Map();
@@ -1494,7 +1552,7 @@
       const qo = new URLSearchParams({ open: '1' });
       if($('fComp').value) qo.set('idComp', $('fComp').value);
       const [r, ro] = await Promise.all([api('/api/stock-count/list?' + q), api('/api/stock-count/list?' + qo)]);
-      docs = r.data || [];
+      docs = r.data || []; docsMore = r.more ? r.max : 0;
       openDocs = ro.data || [];
       listPage = 1;
       fillMoreFilters();
@@ -1543,7 +1601,8 @@
     return list.slice().sort((a, b) => { const x = f(a), y = f(b); return (x < y ? -1 : x > y ? 1 : 0) * listSort.dir || b.id - a.id; });
   }
   const STATUS_GROUPS = [['ALL', 'ทั้งหมด', '#e7e4da'], ['DRAFT'], ['COUNT'], ['REVIEW'], ['APPROVE'], ['DONE+POSTED', 'เสร็จสิ้น', '#3ecf8e'], ['CANCEL']];
-  const inGroup = (d, g) => g === 'ALL' || (g === 'DONE+POSTED' ? (d.status === 'DONE' || d.status === 'POSTED') : d.status === g);
+  // ทั้งหมด = ไม่รวมยกเลิก (ใบยกเลิกดูที่การ์ด "ยกเลิก" — แบบ ERP ทั่วไป: รายการปกติแสดงเฉพาะเอกสารที่ยังใช้งาน)
+  const inGroup = (d, g) => g === 'ALL' ? d.status !== 'CANCEL' : (g === 'DONE+POSTED' ? (d.status === 'DONE' || d.status === 'POSTED') : d.status === g);
 
   function renderList(){
     const mine = openDocs.filter(isMine);
@@ -1580,6 +1639,8 @@
     if(listPage > pages) listPage = pages;
     const list = all.slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE);
     renderListPager(all.length, pages);
+    $('listMore').hidden = !(docsMore && listTab === 'list');
+    $('listMore').textContent = docsMore ? `แสดง ${fmtInt(docsMore)} ใบล่าสุด — มีเอกสารมากกว่านี้ ระบุช่วงวันที่ตรวจนับเพื่อดูใบที่เก่ากว่า` : '';
     // ยังไม่มีเอกสารเลย (ไม่ได้ค้นหา / กรอง) → แนะนำขั้นตอน + ปุ่มสร้างเอกสาร
     const noDocsAtAll = !docs.length && listTab === 'list';
     $('emptyStart').hidden = !noDocsAtAll;
@@ -1654,7 +1715,7 @@
         d.counter.name, d.reviewer.name, d.rqCode || ''];
     });
     const ws = XLSX.utils.aoa_to_sheet([['รายการเอกสารตรวจนับสต๊อก'], [],
-      ['บริษัท', 'เลขที่เอกสาร', 'สถานะ', 'วันที่ตรวจนับ', 'ครั้งที่', 'คลัง', 'พื้นที่', 'ประเภท', 'วิธีนับ', 'นับแล้ว', 'รายการทั้งหมด', 'ตรงกัน', 'ขาด', 'เกิน', 'ผู้ตรวจนับ', 'ผู้ตรวจสอบ', 'ใบขอปรับยอด'], ...rows]);
+      ['บริษัท', 'เลขที่เอกสาร', 'สถานะ', 'วันที่ตรวจนับ', 'ครั้งที่', 'คลัง', 'พื้นที่', 'ประเภท', 'วิธีนับ', 'นับแล้ว', 'รายการทั้งหมด', 'ตรงกัน', 'ขาด', 'เกิน', 'ผู้ตรวจนับ', 'ผู้ตรวจสอบ', 'ใบขอปรับยอดสต๊อก'], ...rows]);
     ws['!cols'] = [28, 14, 14, 12, 7, 22, 28, 14, 20, 9, 12, 8, 8, 8, 24, 24, 14].map(w => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'เอกสารตรวจนับ');
@@ -1891,11 +1952,42 @@
       $('pageTitle').textContent = 'เอกสารตรวจนับสต๊อก ' + doc.docCode;
       if(!ui.tab){ ui.tab = doc.status === 'COUNT' ? 'count' : (doc.status === 'DRAFT' ? 'info' : 'dash'); if(ui.tab === 'dash') ui.show = 'DIFF'; }
       renderDoc();
+      const pp = new URLSearchParams(location.search);
+      if(!keepUi && EMBED){
+        if(pp.get('print') === 'summary' && ['REVIEW', 'APPROVE', 'POSTED', 'DONE'].includes(doc.status)) printSummary();
+        else embedMsg('เอกสารตรวจนับนี้ยังไม่มีใบสรุปผล (ยังไม่ปิดการนับ)');
+      } else if(!keepUi && pp.get('print') === 'summary' && ['REVIEW', 'APPROVE', 'POSTED', 'DONE'].includes(doc.status)){
+        pp.delete('print'); history.replaceState(null, '', '/stock-count?' + pp);
+        printSummary();
+      }
     } catch(err){
+      if(EMBED){ embedMsg(err.message); return; }
       $('docView').innerHTML = `<div class="card"><p class="empty-msg">${esc(err.message)}</p><div class="action-bar" style="justify-content:center"><button type="button" class="btn btn-secondary" data-act="back">${IC.back} กลับหน้ารายการ</button></div></div>`;
     }
   }
   const reload = () => openDoc(doc.id, true);
+
+  /* ---------- โหมดฝัง (?id=&print=summary&embed=1): แสดงใบสรุปผลตรวจนับอย่างเดียว ไม่มีเมนู / ไม่พาไปหน้าอื่น
+     หน้าแม่ (อนุมัติปรับยอด) เปิดใน iframe แล้วสั่งพิมพ์เอง / &autoprint=1 = เปิดแท็บใหม่แล้วพิมพ์ทันที (iPhone / iPad) ---------- */
+  const EMBED = new URLSearchParams(location.search).get('embed') === '1';
+  const embedPost = (msg) => { try{ if(window.parent !== window) window.parent.postMessage(Object.assign({ type: 'sc-summary' }, msg), location.origin); } catch(err){} };
+  function embedMsg(text){
+    $('printArea').innerHTML = `<div class="pv-msg">${esc(text)}</div>`;
+    document.body.classList.add('pv'); embedPost({ ok: false, message: text });
+  }
+  function embedShow(html){
+    const pa = $('printArea');
+    pa.innerHTML = html;
+    // ย่อบนจอเล็กอาจตัดบรรทัดต่างจากตอนพิมพ์เล็กน้อย → แผ่นบนจอสูงขึ้นได้ (ขั้นต่ำ = ความสูงหน้าพิมพ์) ไม่ตัดท้ายหน้า
+    pa.querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = p.style.height; });
+    pa.style.width = (PAGE_MM.L[0] + 16 + 0.8) + 'mm';   // แผ่น A4 แนวนอน = พื้นที่พิมพ์ + ขอบ 8 มม. 2 ข้าง
+    if(!document.getElementById('pvPage')){ const st = document.createElement('style'); st.id = 'pvPage'; st.textContent = '@page{size:A4 landscape; margin:8mm;}'; document.head.appendChild(st); }
+    document.body.classList.add('printing', 'pv');
+    const fit = () => { pa.style.setProperty('--pvz', 1); const w = pa.getBoundingClientRect().width; pa.style.setProperty('--pvz', Math.min(1, (window.innerWidth - 16) / w).toFixed(3)); };
+    fit(); window.addEventListener('resize', fit);
+    embedPost({ ok: true });
+    if(new URLSearchParams(location.search).get('autoprint') === '1') setTimeout(() => window.print(), 400);
+  }
 
   function renderDoc(){
     const d = doc, c = meta.can;
@@ -1908,7 +2000,7 @@
     if(['DRAFT', 'COUNT', 'REVIEW', 'APPROVE'].includes(d.status) && c.cancel) acts.push(`<button type="button" class="btn btn-danger" data-act="cancel">${IC.x} ยกเลิกเอกสาร</button>`);
     const tabs = d.status === 'DRAFT' ? [] : [
       ...(d.status === 'COUNT' ? [['count', d.mode === 'L' ? 'นับ (Live Count)' : 'บันทึกยอดนับ']] : []),
-      ['dash', 'Dashboard / ผลต่าง'], ['lines', 'รายการทั้งหมด'], ['log', 'ประวัติ']
+      ['dash', 'Dashboard สรุปผลการตรวจนับ'], ['lines', 'รายการทั้งหมด'], ['log', 'ประวัติ']
     ];
     if(tabs.length && !tabs.some(t => t[0] === ui.tab)) ui.tab = tabs[0][0];
     let notes = '';
@@ -1933,7 +2025,7 @@
           <div class="it"><div class="k">ผู้ตรวจสอบ</div><div class="v">${esc(d.reviewer.name)}</div></div>
           <div class="it"><div class="k">Snapshot ยอด ERP</div><div class="v">${d.dateStart ? thStamp(d.dateStart) : 'ยังไม่เริ่มตรวจนับ'}</div></div>
           <div class="it"><div class="k">ค่ายอมรับผลต่าง</div><div class="v">${d.tolerance ? fmtQty(d.tolerance) + '%' : 'ไม่กำหนด'}</div></div>
-          ${d.rqCode ? `<div class="it"><div class="k">ใบขอปรับยอด</div><div class="v mono">${esc(d.rqCode)}</div></div>` : ''}
+          ${d.rqCode ? `<div class="it"><div class="k">ใบขอปรับยอดสต๊อก</div><div class="v mono">${esc(d.rqCode)}</div></div>` : ''}
           ${d.note ? `<div class="it wide"><div class="k">หมายเหตุ</div><div class="v">${esc(d.note)}</div></div>` : ''}
         </div>
       </div>
@@ -1945,15 +2037,88 @@
   }
   function approveInfo(){
     const s = doc.rqSteps || {};
-    const st = (k, n) => `<span class="chip ${s[k] ? 'df-MATCH' : 'df-NC'}">${n} ${s[k] ? '✓' : '…'}</span>`;
-    const link = `${location.origin}/stock-adjust-approve?id=${doc.idRq}`;
+    // ชิปขั้น (แบบเดียวกับการ์ดหน้าอนุมัติ): ✓ = ทำแล้ว / ○ เส้นประ = รอ
+    const st = (k, n) => `<span class="chip ${s[k] ? 'df-MATCH' : 'df-NC rq-wait'}" title="${n}${s[k] ? 'แล้ว' : ' — รอดำเนินการ'}">${s[k] ? '✓' : '○'} ${n}</span>`;
     return `<div class="info-box"><div style="flex:1">
       <b>รออนุมัติปรับยอด ${esc(doc.rqCode)}</b> — ส่งเมื่อ ${thStamp(doc.dateSubmit)} (รอบที่ ${doc.apvRound})<br>
-      ${st('ack', 'รับทราบ')} ${st('check', 'ตรวจสอบ')} ${st('approve', 'อนุมัติปรับยอด')}
+      ${st('ack', 'รับทราบ')} ${st('check', 'ตรวจสอบ')} ${st('approve', 'อนุมัติ')}
       <div class="action-bar" style="justify-content:flex-start; margin-top:10px;">
-        <a class="btn btn-secondary btn-sm" href="/stock-adjust-approve?id=${doc.idRq}">${IC.link} เปิดหน้าอนุมัติปรับยอด</a>
-        <button type="button" class="btn btn-secondary btn-sm" data-copy="${esc(link)}">${IC.link} คัดลอกลิงก์ส่งให้ผู้อนุมัติปรับยอด</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-act="view-rq">${IC.print} ดูใบขอปรับยอดสต๊อก</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-act="share-rq">${IC.send} ส่งลิงก์ตามอนุมัติ</button>
       </div></div></div>`;
+  }
+  // ใบขอปรับยอดสต๊อก: เปิดซ้อนบนหน้านี้ (iframe หน้าอนุมัติโหมดฝัง = แผ่น A4) — พิมพ์ / ปิด แล้วอยู่ที่เอกสารตรวจนับเดิม
+  const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let rqViewUrl = '';
+  function openRqView(id, code){
+    rqViewUrl = `/stock-adjust-approve?id=${id}&embed=1`;
+    $('rqViewTitle').textContent = 'ใบขอปรับยอดสต๊อก ' + (code || '');
+    $('rqViewPrint').innerHTML = `${IC.print} พิมพ์`; $('rqViewPrint').disabled = true;
+    $('rqViewLoad').textContent = 'กำลังโหลดใบขอปรับยอดสต๊อก…'; $('rqViewLoad').style.display = '';
+    $('rqViewFrame').src = rqViewUrl;
+    $('rqViewModal').classList.add('show');
+  }
+  function closeRqView(){ $('rqViewModal').classList.remove('show'); $('rqViewFrame').src = 'about:blank'; }
+  function printRqView(){
+    // iPhone / iPad สั่งพิมพ์ใน iframe ไม่ได้ → เปิดแท็บใหม่ที่พิมพ์ทันที
+    if(IS_IOS){ window.open(rqViewUrl + '&autoprint=1', '_blank'); return; }
+    const w = $('rqViewFrame').contentWindow; w.focus(); w.print();
+  }
+  window.addEventListener('message', (e) => {
+    if(e.origin !== location.origin || !e.data || e.data.type !== 'rq-doc') return;
+    if(e.data.ok){ $('rqViewLoad').style.display = 'none'; $('rqViewPrint').disabled = false; }
+    else $('rqViewLoad').textContent = e.data.message || 'เปิดใบขอปรับยอดสต๊อกไม่สำเร็จ';
+  });
+  document.addEventListener('click', (e) => {
+    if(e.target.closest('[data-closerqv]') || e.target.id === 'rqViewModal') closeRqView();
+    else if(e.target.closest('[data-printrqv]')) printRqView();
+  });
+  document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && $('rqViewModal').classList.contains('show')) closeRqView(); });
+  // ส่งต่อใบขอปรับยอดสต๊อกที่รออนุมัติ (จำนวนเพิ่ม / ลด จากรายการที่ส่งปรับ)
+  function shareRqDlg(){
+    const adj = doc.lines.filter(l => l.adjust), plus = adj.filter(l => Number(l.count) - Number(l.erp || 0) >= 0).length;
+    shareQ = { id: doc.idRq, docCode: doc.rqCode, compName: doc.compName, scCode: doc.docCode, scType: doc.typeName, nLine: adj.length, nPlus: plus, nMinus: adj.length - plus, steps: doc.rqSteps || {} };
+    dlg('ส่งลิงก์ตามอนุมัติ ' + doc.rqCode, `${shareHtml(shareQ) || '<p class="empty-msg">ครบทุกขั้นแล้ว</p>'}
+      <div class="action-bar" style="margin-top:12px"><button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button></div>`, '600px');
+  }
+
+  // ---------- ส่งต่อใบขอปรับยอดสต๊อก (ชุดเดียวกัน 2 หน้า: ตรวจนับ / อนุมัติปรับยอด) ----------
+  // ส่งรวม (กลุ่ม LINE) = ข้อความเดียว: ลิงก์ของทุกขั้นที่ยังค้าง / ขั้นที่กดแล้วแสดงชื่อ + วันที่แทน
+  // แยกตามขั้น (ส่งส่วนตัว) = ข้อความ + ลิงก์ของขั้นที่เลือก หรือคัดลอกเฉพาะลิงก์
+  // ยังไม่บังคับว่าแต่ละขั้นต้องเป็นคนละคน (คนที่มีสิทธิ์หลายขั้นเปิดลิงก์ไหนก็กดได้ทุกขั้นของตัวเอง)
+  const SHARE_STEPS = [['ack', 'รับทราบ'], ['check', 'ตรวจสอบ'], ['approve', 'อนุมัติปรับยอด']];
+  const SHARE_ROLE = { ack: 'ผู้รับทราบ', check: 'ผู้ตรวจสอบ', approve: 'ผู้อนุมัติ' };
+  let shareQ = null, shareMode = 'all';
+  const rqLink = (id, k) => `${location.origin}/stock-adjust-approve?id=${id}&step=${k}`;
+  function rqMsg(q, k){
+    const info = [`บริษัท: ${q.compName}`,
+      q.scCode ? `จากการตรวจนับ: ${q.scCode}${q.scType ? ` (${q.scType})` : ''}` : (q.note ? `เหตุผล: ${q.note}` : ''),
+      `จำนวน: ${q.nLine} รายการ (ปรับเพิ่ม ${q.nPlus} / ปรับลด ${q.nMinus})`].filter(Boolean);
+    if(k === 'all'){
+      const st = (s) => q.steps && q.steps[s];
+      return [`รบกวนดำเนินการใบขอปรับยอดสต๊อก ${q.docCode}`, ...info, '',
+        ...SHARE_STEPS.map(([s, n]) => st(s) ? `✓ ${n}แล้ว: ${st(s).by ? shortName(st(s).by) + ' ' : ''}${st(s).at ? thDate(st(s).at) : ''}`.trim()
+          : `ลิงก์สำหรับ${SHARE_ROLE[s]}: ${rqLink(q.id, s)}`)].join('\n');
+    }
+    const n = { ack: 'รับทราบ', check: 'ตรวจสอบ', approve: 'อนุมัติ' }[k];
+    return [`รบกวน${n}ใบขอปรับยอดสต๊อก ${q.docCode}`, ...info, `กด${n}ได้ที่: ${rqLink(q.id, k)}`].join('\n');
+  }
+  function shareHtml(q, sel){
+    const pend = SHARE_STEPS.filter(([k]) => !(q.steps && q.steps[k]));
+    if(!pend.length) return '';
+    const all = shareMode === 'all';
+    const k = pend.some(s => s[0] === sel) ? sel : pend[0][0];
+    return `<div class="share" data-sel="${k}">
+      <div class="seg" style="margin-bottom:8px">
+        <button type="button" class="${all ? 'on' : ''}" data-sharemode="all">ส่งรวม</button>
+        <button type="button" class="${all ? '' : 'on'}" data-sharemode="one">แยกตามขั้น</button></div>
+      ${all ? '' : `<div class="sh-seg seg">${SHARE_STEPS.map(([s, n]) => (q.steps && q.steps[s]) ? `<button type="button" disabled>${n} ✓</button>`
+        : `<button type="button" class="${s === k ? 'on' : ''}" data-sharestep="${s}">${n}</button>`).join('')}</div>`}
+      <textarea class="msg-box ${all ? 'all' : ''}" aria-label="ข้อความส่งลิงก์ตามอนุมัติ">${esc(rqMsg(q, all ? 'all' : k))}</textarea>
+      <div class="send-actions">
+        ${all ? '' : `<button type="button" class="btn btn-secondary" data-copy="${esc(rqLink(q.id, k))}" data-copied="คัดลอกลิงก์${esc(SHARE_STEPS.find(s => s[0] === k)[1])}แล้ว">${IC.link} คัดลอกลิงก์</button>`}
+        <button type="button" class="btn btn-line" data-copymsg="1">${IC.copy} คัดลอกข้อความ</button>
+      </div></div>`;
   }
 
   // ---------- DRAFT: เลือกวิธีนับ → เริ่มตรวจนับ ----------
@@ -2064,7 +2229,7 @@
         <td class="ctr mono">${l.seq}</td>
         <td class="code">${esc(l.invCode)}</td>
         <td class="nm2">${esc(l.invName)}</td>
-        <td class="lot">${esc(l.lotNo)}${lineLv(l)}${l.src === 'A' ? '<span class="src-tag">เพิ่ม</span>' : ''}</td>
+        <td class="lot">${esc(l.lotNo)}${l.src === 'A' ? '<span class="src-tag">เพิ่ม</span>' : ''}</td>
         <td class="loc">${esc(l.loc)}</td>
         <td class="ctr">${esc(l.unit)}</td>
         ${blind ? '' : `<td class="num">${fmtQty(l.erp)}</td>`}
@@ -2079,7 +2244,7 @@
       const v = dirty.has(l.id) ? dirty.get(l.id) : qtyEditText(l.count);
       return `<div class="ln-card ${l.count != null ? 'counted' : ''}">
         <div class="t1"><b>${esc(l.invName)}</b><span class="mono muted">#${l.seq}</span></div>
-        <div class="sub">Lot ${esc(l.lotNo)}${lineLv(l)} · ${esc(l.loc)}${l.src === 'A' ? ' · เพิ่มระหว่างนับ' : ''}</div>
+        <div class="sub">Lot ${esc(l.lotNo)} · ${esc(l.loc)}${l.src === 'A' ? ' · เพิ่มระหว่างนับ' : ''}</div>
         <div class="row2">
           <div>${blind ? '<span class="k">Blind count</span>' : `<span class="k">ยอดตาม ERP</span><div class="v">${fmtQty(l.erp)} ${esc(l.unit)}</div>`}</div>
           <div><span class="k">ยอดนับจริง (${esc(l.unit)})</span><input class="qty-in ${dirty.has(l.id) ? 'dirty' : ''}" data-qty="${l.id}" inputmode="decimal" value="${esc(v)}" placeholder="-"></div>
@@ -2190,6 +2355,7 @@
   const tableHtml = (p, rows) => `<div class="ps-part"><table class="${p.cls || ''}"><colgroup>${p.cols.map(w => `<col style="width:${w}%">`).join('')}</colgroup>
       <thead>${p.thead}</thead><tbody>${rows.map(x => x.html).join('')}</tbody></table></div>`;
   async function pagedHtml({ landscape, head, parts, foot, maxPages }){
+    printSeq++;   // เริ่มเตรียมเอกสารใหม่ = ยกเลิกคำสั่งพิมพ์ที่ยังรอรูปอยู่ (#printArea ถูกใช้วัดความสูงหน้า)
     const [w, h] = PAGE_MM[landscape ? 'L' : 'P'];
     if(document.fonts && document.fonts.ready) await document.fonts.ready;
     const pa = $('printArea'), keep = pa.getAttribute('style');
@@ -2280,19 +2446,35 @@
       <div class="ps-foot"><span>${esc(d.docCode)} · ${count}</span><span>หน้า ${p}/${n}</span><span>พิมพ์ ${printStamp()}</span></div>`;
     doPrint(await pagedHtml({ head, parts: [part], foot, maxPages: d.sheetType === 'B' ? blankPages : 0 }));
   }
+  /* สั่งพิมพ์ (Chromium): ใส่เอกสารใน #printArea → รอโลโก้ / รูปลายเซ็นโหลด (ไม่เกิน 3 วินาที) → window.print()
+     ทีละคำสั่ง: กดพิมพ์ซ้ำ / กดใบอื่นระหว่างรอรูป = ใช้คำสั่งล่าสุด ยกเลิกคำสั่งเก่า
+     (เดิม 2 คำสั่งซ้อนกัน: ปิดหน้าพิมพ์ใบแรกแล้วล้างโหมดพิมพ์ของใบที่สองไปด้วย → ใบที่สองพิมพ์ทั้งหน้าจอแทนเอกสาร)
+     คืน Promise ที่จบเมื่อปิดหน้าพิมพ์ (true) / ถูกคำสั่งใหม่แทน (false) */
+  let printSeq = 0;
   function doPrint(html, landscape){
+    if(EMBED){ embedShow(html); return Promise.resolve(true); }
+    const my = ++printSeq;
     $('printArea').innerHTML = html;
-    document.body.classList.add('printing');
-    let pageStyle = null;
-    if(landscape){ pageStyle = document.createElement('style'); pageStyle.textContent = '@page{size:A4 landscape; margin:8mm;}'; document.head.appendChild(pageStyle); }
-    const done = () => { document.body.classList.remove('printing'); if(pageStyle){ pageStyle.remove(); pageStyle = null; } window.removeEventListener('afterprint', done); };
-    window.addEventListener('afterprint', done);
-    setTimeout(() => { window.print(); setTimeout(done, 1500); }, 60);
+    const imgs = [...$('printArea').querySelectorAll('img')].filter(i => !i.complete);
+    if(imgs.length) showToast('กำลังเตรียมเอกสารสำหรับพิมพ์…');
+    const ready = Promise.race([Promise.all(imgs.map(i => new Promise(ok => { i.addEventListener('load', ok); i.addEventListener('error', ok); }))), new Promise(ok => setTimeout(ok, 3000))]);
+    return ready.then(() => new Promise(res => setTimeout(() => {
+      if(my !== printSeq) return res(false);
+      let pageStyle = null, t = null;
+      if(landscape){ pageStyle = document.createElement('style'); pageStyle.textContent = '@page{size:A4 landscape; margin:8mm;}'; document.head.appendChild(pageStyle); }
+      const done = () => { window.removeEventListener('afterprint', done); clearTimeout(t); if(my === printSeq) document.body.classList.remove('printing'); if(pageStyle) pageStyle.remove(); res(true); };
+      document.body.classList.add('printing');
+      window.addEventListener('afterprint', done);
+      window.print();
+      t = setTimeout(done, 1500);
+    }, 60)));
   }
   const psFull = (p) => p ? (p.full || shortName(p.name)) : '';
-  function signBox(role, p){
+  const ESIGN_URL = (idPs) => `https://seedsgroup.dyndns.org/spm/images/eSign/${encodeURIComponent(idPs)}.png`;
+  // signed = ขั้นนั้นทำในระบบแล้ว → ขึ้นรูปลายเซ็นของคนนั้น (ถ้ามีรูป) เหมือนใบส่งคืนสินค้า
+  function signBox(role, p, signed){
     const nm = p ? psFull(p) : '';
-    return `<div><div class="l"></div><b class="rl">${role}</b>
+    return `<div><div class="sg">${signed && p && p.id ? `<img src="${ESIGN_URL(p.id)}" alt="" onerror="this.remove()">` : ''}</div><div class="l"></div><b class="rl">${role}</b>
       <div class="nm">(${nm ? esc(nm) : '<span class="bl"></span>'})</div>
       <div class="pos">ตำแหน่ง ${p && p.position ? esc(p.position) : '<span class="bl"></span>'}</div>
       <div class="dt">วันที่ ........./........./.........</div></div>`;
@@ -2307,11 +2489,10 @@
     const acc = s.counted ? (s.match / s.counted * 100).toFixed(1) + '%' : '-';
     const head = `<h2>ใบสรุปผลการตรวจนับสินค้าคงคลัง | STOCK COUNT RESULT</h2>
       <div class="ps-head cols">
-        <div style="grid-column:span 3"><b>บริษัท:</b> ${esc(d.compName)}</div><div class="nw"><b>เลขที่เอกสาร:</b> ${esc(d.docCode)}</div>
+        <div style="grid-column:span 2"><b>บริษัท:</b> ${esc(d.compName)}</div><div><b>ประเภท:</b> ${esc(d.typeName)}</div><div class="nw"><b>เลขที่เอกสาร:</b> ${esc(d.docCode)}</div>
         <div style="grid-column:span 2"><b>คลัง/พื้นที่:</b> ${esc(d.idWhScope === d.idParent0 ? d.whName : d.scopePath)}</div><div><b>ครั้งที่นับ:</b> ${d.round}</div><div class="nw"><b>วันที่ตรวจนับ:</b> ${thDate(d.dateCount)}</div>
-        <div><b>ประเภท:</b> ${esc(d.typeName)}</div><div><b>วิธีนับ:</b> ${esc(MODE[d.mode] || '-')}${d.blind ? ' (Blind)' : ''}</div><div class="nw"><b>ผู้ตรวจนับ:</b> ${esc(psFull(d.counter))}</div><div class="nw"><b>สถานะ:</b> ${esc(STATUS[d.status])}</div>
-        <div class="nw"><b>เก็บยอด ERP:</b> ${thStamp(d.dateStart)}</div><div class="nw"><b>ปิดการนับ:</b> ${thStamp(d.dateClose)}</div><div class="nw"><b>ผู้ตรวจสอบ:</b> ${esc(psFull(d.reviewer))}</div>
-        <div>${d.rqCode ? `<b>ใบขอปรับยอด:</b> ${esc(d.rqCode)}<br><span class="ps-sm">ส่งขออนุมัติปรับยอด ${thStamp(d.dateSubmit)}</span>` : ''}</div>
+        <div class="nw"><b>เก็บยอด ERP:</b> ${thStamp(d.dateStart)}</div><div class="nw"><b>ปิดการนับ:</b> ${thStamp(d.dateClose)}</div><div><b>วิธีนับ:</b> ${esc(MODE[d.mode] || '-')}${d.blind ? ' (Blind)' : ''}</div><div class="nw"><b>สถานะ:</b> ${esc(STATUS[d.status])}</div>
+        ${d.rqCode ? `<div style="grid-column:1/-1"><b>ใบขอปรับยอดสต๊อก:</b> ${esc(d.rqCode)} <span class="ps-sm">(ส่งขออนุมัติปรับยอด ${thStamp(d.dateSubmit)})</span></div>` : ''}
       </div>`;
     const kpi = `<table class="ps-sum"><tr>
         <td><span>รายการทั้งหมด</span><b>${fmtInt(s.all - s.um)}</b></td><td><span>นับแล้ว</span><b>${fmtInt(s.counted)}</b></td>
@@ -2330,9 +2511,11 @@
       <td class="n">${fmtQty(u.count)}</td><td class="c">${esc(u.unitText || '-')}</td><td>${esc([u.note, u.mapNote].filter(Boolean).join(' · ') || '-')}</td><td class="c">${esc(counterTxt(u))}</td></tr>` }));
     const umRows = umOther.map((u, i) => ({ html: `<tr><td class="c">${i + 1}</td><td>${esc(u.inputText || '-')}</td><td>${esc(u.itemText || '-')}</td><td>${esc(u.locText || '-')}</td>
       <td class="n">${fmtQty(u.count)} ${esc(u.unitText || '')}</td><td>${esc(MAP[u.mapStatus || 'P'])}${u.mapNote ? ' · ' + esc(u.mapNote) : ''}</td></tr>` }));
-    // ลงนามทั้งหมดแถวเดียว (มีใบขอปรับยอด = 5 ช่อง) + ท้ายกระดาษ ทุกหน้า
-    const signs = signBox('ผู้ตรวจนับ', d.counter) + signBox('ผู้ตรวจสอบ', d.reviewer) + (d.rqCode ? signBox('ผู้รับทราบ') + signBox('ผู้ตรวจสอบ') + signBox('ผู้อนุมัติ') : '');
-    const foot = (p, n) => `<div class="ps-sign ${d.rqCode ? 's5' : ''}">${signs}</div>
+    // ลงนามเฉพาะผลการนับ (ผู้ตรวจนับ / ผู้ตรวจสอบการนับ) — รับทราบ / ตรวจสอบ / อนุมัติปรับยอด ลงนามในใบขอปรับยอดสต๊อก + ท้ายกระดาษ ทุกหน้า
+    // ผู้ตรวจนับ = ปิดการนับแล้ว (มีใบสรุปผลแปลว่าปิดแล้ว) / ผู้ตรวจสอบ = ตรวจสอบเสร็จ ส่งขออนุมัติปรับยอดแล้ว
+    const reviewed = ['APPROVE', 'POSTED', 'DONE'].includes(d.status);
+    const signs = signBox('ผู้ตรวจนับ', d.counter, true) + signBox('ผู้ตรวจสอบการตรวจนับ', d.reviewer, reviewed);
+    const foot = (p, n) => `<div class="ps-sign">${signs}</div>
       <div class="ps-foot"><span>${esc(d.docCode)} · ใบสรุปผลการตรวจนับ · ผลต่าง ${fmtInt(diffs.length)} รายการ</span><span>หน้า ${p}/${n}</span><span>พิมพ์ ${printStamp()}</span></div>`;
     const h3 = (txt) => ({ keepNext: true, html: `<h3 class="ps-h3">${txt}</h3>` });
     const parts = [{ html: kpi }, h3(`รายการที่มีผลต่าง (${fmtInt(diffs.length)} รายการ)${d.tolerance ? ` · ค่ายอมรับผลต่าง ${fmtQty(d.tolerance)}%` : ''}`)];
@@ -2728,7 +2911,7 @@
   }
 
   /* ==================================================================
-     DASHBOARD / ตรวจสอบผลต่าง
+     DASHBOARD สรุปผลการตรวจนับ (ตามชีต Dashboard ในแบบฟอร์ม Excel) + ตรวจสอบผลต่าง
   ================================================================== */
   function dashPanel(){
     const s = doc.stats;
@@ -2785,7 +2968,7 @@
         <td class="ctr mono">${l.seq}</td>
         <td class="code">${esc(l.invCode)}</td>
         <td class="nm2">${esc(l.invName)}</td>
-        <td class="lot">${esc(l.lotNo)}${lineLv(l)}${l.src === 'A' ? '<span class="src-tag">เพิ่ม</span>' : ''}${l.recount ? `<span class="src-tag">นับซ้ำ ${l.recount}</span>` : ''}</td>
+        <td class="lot">${esc(l.lotNo)}${l.src === 'A' ? '<span class="src-tag">เพิ่ม</span>' : ''}${l.recount ? `<span class="src-tag">นับซ้ำ ${l.recount}</span>` : ''}</td>
         <td class="loc">${esc(l.loc)}</td>
         <td class="ctr">${esc(l.unit)}</td>
         <td class="num">${fmtQty(l.erp)}</td>
@@ -2842,7 +3025,7 @@
   function reviewBar(editable){
     if(!editable) return `<div class="info-box"><div>รอผู้ตรวจสอบ (<b>${esc(doc.reviewer.name)}</b>) ตรวจสอบผลต่างและส่งขออนุมัติปรับยอด</div></div>`;
     return `<div class="save-bar review-bar">
-      <span class="t">ส่งปรับยอด <b data-adj-count>${fmtInt(doc.stats.adjust)}</b> รายการ — สร้างใบขอปรับยอด (RQ) 1 ใบ ส่งให้ ตรวจสอบ / รับทราบ / อนุมัติปรับยอดสต๊อก</span>
+      <span class="t">ส่งปรับยอด <b data-adj-count>${fmtInt(doc.stats.adjust)}</b> รายการ — สร้างใบขอปรับยอดสต๊อก (RQ) 1 ใบ ส่งให้ รับทราบ / ตรวจสอบ / อนุมัติปรับยอดสต๊อก</span>
       <div class="action-bar" style="margin:0">
         ${meta.can.edit ? `<button type="button" class="btn btn-secondary" data-act="reopen">${IC.redo} เปิดการนับต่อ</button>` : ''}
         <button type="button" class="btn btn-secondary" data-act="recount">${IC.redo} สั่งนับซ้ำรายการที่เลือก</button>
@@ -2914,7 +3097,7 @@
             <th>ผลต่าง</th><th>สถานะผลต่าง</th><th>สถานะคุณภาพ</th><th>วันหมดอายุ</th><th>สาเหตุ / หมายเหตุ</th><th>ผู้ตรวจนับ</th><th>ผู้ตรวจสอบ</th><th>สถานะดำเนินการ</th></tr></thead>
           <tbody>${rows.map(l => { const x = diffOf(l), u = l.src === 'U'; return `<tr>
             <td class="ctr mono">${l.seq}</td><td class="code">${esc(u ? '-' : l.invCode)}</td><td class="nm2">${esc(u ? (l.itemText || '-') : l.invName)}</td>
-            <td class="lot">${esc(u ? l.inputText : l.lotNo)}${u ? '' : lineLv(l)}</td><td class="loc">${esc(u ? l.locText : l.loc)}</td><td class="ctr">${esc(l.unit || l.unitText || '')}</td>
+            <td class="lot">${esc(u ? l.inputText : l.lotNo)}</td><td class="loc">${esc(u ? l.locText : l.loc)}</td><td class="ctr">${esc(l.unit || l.unitText || '')}</td>
             <td class="num">${u ? '-' : hideErp ? '•••' : fmtQty(l.erp)}</td><td class="num">${fmtQty(l.count)}</td>
             <td class="num df-${x.st}">${!u && !counting && x.diff != null ? `<b>${fmtSign(x.diff)}</b>` : '-'}</td>
             <td class="ctr">${u ? '<span class="chip df-OVER">ไม่พบในระบบ</span>' : counting && x.st !== 'NC' ? '<span class="muted">นับแล้ว</span>' : `<span class="chip df-${x.st}">${DIFF[x.st]}</span>`}</td>
@@ -2975,7 +3158,7 @@
           <label><input type="radio" name="crule" value="Z" checked> ถือว่าไม่พบของ = ยอดนับ 0 (จะเป็นรายการขาด)</label>
           <label><input type="radio" name="crule" value="X"> ไม่นำมาคิด (ไม่เทียบผลต่าง ไม่ปรับยอด)</label>
         </div>` : '<p class="muted">นับครบทุกรายการแล้ว</p>'}
-      <p class="hint">ปิดการนับแล้วระบบจะประมวลผล Dashboard ผลต่าง ให้ผู้ตรวจสอบเลือกรายการส่งปรับยอด (เปิดการนับต่อได้ถ้ายังไม่ส่งขออนุมัติปรับยอด)</p>
+      <p class="hint">ปิดการนับแล้วระบบจะประมวลผล Dashboard สรุปผลการตรวจนับ ให้ผู้ตรวจสอบเลือกรายการส่งปรับยอด (เปิดการนับต่อได้ถ้ายังไม่ส่งขออนุมัติปรับยอด)</p>
       <div class="action-bar" style="margin-top:14px"><button type="button" class="btn btn-secondary" data-close="dlgModal">ยังไม่ปิด</button><button type="button" class="btn btn-primary" data-act="close-confirm">${IC.stop} ปิดการนับ</button></div>`, '560px');
   }
   async function closeCount(btn){
@@ -3001,23 +3184,27 @@
     const miss = doc.lines.filter(l => l.adjust && !l.idCause).length;
     if(miss){ alert(`กรุณาระบุสาเหตุของรายการที่ส่งปรับยอดให้ครบ (ยังขาด ${miss} รายการ)`); ui.show = 'ADJ'; renderTab(); return; }
     const n = doc.lines.filter(l => l.adjust).length;
-    const txt = n ? `ส่งขออนุมัติปรับยอด ${n} รายการ?\nระบบจะสร้างใบขอปรับยอด (RQ) 1 ใบ และ Lot ในใบจะถูกล็อกจนอนุมัติปรับยอดครบ 3 ขั้น` : 'ไม่มีรายการที่ต้องปรับยอด — ปิดเอกสารเป็นเสร็จสิ้น?';
+    const txt = n ? `ส่งขออนุมัติปรับยอด ${n} รายการ?\nระบบจะสร้างใบขอปรับยอดสต๊อก (RQ) 1 ใบ และ Lot ในใบจะถูกล็อกจนอนุมัติปรับยอดครบ 3 ขั้น` : 'ไม่มีรายการที่ต้องปรับยอด — ปิดเอกสารเป็นเสร็จสิ้น?';
     if(!confirm(txt)) return;
     await busy(btn, async () => {
       try{
         const r = await api(`/api/stock-count/doc/${doc.id}/submit`, { body: {} });
         if(r.done) showToast('ปิดเอกสารแล้ว (ไม่มีรายการปรับยอด)');
-        else dlg('ส่งขออนุมัติปรับยอดแล้ว', `<p>สร้างใบขอปรับยอด <b class="mono">${esc(r.rqCode)}</b> (${fmtInt(r.lines)} รายการ)</p>
-          <p class="hint">ส่งลิงก์ให้ผู้ ตรวจสอบ / รับทราบ / อนุมัติปรับยอดสต๊อก:</p>
-          <div class="link-box"><input type="text" readonly value="${esc(location.origin + '/stock-adjust-approve?id=' + r.idRq)}"><button type="button" class="btn btn-secondary" data-copy="${esc(location.origin + '/stock-adjust-approve?id=' + r.idRq)}">${IC.link} คัดลอก</button></div>
-          <div class="action-bar"><button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button></div>`, '600px');
+        else {
+          shareQ = { id: r.idRq, docCode: r.rqCode, compName: doc.compName, scCode: doc.docCode, scType: doc.typeName, nLine: r.lines, nPlus: r.nPlus, nMinus: r.nMinus, steps: {} };
+          dlg('ส่งขออนุมัติปรับยอดสต๊อกแล้ว', `<div class="rq-made"><span>สร้างใบขอปรับยอดสต๊อก <b class="mono">${esc(r.rqCode)}</b></span>
+              <span>${fmtInt(r.lines)} รายการ · ปรับเพิ่ม ${fmtInt(r.nPlus)} / ปรับลด ${fmtInt(r.nMinus)}</span></div>
+            <p class="hint" style="margin:0 0 10px">ส่งลิงก์ตามอนุมัติถึงผู้รับทราบ / ผู้ตรวจสอบ / ผู้อนุมัติ — คัดลอกข้อความแล้วส่งทาง LINE / e-mail</p>
+            ${shareHtml(shareQ)}
+            <div class="action-bar" style="margin-top:12px"><button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button></div>`, '600px');
+        }
         await reload();
       } catch(err){ alert(err.message); }
     });
   }
   function cancelDlg(){
     dlg('ยกเลิกเอกสาร ' + doc.docCode, `
-      ${doc.status === 'APPROVE' ? '<div class="warn-box"><div>ใบขอปรับยอด ' + esc(doc.rqCode) + ' จะถูกยกเลิกด้วย (ปลดล็อก Lot)</div></div>' : ''}
+      ${doc.status === 'APPROVE' ? '<div class="warn-box"><div>ใบขอปรับยอดสต๊อก ' + esc(doc.rqCode) + ' จะถูกยกเลิกด้วย (ปลดล็อก Lot)</div></div>' : ''}
       <div class="form-group"><label>เหตุผลการยกเลิก<span class="req">*</span></label><textarea id="cancelNote" rows="3" maxlength="500"></textarea></div>
       <div class="action-bar" style="margin-top:14px"><button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button><button type="button" class="btn btn-danger" data-act="cancel-confirm">${IC.x} ยืนยันยกเลิก</button></div>`, '540px');
   }
@@ -3068,8 +3255,14 @@
       if(pg){ ui.page = Number(pg.dataset.page); renderTab(); const tb = $('tabBody'); if(tb) tb.scrollIntoView({ block: 'start' }); return; }
       const mode = t.closest('[data-mode]');
       if(mode){ ui.mode = mode.dataset.mode; const r = t.closest('input[name=sheet]'); if(r) ui.sheet = r.value; renderDoc(); return; }
+      const sm = t.closest('[data-sharemode]');
+      if(sm){ shareMode = sm.dataset.sharemode; const box = sm.closest('.share'); if(box && shareQ) box.outerHTML = shareHtml(shareQ, box.dataset.sel); return; }
+      const shs = t.closest('[data-sharestep]');
+      if(shs){ const box = shs.closest('.share'); if(box && shareQ) box.outerHTML = shareHtml(shareQ, shs.dataset.sharestep); return; }
+      const cm = t.closest('[data-copymsg]');
+      if(cm){ const v = cm.closest('.share').querySelector('.msg-box').value; try{ await navigator.clipboard.writeText(v); showToast('คัดลอกข้อความแล้ว — วางใน LINE / e-mail ได้เลย'); } catch(err){ prompt('คัดลอกข้อความนี้', v); } return; }
       const copy = t.closest('[data-copy]');
-      if(copy){ try{ await navigator.clipboard.writeText(copy.dataset.copy); showToast('คัดลอกลิงก์แล้ว'); } catch(err){ prompt('คัดลอกลิงก์นี้', copy.dataset.copy); } return; }
+      if(copy){ try{ await navigator.clipboard.writeText(copy.dataset.copy); showToast(copy.dataset.copied || 'คัดลอกลิงก์แล้ว'); } catch(err){ prompt('คัดลอกลิงก์นี้', copy.dataset.copy); } return; }
       const pl = t.closest('[data-pickline]');
       if(pl){ live.line = lineById.get(Number(pl.dataset.pickline)); live.step = 'qty'; renderTab(); return; }
       const po = t.closest('[data-pickout]');
@@ -3096,6 +3289,8 @@
         case 'print': printSheet(); break;
         case 'print-blank': { const n = Math.min(50, Math.max(1, parseInt($('blankPages').value, 10) || 1)); closeModal('dlgModal'); printSheet(n); break; }
         case 'print-summary': printSummary(); break;
+        case 'share-rq': shareRqDlg(); break;
+        case 'view-rq': openRqView(doc.idRq, doc.rqCode); break;
         case 'export': exportXlsx(act); break;
         case 'export-result': exportResult(); break;
         case 'import': $('xlsFile').click(); break;

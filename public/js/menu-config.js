@@ -10,7 +10,8 @@
     returnBox: '<polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>',
     truck: '<rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle>',
     shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path>',
-    book: '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"></path><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"></path>'
+    book: '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"></path><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"></path>',
+    list: '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><circle cx="3.5" cy="6" r="1"></circle><circle cx="3.5" cy="12" r="1"></circle><circle cx="3.5" cy="18" r="1"></circle>'
   };
 
   window.WIM_ICONS = icon;
@@ -21,8 +22,9 @@
     { code: 'supplier_return_check', group: 'คลังวัสดุและสินค้า · ส่งคืนสินค้า/ลดหนี้ Supplier', title: 'ตรวจสอบเอกสารส่งคืนสินค้า Supplier', desc: 'ตรวจสอบ 1 / ตรวจสอบ 2 เอกสารส่งคืนสินค้า หรือส่งกลับแก้ไข', href: '/supplier-return-approve?step=check', icon: 'lot', keywords: 'supplier return rts ตรวจสอบ ส่งคืน ลดหนี้ check review' },
     { code: 'supplier_return_approve', group: 'คลังวัสดุและสินค้า · ส่งคืนสินค้า/ลดหนี้ Supplier', title: 'อนุมัติเอกสารส่งคืนสินค้า Supplier', desc: 'อนุมัติเอกสารส่งคืนสินค้า — ปลดให้คลังเบิก / หักยอดรับ PO', href: '/supplier-return-approve?step=approve', icon: 'shield', keywords: 'supplier return rts อนุมัติ ส่งคืน ลดหนี้ approve' },
     { code: 'stock_count', group: 'คลังวัสดุและสินค้า · ตรวจนับสต๊อก', title: 'เอกสารตรวจนับสต๊อก', desc: 'สร้างรอบตรวจนับ นับด้วยใบนับ (Offline Count Sheet) หรือสแกนนับสด (Live Count) สรุปผลต่าง และส่งขออนุมัติปรับยอด', href: '/stock-count', icon: 'box', keywords: 'stock count physical count ตรวจนับ นับสต๊อก คงคลัง ผลต่าง ปรับยอด blind count live count' },
-    { code: 'stock_adjust_check', group: 'คลังวัสดุและสินค้า · ตรวจนับสต๊อก', title: 'ตรวจสอบปรับยอดสต๊อก', desc: 'ตรวจสอบใบขอปรับยอดสต๊อก (RQ) ทั้งจาก WIM Desktop และจากการตรวจนับ', href: '/stock-adjust-approve?step=check', icon: 'lot', keywords: 'rq ปรับยอด ตรวจสอบ stock adjust check ตรวจนับ' },
+    { code: 'stock_adjust_track', group: 'คลังวัสดุและสินค้า · ตรวจนับสต๊อก', title: 'รายการขอปรับยอดสต๊อก', desc: 'ติดตามใบขอปรับยอดสต๊อก (RQ) ทั้งจาก WIM Desktop และจากการตรวจนับ — ส่งต่อลิงก์ให้ผู้อนุมัติ พิมพ์ใบไปเซ็น ดูประวัติที่อนุมัติครบ / ยกเลิก', href: '/stock-adjust-list', icon: 'list', keywords: 'rq ปรับยอด ติดตาม ส่งต่อ พิมพ์ ประวัติ stock adjust request list track' },
     { code: 'stock_adjust_ack', group: 'คลังวัสดุและสินค้า · ตรวจนับสต๊อก', title: 'รับทราบปรับยอดสต๊อก', desc: 'รับทราบใบขอปรับยอดสต๊อก (RQ) ทั้งจาก WIM Desktop และจากการตรวจนับ', href: '/stock-adjust-approve?step=ack', icon: 'book', keywords: 'rq ปรับยอด รับทราบ stock adjust acknowledge ตรวจนับ' },
+    { code: 'stock_adjust_check', group: 'คลังวัสดุและสินค้า · ตรวจนับสต๊อก', title: 'ตรวจสอบปรับยอดสต๊อก', desc: 'ตรวจสอบใบขอปรับยอดสต๊อก (RQ) ทั้งจาก WIM Desktop และจากการตรวจนับ', href: '/stock-adjust-approve?step=check', icon: 'lot', keywords: 'rq ปรับยอด ตรวจสอบ stock adjust check ตรวจนับ' },
     { code: 'stock_adjust_approve', group: 'คลังวัสดุและสินค้า · ตรวจนับสต๊อก', title: 'อนุมัติปรับยอดสต๊อก', desc: 'อนุมัติใบขอปรับยอดสต๊อก (RQ) — ครบ 3 ขั้นแล้วระบบปรับสต๊อก', href: '/stock-adjust-approve?step=approve', icon: 'shield', keywords: 'rq ปรับยอด อนุมัติ stock adjust approve ตรวจนับ' },
     { code: 'coating', group: 'การจัดการเมล็ดพันธุ์', title: 'การลงเวลาเคลือบเมล็ด', desc: 'ลงเวลาเริ่ม / สิ้นสุดการเคลือบเมล็ด', href: '/coating', icon: 'seed', keywords: 'coating เคลือบ' },
     { code: 'moisture', group: 'การจัดการเมล็ดพันธุ์', title: 'การลงเวลาลดความชื้น', desc: 'ลงเวลาเข้า-ออกห้องลดความชื้น พร้อมค่าความชื้น', href: '/moisture', icon: 'drop', keywords: 'moisture ความชื้น อบ ห้อง' },
