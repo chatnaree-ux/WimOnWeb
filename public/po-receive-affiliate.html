@@ -322,7 +322,7 @@
      ================================================================== */
   /* ---------- กล่องเงื่อนไข: 3 บล็อก + ปุ่ม (2 แถว) ----------
      บล็อก 1: [บริษัท]   / [Supplier]        บล็อก 2: [ประเภทพืช] / [ค้นหา]
-     บล็อก 3: วันที่ออก PO  แถว 1 = ○ทั้งหมด ○ปี [ปี]  /  แถว 2 = ○เดือน [เดือน][ปี]          ปุ่ม: [แสดงข้อมูล] / [Export]
+     บล็อก 3: วันที่ออก PO  แถว 1 = ○ทั้งหมด ○ปี [ปี]  /  แถว 2 = ○เดือน [เดือน][ปี]          ปุ่ม: [Refresh] / [Export]
      แต่ละ .filter-block เป็น display:contents → ป้ายชื่อ/ช่องกรอกวางลงคอลัมน์ตาม class fb-* */
   .filter-panel.filter-grid{
     /* คอลัมน์: ป้าย1 | บริษัท/Supplier | ป้าย2 | ประเภทพืช/ค้นหา | ป้ายวันที่ | วันที่ | ช่องว่าง | ปุ่ม */
@@ -410,7 +410,7 @@
   .date-mode-grid.date-ignored{opacity:.4; transition:opacity .15s;}
 
   /* จอกลาง (901–1549px เช่น notebook 1366 / จอ 1440): 3 แถว — คงการจับคู่ของบล็อกเดิม
-     [บริษัท | ประเภทพืช | แสดงข้อมูล] / [Supplier | ค้นหา | Export] / [วันที่ออก PO (บรรทัดเดียว)] */
+     [บริษัท | ประเภทพืช | Refresh] / [Supplier | ค้นหา | Export] / [วันที่ออก PO (บรรทัดเดียว)] */
   @media (min-width:901px) and (max-width:1549px){
     .filter-panel.filter-grid{grid-template-columns:max-content minmax(0, 1fr) max-content minmax(0, 1fr) 140px;}
     .fb-date > :first-child{grid-column:1; grid-row:3;} .fb-date > :last-child{grid-column:2 / 5; grid-row:3;}
@@ -756,7 +756,7 @@
     .sc-actions{grid-column:1 / -1; display:grid; grid-template-columns:repeat(3, 1fr);}
     .sc-actions .filter-btn{width:100%;}
   }
-  /* จอเล็ก: 3 ปุ่มแถวเดียวไม่พอ (ปุ่มพิมพ์หลุดกรอบ) → แสดงข้อมูล เต็มแถว / Export Excel + พิมพ์ แบ่งครึ่งแถวล่าง */
+  /* จอเล็ก: 3 ปุ่มแถวเดียวไม่พอ (ปุ่มพิมพ์หลุดกรอบ) → Refresh เต็มแถว / Export Excel + พิมพ์ แบ่งครึ่งแถวล่าง */
   @media (max-width:640px){
     .sc-actions{grid-template-columns:repeat(2, minmax(0, 1fr));}
     .sc-actions #scViewBtn{grid-column:1 / -1;}
@@ -951,6 +951,9 @@
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
+<!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
+<link rel="stylesheet" href="/css/kpi-cards.css">
+<script src="/js/kpi-icons.js"></script>
 </head>
 <body>
 
@@ -1065,11 +1068,11 @@
             <button type="button" class="mp-today" id="mpToday">เดือนนี้</button>
           </div>
         </div>
-        <!-- ปุ่มอยู่คอลัมน์ขวาสุดของกล่องเงื่อนไข: แถว 1 = แสดงข้อมูล / แถว 2 = Export -->
+        <!-- ปุ่มอยู่คอลัมน์ขวาสุดของกล่องเงื่อนไข: แถว 1 = Refresh / แถว 2 = Export (เปลี่ยนเงื่อนไขแล้วโหลดเอง) -->
         <div class="filter-actions">
-          <button class="btn-primary filter-btn" id="viewBtn" type="button" title="โหลดข้อมูลใหม่ (เปลี่ยนเงื่อนไขแล้วระบบโหลดให้อัตโนมัติ)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            แสดงข้อมูล
+          <button class="btn-primary filter-btn" id="viewBtn" type="button" title="ดึงข้อมูลล่าสุด (เปลี่ยนเงื่อนไขแล้วระบบโหลดให้อัตโนมัติ)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg>
+            Refresh
           </button>
           <button type="button" class="filter-btn excel-btn" id="exportBtn" disabled>
             <!-- ไอคอนแบบ Excel: ไฟล์เขียวมีตัว X -->
@@ -1107,7 +1110,7 @@
         <div id="resultArea">
           <div class="state-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2c-4 3-7 6-7 10a7 7 0 0 0 14 0c0-4-3-7-7-10z"></path><path d="M12 22v-9"></path></svg>
-            <div>เลือกบริษัทและช่วงวันที่ PO แล้วกด "แสดงข้อมูล" เพื่อแสดงผล</div>
+            <div>เลือกบริษัทและช่วงวันที่ PO — ระบบแสดงข้อมูลให้อัตโนมัติ</div>
           </div>
         </div>
       </div>
@@ -1130,9 +1133,9 @@
             <div class="sc-suggest" id="scSuggest" role="listbox" hidden></div>
           </div>
           <div class="sc-actions">
-            <button class="btn-primary filter-btn" id="scViewBtn" type="button">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              แสดงข้อมูล
+            <button class="btn-primary filter-btn" id="scViewBtn" type="button" title="ดึงข้อมูลล่าสุดของ PO นี้">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg>
+              Refresh
             </button>
             <button type="button" class="filter-btn excel-btn" id="scExportBtn" disabled>
               <svg class="xl-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -1724,6 +1727,7 @@
     const companyId = companySelect.value;
     if (!companyId) { renderState('กรุณาเลือกบริษัทก่อน'); return; }
     const seq = ++reqSeq;
+    renderState('กำลังโหลด…');   // ล้างผลของเงื่อนไขเดิมทันที — ไม่ค้างข้อมูลเก่าให้เข้าใจผิดระหว่างโหลด
 
     // มีคำค้นหา (เช่น เลขที่ PO) = ค้นทุกช่วงเวลา ไม่สนเงื่อนไขเดือน/ปี กันกรณีหาไม่เจอเพราะลืมเปลี่ยนปี
     const dateMode = keywordInput.value.trim() ? 'all' : getDateMode();
@@ -1780,7 +1784,7 @@
   viewBtn.addEventListener('click', () => { clearTimeout(kwTimer); loadReport(); });
   keywordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(kwTimer); loadReport(); } });
 
-  // ---------- เปลี่ยนเงื่อนไข = โหลดข้อมูลใหม่อัตโนมัติ (ไม่ต้องกด "แสดงข้อมูล") ----------
+  // ---------- เปลี่ยนเงื่อนไข = โหลดข้อมูลใหม่อัตโนมัติ (ไม่ต้องกดปุ่ม — Refresh ไว้ดึงข้อมูลล่าสุด) ----------
   let autoReady = false; // เปิดหลังโหลดครั้งแรก กันโหลดซ้ำระหว่างตั้งค่าเริ่มต้น
   let kwTimer = null;
   const autoLoad = () => { if (autoReady) { clearTimeout(kwTimer); loadReport(null, false); } };
@@ -1801,6 +1805,8 @@
     syncDateIgnored();
     if (!autoReady) return;
     clearTimeout(kwTimer);
+    reqSeq++;   // ยกเลิกผลที่กำลังโหลดของคำค้นเดิม
+    renderState('กำลังค้นหา…');
     kwTimer = setTimeout(() => loadReport(null, false), 600);
   });
 
@@ -1895,6 +1901,8 @@
   scPoInput.addEventListener('input', () => {
     clearTimeout(sgTimer);
     sgTimer = setTimeout(fetchSuggest, 300);
+    // เลขที่ไม่ตรงกับ PO ที่แสดงอยู่แล้ว → ล้างผลเก่า (กัน Stock Card ของ PO เดิมค้างให้เข้าใจผิด)
+    if (scPo && scPoInput.value.trim() !== scPo.poCode){ scSeq++; scState('เลือก PO จากรายการแนะนำ หรือพิมพ์เลขที่ PO แล้วกด Enter'); }
   });
   scPoInput.addEventListener('focus', () => { if (scPoInput.value.trim().length >= 2) fetchSuggest(); });
   scPoInput.addEventListener('keydown', (e) => {
@@ -1922,13 +1930,14 @@
   });
   scPoInput.addEventListener('blur', () => setTimeout(hideSuggest, 120));
   scViewBtn.addEventListener('click', () => { hideSuggest(); loadStockcard(scPoInput.value.trim()); });
-  scCompanySelect.addEventListener('change', () => { if (scPoInput.value.trim()) loadStockcard(scPoInput.value.trim()); });
+  scCompanySelect.addEventListener('change', () => { if (scPoInput.value.trim()) loadStockcard(scPoInput.value.trim()); else scState('เลือก PO จากรายการแนะนำ หรือพิมพ์เลขที่ PO แล้วกด Enter'); });
 
   // ---------- ดึง + แสดง Stock Card ----------
   async function loadStockcard(poCode){
     if (!scCompanySelect.value) { scState('กรุณาเลือกบริษัทก่อน'); return; }
     if (!poCode) { scState('กรุณาระบุเลขที่ PO'); scPoInput.focus(); return; }
     const seq = ++scSeq;
+    scState('กำลังโหลด…');   // ล้างผลของ PO / บริษัทเดิมทันที
     scViewBtn.disabled = true;
     scViewBtn.innerHTML = '<span class="spinner"></span> กำลังโหลด…';
     scPanel.classList.add('is-loading');
@@ -2166,6 +2175,8 @@
   async function loadAnalysis(){
     if (!anCompanySelect.value) { anResult.innerHTML = '<div class="state-box">กรุณาเลือกบริษัท</div>'; return; }
     const seq = ++anSeq;
+    destroyCharts(); anData = null;
+    anResult.innerHTML = '<div class="state-box">กำลังโหลด…</div>';   // ล้างผลของเงื่อนไขเดิมทันที
     const params = new URLSearchParams({ companyId: anCompanySelect.value });
     if (anYearSelect.value) params.set('year', anYearSelect.value);
     anLoading.hidden = false;

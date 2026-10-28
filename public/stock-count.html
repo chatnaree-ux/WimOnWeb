@@ -1048,6 +1048,9 @@
 <script src="/js/sidebar.js"></script>
 <script src="/js/thai-datepicker.js"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
+<!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
+<link rel="stylesheet" href="/css/kpi-cards.css">
+<script src="/js/kpi-icons.js"></script>
 </head>
 
 <body>
@@ -2007,6 +2010,8 @@
     if(d.status === 'REVIEW' && d.sendBack) notes += `<div class="send-back-box"><div><b>ถูกส่งกลับแก้ไข</b> โดย ${esc(d.sendBack.by)} · ${thStamp(d.sendBack.at)}<br>${esc(d.sendBack.note)}</div></div>`;
     if(d.status === 'CANCEL' && d.cancel) notes += `<div class="send-back-box"><div><b>ยกเลิกเอกสาร</b> โดย ${esc(d.cancel.by)} · ${thStamp(d.cancel.at)}<br>${esc(d.cancel.note)}</div></div>`;
     if(d.status === 'APPROVE') notes += approveInfo();
+    if(d.status === 'POSTED' && d.rqCode) notes += `<div class="info-box"><div style="flex:1"><b>ปรับสต๊อกแล้ว</b> ตามใบขอปรับยอดสต๊อก ${esc(d.rqCode)}${d.datePosted ? ` — ${thStamp(d.datePosted)}` : ''}
+      <div class="action-bar" style="justify-content:flex-start; margin-top:10px;"><a class="btn btn-secondary btn-sm" href="/stock-adjust-report?doc=${encodeURIComponent(d.rqCode)}&comp=${d.idComp}" target="_blank" rel="noopener">${IC.link} ดูในรายงานการปรับยอดสต๊อก</a></div></div></div>`;
     if(d.status === 'DONE') notes += '<div class="info-box"><div><b>เสร็จสิ้น</b> — ไม่มีรายการที่ต้องปรับยอด</div></div>';
     $('docView').innerHTML = `
       <div class="card">

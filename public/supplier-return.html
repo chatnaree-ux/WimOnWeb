@@ -447,13 +447,20 @@
 
   /* ---------- LIST: Dashboard สถานะ ---------- */
   .dash{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:16px;}
-  /* 3 กลุ่ม: อยู่ระหว่างกระบวนการ (ไม่ใช้วันที่) | สิ้นสุดกระบวนการ / รายงาน (ใช้ช่วงวันที่) */
-  .dash-wrap{display:grid; grid-template-columns:minmax(0,6fr) minmax(0,2fr) minmax(0,1fr); gap:12px 16px; margin-bottom:16px;}
-  .dash-wrap .dash{margin-bottom:0; grid-template-columns:repeat(auto-fit, minmax(118px, 1fr));}
+  /* 2 กลุ่ม: อยู่ระหว่างกระบวนการ 6 ใบ (ไม่ใช้วันที่) | สิ้นสุดกระบวนการ / รายงาน 3 ใบ (ช่วงวันที่เดียวกัน) — สัดส่วนตามจำนวนการ์ด = การ์ดกว้างเท่ากัน
+     subgrid: หัวกลุ่มอยู่แถวเดียวกัน + การ์ดทุกกลุ่มสูงเท่ากัน (ชื่อยาวตกบรรทัดก็ไม่ทำให้กรอบสูงกว่าเพื่อน) */
+  .dash-wrap{display:grid; grid-template-columns:minmax(0,6fr) minmax(0,3fr); grid-template-rows:auto auto; gap:0 16px; margin-bottom:16px;}
+  .dash-wrap .dash-group{display:grid; grid-row:span 2; grid-template-rows:subgrid;}
+  .dash-wrap .dash{margin-bottom:0; grid-template-columns:repeat(auto-fit, minmax(96px, 1fr)); grid-auto-rows:1fr;}
+  /* การ์ดหน้านี้ 9 ใบเรียงแถวเดียว: กะทัดรัดกว่าหน้าอื่นเล็กน้อย */
+  body .dash-wrap .dash-card{padding:10px 12px;}
+  body .dash-wrap .dash-card .lbl{font-size:13.5px;}
+  body .dash-wrap .dash-card .val{font-size:28px; margin-top:auto; padding-top:2px;}   /* ตัวเลขชิดล่าง: ชื่อการ์ดตกบรรทัด ตัวเลขยังอยู่ระดับเดียวกับเพื่อน */
+  body .dash-wrap .dash-card .kc-bg{width:44px; height:44px;}
   .dash-glbl{display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; font-size:13px; font-weight:600; color:var(--concrete-200); margin:0 0 7px 2px;}
   /* ป้ายช่วงข้อมูล (ทุกช่วงวันที่ / เดือนที่เลือก): ตัวใหญ่ขึ้น พื้นจาง อ่านง่าย */
   .dash-glbl small{font-size:12px; font-weight:600; color:var(--amber-500); padding:1px 8px; border-radius:999px; background:rgba(242,169,28,.12); border:1px solid rgba(242,169,28,.35);}
-  @media (max-width:1200px){ .dash-wrap{grid-template-columns:minmax(0,2fr) minmax(0,1fr);} .dash-wrap .dash-group:first-child{grid-column:1 / -1;} }
+  @media (max-width:1200px){ .dash-wrap{grid-template-columns:minmax(0,1fr); row-gap:4px;} }
   @media (max-width:640px){ .dash-wrap{grid-template-columns:minmax(0,1fr);} }
   .dash-card{
     position:relative; display:flex; flex-direction:column; text-align:left; cursor:pointer; padding:10px 14px; border-radius:9px; font:inherit; color:inherit;
@@ -1019,6 +1026,9 @@
 <script src="/js/sidebar.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
+<!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
+<link rel="stylesheet" href="/css/kpi-cards.css">
+<script src="/js/kpi-icons.js"></script>
 </head>
 <body>
 
@@ -1828,12 +1838,8 @@
         <div class="dash">${card('open', 'ทั้งหมด', 'var(--concrete-200)')}${[0, 1, 2, 3, 4].map(st).join('')}</div>
       </div>
       <div class="dash-group">
-        <div class="dash-glbl">สิ้นสุดกระบวนการ <small>${esc(periodText())}</small></div>
-        <div class="dash">${st(5)}${st(9)}</div>
-      </div>
-      <div class="dash-group">
-        <div class="dash-glbl">รายงาน <small>${esc(periodText())}</small></div>
-        <div class="dash">${card('range', 'ทุกสถานะในช่วงวันที่', 'var(--amber-500)')}</div>
+        <div class="dash-glbl">สิ้นสุดกระบวนการ / รายงาน <small>${esc(periodText())}</small></div>
+        <div class="dash">${st(5)}${st(9)}${card('range', 'ทุกสถานะ', 'var(--amber-500)')}</div>
       </div>`;
   }
   $('statusDash').addEventListener('click', (e) => {

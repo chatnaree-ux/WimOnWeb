@@ -541,6 +541,9 @@
   .src{display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap;}
   .src.pc{background:rgba(78,167,224,.14); border:1px solid rgba(78,167,224,.5); color:#8cc9f0;}
   .src.sc{background:rgba(167,139,250,.14); border:1px solid rgba(167,139,250,.45); color:#c4b5fd;}
+  .src.rv{background:rgba(251,146,60,.14); border:1px solid rgba(251,146,60,.5); color:#fdba74;}
+  .rev-list{display:flex; flex-direction:column; gap:4px; margin-top:6px; font-size:13px;}
+  .rev-list a{color:#fdba74; font-weight:700;}
   .rq-note{font-size:13px; color:var(--concrete-200); margin:8px 0; overflow-wrap:anywhere;}
   .rq-meta{display:grid; grid-template-columns:1fr 1fr; gap:5px 12px; font-size:13.5px; color:#b8c3d1;}
   .rq-meta b{color:#fff; font-weight:600;}
@@ -690,12 +693,7 @@
   .sc-kpi div{border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:10px 14px; background:rgba(255,255,255,.025); font-size:15px; font-weight:600; color:#d5dde8;}
   .sc-kpi b{display:block; font-family:'JetBrains Mono',monospace; font-size:26px; color:#fff; margin-top:2px;}
   .sc-kpi .ok b{color:var(--ok-green);} .sc-kpi .sh b{color:#ff8a75;} .sc-kpi .ov b{color:var(--sky-blue);}
-  /* การ์ดสรุปผลตรวจนับ: พื้น + กรอบสีตามความหมาย */
-  .sc-kpi .ct{border-color:rgba(242,169,28,.45); background:rgba(242,169,28,.1);} .sc-kpi .ct b{color:#ffc65a;}
-  .sc-kpi .ok{border-color:rgba(62,207,142,.45); background:rgba(62,207,142,.1);}
-  .sc-kpi .sh{border-color:rgba(229,83,61,.5); background:rgba(229,83,61,.12);}
-  .sc-kpi .ov{border-color:rgba(78,167,224,.5); background:rgba(78,167,224,.12);}
-  .sc-kpi .ex{border-color:rgba(255,255,255,.22); background:rgba(255,255,255,.06);} .sc-kpi .ex b{color:var(--concrete-200);}
+  /* การ์ดสรุปผลตรวจนับ: สี / พื้น / ไอคอน อยู่ใน /css/kpi-cards.css (แบบเดียวกันทั้งระบบ) */
   @media (max-width:560px){ .sc-kpi{grid-template-columns:repeat(3, minmax(0, 1fr));} }
 
   /* ---------- เลือกหลายใบ → กดขั้นเดียวกันพร้อมกัน (แท็บรอฉันดำเนินการ) ---------- */
@@ -818,7 +816,11 @@
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/thai-datepicker.js"></script>
+<script src="/js/adj-reverse.js"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
+<!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
+<link rel="stylesheet" href="/css/kpi-cards.css">
+<script src="/js/kpi-icons.js"></script>
 </head>
 
 <body>
@@ -906,7 +908,10 @@
   const STEP_NAME = Object.fromEntries(STEPS);
   // ชื่อหน้าตามขั้น (ระบุให้ชัดว่าเป็นการปรับยอดสต๊อก ไม่ใช่อนุมัติการตรวจนับ)
   const STEP_TITLE = { check: 'ตรวจสอบปรับยอดสต๊อก', ack: 'รับทราบปรับยอดสต๊อก', approve: 'อนุมัติปรับยอดสต๊อก' };
-  const LOG_NAME = { submit: 'ส่งขออนุมัติปรับยอดสต๊อก', accept: 'รับทราบ', check: 'ตรวจสอบ', approve: 'อนุมัติปรับยอด', sendback: 'ส่งกลับแก้ไข', cancel: 'ยกเลิก', post: 'ปรับสต๊อก' };
+  const LOG_NAME = { submit: 'ส่งขออนุมัติปรับยอดสต๊อก', accept: 'รับทราบ', check: 'ตรวจสอบ', approve: 'อนุมัติปรับยอด', sendback: 'ส่งกลับแก้ไข', reject: 'ไม่อนุมัติกลับรายการ', cancel: 'ยกเลิก', post: 'ปรับสต๊อก' };
+  // ที่มาของใบขอปรับยอด: ตรวจนับ (SC) / กลับรายการ (REV) / WIM Desktop
+  const srcCls = (r) => r.src === 'SC' ? 'sc' : r.src === 'REV' ? 'rv' : 'pc';
+  const srcText = (r) => r.src === 'SC' ? 'ตรวจนับ ' + (r.scCode || '') : r.src === 'REV' ? 'กลับรายการ ' + (r.revOf ? r.revOf.docCode : '') : 'WIM Desktop';
   const IC = {
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
@@ -1017,7 +1022,7 @@
   function trackToolbar(){
     document.querySelector('.page-head .eyebrow').textContent = 'Stock Adjustment Requests';
     $('btnRefresh').insertAdjacentHTML('beforebegin', `
-      <div class="form-group trk-s"><label for="tSrc">ที่มา</label><select id="tSrc"><option value="">ทั้งหมด</option><option value="SC">จากการตรวจนับ</option><option value="PC">จาก WIM Desktop</option></select></div>
+      <div class="form-group trk-s"><label for="tSrc">ที่มา</label><select id="tSrc"><option value="">ทั้งหมด</option><option value="SC">จากการตรวจนับ</option><option value="PC">จาก WIM Desktop</option><option value="REV">กลับรายการ</option></select></div>
       <div class="form-group trk-d"><label for="tFrom">วันที่ขอปรับ ตั้งแต่</label><span class="date-overlay-wrap" tabindex="0"><input type="date" id="tFrom"><span class="date-overlay-text empty" id="tFromText">วว/ดด/ปปปป</span></span></div>
       <div class="form-group trk-d"><label for="tTo">ถึงวันที่</label><span class="date-overlay-wrap" tabindex="0"><input type="date" id="tTo"><span class="date-overlay-text empty" id="tToText">วว/ดด/ปปปป</span></span></div>
       <div class="form-group trk-q"><label for="tQ">ค้นหา</label><input type="search" id="tQ" placeholder="เลขที่ RQ / SC / เหตุผล" maxlength="100"></div>`);
@@ -1046,9 +1051,9 @@
   // การ์ด: เฉพาะใบที่รอขั้นของหน้านี้ — ปุ่มขั้น (สีตามขั้น) + ปุ่มรายละเอียด
   function card(r, k){
     const ok = canDo(r, k);
-    return `<div class="rq-card ${ok && picked.has(r.id) ? 'picked' : ''}" style="--c:${r.src === 'SC' ? '#a78bfa' : '#4ea7e0'}">
+    return `<div class="rq-card ${ok && picked.has(r.id) ? 'picked' : ''}" style="--c:${srcColor(r)}">
       <div class="rq-head"><span class="lft">${ok ? `<label class="pick" title="เลือกใบนี้"><input type="checkbox" data-pick="${r.id}" ${picked.has(r.id) ? 'checked' : ''} aria-label="เลือก ${esc(r.docCode)}"></label>` : ''}<span class="rq-no">${esc(r.docCode)}</span></span>
-        <span class="src ${r.src === 'SC' ? 'sc' : 'pc'}">${r.src === 'SC' ? 'ตรวจนับ ' + esc(r.scCode || '') : 'WIM Desktop'}</span></div>
+        <span class="src ${srcCls(r)}">${esc(srcText(r))}</span></div>
       <div class="rq-note">${esc(r.note || '-')}</div>
       <div class="rq-meta">
         <span style="grid-column:1/-1">บริษัท <b>${esc(r.compName)}</b></span><span>วันที่ <b>${thStamp(r.dateTs)}</b></span>
@@ -1080,13 +1085,13 @@
     return `<span class="age ${d > 30 ? 'a3' : d > 7 ? 'a2' : ''}" title="ส่งขอตั้งแต่ ${thStamp(r.dateTs)}">${d ? `ค้าง ${fmtInt(d)} วัน` : 'ส่งวันนี้'}</span>`;
   }
   const fmtInt = (n) => Number(n || 0).toLocaleString('en-US');
-  const srcChip = (r) => `<span class="src ${r.src === 'SC' ? 'sc' : 'pc'}">${r.src === 'SC' ? 'ตรวจนับ ' + esc(r.scCode || '') : 'WIM Desktop'}</span>`;
+  const srcChip = (r) => `<span class="src ${srcCls(r)}">${esc(srcText(r))}</span>`;
   const stepChips = (r) => `<div class="steps">${STEPS.map(([s]) => `<span class="stp ${r.steps[s] ? 'ok' : ''}" title="${STEP_NAME[s]}${r.steps[s] ? `แล้ว · ${esc(shortName(r.steps[s].by))} · ${thStamp(r.steps[s].at)}` : ' — รอดำเนินการ'}"><span class="ck">${r.steps[s] ? '✓' : '○'}</span>${SHORT[s]}</span>`).join('')}</div>`;
   // icon = ตาราง (ปุ่มไอคอน + title) / ไม่ส่ง = การ์ด (ไอคอน + ข้อความ)
   const trkActs = (r, icon) => `${!r.cancel && pendingSteps(r).length ? `<button type="button" class="btn btn-secondary btn-sm" data-rshare="${r.id}" title="ส่งลิงก์ตามอนุมัติ ${esc(r.docCode)}">${IC.send}${icon ? '' : ' ส่งลิงก์ตามอนุมัติ'}</button>` : ''}
       <button type="button" class="btn btn-secondary btn-sm" data-rprint="${r.id}" title="พิมพ์ใบขอปรับยอดสต๊อก ${esc(r.docCode)}">${IC.print}${icon ? '' : ' พิมพ์'}</button>
       <button type="button" class="btn btn-secondary btn-sm view" data-open="${r.id}" title="รายละเอียด ${esc(r.docCode)}">${IC.list}${icon ? '' : ' รายละเอียด'}</button>`;
-  const srcColor = (r) => r.src === 'SC' ? '#a78bfa' : '#4ea7e0';
+  function srcColor(r){ return r.src === 'SC' ? '#a78bfa' : r.src === 'REV' ? '#fb923c' : '#4ea7e0'; }
   function trackCard(r){
     return `<div class="rq-card" style="--c:${srcColor(r)}">
       <div class="rq-head"><span class="rq-no">${esc(r.docCode)}</span>${srcChip(r)}</div>
@@ -1103,7 +1108,8 @@
   function renderTrack(){
     const c = trk.counts, list = rows.slice(0, trk.show);
     const tabs = `<div class="seg">${TRK_TABS.map(([k, n]) => `<button type="button" class="${trk.tab === k ? 'on' : ''}" data-ttab="${k}">${n}<span class="n">${fmtInt(c[k])}</span></button>`).join('')}</div>`;
-    const hint = trk.tab !== 'pending' && !trk.ranged ? '<p class="trk-hint">แสดงใบที่ขอปรับใน 90 วันล่าสุด — ดูย้อนหลังกว่านี้ ระบุวันที่ขอปรับ</p>' : '';
+    const hint = (trk.tab !== 'pending' && !trk.ranged ? '<p class="trk-hint">แสดงใบที่ขอปรับใน 90 วันล่าสุด — ดูย้อนหลังกว่านี้ ระบุวันที่ขอปรับ</p>' : '')
+      + '<p class="trk-hint">ใบที่อนุมัติครบและปรับสต๊อกแล้ว ดูได้ที่ <a href="/stock-adjust-report" style="color:#ffcf66">รายงานการปรับยอดสต๊อก ›</a></p>';
     if(!rows.length){ $('listBody').innerHTML = tabs + hint + `<p class="empty-msg">ไม่มีใบขอปรับยอดสต๊อก${trk.tab === 'pending' ? 'ที่รออนุมัติ' : 'ที่ยกเลิก'}ตามตัวกรองนี้</p>`; return; }
     const tr = list.map(r => `<tr style="--c:${srcColor(r)}">
         <td class="acts">${trkActs(r, true)}</td>
@@ -1141,7 +1147,7 @@
     if(!ok.length) return;
     dlg(`${STEP_NAME[k]} ${ok.length} ใบ`, `
       <p style="margin:0 0 10px">ยืนยัน<b>${STEP_NAME[k]}</b>ใบขอปรับยอดสต๊อก <b>${ok.length}</b> ใบ (${ok.reduce((a, r) => a + r.nLine, 0)} รายการ)</p>
-      <div class="bulk-list">${ok.map(r => `<div><span class="mono">${esc(r.docCode)}</span><span>${esc(r.src === 'SC' ? 'ตรวจนับ ' + (r.scCode || '') : 'WIM Desktop')} · ${r.nLine} รายการ (+${r.nPlus} / −${r.nMinus})</span></div>`).join('')}</div>
+      <div class="bulk-list">${ok.map(r => `<div><span class="mono">${esc(r.docCode)}</span><span>${esc(srcText(r))} · ${r.nLine} รายการ (+${r.nPlus} / −${r.nMinus})</span></div>`).join('')}</div>
       ${ok.some(r => pendingSteps(r).length === 1) ? `<div class="warn-box"><div><b>${ok.filter(r => pendingSteps(r).length === 1).length} ใบเป็นขั้นสุดท้าย</b> — กดยืนยันแล้วระบบปรับยอดสต๊อกจริงทันที (ยอดที่ปรับแล้ว ย้อนกลับไม่ได้)</div></div>` : ''}
       ${skip ? `<p class="bulk-skip">ข้าม ${skip} ใบ — ขั้นนี้บันทึกไปแล้ว</p>` : ''}
       <div class="form-group"><label>หมายเหตุ (ถ้ามี — ใส่ให้ทุกใบ)</label><textarea id="stepNote" rows="2" maxlength="500"></textarea></div>
@@ -1216,17 +1222,20 @@
     $('docView').innerHTML = `
       <div class="card">
         <div class="doc-top">
-          <div><div class="doc-no">${esc(d.docCode)}</div><div class="muted" style="font-size:13px;margin-top:3px"><span class="src ${d.src === 'SC' ? 'sc' : 'pc'}">${d.src === 'SC' ? 'จากการตรวจนับ' : 'จาก WIM Desktop'}</span> · ${esc(d.compName)}</div></div>
+          <div><div class="doc-no">${esc(d.docCode)}</div><div class="muted" style="font-size:13px;margin-top:3px"><span class="src ${srcCls(d)}">${d.src === 'SC' ? 'จากการตรวจนับ' : d.src === 'REV' ? 'กลับรายการ' : 'จาก WIM Desktop'}</span> · ${esc(d.compName)}</div></div>
           <div class="acts">
             <button type="button" class="btn btn-secondary" data-act="print">${IC.print} พิมพ์ใบขอปรับยอดสต๊อก</button>
             ${TRACK && !d.cancel && left.length ? `<button type="button" class="btn btn-secondary" data-act="share">${IC.send} ส่งลิงก์ตามอนุมัติ</button>` : ''}
-            ${d.src === 'SC' && !d.cancel && left.length && target && can[target] && !d.steps[target] ? `<button type="button" class="btn btn-danger" data-act="sendback">${IC.undo} ส่งกลับแก้ไข</button>` : ''}
+            ${(d.src === 'SC' || d.src === 'REV') && !d.cancel && left.length && target && can[target] && !d.steps[target] ? `<button type="button" class="btn btn-danger" data-act="sendback">${IC.undo} ${d.src === 'REV' ? 'ไม่อนุมัติ' : 'ส่งกลับแก้ไข'}</button>` : ''}
+            ${!EMBED && can.reverse && d.posted && d.src !== 'REV' ? `<button type="button" class="btn btn-secondary" data-act="reverse" title="ปรับผิด — ขอปรับทิศตรงข้าม (ผ่านอนุมัติ 3 ขั้น)">${IC.undo} ขอกลับรายการ</button>` : ''}
             ${actBtn}
           </div>
         </div>
         ${actNote}
         ${d.cancel ? `<div class="warn-box"><div><b>ยกเลิกแล้ว</b> · ${thStamp(d.cancel.at)}<br>${esc(d.cancel.note || '')}</div></div>` : ''}
-        ${!left.length ? `<div class="info-box"><div><b>อนุมัติปรับยอดครบ 3 ขั้นแล้ว</b>${d.posted ? ` · ปรับสต๊อกแล้ว เลขที่ <b class="mono">${esc(d.posted.docCode)}</b> (${thStamp(d.posted.at)})` : ''}</div></div>` : ''}
+        ${!left.length ? `<div class="info-box"><div><b>อนุมัติปรับยอดครบ 3 ขั้นแล้ว</b>${d.posted ? ` · ปรับสต๊อกแล้ว เลขที่ <a class="mono" style="color:#ffcf66;font-weight:700" href="/stock-adjust-report?doc=${encodeURIComponent(d.posted.docCode)}&comp=${d.idComp}" target="_blank" rel="noopener" title="ดูในรายงานการปรับยอดสต๊อก">${esc(d.posted.docCode)}</a> (${thStamp(d.posted.at)})` : ''}
+          ${(d.reversedBy || []).length ? `<div class="rev-list">${d.reversedBy.map(x => `<span>↺ ${x.postCode ? 'กลับรายการแล้ว' : 'มีใบขอกลับรายการรออนุมัติ'} <a class="mono" href="/stock-adjust-list?id=${x.id}" target="_blank" rel="noopener">${esc(x.docCode)}</a> (${x.nLine} รายการ)${x.postCode ? ` → ปรับสต๊อก ${esc(x.postCode)}` : ''}</span>`).join('')}</div>` : ''}</div></div>` : ''}
+        ${d.revOf ? `<div class="info-box" style="border-color:rgba(251,146,60,.5);background:rgba(251,146,60,.08)"><div>↺ <b>ใบนี้กลับรายการของเอกสารปรับยอด <a class="mono" style="color:#fdba74;font-weight:700" href="/stock-adjust-report?doc=${encodeURIComponent(d.revOf.docCode)}&comp=${d.idComp}" target="_blank" rel="noopener" title="ดูเอกสารเดิมในรายงาน">${esc(d.revOf.docCode)}</a></b>${d.revOf.rqCode ? ` (ใบขอปรับยอดเดิม ${esc(d.revOf.rqCode)})` : ''} — อนุมัติครบ 3 ขั้นแล้วระบบปรับยอดกลับทันที · ไม่ถูกต้อง กด <b>ไม่อนุมัติ</b> เพื่อยกเลิกใบนี้</div></div>` : ''}
         <div class="kv">
           <div class="wide"><div class="k">เหตุผล / รายละเอียด</div><div class="v">${esc(d.note || '-')}</div></div>
           <div><div class="k">วันที่ขอปรับ</div><div class="v">${thStamp(d.dateTs)}</div></div>
@@ -1261,12 +1270,16 @@
   function stepDlg(k){
     dlg(`${STEP_NAME[k]} ${doc.docCode}`, `
       <p>ยืนยัน<b>${STEP_NAME[k]}</b>ใบขอปรับยอดสต๊อก ${doc.lines.length} รายการ</p>
-      ${pendingSteps(doc).length === 1 ? `<div class="warn-box"><div><b>ขั้นนี้เป็นขั้นสุดท้าย</b> — กดยืนยันแล้วระบบปรับยอดสต๊อกจริงทันที ${doc.lines.length} รายการ (ยอดที่ปรับแล้ว ย้อนกลับไม่ได้)</div></div>
+      ${pendingSteps(doc).length === 1 ? `<div class="warn-box"><div><b>ขั้นนี้เป็นขั้นสุดท้าย</b> — กดยืนยันแล้วระบบปรับยอดสต๊อกจริงทันที ${doc.lines.length} รายการ (ปรับแล้วแก้ได้ด้วยการขอกลับรายการเท่านั้น)</div></div>
       <div class="bulk-list post-list">${doc.lines.map(l => `<div><span><span class="mono">${esc(l.lotNo)}</span> ${esc(l.invName || '')}</span><span class="nw ${l.op === '-' ? 'minus' : 'plus'}">${l.op === '-' ? '−' : l.op === '=' ? '=' : '+'}${fmtQty(l.amount)} ${esc(l.unit || '')}</span></div>`).join('')}</div>` : ''}
       <div class="form-group"><label>หมายเหตุ (ถ้ามี)</label><textarea id="stepNote" rows="2" maxlength="500"></textarea></div>
       <div class="action-bar" style="margin-top:14px"><button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button><button type="button" class="btn sb-${k} solid" data-confirm="${k}">${IC.check} ยืนยัน${STEP_NAME[k]}</button></div>`);
   }
   function sendBackDlg(){
+    if(doc.src === 'REV') return dlg('ไม่อนุมัติ ' + doc.docCode, `
+      <div class="warn-box"><div>ใบขอกลับรายการนี้จะถูกยกเลิก (ปลดล็อก Lot) — สต๊อกไม่เปลี่ยน · ถ้ายังต้องกลับรายการ ผู้ขอส่งใบใหม่ได้</div></div>
+      <div class="form-group"><label>เหตุผลที่ไม่อนุมัติ<span class="req">*</span></label><textarea id="sbNote" rows="3" maxlength="500"></textarea></div>
+      <div class="action-bar" style="margin-top:14px"><button type="button" class="btn btn-secondary" data-close="dlgModal">ปิด</button><button type="button" class="btn btn-danger" data-act="sendback-confirm">${IC.undo} ไม่อนุมัติ</button></div>`);
     dlg('ส่งกลับแก้ไข ' + doc.docCode, `
       <div class="warn-box"><div>ใบขอปรับยอดสต๊อกนี้จะถูกยกเลิก (ปลดล็อก Lot) และเอกสารตรวจนับ ${esc(doc.scCode || '')} กลับไปรอตรวจสอบผลต่าง เพื่อแก้แล้วส่งขออนุมัติปรับยอดใหม่</div></div>
       <div class="form-group"><label>เหตุผลที่ส่งกลับ<span class="req">*</span></label><textarea id="sbNote" rows="3" maxlength="500"></textarea></div>
@@ -1441,7 +1454,8 @@
   }
   async function printRq(d = doc){
     const plus = d.lines.filter(l => l.op === '+').length, minus = d.lines.length - plus;
-    const refRaw = d.sc ? `ตรวจนับสต๊อก ${d.sc.docCode}${d.sc.typeName ? ` (${d.sc.typeName})` : ''}` : '';
+    const refRaw = d.sc ? `ตรวจนับสต๊อก ${d.sc.docCode}${d.sc.typeName ? ` (${d.sc.typeName})` : ''}`
+      : d.revOf ? `กลับรายการปรับยอดสต๊อก ${d.revOf.docCode}${d.revOf.rqCode ? ` (${d.revOf.rqCode})` : ''}` : '';
     const ref = esc(refRaw);
     // ใบจากการตรวจนับ: เหตุผลขึ้นต้นด้วยข้อความเดียวกับอ้างอิง → ตัดส่วนที่ซ้ำ เหลือเฉพาะที่ผู้ตรวจสอบเขียนเพิ่ม (ไม่มี = ไม่แสดงบรรทัดเหตุผล)
     let reason = String(d.note || '').trim();
@@ -1515,7 +1529,8 @@
     if(a.dataset.act === 'print') printRq();
     else if(a.dataset.act === 'share') shareDlg();
     else if(a.dataset.act === 'sendback') sendBackDlg();
-    else if(a.dataset.act === 'sendback-confirm') run(a, async () => { await api(`/api/stock-adjust/doc/${doc.id}/send-back`, { body: { note: $('sbNote').value } }); closeDlg(); showToast('ส่งกลับแก้ไขแล้ว'); await openDoc(doc.id); loadList(); });
+    else if(a.dataset.act === 'sendback-confirm') run(a, async () => { await api(`/api/stock-adjust/doc/${doc.id}/send-back`, { body: { note: $('sbNote').value } }); closeDlg(); showToast(doc.src === 'REV' ? 'ไม่อนุมัติกลับรายการแล้ว' : 'ส่งกลับแก้ไขแล้ว'); await openDoc(doc.id); loadList(); });
+    else if(a.dataset.act === 'reverse') AdjReverse.open(doc.posted.id, { onDone: () => openDoc(doc.id) });
   });
   // ช่องเลือก: ทีละใบ / ทั้งหมด (เฉพาะแท็บรอฉันดำเนินการ)
   document.addEventListener('change', (e) => {
