@@ -41,6 +41,7 @@
     { code: 'menu_permission', group: 'ระบบ', title: 'กำหนดสิทธิ์การใช้งาน', desc: 'จัดกลุ่มผู้ใช้ กำหนดสิทธิ์เมนูและบริษัท', href: '/permissions', icon: 'shield', keywords: 'permission สิทธิ์ กลุ่ม ผู้ใช้' },
     // คู่มือ: code = MenuCode ของเมนูที่อธิบาย (เห็นตามสิทธิ์เมนูนั้น)
     { code: 'urs_request', group: 'คู่มือการใช้งาน', title: 'คู่มือ: ร้องขอเมล็ดพันธุ์เร่งด่วน', desc: 'ขั้นตอนสร้าง ส่ง ติดตาม และตอบกลับคำร้อง', href: '/manual-urs-request', icon: 'book', keywords: 'manual help คู่มือ วิธีใช้ urs ร้องขอ ด่วน ตอบกลับ' },
-    { code: 'supplier_return', group: 'คู่มือการใช้งาน', title: 'คู่มือ: ส่งคืนสินค้า/ลดหนี้ Supplier', desc: 'สร้างเอกสาร รับทราบ ตรวจสอบ อนุมัติ พิมพ์ และการปรับต้นทุน', href: '/manual-supplier-return', icon: 'book', keywords: 'manual help คู่มือ วิธีใช้ supplier return rts ส่งคืน ลดหนี้ อนุมัติ' }
+    { code: 'supplier_return', group: 'คู่มือการใช้งาน', title: 'คู่มือ: ส่งคืนสินค้า/ลดหนี้ Supplier', desc: 'สร้างเอกสาร รับทราบ ตรวจสอบ อนุมัติ พิมพ์ และการปรับต้นทุน', href: '/manual-supplier-return', icon: 'book', keywords: 'manual help คู่มือ วิธีใช้ supplier return rts ส่งคืน ลดหนี้ อนุมัติ' },
+    { code: 'stock_count', group: 'คู่มือการใช้งาน', title: 'คู่มือ: ตรวจนับ/ปรับยอดสต๊อก', desc: 'สร้างเอกสารตรวจนับ นับด้วยใบนับ / Live Count ตรวจสอบผลต่าง อนุมัติปรับยอด รายงาน และขอกลับรายการ', href: '/manual-stock-count', icon: 'book', keywords: 'manual help คู่มือ วิธีใช้ stock count ตรวจนับ ปรับยอด rq อนุมัติ กลับรายการ live count' }
   ];
 })();
