@@ -155,6 +155,28 @@
     }
   }
 
+  // ---------- ตัวเลขงานรออนุมัติบนเมนู (server จำไว้ 30 วินาที) — หน้างานรออนุมัติส่งตัวเลขล่าสุดมาเองผ่าน setApprovalBadge ----------
+  // เมนูแสดงเฉพาะคนที่เกี่ยวข้อง (eligible จาก server) / หน้างานรออนุมัติเรียกโดยไม่ส่ง eligible = เกี่ยวข้องแน่นอน
+  let apvTotal = null, apvEligible = false;
+  function setApprovalBadge(n, eligible = true) {
+    apvTotal = Number(n) || 0;
+    apvEligible = !!eligible || apvTotal > 0;
+    document.querySelectorAll('#sidebar [data-apv-link]').forEach(a => { a.hidden = !apvEligible; });
+    document.querySelectorAll('#sidebar [data-apv-badge]').forEach(b => {
+      b.textContent = apvTotal > 99 ? '99+' : String(apvTotal);
+      b.hidden = !apvTotal;
+      b.title = apvTotal ? `มี ${apvTotal} รายการรอคุณดำเนินการ` : '';
+    });
+  }
+  async function loadApprovalBadge() {
+    if (apvTotal != null) return setApprovalBadge(apvTotal, apvEligible);
+    try {
+      const res = await fetch('/api/approval-inbox/count', { cache: 'no-store' });
+      const d = await res.json();
+      if (d && d.success) setApprovalBadge(d.total, d.eligible !== false);
+    } catch (err) { /* ไม่มีตัวเลขก็ใช้เมนูได้ */ }
+  }
+
   // ---------- โหลด sidebar.html มาแปะใน #sidebar แล้วเริ่มทำงาน ----------
   // แสดงเมนูชุดล่าสุดที่จำไว้ (localStorage) ทันที ไม่ต้องรอ server — บน server จริง /sidebar.html บางครั้งช้า
   // (เรียงเมนูตาม DB ระหว่างที่หน้าหลักกำลังดึงข้อมูลหนัก ๆ) เมนูเลยหายไปจนหน้าหลักโหลดเสร็จ
@@ -185,6 +207,7 @@
     const ready = manageUser
       ? initUser().then(user => (user ? applyMenuPermissions(user.idPs, menuCode).then(() => user) : null))
       : Promise.resolve(null);
+    ready.then(user => { if (user || !manageUser) loadApprovalBadge(); });
 
     fresh.then(async (html) => {
       try { localStorage.setItem(SIDEBAR_CACHE_KEY, html); } catch (err) { /* ไม่เป็นไร รอบหน้าโหลดจาก server */ }
@@ -194,6 +217,7 @@
       const scroll = (host.querySelector('.side-nav') || {}).scrollTop || 0;
       host.innerHTML = html;
       initActiveAndAccordion(host);
+      if (apvTotal != null) setApprovalBadge(apvTotal, apvEligible);
       const nav = host.querySelector('.side-nav');
       if (nav) nav.scrollTop = scroll;
       if (user) {
@@ -207,5 +231,5 @@
     await ready;
   }
 
-  window.WIMSidebar = { load, showAccessDeniedOverlay, applyWipMenus };
+  window.WIMSidebar = { load, showAccessDeniedOverlay, applyWipMenus, setApprovalBadge };
 })();

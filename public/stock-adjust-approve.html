@@ -995,7 +995,9 @@
   function go(url){ history.pushState(null, '', url); route(); }
   // ปิด popup: กลับหน้ารายการที่เปิดมา (ตัวกรองเดิม) / เข้าจากลิงก์ที่ส่งต่อ = รายการของขั้นนั้น
   let backUrl = null;
-  const closeDoc = () => { const u = backUrl || listUrl(); backUrl = null; go(u); };
+  // เปิดจากงานรออนุมัติ (&from=inbox) → ปิด = กลับไปงานรออนุมัติ
+  const FROM_INBOX = params().get('from') === 'inbox';
+  const closeDoc = () => { if(FROM_INBOX && !backUrl){ location.href = '/approvals'; return; } const u = backUrl || listUrl(); backUrl = null; go(u); };
   // ใบสรุปผลการตรวจนับ: แสดงซ้อนใน popup ไม่พาออกไปหน้าตรวจนับ / ปิด = กลับใบขอปรับยอดเดิม
   const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let sumUrl = '';

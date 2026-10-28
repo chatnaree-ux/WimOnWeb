@@ -6208,46 +6208,49 @@ app.post('/api/ops/buy/:id/reject', requireMenu(MENU_OPS_BUY), async (req, res) 
 });
 
 // ---------- รายการที่รอการพิจารณาของผู้ใช้ (หน้า /over-po-sale-apv) — เฉพาะเอกสารรออนุมัติ ที่มีขั้นของคนนี้ยังไม่กด ----------
+async function opsApvPendingData(idPs) {
+  const pool = await poolPromise;
+  const r = await pool.request().input('ps', sql.Int, idPs).query(`
+    SELECT m.idOps INTO #mine
+    FROM devsk.SeedReqSaleMt m
+    ${OPS_ROUND_SQL()}
+    WHERE m.DateBuy IS NOT NULL AND m.DateCancel IS NULL AND m.DateReject IS NULL AND m.DateApv IS NULL AND ISNULL(ar.ApvBack, 0) = 0
+      AND EXISTS (SELECT 1 FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL);
+
+    SELECT m.idOps, m.DocCode, m.BuyDocCode, CONVERT(varchar(16), m.DateBuy, 120) AS TxBuy, m.idCompReq, cr.CompName AS CompNameReq, pb.PsName AS PsBuy, ar.ApvDone, ar.ApvCount,
+           STUFF((SELECT ',' + a.StepCode FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL
+                  ORDER BY CASE a.StepCode WHEN 'accept' THEN 1 WHEN 'check' THEN 2 WHEN 'approve1' THEN 3 ELSE 4 END FOR XML PATH('')), 1, 1, '') AS MySteps
+    FROM devsk.SeedReqSaleMt m
+    JOIN #mine x ON x.idOps = m.idOps
+    LEFT JOIN PchInvAndProject.dbo.dCompany cr ON cr.idComp = m.idCompReq
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsBuy) pb
+    ${OPS_ROUND_SQL()}
+    ORDER BY m.DateBuy, m.idOps;
+
+    SELECT d.idOps, i.InvName, d.AmountBuy, d.Price, u.UnitName
+    FROM devsk.SeedReqSaleDt d
+    JOIN #mine x ON x.idOps = d.idOps
+    LEFT JOIN devsk.dInventoryMain i ON i.idInvMain = d.idInvMain
+    LEFT JOIN devsk.dInvUnit u ON u.idUnit = d.idUnit
+    WHERE d.AmountBuy > 0
+    ORDER BY d.idOps, d.idOpsDt;
+
+    DROP TABLE #mine;`);
+  const items = new Map();
+  r.recordsets[1].forEach(x => {
+    const amt = opsRound2(Number(x.AmountBuy) * Number(x.Price || 0));
+    items.set(x.idOps, [...(items.get(x.idOps) || []), { invName: x.InvName, amountBuy: Number(x.AmountBuy), price: x.Price == null ? null : Number(x.Price), unit: x.UnitName, amt }]);
+  });
+  return r.recordsets[0].map(m => {
+    const its = items.get(m.idOps) || [];
+    return { id: m.idOps, docNo: m.DocCode, buyDocNo: m.BuyDocCode, buyAt: m.TxBuy, req: m.idCompReq, reqName: m.CompNameReq, buyBy: m.PsBuy || '-',
+      done: m.ApvDone || 0, count: m.ApvCount || OPS_APV_STEPS.length, steps: String(m.MySteps || '').split(',').filter(Boolean),
+      items: its, total: opsRound2(its.reduce((s, it) => s + it.amt, 0)) };
+  });
+}
 app.get('/api/ops/apv/pending', requireLogin, async (req, res) => {
   try {
-    const pool = await poolPromise;
-    const r = await pool.request().input('ps', sql.Int, req.idPs).query(`
-      SELECT m.idOps INTO #mine
-      FROM devsk.SeedReqSaleMt m
-      ${OPS_ROUND_SQL()}
-      WHERE m.DateBuy IS NOT NULL AND m.DateCancel IS NULL AND m.DateReject IS NULL AND m.DateApv IS NULL AND ISNULL(ar.ApvBack, 0) = 0
-        AND EXISTS (SELECT 1 FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL);
-
-      SELECT m.idOps, m.DocCode, m.BuyDocCode, CONVERT(varchar(16), m.DateBuy, 120) AS TxBuy, m.idCompReq, cr.CompName AS CompNameReq, pb.PsName AS PsBuy, ar.ApvDone, ar.ApvCount,
-             STUFF((SELECT ',' + a.StepCode FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL
-                    ORDER BY CASE a.StepCode WHEN 'accept' THEN 1 WHEN 'check' THEN 2 WHEN 'approve1' THEN 3 ELSE 4 END FOR XML PATH('')), 1, 1, '') AS MySteps
-      FROM devsk.SeedReqSaleMt m
-      JOIN #mine x ON x.idOps = m.idOps
-      LEFT JOIN PchInvAndProject.dbo.dCompany cr ON cr.idComp = m.idCompReq
-      OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsBuy) pb
-      ${OPS_ROUND_SQL()}
-      ORDER BY m.DateBuy, m.idOps;
-
-      SELECT d.idOps, i.InvName, d.AmountBuy, d.Price, u.UnitName
-      FROM devsk.SeedReqSaleDt d
-      JOIN #mine x ON x.idOps = d.idOps
-      LEFT JOIN devsk.dInventoryMain i ON i.idInvMain = d.idInvMain
-      LEFT JOIN devsk.dInvUnit u ON u.idUnit = d.idUnit
-      WHERE d.AmountBuy > 0
-      ORDER BY d.idOps, d.idOpsDt;
-
-      DROP TABLE #mine;`);
-    const items = new Map();
-    r.recordsets[1].forEach(x => {
-      const amt = opsRound2(Number(x.AmountBuy) * Number(x.Price || 0));
-      items.set(x.idOps, [...(items.get(x.idOps) || []), { invName: x.InvName, amountBuy: Number(x.AmountBuy), price: x.Price == null ? null : Number(x.Price), unit: x.UnitName, amt }]);
-    });
-    res.json({ success: true, data: r.recordsets[0].map(m => {
-      const its = items.get(m.idOps) || [];
-      return { id: m.idOps, docNo: m.DocCode, buyDocNo: m.BuyDocCode, buyAt: m.TxBuy, req: m.idCompReq, reqName: m.CompNameReq, buyBy: m.PsBuy || '-',
-        done: m.ApvDone || 0, count: m.ApvCount || OPS_APV_STEPS.length, steps: String(m.MySteps || '').split(',').filter(Boolean),
-        items: its, total: opsRound2(its.reduce((s, it) => s + it.amt, 0)) };
-    }) });
+    res.json({ success: true, data: await opsApvPendingData(req.idPs) });
   } catch (err) {
     console.error('OPS apv pending error:', err);
     res.status(500).json({ success: false, message: 'โหลดรายการรอพิจารณาไม่สำเร็จ', detail: err.message });
@@ -8212,6 +8215,147 @@ async function adjRevCreate(t, idUpdate, ids, note, req) {
 }
 
 // ==================================================================
+// ---------- งานรออนุมัติของฉัน (/approvals): ทุกเรื่องที่รอผู้ใช้คนนี้ในที่เดียว ----------
+//   ใบขอปรับยอดสต๊อก / ส่งคืนสินค้า Supplier = ตามสิทธิ์ขั้น (เมนูรับทราบ / ตรวจสอบ / อนุมัติ) + บริษัทที่มีสิทธิ์ — เงื่อนไข "รอ" ชุดเดียวกับหน้าอนุมัติของเรื่องนั้น
+//   Over PO = ผู้อนุมัติที่ถูกระบุตัวในใบขออนุมัติ (ไม่ใช่ตามสิทธิ์เมนู) → หน้านี้ไม่มีสิทธิ์เมนูของตัวเอง
+//   เมนูแสดงเฉพาะคนที่เกี่ยวข้อง (approvalEligible): มีสิทธิ์ขั้นใดขั้นหนึ่ง หรือเคยถูกระบุเป็นผู้อนุมัติ Over PO
+//   กดรายการ = เปิดหน้าเอกสารเดิมของเรื่องนั้น (&from=inbox → ปุ่มกลับ / ปิด พากลับมาที่นี่) — ไม่มีหน้าอนุมัติซ้ำซ้อน
+//   เรื่องใหม่ที่ต้องอนุมัติ: เพิ่มอีกหนึ่งส่วนใน approvalInbox() (คืนรายการรูปแบบเดียวกัน)
+// ==================================================================
+const APV_INBOX_MAX = 300;   // ต่อเรื่อง (เก่าสุดตัดทิ้ง — หน้าแจ้งให้ไปที่หน้าอนุมัติของเรื่องนั้น)
+const APV_RTS_STEPS = [['ack', 'รับทราบ'], ['check1', 'ตรวจสอบ 1'], ['check2', 'ตรวจสอบ 2'], ['approve', 'อนุมัติ']];
+async function approvalInbox(idPs, access) {
+  const pool = await poolPromise;
+  const out = [], more = {};
+  // 1) ใบขอปรับยอดสต๊อก (RQ ทุกใบ: WIM Desktop + ตรวจนับ + กลับรายการ)
+  const rqSteps = Object.keys(ADJ_STEPS).filter(k => hasMenu(access, ADJ_STEPS[k].menu));
+  if (rqSteps.length) {
+    const request = pool.request();
+    const cond = rqSteps.map(k => `m.${ADJ_STEPS[k].ps} IS NULL`).join(' OR ');
+    const r = await request.query(
+      `SELECT TOP ${APV_INBOX_MAX + 1} m.idRqUpdate, m.DocCode, m.idComp, LTRIM(RTRIM(co.CompCode)) AS CompCode, co.CompName, m.NoteReq, m.DateTs, m.SrcType,
+              sc.DocCode AS ScCode, rv.DocCode AS RevDocCode, m.idPsAccept, m.idPsCheck, m.idPsApprove, pcm.PsName AS CommandName,
+              (SELECT COUNT(*) FROM devsk.dInvReqCountDt d WITH (NOLOCK) WHERE d.idRqUpdate = m.idRqUpdate) AS nLine
+       FROM devsk.dInvReqCountMt m WITH (NOLOCK)
+       LEFT JOIN PchInvAndProject.dbo.dCompany co WITH (NOLOCK) ON co.idComp = m.idComp
+       LEFT JOIN devsk.dInvCountMt sc WITH (NOLOCK) ON sc.idCount = m.idCount
+       LEFT JOIN devsk.dInvLotCountMt rv WITH (NOLOCK) ON rv.idUpdate = m.idUpdateRev
+       LEFT JOIN devsk.vPersonxSelect pcm ON pcm.idPs = m.idPsCommand
+       WHERE m.idPsCancel IS NULL AND (${cond}) ${compFilter(access, request, 'm.idComp')}
+       ORDER BY m.DateTs DESC`);
+    more.rq = r.recordset.length > APV_INBOX_MAX;
+    r.recordset.slice(0, APV_INBOX_MAX).forEach(x => {
+      const done = { ack: !!x.idPsAccept, check: !!x.idPsCheck, approve: !!x.idPsApprove };
+      const mine = rqSteps.filter(k => !done[k]);
+      if (!mine.length) return;
+      const src = x.SrcType === 'SC' ? `ตรวจนับ ${x.ScCode || ''}` : x.SrcType === 'REV' ? `กลับรายการ ${x.RevDocCode || ''}` : 'WIM Desktop';
+      out.push({ mod: 'rq', id: x.idRqUpdate, docNo: x.DocCode, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
+        title: x.NoteReq || '-', src, srcType: x.SrcType === 'SC' || x.SrcType === 'REV' ? x.SrcType : 'PC', nLine: x.nLine || 0, by: x.CommandName || '',
+        my: mine.map(k => ({ code: k, name: ADJ_STEPS[k].name })),
+        progress: [['ack', 'รับทราบ'], ['check', 'ตรวจสอบ'], ['approve', 'อนุมัติ']].map(([k, n]) => ({ name: n, done: done[k] })),
+        href: `/stock-adjust-approve?id=${x.idRqUpdate}&step=${mine[0]}&from=inbox` });
+    });
+  }
+  // 2) ส่งคืนสินค้า / ลดหนี้ Supplier — ตรวจสอบ 2 คน: คนที่ตรวจสอบ 1 แล้ว ไม่เห็นใบนั้นอีก (รอผู้ตรวจสอบอีกท่าน)
+  const rtsSteps = Object.keys(RTS_STEPS).filter(k => hasMenu(access, RTS_STEPS[k].menu));
+  if (rtsSteps.length) {
+    const request = pool.request().input('me', sql.Int, idPs);
+    const cond = rtsSteps.map(k => `(1 = 1 ${RTS_STEPS[k].pending}${k === 'check' ? ' AND NOT (mt.DateCheck IS NOT NULL AND mt.idPsCheck = @me)' : ''})`).join(' OR ');
+    const r = await request.query(
+      `SELECT TOP ${APV_INBOX_MAX + 1} mt.idBuyRT, mt.DocCode, mt.DateTs, mt.idComp, LTRIM(RTRIM(c.CompCode)) AS CompCode, c.CompName, LTRIM(RTRIM(s.SupName)) AS SupName, mt.Note,
+              mt.DateAccept, mt.DateCheck, mt.DateCheck2, mt.DateApv, mt.DateSendBack, mt.idPsCheck, pTs.PsName AS CreatorName,
+              (SELECT COUNT(*) FROM devsk.PkBuyRTDt dt WITH (NOLOCK) WHERE dt.idBuyRT = mt.idBuyRT AND dt.stDel IS NULL) AS nLine
+       FROM devsk.PkBuyRTMt mt WITH (NOLOCK)
+       LEFT JOIN PchInvAndProject.dbo.dCompany c WITH (NOLOCK) ON c.idComp = mt.idComp
+       LEFT JOIN PchInvAndProject.dbo.vSupplier s WITH (NOLOCK) ON s.idSup = mt.idSup
+       OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsTs) pTs
+       WHERE (${cond}) ${compFilter(access, request, 'mt.idComp')}
+       ORDER BY mt.DateTs DESC`);
+    more.rts = r.recordset.length > APV_INBOX_MAX;
+    r.recordset.slice(0, APV_INBOX_MAX).forEach(x => {
+      const mine = rtsSteps.filter(k => k === 'ack' ? !x.DateAccept && !x.DateSendBack
+        : k === 'check' ? x.DateAccept && !x.DateCheck2 && !(x.DateCheck && x.idPsCheck === idPs)
+        : x.DateCheck2 && !x.DateApv);
+      if (!mine.length) return;
+      const doneAt = { ack: x.DateAccept, check1: x.DateCheck, check2: x.DateCheck2, approve: x.DateApv };
+      out.push({ mod: 'rts', id: x.idBuyRT, docNo: x.DocCode, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
+        title: x.Note || '-', src: x.SupName ? `Supplier ${x.SupName}` : '', nLine: x.nLine || 0, by: x.CreatorName || '',
+        my: mine.map(k => ({ code: k, name: k === 'check' ? (x.DateCheck ? 'ตรวจสอบ 2' : 'ตรวจสอบ 1') : RTS_STEPS[k].name })),
+        progress: APV_RTS_STEPS.map(([k, n]) => ({ name: n, done: !!doneAt[k] })),
+        href: `/supplier-return-doc?id=${x.idBuyRT}&step=${mine[0]}&from=inbox` });
+    });
+  }
+  // 3) Over PO: ใบขออนุมัติรับซื้อ (OPA) ที่ระบุผู้ใช้คนนี้เป็นผู้อนุมัติ และยังไม่กดขั้นของตัวเอง
+  const ops = await opsApvPendingData(idPs);
+  ops.forEach(x => out.push({ mod: 'ops', id: x.id, docNo: x.buyDocNo || x.docNo, comp: x.reqName || '', compCode: '', date: x.buyAt ? String(x.buyAt).replace(' ', 'T') + ':00.000Z' : null,
+    title: x.items.map(it => it.invName).filter(Boolean).join(', ') || '-', src: `คำร้อง ${x.docNo}`, nLine: x.items.length, by: x.buyBy || '',
+    amount: x.total,
+    my: x.steps.map(k => ({ code: k, name: opsStepAct(k) })),
+    progress: OPS_APV_STEPS.map((st, i) => ({ name: opsStepAct(st.code), done: i < x.done })), progressCount: { done: x.done, count: x.count },
+    href: `/over-po-sale-opa?id=${x.id}&from=inbox` }));
+  // วันที่ทุกเรื่องเป็นเวลาท้องถิ่นแบบเดียวกับหน้าอื่น (ค่าจากฐานข้อมูลติด Z) → เรียงด้วยค่าเวลาได้ตรง ๆ
+  const ts = (v) => { const t = new Date(v).getTime(); return Number.isFinite(t) ? t : 0; };
+  out.sort((a, b) => ts(b.date) - ts(a.date));
+  // ระบุชื่อฉัน (named) = ผู้อนุมัติถูกระบุตัวในเอกสาร (Over PO) / ตามสิทธิ์ของฉัน (role) = ตามสิทธิ์ขั้นตอน (ปรับยอดสต๊อก / ส่งคืนสินค้า)
+  //   ตัวเลขบนเมนู / หน้า Home (badge): กลุ่มระบบ (เห็นทุกเมนูอัตโนมัติ เช่น ผู้บริหาร / ผู้ดูแลระบบ) นับเฉพาะงานที่ระบุชื่อ — งานตามสิทธิ์ของระดับผู้จัดการไม่นับ
+  out.forEach(x => { x.scope = x.mod === 'ops' ? 'named' : 'role'; });
+  const counts = { rq: 0, rts: 0, ops: 0 }, badgeCounts = { rq: 0, rts: 0, ops: 0 };
+  const inBadge = (x) => !access.unrestricted || x.scope === 'named';
+  out.forEach(x => { counts[x.mod]++; if (inBadge(x)) badgeCounts[x.mod]++; });
+  const named = out.filter(x => x.scope === 'named').length;
+  return { data: out, counts, total: out.length, named, role: out.length - named, more,
+    badge: out.filter(inBadge).length, badgeCounts, unrestricted: !!access.unrestricted,
+    mods: { rq: rqSteps.length > 0, rts: rtsSteps.length > 0, ops: ops.length > 0 } };   // ขอรับซื้อเมล็ด Over PO: การ์ดแสดงเฉพาะคนที่มีงานที่ระบุชื่อ
+}
+app.get(['/approvals', '/approvals.html'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'approvals.html')));
+app.get('/api/approval-inbox', requireLogin, async (req, res) => {
+  try {
+    const access = await getUserAccess(req.idPs);
+    const x = await approvalInbox(req.idPs, access);
+    const eligible = await approvalEligible(req.idPs, access);
+    apvCountCache.set(req.idPs, { at: Date.now(), counts: x.badgeCounts, total: x.badge, eligible });
+    res.json({ success: true, ...x, eligible, me: req.idPs, postingReady: SC_POSTING_READY,
+      can: { rqBulk: rqBulkSteps(access) } });
+  } catch (err) {
+    console.error('Approval inbox error:', err);
+    res.status(500).json({ success: false, message: 'โหลดงานรออนุมัติไม่สำเร็จ', detail: err.message });
+  }
+});
+// ใครเห็นเมนูงานรออนุมัติ: มีสิทธิ์ขั้นของเรื่องใดเรื่องหนึ่ง (รับทราบ / ตรวจสอบ / อนุมัติ) หรือเคยถูกระบุเป็นผู้อนุมัติ Over PO (ไม่ใช่แค่ตอนมีงานค้าง — เมนูไม่โผล่ ๆ หาย ๆ)
+//   เรื่องใหม่ที่ต้องอนุมัติ: เพิ่มสิทธิ์ขั้นของเรื่องนั้นใน APV_STEP_MENUS
+const APV_STEP_MENUS = () => [...Object.values(ADJ_STEPS).map(s => s.menu), ...Object.values(RTS_STEPS).map(s => s.menu)];
+async function approvalEligible(idPs, access) {
+  if (APV_STEP_MENUS().some(m => hasMenu(access, m))) return true;
+  const pool = await poolPromise;
+  const r = await pool.request().input('ps', sql.Int, idPs).query(`SELECT TOP 1 1 AS x FROM devsk.SeedReqSaleApv WITH (NOLOCK) WHERE idPsAssign = @ps`);
+  return r.recordset.length > 0;
+}
+// ตัวเลขบน sidebar / หน้า Home: จำไว้ 30 วินาทีต่อผู้ใช้ (ทุกหน้าเรียก — ไม่ query ซ้ำทุกครั้งที่เปลี่ยนหน้า)
+const APV_COUNT_TTL = 30 * 1000;
+const apvCountCache = new Map();
+async function approvalCount(idPs) {
+  const c = apvCountCache.get(idPs);
+  if (c && Date.now() - c.at < APV_COUNT_TTL) return c;
+  const access = await getUserAccess(idPs);
+  const eligible = await approvalEligible(idPs, access);
+  const x = eligible ? await approvalInbox(idPs, access) : { badgeCounts: { rq: 0, rts: 0, ops: 0 }, badge: 0 };
+  const v = { at: Date.now(), counts: x.badgeCounts, total: x.badge, eligible };   // ตัวเลขบนเมนู (กลุ่มระบบ = เฉพาะงานที่ระบุชื่อ)
+  apvCountCache.set(idPs, v);
+  if (apvCountCache.size > 2000) apvCountCache.clear();
+  return v;
+}
+const rqBulkSteps = (access) => Object.keys(ADJ_STEPS).filter(k => hasMenu(access, ADJ_STEPS[k].menu));
+app.get('/api/approval-inbox/count', requireLogin, async (req, res) => {
+  try {
+    const v = await approvalCount(req.idPs);
+    res.json({ success: true, total: v.total, counts: v.counts, eligible: v.eligible });
+  } catch (err) {
+    console.error('Approval count error:', err);
+    res.status(500).json({ success: false, message: 'โหลดจำนวนงานรออนุมัติไม่สำเร็จ' });
+  }
+});
+
+// ==================================================================
 // ---------- หน้า Home: ตัวเลขสรุปเฉพาะเมนู + บริษัทที่ผู้ใช้มีสิทธิ์ ----------
 // ==================================================================
 // ส่วนที่ไม่มีสิทธิ์จะไม่ถูก query และไม่อยู่ใน response เลย (หน้าเว็บไม่ต้องซ่อนเอง)
@@ -8276,6 +8420,24 @@ app.get('/api/home/summary', requireLogin, async (req, res) => {
       data.urs = { draftDocs: row.draftDocs || 0, awaitingReply: row.awaitingReply || 0, notReady: row.notReady || 0 };
     }
 
+    // ตรวจนับสต๊อก: เอกสารที่ยังไม่จบ (กำลังนับ / รอตรวจสอบผลต่าง / ร่าง) แยกบริษัท — ใบขอปรับยอดที่รออนุมัติอยู่ในการ์ดงานรออนุมัติ (ไม่นับซ้ำ)
+    if (hasMenu(access, MENU_SC) || hasMenu(access, MENU_SC_REVIEW)) {
+      const request = pool.request();
+      const r = await request.query(
+        `SELECT m.idComp AS id, c.CompName AS name,
+           SUM(CASE WHEN m.StatusCode = 'COUNT' THEN 1 ELSE 0 END) AS counting,
+           SUM(CASE WHEN m.StatusCode = 'REVIEW' THEN 1 ELSE 0 END) AS review,
+           SUM(CASE WHEN m.StatusCode = 'DRAFT' THEN 1 ELSE 0 END) AS draft
+         FROM devsk.dInvCountMt m WITH (NOLOCK)
+         LEFT JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = m.idComp
+         WHERE m.StatusCode IN ('DRAFT', 'COUNT', 'REVIEW')
+           ${compFilter(access, request, 'm.idComp')}
+           AND m.idComp NOT IN (${HOME_EXCLUDE_COMP_IDS.join(', ')})
+         GROUP BY m.idComp, c.CompName
+         ORDER BY c.CompName`);
+      data.stockCount = { ...summarizeByComp(r.recordset, ['counting', 'review', 'draft']), canReview: hasMenu(access, MENU_SC_REVIEW) };
+    }
+
     // ผู้อนุมัติ Over PO: ใบขออนุมัติที่รอการพิจารณาของผู้ใช้ (เงื่อนไขเดียวกับ /api/ops/apv/pending) — แสดงการ์ดเมื่อมีรายการ
     {
       const r = await pool.request().input('ps', sql.Int, req.idPs).query(`
@@ -8290,6 +8452,13 @@ app.get('/api/home/summary', requireLogin, async (req, res) => {
       const row = r.recordset[0];
       if (row && row.n) data.opsApv = { pending: row.n, total: Number(row.total) || 0 };
     }
+    // งานรออนุมัติของฉัน (ทุกเรื่อง) — การ์ดเดียวแทนการ์ด Over PO ข้างบน (หน้า Home รุ่นใหม่ใช้อันนี้)
+    let apvEligible = false;
+    try {
+      const v = await approvalCount(req.idPs);
+      apvEligible = v.eligible;
+      if (v.total) data.approvals = { total: v.total, counts: v.counts };
+    } catch (e) { console.error('Home approvals error:', e); }
 
     let companies = null;
     if (!access.allComps) {
@@ -8307,7 +8476,7 @@ app.get('/api/home/summary', requireLogin, async (req, res) => {
     res.json({
       success: true,
       unrestricted: access.unrestricted,
-      allowedMenuCodes: [...access.menus],
+      allowedMenuCodes: [...access.menus, ...(apvEligible ? ['approvals'] : [])],   // approvals = เมนูงานรออนุมัติ (ไม่มีใน WIMWebMenu)
       companies,                             // บริษัทที่มีสิทธิ์ (null = ทุกบริษัท)
       menuOrder: await getMenuOrderSafe(),   // ลำดับเมนูหน้า Home (WIMWebMenu.SortOrder)
       wipMenuCodes: await getWipMenusSafe(), // เมนู On process (ซ่อนจากผู้ใช้ทั่วไป)

@@ -3419,6 +3419,7 @@
   window.addEventListener('resize', () => { if(V.doc && $('vwPaper')) scalePaper($('vwPaper')); });
   // กลับหน้ารายการ: มาจากหน้ารายการ = ย้อนกลับ (ตัวกรองเดิม) / เปิดจากลิงก์ = รายการรอขั้นที่เอกสารอยู่ (ถ้ามีสิทธิ์) → รายการหลัก → หน้าหลัก
   function backToList(){
+    if(new URLSearchParams(location.search).get('from') === 'inbox'){ location.href = '/approvals'; return; }   // เปิดจากงานรออนุมัติ
     try {
       const ref = new URL(document.referrer);
       if(ref.origin === location.origin && /^\/supplier-return(-approve)?$/.test(ref.pathname) && history.length > 1) return history.back();

@@ -17,6 +17,8 @@
   window.WIM_ICONS = icon;
 
   window.WIM_MENUS = [
+    // approvals ไม่มีใน WIMWebMenu: server ใส่ให้ในรายการสิทธิ์ (หน้า Home) เฉพาะคนที่มีสิทธิ์ขั้นอนุมัติ / เป็นผู้อนุมัติ Over PO
+    { code: 'approvals', group: 'งานรออนุมัติ', title: 'งานรออนุมัติ', desc: 'ทุกเรื่องที่รอคุณ รับทราบ / ตรวจสอบ / อนุมัติ ในที่เดียว — ใบขอปรับยอดสต๊อก ส่งคืนสินค้า Supplier และขอรับซื้อเมล็ด Over PO', href: '/approvals', icon: 'shield', keywords: 'approval inbox อนุมัติ รับทราบ ตรวจสอบ รออนุมัติ งานของฉัน my approvals over po ขอรับซื้อ' },
     { code: 'supplier_return', group: 'คลังวัสดุและสินค้า · ส่งคืนสินค้า/ลดหนี้ Supplier', title: 'ส่งคืนสินค้า/ลดหนี้ Supplier', desc: 'ส่งคืนสินค้า (RTS) / ลดหนี้ Supplier พร้อมขั้นตอนรับทราบ-ตรวจสอบ-อนุมัติ', href: '/supplier-return', icon: 'returnBox', keywords: 'supplier return rts purchase return ส่งคืน คืนสินค้า ลดหนี้ ทดแทน credit note po' },
     { code: 'supplier_return_ack', group: 'คลังวัสดุและสินค้า · ส่งคืนสินค้า/ลดหนี้ Supplier', title: 'รับทราบเอกสารส่งคืนสินค้า Supplier', desc: 'รับทราบเอกสารส่งคืนสินค้า / ลดหนี้ Supplier หรือส่งกลับแก้ไข', href: '/supplier-return-approve?step=ack', icon: 'book', keywords: 'supplier return rts รับทราบ ส่งคืน ลดหนี้ acknowledge' },
     { code: 'supplier_return_check', group: 'คลังวัสดุและสินค้า · ส่งคืนสินค้า/ลดหนี้ Supplier', title: 'ตรวจสอบเอกสารส่งคืนสินค้า Supplier', desc: 'ตรวจสอบ 1 / ตรวจสอบ 2 เอกสารส่งคืนสินค้า หรือส่งกลับแก้ไข', href: '/supplier-return-approve?step=check', icon: 'lot', keywords: 'supplier return rts ตรวจสอบ ส่งคืน ลดหนี้ check review' },

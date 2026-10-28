@@ -24,6 +24,10 @@
   #sidebar .nav-group-sub:has(.nav-subitem.active) > .nav-parent{color:var(--amber-500, #f2a91c);}
   /* เมนู On process (WIMWebMenu.stWip): ผู้ใช้ทั่วไป = ซ่อน (hidden) / กลุ่มระบบ = เห็นพร้อมป้าย WIP */
   #sidebar [hidden]{display:none !important;}
+  /* งานรออนุมัติ: ตัวเลขงานที่รอผู้ใช้ (sidebar.js เติมให้) */
+  #sidebar .nav-badge{margin-left:auto; min-width:22px; height:22px; padding:0 7px; border-radius:999px; flex-shrink:0;
+    display:inline-flex; align-items:center; justify-content:center; font-family:'Inter',sans-serif; font-size:12px; font-weight:700;
+    color:#1b1404; background:var(--amber-500, #f2a91c);}
   #sidebar .menu-wip::after{
     content:"WIP"; margin-left:auto; padding:1px 6px; border-radius:4px; flex-shrink:0;
     font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.05em;
@@ -37,6 +41,19 @@
 
 <nav class="side-nav">
   <div class="nav-section-label">เมนูหลัก</div>
+
+  <!-- งานรออนุมัติ: ทุกเรื่องที่รอผู้ใช้ในที่เดียว — ซ่อนไว้ก่อน sidebar.js แสดงเมื่อเกี่ยวข้อง (มีสิทธิ์ขั้นใดขั้นหนึ่ง / เป็นผู้อนุมัติ Over PO)
+       ไม่มี data-menu: ไม่ใช่สิทธิ์เมนูใน WIMWebMenu -->
+  <a class="nav-item" href="/approvals" data-apv-link hidden>
+    <span class="nav-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 12h-6l-2 3h-4l-2-3H2"></path>
+        <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+      </svg>
+    </span>
+    <span class="nav-label">งานรออนุมัติ</span>
+    <span class="nav-badge" data-apv-badge hidden></span>
+  </a>
 
   <!-- คลังวัสดุและสินค้า: ตอนนี้มีเมนูเดียว (ถ้ามีเมนูเพิ่มค่อยแบ่งกลุ่มย่อยแบบเมนูรายงาน) -->
   <div class="nav-group" id="invGroup">

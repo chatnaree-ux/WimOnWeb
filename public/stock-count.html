@@ -1495,6 +1495,9 @@
     const opts = comps.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     $('fComp').innerHTML = (comps.length > 1 ? '<option value="">ทุกบริษัท</option>' : '') + opts;
     if(saved && comps.some(c => String(c.id) === saved)) $('fComp').value = saved;
+    // ลิงก์จากหน้า Home (การ์ดตรวจนับสต๊อก แยกตามบริษัท): ?comp= เลือกบริษัทนั้นไว้
+    const qComp = new URLSearchParams(location.search).get('comp');
+    if(qComp && comps.some(c => String(c.id) === qComp)) $('fComp').value = qComp;
     $('hComp').innerHTML = opts;
     $('hType').innerHTML = meta.types.filter(t => !t.inactive).map(t => `<option value="${t.id}">${esc(t.name)}${t.nameEn ? ` (${esc(t.nameEn)})` : ''}</option>`).join('');
     // ช่วงวันที่เริ่มต้น: ย้อนหลัง 90 วัน ถึง สิ้นเดือนถัดไป (เห็นเอกสารที่สร้างล่วงหน้าสำหรับนับสิ้นเดือนนี้ / เดือนหน้า)

@@ -3480,6 +3480,7 @@
       back.hidden = false;
       if(opaFromBuy){ back.href = `/over-po-sale-buy?id=${d.id}`; back.lastChild.textContent = ' จัดการคำร้อง'; }
       else if(from === 'apv'){ back.href = '/over-po-sale-apv'; back.lastChild.textContent = ' รายการรอการพิจารณา'; }
+      else if(from === 'inbox'){ back.href = '/approvals'; back.lastChild.textContent = ' งานรออนุมัติ'; }
       else back.hidden = true;   // เปิดจากลิงก์ในอีเมล: มีแค่ปุ่มพิจารณา + พิมพ์
       renderApvPanel();
       $('docTimeline').innerHTML = timelineHtml(d);
