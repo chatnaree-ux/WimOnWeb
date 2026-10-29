@@ -2182,22 +2182,24 @@
   }
 
   // รอโลโก้โหลดก่อนสั่งพิมพ์ (โหลดไม่ได้/นานเกิน 4 วินาที -> ซ่อนโลโก้แล้วพิมพ์ต่อ)
-  function waitForLogo(){
-    const logo = $('pd_logo');
-    if(logo.complete && logo.naturalWidth > 0) return Promise.resolve();
+  // รอรูปในเอกสาร (โลโก้ + รูปลายเซ็น) โหลดก่อนสั่งพิมพ์ — โหลดไม่ได้ / นานเกิน 4 วินาที = ซ่อนรูปนั้นแล้วพิมพ์ต่อ
+  function waitForImg(img){
+    if(!img || !img.getAttribute('src')) return Promise.resolve();
+    if(img.complete){ if(!img.naturalWidth) img.style.display = 'none'; return Promise.resolve(); }
     return new Promise(resolve => {
       let done = false;
       const finish = (ok) => {
         if(done) return;
         done = true;
-        if(!ok) logo.style.display = 'none';
+        if(!ok) img.style.display = 'none';
         resolve();
       };
-      logo.addEventListener('load', () => finish(true), { once: true });
-      logo.addEventListener('error', () => finish(false), { once: true });
-      setTimeout(() => finish(logo.complete && logo.naturalWidth > 0), 4000);
+      img.addEventListener('load', () => finish(true), { once: true });
+      img.addEventListener('error', () => finish(false), { once: true });
+      setTimeout(() => finish(img.complete && img.naturalWidth > 0), 4000);
     });
   }
+  function waitForLogo(){ return Promise.all([waitForImg($('pd_logo')), waitForImg($('pd_esign'))]); }
 
   async function triggerPrint(){
     await waitForLogo();
