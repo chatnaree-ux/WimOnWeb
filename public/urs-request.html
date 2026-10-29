@@ -617,7 +617,7 @@
   .print-doc .pd-layout > tfoot > tr > td{padding:0 15mm; border:0; background:none; color:#111; font-size:inherit;}
   .print-doc .pd-layout tr:hover{background:none;}
   .print-doc .pd-space-top{height:15mm;}
-  .print-doc .pd-space-bottom{height:52mm;}
+  .print-doc .pd-space-bottom{height:15mm;}
   .print-doc .doc-header{display:flex; justify-content:space-between; align-items:flex-start; gap:20px; border-bottom:1.5px solid #555; padding-bottom:10px; margin-bottom:18px;}
   .print-doc .doc-header .co-block{display:flex; flex-direction:column; align-items:flex-start; gap:5px;}
   .print-doc .doc-header .co-logo{display:block; height:56px; max-width:220px; object-fit:contain; object-position:left center;}
@@ -633,14 +633,20 @@
   .print-doc .pd-items th{background:#f2f2f2; font-weight:700;}
   .print-doc .pd-items th.num,.print-doc .pd-items td.num{text-align:right;}
   .print-doc .pd-note{margin-top:2px; font-size:0.78rem; color:#555;}
+  .req-list-table td.c-reason{min-width:200px; max-width:320px; white-space:normal;}
   .row-note{margin-top:3px; font-size:12.5px; font-weight:400; color:var(--concrete-400); white-space:normal;}
   .note-input{width:100%; min-width:180px; padding:7px 9px; font-size:13px;}
   .print-doc .pd-items th.ctr,.print-doc .pd-items td.ctr{text-align:center;}
   .print-doc .pd-items tr{break-inside:avoid;}
-  /* ช่องลงชื่อ: ตรึงไว้ชิดล่างของกระดาษ (position:fixed ตอนพิมพ์ = ซ้ำทุกหน้า) */
-  .print-doc .sign-area{position:fixed; left:15mm; right:15mm; bottom:15mm; display:flex; justify-content:space-between; font-size:0.88rem; background:#fff;}
-  .print-doc .sign-box{text-align:center; width:45%;}
-  .print-doc .sign-line{border-bottom:1px dashed #333; margin-bottom:8px; height:40px;}
+  /* ลายเซ็นผู้ร้องขอ (ไม่มีขั้นอนุมัติ): ต่อท้ายตาราง ชิดขวา อยู่ในหน้าเดียวกับรายการสุดท้าย / รูปลายเซ็น (ถ้ามี) อยู่เหนือเส้น */
+  .print-doc .sign-one{width:62mm; margin:14mm 0 0 auto; text-align:center; font-size:0.9rem; break-inside:avoid; page-break-inside:avoid;}
+  .print-doc .sign-one .sg{height:15mm; display:flex; align-items:flex-end; justify-content:center; box-sizing:border-box; padding-bottom:2mm;}
+  .print-doc .sign-one .sg img{max-height:13mm; max-width:100%; object-fit:contain;}
+  .print-doc .sign-one .sl{border-top:1px solid #333; margin:0 4mm 4px;}
+  .print-doc .sign-one .sn{margin-top:1px;}
+  .print-doc .sign-one .sp{font-size:0.82rem; margin-top:1px;}
+  .print-doc .sign-one .sr{font-weight:700; margin-top:2px;}
+  .print-doc .sign-one .sd{margin-top:2px; color:#333;}
 
   /* ---------- RESPONSIVE ---------- */
   .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:19;}
@@ -671,13 +677,15 @@
     .req-list-table tbody tr.doc-cancel{opacity:.7; border-left-color:var(--steel-500);}
     .req-list-table tbody tr td{display:block; flex:1 1 calc(50% - 12px); min-width:0; padding:0 !important; border:0 !important; background:none !important;
       text-align:left; white-space:normal; overflow-wrap:anywhere; font-size:14px;}
-    .req-list-table td[data-l]::before{content:attr(data-l); display:block; margin-bottom:2px; font-size:11.5px; color:var(--concrete-400);}
+    .req-list-table td[data-l]::before{content:attr(data-l); display:block; margin-bottom:2px; font-size:12.5px; color:#c3cedc;}
+    .req-list-table tbody tr td{color:#f1f5fa;}
     .req-list-table td:nth-child(1){display:none;}
     .req-list-table td.doc-cell{order:-3; flex:1 1 55%; font-size:16px; font-weight:700; color:var(--amber-500); font-family:'JetBrains Mono',monospace;}
     .req-list-table td.doc-cell::before, .req-list-table td.wrap::before, .req-list-table td.act::before{content:none;}
     .req-list-table td:nth-child(6){order:-3; flex:0 0 auto; margin-left:auto;}
     .req-list-table td:nth-child(6)::before{content:none;}
     .req-list-table td.wrap{order:-2; flex-basis:100%; font-size:15px; font-weight:600; color:#fff;}
+    .req-list-table td.c-reason{order:-1; flex-basis:100%;}
     .req-list-table td.act{order:10; flex:1 1 calc(50% - 12px);}
     .req-list-table td.act:empty{display:none;}
     .req-list-table td.act .icon-btn{width:100%; min-height:44px; display:flex; align-items:center; justify-content:center; gap:8px; padding:0 10px;}
@@ -716,19 +724,27 @@
     .seed-req-table td.c-name{order:-4; flex-basis:100%; font-size:16px; font-weight:600; color:#fff;}
     .seed-req-table td.c-note{flex-basis:100%;}
     /* ช่องกรอก 16px (กัน iOS ซูม) — ฟอนต์เดียวกับข้อมูล ชิดซ้าย พื้นจาง ไม่เป็นกล่องดำเด่นกว่าส่วนอื่น */
-    .seed-req-table .qty-input, .seed-req-table .date-input, .seed-req-table .note-input{width:100%; min-height:44px; font-size:16px; font-family:inherit; text-align:left; background-color:rgba(255,255,255,.06); border:1px solid rgba(242,169,28,.42); border-radius:8px; color:#fff;}
+    .seed-req-table .qty-input, .seed-req-table .date-input, .seed-req-table .note-input{width:100%; min-height:38px; height:38px; padding:2px 8px; font-size:16px; font-family:inherit; text-align:left; background-color:rgba(255,255,255,.05); border:0; border-bottom:2px solid rgba(242,169,28,.6); border-radius:6px 6px 0 0; color:#fff; box-shadow:none;}
+    .seed-req-table .qty-input:focus, .seed-req-table .note-input:focus{background-color:rgba(255,255,255,.1); border-bottom-color:var(--amber-500); outline:0;}
     .seed-req-table .date-overlay-wrap{display:block; width:100%;}
-    .seed-req-table .date-overlay-wrap .date-input{background-color:rgba(255,255,255,.06) !important; border:1px solid rgba(242,169,28,.42) !important; border-radius:8px;}
+    .seed-req-table .date-overlay-wrap .date-input{background-color:rgba(255,255,255,.05) !important; border:0 !important; border-bottom:2px solid rgba(242,169,28,.6) !important; border-radius:6px 6px 0 0; height:38px; min-height:38px;}
     .seed-req-table .btn-danger{width:100%; min-height:44px;}
     /* popup เลือกเมล็ดพันธุ์ */
     .seed-filter{display:grid !important; grid-template-columns:minmax(0, 1fr); gap:8px;}
     .seed-filter select, .seed-filter .search-shell{width:100% !important; max-width:none; min-height:44px; font-size:16px;}
-    .seed-filter select{background-color:#0d1522; color:#fff; border:1px solid rgba(255,255,255,.16); border-radius:10px;}
-    .seed-pick-table tbody tr td{flex:1 1 100%;}
-    .seed-pick-table td.p-code{order:-2; flex:1 1 55%; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--amber-500);}
-    .seed-pick-table td.p-type{order:-2; flex:0 0 auto; margin-left:auto; font-size:13px; color:var(--concrete-400);}
-    .seed-pick-table td.p-name{order:-1; font-size:15.5px; font-weight:600; color:#fff;}
-    .seed-pick-table td.p-act .btn{width:100%; min-height:44px; justify-content:center;}
+    .seed-filter select{-webkit-appearance:none; appearance:none; background-color:#0d1522; color:#fff; border:1px solid rgba(255,255,255,.16); border-radius:10px; padding-right:38px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c3cedc' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; background-size:14px;}
+    .seed-pick-table tbody tr{display:grid; grid-template-columns:auto minmax(0, 1fr) auto; grid-template-areas:"code type act" "name name act"; align-items:center; gap:3px 10px; padding:10px 12px;}
+    .seed-pick-table tbody tr td{flex:none;}
+    .seed-pick-table td.p-code{grid-area:code; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--amber-500);}
+    .seed-pick-table td.p-type{grid-area:type; font-size:12.5px; color:#c3cedc;}
+    .seed-pick-table td.p-name{grid-area:name; font-size:15.5px; font-weight:600; color:#fff; line-height:1.3;}
+    .seed-pick-table td.p-act{grid-area:act;}
+    /* ปุ่ม + กลมเล็ก (แตะแล้วเพิ่มเลย) / เลือกแล้ว = ✓ เขียว */
+    .seed-pick-table td.p-act .btn{font-size:0; width:40px; height:40px; min-height:40px; padding:0; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:transparent; border:1.5px solid var(--amber-500); box-shadow:none;}
+    .seed-pick-table td.p-act .btn::before{content:"+"; font-size:24px; line-height:1; font-weight:400; color:var(--amber-500);}
+    .seed-pick-table td.p-act .btn[disabled]{border-color:var(--ok-green); background:rgba(62,207,142,.16); opacity:1;}
+    .seed-pick-table td.p-act .btn[disabled]::before{content:"\2713"; font-size:19px; font-weight:700; color:var(--ok-green);}
     .seed-pick-table td::before{content:none !important;}
     /* popup ยอดคงเหลือ + รายการ Lot / กระสอบ: 1 Lot = 1 การ์ด (ไม่มีแถวหัวสองชั้น / ไม่ให้ตารางกว้าง 2,000px) */
     .modal-av{overflow-y:auto;}
@@ -741,11 +757,29 @@
     .av-lot-table tbody tr td.qc:empty, .av-lot-table tbody tr td.note:empty{display:none;}
     .av-lot-table tbody tr td.note{flex-basis:100%;}
     .av-lot-table tbody tr td.empty-msg, .av-lot-table tbody tr td.av-empty{flex:1 1 100%; text-align:center;}
-    .av-lot-table tfoot{display:block;}
-    .av-lot-table tfoot tr{display:flex; gap:8px 14px; flex-wrap:wrap; padding:10px 12px; border-radius:10px; background:rgba(242,169,28,.12); border:1px solid rgba(242,169,28,.4); font-weight:700;}
-    .av-lot-table tfoot td{display:block; padding:0 !important; border:0 !important; background:none !important; font-size:15px;}
+    /* แถวรวม: การ์ดสรุป หัว "รวม" + ตัวเลขแต่ละช่องมีป้ายอยู่เหนือค่า เรียงเท่าๆ กัน */
+    .av-lot-table tfoot{display:block; margin-top:4px;}
+    .av-lot-table tfoot tr{display:grid; grid-template-columns:repeat(auto-fit, minmax(78px, 1fr)); gap:10px 12px; padding:12px 14px; border-radius:12px; background:linear-gradient(135deg, rgba(242,169,28,.22), rgba(242,169,28,.08)); border:1px solid rgba(242,169,28,.55);}
+    .av-lot-table tfoot td{display:block; padding:0 !important; border:0 !important; background:none !important; text-align:left !important; font-size:16px; font-weight:700; color:#fff; font-family:'JetBrains Mono',monospace;}
     .av-lot-table tfoot td:empty{display:none;}
-    .av-lot-table tfoot td[data-l]::before{content:attr(data-l); display:block; font-size:11.5px; font-weight:400; color:var(--concrete-400);}
+    .av-lot-table tfoot td:not([data-l]){grid-column:1 / -1; font-family:inherit; font-size:14px; letter-spacing:.04em; color:var(--amber-500);}
+    .av-lot-table tfoot td[data-l]::before{content:attr(data-l); display:block; margin-bottom:1px; font-family:inherit; font-size:12.5px; font-weight:400; color:#d9e2ee;}
+    /* กล่องค้นหา Lot: เต็มความกว้างเท่าการ์ด */
+    .av-lot-bar{padding:12px 16px;}
+    .av-lot-bar .search-shell{flex:1 1 100%; width:100%;}
+    /* กล่องเกรด / คลัง: ชื่อใหญ่ เข้ม ตัดบรรทัดได้ (ไม่ตัด ...) / พื้นการ์ดสว่างขึ้น ขอบชัด ไม่กลืนพื้นหลัง */
+    .av-card{background:rgba(255,255,255,.075); border:1px solid rgba(255,255,255,.22); padding:12px 14px;}
+    .av-card .lbl{font-size:14px; font-weight:700; letter-spacing:.02em; color:#fff; white-space:normal; text-transform:none;}
+    .av-card .lbl i{width:11px; height:11px;}
+    .av-card .val{font-size:19px;}
+    .av-card.zero .val{color:#9fb0c3;}
+    .av-card .nm{font-size:15px; color:#fff; white-space:normal; overflow:visible; text-overflow:clip; line-height:1.35;}
+    .av-card .tag{font-size:12px;}
+    .av-card.wip{border:1px dashed rgba(255,255,255,.4);}
+    .av-card.active{background:rgba(242,169,28,.18);}
+    .av-total{background:linear-gradient(135deg, rgba(242,169,28,.3), rgba(242,169,28,.12)); border:1px solid rgba(242,169,28,.7);}
+    .av-total .lbl{font-size:13px; color:#ffcf66;}
+    .av-total .val{font-size:24px;}
     .av-lot-table tbody tr td.blk-start{border-left:0 !important; box-shadow:none !important;}
   }
 </style>
@@ -919,7 +953,7 @@
               <thead>
                 <tr class="group-row">
                   <th colspan="5" class="grp-manage">จัดการ</th>
-                  <th colspan="13">รายละเอียดการร้องขอ</th>
+                  <th colspan="14">รายละเอียดการร้องขอ</th>
                   <th colspan="4" class="grp-action">การดำเนินการ</th>
                 </tr>
                 <tr>
@@ -927,7 +961,7 @@
                   <th class="ctr">สถานะ</th>
                   <th>เลขที่ร้องขอ</th><th class="ctr">วันที่ร้องขอ</th><th class="ctr">ส่งคำร้องถึง<br>(บริษัทต้นทาง)</th><th class="ctr">วันที่ต้องการใช้งาน</th><th>ชื่อเมล็ดพันธุ์</th><th class="ctr">ประเภทพืช</th>
                   <th class="num">คงเหลือ (AV)</th><th class="num">คงเหลือ (GR)</th><th class="num">คงเหลือ (FLO)</th>
-                  <th class="num">จำนวนที่ต้องการ</th><th class="ctr">หน่วย</th><th>ผู้ร้องขอ</th>
+                  <th class="num">จำนวนที่ต้องการ</th><th class="ctr">หน่วย</th><th>ผู้ร้องขอ</th><th>เหตุผล/สาเหตุ<br>ที่เร่งด่วน</th>
                   <th class="ctr">กำหนดส่ง</th><th class="ctr">ผู้ตอบกลับ</th><th class="num">จำนวนที่จัดส่งแล้ว</th><th class="num">จำนวนคงค้างจัดส่ง</th>
                 </tr>
               </thead>
@@ -1127,21 +1161,17 @@
         </thead>
         <tbody id="pd_items"></tbody>
       </table>
+      <div class="sign-one">
+        <div class="sg"><img id="pd_esign" alt=""></div>
+        <div class="sl"></div>
+        <div class="sn">(<span id="pd_signName"></span>)</div>
+        <div class="sp"><span id="pd_signPos"></span></div>
+        <div class="sr">ผู้ร้องขอ</div>
+        <div class="sd">วันที่ <span id="pd_signDate"></span></div>
+      </div>
     </td></tr></tbody>
     <tfoot><tr><td><div class="pd-space-bottom"></div></td></tr></tfoot>
   </table>
-  <div class="sign-area">
-    <div class="sign-box">
-      <div class="sign-line"></div>
-      ลงชื่อ ....................................... ผู้ร้องขอ<br>
-      วันที่ ......../......../..........
-    </div>
-    <div class="sign-box">
-      <div class="sign-line"></div>
-      ลงชื่อ ....................................... ผู้อนุมัติ<br>
-      วันที่ ......../......../..........
-    </div>
-  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1180,7 +1210,7 @@
     const data = await res.json();
     if(!data.success) throw new Error(data.message || 'โหลดรายชื่อพนักงานไม่สำเร็จ');
     return (data.data || []).map(u => ({
-      id: u.idPs, name: u.PsName || '-', position: u.PositionName, compName: u.CompName, compCode: u.CompCode
+      id: u.idPs, name: u.PsName || '-', full: (u.PsFullName || '').trim(), position: u.PositionName, compName: u.CompName, compCode: u.CompCode
     }));
   }
   // ---------- รายการเมล็ดพันธุ์ (dInventoryMain กลุ่มเมล็ดพันธุ์ + ประเภทพืชจาก vSeedProduct) ----------
@@ -1526,7 +1556,7 @@
         <td class="p-code">${esc(s.code)}</td><td class="p-type">${esc(s.seedType) || '-'}</td><td class="p-name">${esc(s.name)}</td>
         <td class="p-act">
           <button type="button" class="btn btn-sm ${added ? 'btn-disabled' : 'btn-primary'}"
-            data-seed-id="${esc(s.id)}" ${added ? 'disabled' : ''}>${added ? 'เพิ่มแล้ว' : 'เลือก'}</button>
+            data-seed-id="${esc(s.id)}" aria-label="${added ? 'เพิ่มแล้ว' : 'เลือก'} ${esc(s.name)}" ${added ? 'disabled' : ''}>${added ? 'เพิ่มแล้ว' : 'เลือก'}</button>
         </td>
       </tr>`;
     }).join('') || '<tr><td colspan="4" class="empty-msg">ไม่พบเมล็ดพันธุ์ที่ค้นหา</td></tr>';
@@ -2067,6 +2097,8 @@
       targetCompanyId: selectedTargetCompany,
       requesterId: selectedEmployee.id,
       requesterName: selectedEmployee.name,
+      requesterFull: selectedEmployee.full || '',
+      requesterPos: selectedEmployee.position || '',
       remark: $('remarkText').value.trim(),
       items: selectedSeeds.map(r => ({
         ...r,
@@ -2122,7 +2154,7 @@
      PRINT
   ================================================================== */
   // โลโก้บริษัทตาม idComp ของบริษัทที่ส่งคำร้องขอ
-  const LOGO_BASE_URL = 'http://seedsgroup.dyndns.org/spm/Center/Logo/';
+  const LOGO_BASE_URL = 'https://seedsgroup.dyndns.org/spm/Center/Logo/';
 
   function populatePrintArea(data){
     const co = companies.find(c => Number(c.id) === Number(data.companyId));
@@ -2134,6 +2166,13 @@
     $('pd_date').textContent = data.requestDateDisplay;
     $('pd_requester').textContent = data.requesterName;
     $('pd_remark').textContent = data.remark;
+    $('pd_signName').textContent = data.requesterFull || data.requesterName || '-';
+    $('pd_signPos').textContent = data.requesterPos || '-';
+    $('pd_signDate').textContent = data.requestDateDisplay || '';
+    const es = $('pd_esign');
+    es.style.display = '';
+    es.onerror = () => { es.style.display = 'none'; };
+    if(data.requesterId){ es.src = 'https://seedsgroup.dyndns.org/spm/images/eSign/' + encodeURIComponent(data.requesterId) + '.png'; } else { es.removeAttribute('src'); es.style.display = 'none'; }
     $('pd_items').innerHTML = data.items.map((r, idx) => `
       <tr>
         <td class="ctr">${idx + 1}</td><td>${esc(r.name)}${r.note && String(r.note).trim() ? `<div class="pd-note">หมายเหตุ: ${esc(r.note)}</div>` : ''}</td><td class="ctr">${esc(r.seedType) || '-'}</td>
@@ -2178,6 +2217,9 @@
       companyId: head.idCompReq,
       companyName: head.CompName,
       requesterName: head.PsNameReq || '-',
+      requesterFull: head.FullReq || '',
+      requesterPos: head.PosReq || '',
+      requesterId: head.idPsReq,
       remark: head.ReasonReq || '',
       items: rows.map(r => ({
         name: r.InvName, seedType: r.SeedName, qty: r.AmountReq, unit: r.UnitName, note: r.NoteReq || '',
@@ -2654,6 +2696,7 @@
         <td class="num">${fmtNum(r.AmountReq)}</td>
         <td class="ctr">${esc(r.UnitName) || '-'}</td>
         <td>${esc(r.PsNameReq) || '-'}</td>
+        <td class="c-reason">${esc(r.ReasonReq) || '-'}</td>
         <td class="ctr">${dueCell(r)}</td>
         <td>${repliedCell(r)}</td>
         <td class="num">${cancelled ? '-' : fmtNum(r.AmtDelivered || 0)}</td>

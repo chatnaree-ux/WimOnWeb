@@ -1957,7 +1957,7 @@ app.get('/api/usergroups/available-users', requireMenu([MENU_ADMIN, 'urs_request
     const result = await pool.request()
       .input('keyword', sql.NVarChar, `%${keyword}%`)
       .query(
-        `SELECT ${topClause} v.idPs, v.PsName, v.PositionName, v.idComp, v.CompName, v.CompCode
+        `SELECT ${topClause} v.idPs, v.PsName, v.PsFullName, v.PositionName, v.idComp, v.CompName, v.CompCode
          FROM devsk.vPersonxSelect v
          WHERE v.idstWork <> 4
            AND (v.PsName LIKE @keyword)
@@ -2841,7 +2841,7 @@ app.get('/api/urs/requests', requireMenu('urs_request', { companyParam: 'idComp'
                 CASE WHEN r.stReq IN (@stCancel, @stDone) THEN NULL ELSE ISNULL(sav.AmtStockAV, 0) END AS AmtStockAV,
                 CASE WHEN r.stReq IN (@stCancel, @stDone) THEN NULL ELSE ISNULL(sgf.AmtStockGR, 0) END AS AmtStockGR,
                 CASE WHEN r.stReq IN (@stCancel, @stDone) THEN NULL ELSE ISNULL(sgf.AmtStockFL, 0) END AS AmtStockFL,
-                ps.PsName AS PsNameReq, c.CompName,
+                ps.PsName AS PsNameReq, ps.PsFullName AS FullReq, ps.PositionName AS PosReq, c.CompName,
                 CONVERT(varchar(16), r.DateSentReq, 120) AS DateSentReq,
                 CONVERT(char(10), r.DateSent, 23) AS DateSent, r.NotSentNote,
                 CONVERT(varchar(16), r.DateReplied, 120) AS DateReplied, pr.PsName AS PsNameReplied,
@@ -2854,7 +2854,7 @@ app.get('/api/urs/requests', requireMenu('urs_request', { companyParam: 'idComp'
          LEFT JOIN Stock_GRxFL sgf ON r.idInvMain = sgf.idInvMain
          LEFT JOIN PchInvAndProject.dbo.dCompany c WITH (NOLOCK) ON r.idCompReq = c.idComp
          LEFT JOIN PchInvAndProject.dbo.dCompany ct WITH (NOLOCK) ON r.idCompTarget = ct.idComp
-         OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = r.idPsReq) ps
+         OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName, v.PositionName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = r.idPsReq) ps
          OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = r.idPsReplied) pr
          OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = r.idPsDel) pd
          ORDER BY CONVERT(date, r.DateReq), r.idUrs, r.idUrsDt`

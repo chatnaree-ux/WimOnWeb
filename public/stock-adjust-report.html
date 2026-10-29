@@ -767,8 +767,8 @@
   #printArea .ps-sign{display:grid; grid-template-columns:repeat(2, 1fr); gap:10mm; margin-top:8mm; font-size:10pt; text-align:center;}
   #printArea .ps-sign .l{border-top:1px solid #000; margin:12mm 8mm 1mm; }
   /* รูปลายเซ็น (eSign ตาม idPs) เหนือเส้นลงนาม — สูงเท่าระยะเว้นเดิม (12 มม.) ไม่มีรูป = ว่างไว้เซ็นเอง */
-  #printArea .ps-sign .sg{height:11mm; margin:1mm 8mm 0; display:flex; align-items:flex-end; justify-content:center;}
-  #printArea .ps-sign .sg img{max-height:11mm; max-width:100%; object-fit:contain;}
+  #printArea .ps-sign .sg{height:11mm; margin:1mm 8mm 0; display:flex; align-items:flex-end; justify-content:center; box-sizing:border-box; padding-bottom:2mm;}
+  #printArea .ps-sign .sg img{max-height:9mm; max-width:100%; object-fit:contain;}
   #printArea .ps-sign .sg + .l{margin-top:0;}
   #printArea .ps-16 th, #printArea .ps-16 td{font-size:7.6pt; padding:1.2mm 1.1mm;}
   #printArea .ps-sum{margin:0 0 4mm; table-layout:fixed;}

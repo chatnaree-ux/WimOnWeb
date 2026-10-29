@@ -888,8 +888,8 @@
   .paper .p-sign{text-align:center; font-size:9.5px; line-height:1.4;}
   .paper .p-sign .side{font-size:9px; color:#666; margin-bottom:2px;}
   .paper .p-signs.one .side{font-size:11.5px; color:#111; margin-bottom:6px;}   /* คำลงท้ายจดหมาย "ขอแสดงความนับถือ" */
-  .paper .p-sign .sg{height:12mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:0 8px 3px;}
-  .paper .p-sign .sg img{max-height:12mm; max-width:100%; object-fit:contain;}
+  .paper .p-sign .sg{height:12mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:0 8px 3px; box-sizing:border-box; padding-bottom:2mm;}
+  .paper .p-sign .sg img{max-height:10mm; max-width:100%; object-fit:contain;}
   .paper .p-sign .n{font-weight:600;}
   .paper .p-sign .t{font-weight:700; font-size:10.5px;}
   .paper .p-sign .blank{color:#999; font-weight:400;}
@@ -1058,16 +1058,16 @@
   .paper table.p-info tr:first-child th, .paper table.p-info tr:first-child td{border-top:0;}
   /* ผู้ขออนุมัติ (ฝ่ายจัดซื้อ): ชิดขวาแบบบันทึกข้อความ */
   .paper .p-req{width:66mm; margin:6mm 0 0 auto; text-align:center; font-size:10px; line-height:1.45; break-inside:avoid;}
-  .paper .p-req .sg{height:13mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:0 8px 3px;}
-  .paper .p-req .sg img{max-height:12mm; max-width:100%; object-fit:contain;}
+  .paper .p-req .sg{height:13mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:0 8px 3px; box-sizing:border-box; padding-bottom:2mm;}
+  .paper .p-req .sg img{max-height:11mm; max-width:100%; object-fit:contain;}
   .paper .p-req .n{font-weight:600;}
   .paper .p-req .t{font-weight:700; font-size:10.5px;}
   .paper .sb-c{display:flex; gap:12px; justify-content:flex-start; margin-top:2px; font-size:9.5px;}
   .paper .sb-c > span{display:inline-flex; align-items:center; gap:4px;}
   .paper .cb{display:inline-block; position:relative; width:9px; height:9px; border:1px solid #333; flex-shrink:0;}
   .paper .cb.on::after{content:""; position:absolute; left:2px; top:-1px; width:3px; height:6px; border:solid #111; border-width:0 1.6px 1.6px 0; transform:rotate(45deg);}
-  .paper .sb-sg{height:13mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:2px 14px 3px;}
-  .paper .sb-sg img{max-height:12mm; max-width:100%; object-fit:contain;}
+  .paper .sb-sg{height:13mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:2px 14px 3px; box-sizing:border-box; padding-bottom:2mm;}
+  .paper .sb-sg img{max-height:11mm; max-width:100%; object-fit:contain;}
   .paper .sb-n{font-weight:600;}
   .paper .sb-n.wait{color:#666; font-weight:500;}
   .paper .sb-p{color:#333;}
@@ -2968,7 +2968,7 @@
         <div class="side">${side}</div>
         <div class="sg">${who ? `<img src="${ESIGN_URL(who.id)}" alt="" onerror="this.remove()">` : ''}</div>
         <div class="n">${who ? `(${esc(who.full || who.name)})` : '<span class="blank">(.................................)</span>'}</div>
-        <div>${who ? esc(who.pos || '') : '<span class="blank">ตำแหน่ง ...........................</span>'}</div>
+        <div>${who ? esc(who.pos || '-') : '<span class="blank">.................................</span>'}</div>
         <div class="t">${title}</div>
         <div>${who ? 'วันที่ ' + thDate(who.at) : '<span class="blank">วันที่ ......./......./.......</span>'}</div>
       </div>`;
@@ -3631,7 +3631,7 @@
         <div class="sb-c">${choices.map(([k, label]) => `<span>${cb(res === k)}${label}</span>`).join('')}</div>
         <div class="sb-sg">${a && (res === 'A' || res === 'R') ? `<img src="${ESIGN_URL(a.idPs)}" alt="" onerror="this.remove()">` : ''}</div>
         <div class="sb-n ${at ? '' : 'wait'}">${a ? `(${esc(a.full || a.name)})` : '(.......................................)'}</div>
-        <div class="sb-p">${a ? esc(a.position || '') || '&nbsp;' : '&nbsp;'}</div>
+        <div class="sb-p">${a ? esc(a.position || '-') : '.......................................'}</div>
         <div class="sb-d">${at ? `${res === 'B' ? '<b class="st-no">ส่งกลับแก้ไข</b> · ' : ''}วันที่ ${thDate(at)}` : 'วันที่ ......./......./.......'}</div>
       </div>`;
     };
@@ -3668,7 +3668,7 @@
       <div class="p-req">
         <div class="sg">${by && d.buy.at ? `<img src="${ESIGN_URL(by.id)}" alt="" onerror="this.remove()">` : ''}</div>
         <div class="n">${by ? `(${esc(by.full || by.name)})` : '(.......................................)'}</div>
-        <div>${by ? esc(by.pos || '') : ''}</div>
+        <div>${by ? esc(by.pos || '-') : '.......................................'}</div>
         <div class="t">ผู้ขออนุมัติ (ฝ่ายจัดซื้อ)</div>
         <div>วันที่ ${d.buy.at ? thDate(d.buy.at) : '......./......./.......'}</div>
       </div>
