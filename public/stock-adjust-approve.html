@@ -491,6 +491,10 @@
   @media (max-width:560px){
     .form-grid{grid-template-columns:1fr;}
     .action-bar .btn{flex:1;}
+    body .doc-top{display:block;}
+    body .doc-top .acts{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; margin-top:12px;}
+    body .doc-top .acts .btn{width:100%; min-height:44px; justify-content:center; padding-left:8px; padding-right:8px;}
+    body .doc-top .acts .btn:first-child:nth-last-child(odd){grid-column:1 / -1;}
   }
 
   /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
@@ -1343,11 +1347,12 @@
      parts: [{ html }] = บล็อกไม่ตัดข้ามหน้า / [{ cols:[%], thead, cls, rows:[{ html, keep }] }] = ตาราง (keep = ติดกับแถวถัดไป เช่น แถวตำแหน่ง) */
   const PAGE_MM = { P: [194, 279], L: [281, 192] };   // A4 − ขอบ 8 มม. (เผื่อปัดเศษไม่ให้ล้นเป็นหน้าว่าง)
   const MMPX = 96 / 25.4;
+  const IOS_PRINT = new URLSearchParams(location.search).get('autoprint') === '1';
   const tableHtml = (p, rows) => `<div class="ps-part"><table class="${p.cls || ''}"><colgroup>${p.cols.map(w => `<col style="width:${w}%">`).join('')}</colgroup>
       <thead>${p.thead}</thead><tbody>${rows.map(x => x.html).join('')}</tbody></table></div>`;
   async function pagedHtml({ landscape, head, parts, foot, maxPages }){
     printSeq++;   // เริ่มเตรียมเอกสารใหม่ = ยกเลิกคำสั่งพิมพ์ที่ยังรอรูปอยู่ (#printArea ถูกใช้วัดความสูงหน้า)
-    const [w, h] = PAGE_MM[landscape ? 'L' : 'P'];
+    const [w, h0] = PAGE_MM[landscape ? 'L' : 'P'], h = IOS_PRINT ? h0 - 34 : h0;   // iPhone: ขอบ + หัวท้ายกระดาษของ iOS กินที่ → แผ่นเตี้ยลงไม่ให้ล้นหน้า
     if(document.fonts && document.fonts.ready) await document.fonts.ready;
     const pa = $('printArea'), keep = pa.getAttribute('style');
     pa.style.cssText = `display:block; position:absolute; left:-10000px; top:0; width:${w}mm; visibility:hidden;`;
@@ -1408,7 +1413,7 @@
   function embedShow(html){
     const pa = $('printArea');
     pa.innerHTML = html;
-    pa.querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = p.style.height; });   // ย่อบนจอเล็กตัดบรรทัดต่างได้ → แผ่นยืดได้ ไม่ตัดท้าย
+    pa.querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = p.style.height; if(IOS_PRINT) p.style.height = 'auto'; });   // ย่อบนจอเล็กตัดบรรทัดต่างได้ → แผ่นยืดได้ ไม่ตัดท้าย
     pa.style.width = (194 + 16 + 0.8) + 'mm';   // แผ่น A4 แนวตั้ง = พื้นที่พิมพ์ + ขอบ 8 มม. 2 ข้าง
     document.body.classList.add('printing', 'pv');
     const fit = () => { pa.style.setProperty('--pvz', 1); const w = pa.getBoundingClientRect().width; pa.style.setProperty('--pvz', Math.min(1, (window.innerWidth - 16) / w).toFixed(3)); };

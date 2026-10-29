@@ -707,7 +707,7 @@
   .bulk label{display:inline-flex; align-items:center; gap:8px; cursor:pointer; color:#fff; font-weight:600;}
   .bulk .bi b{color:#fff;}
   .bulk .ba{display:flex; gap:8px; flex-wrap:wrap; margin-left:auto;}
-  @media (max-width:560px){ .bulk{gap:8px 12px;} .bulk .ba{margin-left:0; width:100%; flex-wrap:nowrap; gap:6px;} .bulk .ba .btn{flex:1 1 0; min-width:0; padding:9px 2px; white-space:nowrap; font-size:12px; letter-spacing:0;} .bulk .ba .btn svg{display:none;} }
+  @media (max-width:560px){ .bulk{gap:8px 12px;} .bulk .ba{margin-left:0; width:100%; display:grid; grid-template-columns:1fr; gap:8px;} .bulk .ba .btn{width:100%; min-height:44px; justify-content:center; white-space:normal;} }
   .bulk input[type=checkbox], .rq-card .pick input{width:20px; height:20px; margin:0; accent-color:var(--amber-500); cursor:pointer;}
   .rq-card .pick{display:inline-flex; align-items:center; padding:2px 10px 2px 0; margin:-2px 0; cursor:pointer;}
   .rq-head .lft{display:flex; align-items:center; min-width:0;}
@@ -720,6 +720,7 @@
   .post-list > div > span:first-child{min-width:0; overflow-wrap:anywhere; color:var(--concrete-200);}
   .post-list .plus{color:var(--sky-blue); font-weight:700; font-family:'JetBrains Mono',monospace;}
   .post-list .minus{color:#ff8a75; font-weight:700; font-family:'JetBrains Mono',monospace;}
+  .bk-sum{margin:0 0 10px; color:#dbe4f3;} .bk-sum b{color:#fff;}
   .bulk-skip{font-size:12.5px; color:#ffcf66; margin:0 0 12px;}
 
   /* ส่งต่อ: แยกลิงก์ตามขั้น */
@@ -1276,8 +1277,6 @@
   const myBtn = (x) => { const s = curStep(x); return `<a class="btn btn-sm sb-${stepTone(s.code)}" href="${esc(hrefOf(x))}" title="เปิดเอกสาร ${esc(x.docNo)} — ${esc(s.name)}">${IC.check} ${esc(stepShort(s.name))}</a>`; };
   const progress = (x) => `<div class="prog">${x.progress.map(p => `<span class="${p.done ? 'ok' : ''}">${p.done ? '✓' : '○'} ${esc(p.name)}</span>`).join('')}</div>`;
   function ageChip(x){ const d = daysSince(x.date); return `<span class="age ${d > 30 ? 'a3' : d > 7 ? 'a2' : ''}" title="ส่งเมื่อ ${thStamp(x.date)}">${d ? `ค้าง ${fmtInt(d)} วัน` : 'วันนี้'}</span>`; }
-  const pickBox = (x) => x.mod === 'rq' && canBulk(x) ? `<input type="checkbox" class="pk" data-pick="${x.id}" ${picked.has(x.id) ? 'checked' : ''} aria-label="เลือก ${esc(x.docNo)}">` : '';
-  const canBulk = (x) => x.my.some(s => data.can.rqBulk.includes(s.code));
   const detail = (x) => `${esc(x.src || '')}${x.src ? ' · ' : ''}${fmtInt(x.nLine)} รายการ${x.amount != null ? ` · <b>${fmtMoney(x.amount)}</b> บาท` : ''}${x.by ? ` · ${esc(shortName(x.by))}` : ''}`;
 
   function render(){
@@ -1309,53 +1308,90 @@
       <div class="ib-cards">${cards}</div></div>`;
   }
 
-  // ---------- ใบขอปรับยอดสต๊อก: กดขั้นเดียวกันหลายใบ ----------
-  const STEP_NAME = { ack: 'รับทราบ', check: 'ตรวจสอบ', approve: 'อนุมัติปรับยอด' };
+  // ---------- กดขั้นเดียวกันหลายใบ: ใบขอปรับยอดสต๊อก (rq) / เอกสารส่งคืนสินค้า Supplier (rts) — แยกแถบกัน ไม่ปนในคำสั่งเดียว ----------
+  const BULK = {
+    rq:  { name: 'ใบขอปรับยอดสต๊อก', steps: { ack: 'รับทราบ', check: 'ตรวจสอบ', approve: 'อนุมัติปรับยอด' }, can: () => data.can.rqBulk },
+    rts: { name: 'เอกสารส่งคืนสินค้า Supplier', steps: { ack: 'รับทราบ', check: 'ตรวจสอบ', approve: 'อนุมัติ' }, can: () => data.can.rtsBulk || [] }
+  };
+  const bkey = (x) => x.mod + ':' + x.id;
+  const canBulk = (x) => !!BULK[x.mod] && x.my.some(s => BULK[x.mod].can().includes(s.code));
+  const pickBox = (x) => canBulk(x) ? `<input type="checkbox" class="pk" data-pick="${bkey(x)}" ${picked.has(bkey(x)) ? 'checked' : ''} aria-label="เลือก ${esc(x.docNo)}">` : '';
   function renderBulk(list){
-    const rq = list.filter(x => x.mod === 'rq' && canBulk(x));
-    if(!rq.length){ $('ibBulk').innerHTML = ''; return; }
-    const sel = data.data.filter(x => x.mod === 'rq' && picked.has(x.id));
-    const by = (k) => sel.filter(x => x.my.some(s => s.code === k));
-    const all = rq.every(x => picked.has(x.id));
-    $('ibBulk').innerHTML = `<div class="bulk ${sel.length ? 'on' : ''}"><label><input type="checkbox" data-pickall="1" ${all ? 'checked' : ''}> เลือกใบขอปรับยอดสต๊อกทั้งหมด (${rq.length})</label>
-      <span class="bi">${sel.length ? `เลือก <b>${sel.length}</b> ใบ` : 'ติ๊กเลือกหลายใบ แล้วกดขั้นพร้อมกัน'}</span>
-      <span class="ba">${data.can.rqBulk.map(k => { const n = by(k).length; return `<button type="button" class="btn btn-sm sb-${k} ${n ? 'solid' : ''}" data-bulk="${k}" ${n ? '' : 'disabled'}>${IC.check} ${STEP_NAME[k]} (${n})</button>`; }).join('')}</span></div>`;
+    const bars = Object.keys(BULK).map(m => {
+      const rows = list.filter(x => x.mod === m && canBulk(x));
+      if(!rows.length) return '';
+      const B = BULK[m];
+      const sel = data.data.filter(x => x.mod === m && picked.has(bkey(x)));
+      const by = (k) => sel.filter(x => x.my.some(s => s.code === k));
+      const all = rows.every(x => picked.has(bkey(x)));
+      return `<div class="bulk ${sel.length ? 'on' : ''}"><label><input type="checkbox" data-pickall="${m}" ${all ? 'checked' : ''}> เลือก${B.name}ทั้งหมด (${rows.length})</label>
+        <span class="bi">${sel.length ? `เลือก <b>${sel.length}</b> ใบ` : 'ติ๊กเลือกหลายใบ แล้วกดขั้นพร้อมกัน'}</span>
+        <span class="ba">${B.can().map(k => { const n = by(k).length; return `<button type="button" class="btn btn-sm sb-${k} ${n ? 'solid' : ''}" data-bulk="${m}:${k}" ${n ? '' : 'disabled'}>${IC.check} ${B.steps[k]} (${n})</button>`; }).join('')}</span></div>`;
+    });
+    $('ibBulk').innerHTML = bars.join('');
   }
   function dlg(title, html){ $('dlgTitle').textContent = title; $('dlgBody').innerHTML = html; $('dlgModal').classList.add('show'); }
   const closeDlg = () => { if(!busy) $('dlgModal').classList.remove('show'); };
-  function bulkDlg(k){
-    const sel = data.data.filter(x => x.mod === 'rq' && picked.has(x.id) && x.my.some(s => s.code === k));
-    // ใบที่ขั้นนี้เป็นขั้นสุดท้าย (อีก 2 ขั้นครบแล้ว) = ปรับสต๊อกจริงทันที
-    const last = sel.filter(x => x.progress.filter(p => !p.done).length === 1);
-    dlg(`${STEP_NAME[k]} ${sel.length} ใบ`, `
-      <p>ยืนยัน<b>${STEP_NAME[k]}</b>ใบขอปรับยอดสต๊อก ${sel.length} ใบ</p>
-      ${last.length ? `<div class="warn-box"><div><b>${last.length} ใบเป็นขั้นสุดท้าย</b> — กดยืนยันแล้วระบบปรับยอดสต๊อกจริงทันที (ปรับแล้วแก้ได้ด้วยการขอกลับรายการเท่านั้น)</div></div>` : ''}
-      <div class="bulk-list">${sel.map(x => `<div><span class="mono">${esc(x.docNo)}</span><span>${esc(x.comp)} · ${x.nLine} รายการ${last.includes(x) ? ' · <b class="lastp">ปรับสต๊อก</b>' : ''}</span></div>`).join('')}</div>
-      <div class="form-group"><label for="bkNote">หมายเหตุ (ถ้ามี)</label><textarea id="bkNote" rows="2" maxlength="500"></textarea></div>
-      <div class="action-bar"><button type="button" class="btn btn-secondary" data-close="1">ปิด</button><button type="button" class="btn sb-${k} solid" data-bulkgo="${k}">${IC.check} ยืนยัน${STEP_NAME[k]}</button></div>`);
+  const selOf = (m, k) => data.data.filter(x => x.mod === m && picked.has(bkey(x)) && x.my.some(s => s.code === k));
+  function bulkDlg(m, k){
+    const B = BULK[m], sel = selOf(m, k), nm = B.steps[k];
+    let warn = '', rowHtml;
+    if(m === 'rq'){
+      // ใบที่ขั้นนี้เป็นขั้นสุดท้าย (อีก 2 ขั้นครบแล้ว) = ปรับสต๊อกจริงทันที
+      const isLast = (x) => x.progress.filter(p => !p.done).length === 1;
+      const nLast = sel.filter(isLast).length;
+      if(nLast) warn = `<div class="warn-box"><div><b>${nLast} ใบเป็นขั้นสุดท้าย</b> — กดยืนยันแล้วระบบปรับยอดสต๊อกจริงทันที (ปรับแล้วแก้ได้ด้วยการขอกลับรายการ)</div></div>`;
+      rowHtml = (x) => `<div><span class="mono">${esc(x.docNo)}</span><span>${esc(x.comp)} · ${x.nLine} รายการ${isLast(x) ? ' · <b class="lastp">ปรับสต๊อก</b>' : ''}</span></div>`;
+    } else {
+      const sum = sel.reduce((a, x) => { a.v += Number(x.value || 0); a.c += Number(x.credit || 0); return a; }, { v: 0, c: 0 });
+      const fl = (f) => sel.some(x => x.flags && x.flags[f]);
+      warn = `<p class="bk-sum">มูลค่าต้นทุนรวม <b>${fmtMoney(sum.v)}</b> บาท${fl('credit') ? ` · ยอดลดหนี้รวม <b>${fmtMoney(sum.c)}</b> บาท` : ''}</p>`
+        + (k === 'approve' ? `<div class="warn-box"><div><b>เมื่ออนุมัติ ระบบจะดำเนินการต่อไปนี้ และแก้ไขเอกสารไม่ได้อีก</b><br>${[
+            fl('returnGoods') ? '• ส่งรายการไปรอเบิกออกจากคลัง' : '',
+            fl('replace') ? '• คืนยอดรับของจาก PO → รอรับสินค้าทดแทน' : '',
+            sel.some(x => x.flags && x.flags.credit && !x.flags.noCostAdj) ? '• บันทึกยอดลดหนี้-ปรับปรุงต้นทุน Lot' : '',
+            sel.some(x => x.flags && x.flags.noCostAdj) ? '• บันทึกยอดลดหนี้เฉพาะส่วนที่ใช้ไปแล้ว ไม่ปรับต้นทุน Lot' : ''].filter(Boolean).join('<br>')}</div></div>` : '');
+      rowHtml = (x) => `<div><span class="mono">${esc(x.docNo)}</span><span>${esc(x.sup || '-')} · ${esc(x.typeName || '')}${x.value != null ? ' · ' + fmtMoney(x.value) : ''}</span></div>`;
+    }
+    dlg(`${nm} ${sel.length} ใบ`, `
+      <p>ยืนยัน<b>${nm}</b>${B.name} ${sel.length} ใบ</p>${warn}
+      <div class="bulk-list">${sel.map(rowHtml).join('')}</div>
+      ${m === 'rq' ? '<div class="form-group"><label for="bkNote">หมายเหตุ (ถ้ามี)</label><textarea id="bkNote" rows="2" maxlength="500"></textarea></div>' : ''}
+      <div class="action-bar"><button type="button" class="btn btn-secondary" data-close="1">ปิด</button><button type="button" class="btn sb-${k} solid" data-bulkgo="${m}:${k}">${IC.check} ยืนยัน${nm}</button></div>`);
   }
-  async function bulkGo(k, btn){
-    const ids = data.data.filter(x => x.mod === 'rq' && picked.has(x.id) && x.my.some(s => s.code === k)).map(x => x.id);
+  async function bulkGo(m, k, btn){
+    const B = BULK[m], nm = B.steps[k], ids = selOf(m, k).map(x => x.id);
     busy = true; btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
     try{
-      const r = await api('/api/stock-adjust/bulk-step', { step: k, ids, note: $('bkNote').value.trim() });
+      let results;
+      if(m === 'rq'){
+        results = (await api('/api/stock-adjust/bulk-step', { step: k, ids, note: $('bkNote').value.trim() })).results;
+      } else {
+        // เอกสารส่งคืน: ส่งทีละใบ (เหมือนหน้าส่งคืนสินค้า) แต่ละใบบันทึกแยกกัน ใบไหนไม่ผ่านแจ้งเป็นรายใบ
+        results = [];
+        for(const id of ids){
+          try{ await api(`/api/supplier-return/doc/${id}/step`, { step: k }); results.push({ id, ok: true }); }
+          catch(err){ results.push({ id, ok: false, message: err.message }); }
+        }
+      }
       busy = false;
-      const bad = r.results.filter(x => !x.ok), nPost = r.results.filter(x => x.ok && x.postCode).length;
+      const bad = results.filter(x => !x.ok), ok = results.length - bad.length, nPost = results.filter(x => x.ok && x.postCode).length;
       if(bad.length){
-        const name = new Map(data.data.filter(x => x.mod === 'rq').map(x => [x.id, x.docNo]));
-        dlg('ผลการบันทึก', `<p>สำเร็จ <b>${r.ok}</b> ใบ · ไม่สำเร็จ <b>${bad.length}</b> ใบ</p><div class="bulk-list">${bad.map(x => `<div><span class="mono">${esc(name.get(x.id) || x.id)}</span><span>${esc(x.message)}</span></div>`).join('')}</div>
+        const name = new Map(data.data.filter(x => x.mod === m).map(x => [x.id, x.docNo]));
+        dlg('ผลการบันทึก', `<p>สำเร็จ <b>${ok}</b> ใบ · ไม่สำเร็จ <b>${bad.length}</b> ใบ</p><div class="bulk-list">${bad.map(x => `<div><span class="mono">${esc(name.get(x.id) || x.id)}</span><span>${esc(x.message)}</span></div>`).join('')}</div>
           <div class="action-bar"><button type="button" class="btn btn-secondary" data-close="1">ปิด</button></div>`);
-      } else { closeDlg(); showToast(`บันทึก${STEP_NAME[k]} ${r.ok} ใบแล้ว${nPost ? ` · ปรับสต๊อกแล้ว ${nPost} ใบ` : ''}`); }
+      } else { closeDlg(); showToast(`บันทึก${nm} ${ok} ใบแล้ว${nPost ? ` · ปรับสต๊อกแล้ว ${nPost} ใบ` : ''}`); }
+      picked = new Set();
       load();
-    } catch(err){ busy = false; btn.disabled = false; btn.innerHTML = `${IC.check} ยืนยัน${STEP_NAME[k]}`; showToast(err.message); }
+    } catch(err){ busy = false; btn.disabled = false; btn.innerHTML = `${IC.check} ยืนยัน${nm}`; showToast(err.message); }
   }
 
   // ---------- เหตุการณ์ ----------
   document.addEventListener('click', (e) => {
     const t = e.target;
     if(t.closest('[data-close]') || t.id === 'dlgModal'){ closeDlg(); return; }
-    const bg = t.closest('[data-bulkgo]'); if(bg){ bulkGo(bg.dataset.bulkgo, bg); return; }
-    const bk = t.closest('[data-bulk]'); if(bk && !bk.disabled){ bulkDlg(bk.dataset.bulk); return; }
+    const bg = t.closest('[data-bulkgo]'); if(bg){ const [bm, bs] = bg.dataset.bulkgo.split(':'); bulkGo(bm, bs, bg); return; }
+    const bk = t.closest('[data-bulk]'); if(bk && !bk.disabled){ const [bm, bs] = bk.dataset.bulk.split(':'); bulkDlg(bm, bs); return; }
     if(t.closest('input[type=checkbox], label, a')) return;
     const sc = t.closest('[data-scope]'); if(sc){ scope = sc.dataset.scope; mod = ''; picked = new Set(); render(); return; }
     const sf = t.closest('[data-stepf]'); if(sf){ stepF = sf.dataset.stepf; store.set('step', stepF); picked = new Set(); render(); return; }
@@ -1365,8 +1401,8 @@
   });
   document.addEventListener('change', (e) => {
     const t = e.target;
-    if(t.dataset.pick){ const id = Number(t.dataset.pick); if(t.checked) picked.add(id); else picked.delete(id); render(); }
-    else if(t.dataset.pickall){ rows().filter(x => x.mod === 'rq' && canBulk(x)).forEach(x => t.checked ? picked.add(x.id) : picked.delete(x.id)); render(); }
+    if(t.dataset.pick){ const id = t.dataset.pick; if(t.checked) picked.add(id); else picked.delete(id); render(); }
+    else if(t.dataset.pickall){ rows().filter(x => x.mod === t.dataset.pickall && canBulk(x)).forEach(x => t.checked ? picked.add(bkey(x)) : picked.delete(bkey(x))); render(); }
     else if(t.id === 'fComp' || t.id === 'fSort'){ picked = new Set(); render(); }
   });
   let typeTimer = null;

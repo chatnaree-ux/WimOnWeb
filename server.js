@@ -8264,10 +8264,12 @@ async function approvalInbox(idPs, access) {
     const r = await request.query(
       `SELECT TOP ${APV_INBOX_MAX + 1} mt.idBuyRT, mt.DocCode, mt.DateTs, mt.idComp, LTRIM(RTRIM(c.CompCode)) AS CompCode, c.CompName, LTRIM(RTRIM(s.SupName)) AS SupName, mt.Note,
               mt.DateAccept, mt.DateCheck, mt.DateCheck2, mt.DateApv, mt.DateSendBack, mt.idPsCheck, pTs.PsName AS CreatorName,
+              mt.TotalValue, mt.TotalDiff, mt.stNoCostAdj, ty.TypeName, ty.stReturnGoods, ty.stCredit, ty.stReplace,
               (SELECT COUNT(*) FROM devsk.PkBuyRTDt dt WITH (NOLOCK) WHERE dt.idBuyRT = mt.idBuyRT AND dt.stDel IS NULL) AS nLine
        FROM devsk.PkBuyRTMt mt WITH (NOLOCK)
        LEFT JOIN PchInvAndProject.dbo.dCompany c WITH (NOLOCK) ON c.idComp = mt.idComp
        LEFT JOIN PchInvAndProject.dbo.vSupplier s WITH (NOLOCK) ON s.idSup = mt.idSup
+       LEFT JOIN devsk.PkBuyRTType ty WITH (NOLOCK) ON ty.idTypeRT = mt.TypeRT
        OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsTs) pTs
        WHERE (${cond}) ${compFilter(access, request, 'mt.idComp')}
        ORDER BY mt.DateTs DESC`);
@@ -8280,6 +8282,8 @@ async function approvalInbox(idPs, access) {
       const doneAt = { ack: x.DateAccept, check1: x.DateCheck, check2: x.DateCheck2, approve: x.DateApv };
       out.push({ mod: 'rts', id: x.idBuyRT, docNo: x.DocCode, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
         title: x.Note || '-', src: x.SupName ? `Supplier ${x.SupName}` : '', nLine: x.nLine || 0, by: x.CreatorName || '',
+        sup: x.SupName || '', typeName: x.TypeName || '', value: x.TotalValue, credit: x.stCredit === '1' ? x.TotalDiff : null,
+        flags: { returnGoods: x.stReturnGoods === '1', replace: x.stReplace === '1', credit: x.stCredit === '1', noCostAdj: x.stNoCostAdj === '1' },
         my: mine.map(k => ({ code: k, name: k === 'check' ? (x.DateCheck ? 'ตรวจสอบ 2' : 'ตรวจสอบ 1') : RTS_STEPS[k].name })),
         progress: APV_RTS_STEPS.map(([k, n]) => ({ name: n, done: !!doneAt[k] })),
         href: `/supplier-return-doc?id=${x.idBuyRT}&step=${mine[0]}&from=inbox` });
@@ -8315,7 +8319,7 @@ app.get('/api/approval-inbox', requireLogin, async (req, res) => {
     const eligible = await approvalEligible(req.idPs, access);
     apvCountCache.set(req.idPs, { at: Date.now(), counts: x.badgeCounts, total: x.badge, eligible });
     res.json({ success: true, ...x, eligible, me: req.idPs, postingReady: SC_POSTING_READY,
-      can: { rqBulk: rqBulkSteps(access) } });
+      can: { rqBulk: rqBulkSteps(access), rtsBulk: rtsSteps4Bulk(access) } });
   } catch (err) {
     console.error('Approval inbox error:', err);
     res.status(500).json({ success: false, message: 'โหลดงานรออนุมัติไม่สำเร็จ', detail: err.message });
@@ -8344,6 +8348,7 @@ async function approvalCount(idPs) {
   if (apvCountCache.size > 2000) apvCountCache.clear();
   return v;
 }
+const rtsSteps4Bulk = (access) => Object.keys(RTS_STEPS).filter(k => hasMenu(access, RTS_STEPS[k].menu));
 const rqBulkSteps = (access) => Object.keys(ADJ_STEPS).filter(k => hasMenu(access, ADJ_STEPS[k].menu));
 app.get('/api/approval-inbox/count', requireLogin, async (req, res) => {
   try {

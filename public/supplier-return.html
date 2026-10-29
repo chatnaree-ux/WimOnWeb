@@ -488,6 +488,7 @@
   .ap{position:relative; width:42px; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:help;}
   .ap + .ap::before{content:""; position:absolute; top:8px; right:calc(50% + 9px); width:24px; height:2px; background:rgba(255,255,255,.12);}
   .ap.done + .ap::before, .ap.done + .ap.wait::before{background:var(--ok-green);}
+  @media (max-width:360px){ .ap{width:36px;} .ap + .ap::before{width:18px;} }
   .ap i{width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,.18); background:var(--navy-950); color:var(--navy-950);}
   .ap i svg{width:10px; height:10px;}
   .ap small{font-size:10px; color:var(--steel-500); white-space:nowrap;}
@@ -883,14 +884,12 @@
     .sum-actions{width:100%;}
     .sum-actions .btn{flex:1;}
     /* แท็บ: แถวเดียว เลื่อนซ้ายขวาได้ (เดิมขึ้นคนละบรรทัด) / ปุ่มจัดการสาเหตุเหลือแต่ไอคอน */
-    .tab-bar{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; gap:2px;}
-    .tab-bar::-webkit-scrollbar{display:none;}
+    .tab-bar{flex-wrap:wrap; gap:2px 2px; align-items:flex-end;}
     .nav-btn{white-space:nowrap; flex-shrink:0; padding-left:8px; padding-right:8px; font-size:13px;}
     .nav-btn > svg{display:none;}
-    .tab-bar .cause-btn{flex-shrink:0; margin-left:14px; padding:6px 9px;}
+    .tab-bar .cause-btn{flex-shrink:0; padding:6px 9px;}
     .tab-bar .cause-btn .cause-lbl{display:none;}
-    .tab-bar .manual-btn{flex-shrink:0; padding:6px 9px;}
-    .tab-bar .manual-btn .cause-lbl{display:none;}
+    .tab-bar .manual-btn{display:none;}   /* คู่มือเปิดจากเมนูซ้ายได้ — ไม่แย่งที่แท็บบนมือถือ */
     /* แถบปุ่มล่าง (ติดขอบจอ) ไม่บังตาราง: ซ่อนคำแนะนำ เหลือแต่ปุ่ม */
     .sum-bar .sum-hint{display:none;}
     .sum-bar{padding:10px 12px;}
@@ -1004,11 +1003,8 @@
     .list-toolbar .btn{min-height:44px; justify-content:center;}
     .list-toolbar > div:last-child > .btn:last-child:nth-child(odd){grid-column:1 / -1;}
     /* แท็บ: ปุ่ม ⚙ / 📖 ติดขวาเสมอ ไม่เลื่อนหลุดจอ */
-    .tab-bar .cause-btn, .tab-bar .manual-btn{position:sticky; background:var(--navy-950); z-index:2;}
-    .tab-bar .manual-btn{right:0; margin-left:auto;}
-    .tab-bar .cause-btn{right:44px; margin-left:auto;}
-    .tab-bar .cause-btn:not([hidden]) + .manual-btn{margin-left:0;}
-    .tab-bar .tab-btn{flex-shrink:0;}
+    .tab-bar .cause-btn{margin:0 0 6px auto;}
+    .tab-bar .cause-btn::before{display:none;}
     /* แถบปุ่มหน้าเอกสาร: ปุ่มย้อนกลับเต็มแถว / ปุ่มทำรายการแบ่งเท่าๆ กัน / ขั้นตอนอยู่กลาง */
     #docView .vw-row{display:grid; grid-template-columns:minmax(0, 1fr); gap:10px;}
     #docView .vw-row .btn{min-height:46px; justify-content:center; text-align:center;}
@@ -2324,6 +2320,7 @@
   }
   // ท้ายกระดาษทุกหน้า: ลิงก์ (ซ้าย) / พิมพ์เมื่อ + ผู้พิมพ์ (กลาง) / หน้า x / y (ขวา) — browser นับหน้าให้เอง (counter(page) / counter(pages))
   //   ใส่ในขอบกระดาษด้านล่าง: browser จะไม่พิมพ์ท้ายกระดาษของตัวเองทับ / ขอบบน = 0 จึงไม่มีหัวกระดาษของ browser
+  const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function setPrintFooter(left, center, orient = 'landscape'){
     const css = (t) => '"' + String(t).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
     let st = document.getElementById('pdPageStyle');
@@ -2411,9 +2408,11 @@
     // รอโลโก้โหลดก่อนสั่งพิมพ์ (โหลดไม่ได้ / นานเกิน 4 วินาที = ซ่อนโลโก้แล้วพิมพ์ต่อ)
     await waitForImage($('pdLogo'));
     document.body.classList.add('printing');
+    // iPhone / iPad: พิมพ์ตามความกว้างจอ (390px) ตาราง 15 คอลัมน์เลยทับกัน → ล็อกความกว้างเท่ากระดาษ A4 แนวนอน (1122px) ให้ iOS ย่อทั้งหน้าเอง
+    if(IS_IOS) $('printArea').style.width = '1122px';
     window.print();
   });
-  window.addEventListener('afterprint', () => document.body.classList.remove('printing'));
+  window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); $('printArea').style.width = ''; });
 
   /* ==================================================================
      ใบเอกสาร (ดูบนจอ / พิมพ์ A4 แนวตั้ง) — template เดียวกัน
