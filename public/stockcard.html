@@ -527,6 +527,7 @@
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
+<script src="/js/report-print.js"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
 </head>
 <body>
@@ -1145,12 +1146,33 @@
   }
 
   const printBtn = document.getElementById('printBtn');
+  // พิมพ์: เอกสารทางการ (A4 แนวนอน) สร้างด้วย WIMReport — รูปแบบ Stock Card ของระบบ ERP: หัวบริษัท / ข้อมูล Lot / ตารางรับ-จ่าย-คงเหลือ / แถวรวม
   printBtn.addEventListener('click', () => {
-    let pa = document.getElementById('printArea');
-    if (!pa) { pa = document.createElement('div'); pa.id = 'printArea'; document.body.appendChild(pa); }
-    pa.innerHTML = '<div class="result-panel">' + document.getElementById('resultPanel').innerHTML + '</div>';
-    document.body.classList.add('printing');
-    window.print();
+    const rows = lastProcessedRows || [];
+    if (!rows.length) return;
+    const R = WIMReport, e = R.esc;
+    const sum = (k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+    const last = rows[rows.length - 1];
+    const comp = companySelect.options[companySelect.selectedIndex];
+    const unit = last.unit || '';
+    R.print({
+      orient: 'landscape',
+      title: 'บัตรสต๊อกสินค้า (Stock Card)', titleEn: 'Stock Card by Lot',
+      company: { id: companySelect.value, name: comp ? comp.text : '' },
+      info: [
+        ['Lot No.', e(confirmLotNo.textContent)], ['จำนวนรายการ', rows.length + ' รายการ'],
+        ['สินค้า', e(confirmProduct.textContent)], ['ช่วงข้อมูล', e(rows[0].date) + ' – ' + e(last.date)]
+      ],
+      body: R.table({
+        cols: [3.5, 13.5, 29, 11, 8.5, 8.5, 9.5, 5.5, 11],
+        head: ['#', 'วันที่', 'รายละเอียด', 'คลัง', 'รับเข้า', 'จ่ายออก', 'คงเหลือ', 'หน่วย', 'ผู้ทำรายการ'],
+        align: ['c', 'l', 'l', 'l', 'r', 'r', 'r', 'c', 'l'],
+        rows: rows.map((r, i) => [i + 1, { h: e(r.date), cls: 'nw' }, e(r.detail), e(r.warehouse),
+          { h: r.inQty ? fmtNum(r.inQty) : '', cls: 'in' }, { h: r.outQty ? fmtNum(r.outQty) : '', cls: 'out' },
+          fmtNum(r.balance), e(r.unit), e(r.user)]),
+        foot: [[{ h: 'รวม', span: 4, cls: 'r' }, { h: fmtNum(sum('inQty')), cls: 'in' }, { h: fmtNum(sum('outQty')), cls: 'out' }, { h: fmtNum(last.balance) }, { h: e(unit), cls: 'c' }, '']]
+      }) + '<p class="rpt-note">คงเหลือ = ยอดสะสมจากรายการรับเข้า − จ่ายออกตามลำดับวันที่ / รวมคงเหลือสุทธิ ณ รายการล่าสุด = ' + fmtNum(last.balance) + ' ' + e(unit) + '</p>'
+    });
   });
   window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); const pa = document.getElementById('printArea'); if (pa) pa.innerHTML = ''; });
 

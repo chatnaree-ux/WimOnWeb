@@ -634,6 +634,7 @@
   .print-doc .pd-items th.num,.print-doc .pd-items td.num{text-align:right;}
   .print-doc .pd-note{margin-top:2px; font-size:0.78rem; color:#555;}
   .req-list-table td.c-reason{min-width:200px; max-width:320px; white-space:normal;}
+  .btn-trash{display:inline-flex; align-items:center; justify-content:center; padding:6px 9px;}
   .row-note{margin-top:3px; font-size:12.5px; font-weight:400; color:var(--concrete-400); white-space:normal;}
   .note-input{width:100%; min-width:180px; padding:7px 9px; font-size:13px;}
   .print-doc .pd-items th.ctr,.print-doc .pd-items td.ctr{text-align:center;}
@@ -728,7 +729,7 @@
     .seed-req-table .qty-input:focus, .seed-req-table .note-input:focus{background-color:rgba(255,255,255,.1); border-bottom-color:var(--amber-500); outline:0;}
     .seed-req-table .date-overlay-wrap{display:block; width:100%;}
     .seed-req-table .date-overlay-wrap .date-input{background-color:rgba(255,255,255,.05) !important; border:0 !important; border-bottom:2px solid rgba(242,169,28,.6) !important; border-radius:6px 6px 0 0; height:38px; min-height:38px;}
-    .seed-req-table .btn-danger{width:100%; min-height:44px;}
+    .seed-req-table .btn-trash{width:42px; height:42px; min-height:42px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:10px;}
     /* popup เลือกเมล็ดพันธุ์ */
     .seed-filter{display:grid !important; grid-template-columns:minmax(0, 1fr); gap:8px;}
     .seed-filter select, .seed-filter .search-shell{width:100% !important; max-width:none; min-height:44px; font-size:16px;}
@@ -741,10 +742,14 @@
     .seed-pick-table td.p-name{grid-area:name; font-size:15.5px; font-weight:600; color:#fff; line-height:1.3;}
     .seed-pick-table td.p-act{grid-area:act;}
     /* ปุ่ม + กลมเล็ก (แตะแล้วเพิ่มเลย) / เลือกแล้ว = ✓ เขียว */
-    .seed-pick-table td.p-act .btn{font-size:0; width:40px; height:40px; min-height:40px; padding:0; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:transparent; border:1.5px solid var(--amber-500); box-shadow:none;}
-    .seed-pick-table td.p-act .btn::before{content:"+"; font-size:24px; line-height:1; font-weight:400; color:var(--amber-500);}
-    .seed-pick-table td.p-act .btn[disabled]{border-color:var(--ok-green); background:rgba(62,207,142,.16); opacity:1;}
-    .seed-pick-table td.p-act .btn[disabled]::before{content:"\2713"; font-size:19px; font-weight:700; color:var(--ok-green);}
+    .seed-pick-table td.p-act .btn{font-size:0; position:relative; width:46px; height:46px; min-height:46px; padding:0; border:0; border-radius:12px; background:transparent; box-shadow:none; opacity:1;}
+    .seed-pick-table td.p-act .btn::before, .seed-pick-table td.p-act .btn::after{content:""; position:absolute; left:50%; top:50%; background:var(--amber-500); border-radius:2px; transform:translate(-50%, -50%);}
+    .seed-pick-table td.p-act .btn::before{width:22px; height:4px;}
+    .seed-pick-table td.p-act .btn::after{width:4px; height:22px;}
+    .seed-pick-table td.p-act .btn:active{background:rgba(242,169,28,.16);}
+    /* เลือกแล้ว: เครื่องหมายถูกสีเขียว */
+    .seed-pick-table td.p-act .btn[disabled]::before{width:8px; height:15px; background:none; border:solid var(--ok-green); border-width:0 4px 4px 0; border-radius:1px; transform:translate(-50%, -62%) rotate(45deg);}
+    .seed-pick-table td.p-act .btn[disabled]::after{display:none;}
     .seed-pick-table td::before{content:none !important;}
     /* popup ยอดคงเหลือ + รายการ Lot / กระสอบ: 1 Lot = 1 การ์ด (ไม่มีแถวหัวสองชั้น / ไม่ให้ตารางกว้าง 2,000px) */
     .modal-av{overflow-y:auto;}
@@ -759,24 +764,24 @@
     .av-lot-table tbody tr td.empty-msg, .av-lot-table tbody tr td.av-empty{flex:1 1 100%; text-align:center;}
     /* แถวรวม: การ์ดสรุป หัว "รวม" + ตัวเลขแต่ละช่องมีป้ายอยู่เหนือค่า เรียงเท่าๆ กัน */
     .av-lot-table tfoot{display:block; margin-top:4px;}
-    .av-lot-table tfoot tr{display:grid; grid-template-columns:repeat(auto-fit, minmax(78px, 1fr)); gap:10px 12px; padding:12px 14px; border-radius:12px; background:linear-gradient(135deg, rgba(242,169,28,.22), rgba(242,169,28,.08)); border:1px solid rgba(242,169,28,.55);}
-    .av-lot-table tfoot td{display:block; padding:0 !important; border:0 !important; background:none !important; text-align:left !important; font-size:16px; font-weight:700; color:#fff; font-family:'JetBrains Mono',monospace;}
+    .av-lot-table tfoot tr{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 14px; padding:12px 14px; border-radius:12px; background:linear-gradient(135deg, rgba(242,169,28,.22), rgba(242,169,28,.08)); border:1px solid rgba(242,169,28,.55);}
+    .av-lot-table tfoot td{display:inline-flex; align-items:baseline; gap:6px; padding:0 !important; border:0 !important; background:none !important; text-align:left !important; font-size:17px; font-weight:700; color:#fff; font-family:'JetBrains Mono',monospace;}
     .av-lot-table tfoot td:empty{display:none;}
-    .av-lot-table tfoot td:not([data-l]){grid-column:1 / -1; font-family:inherit; font-size:14px; letter-spacing:.04em; color:var(--amber-500);}
-    .av-lot-table tfoot td[data-l]::before{content:attr(data-l); display:block; margin-bottom:1px; font-family:inherit; font-size:12.5px; font-weight:400; color:#d9e2ee;}
+    .av-lot-table tfoot td:not([data-l]){margin-right:auto; font-family:inherit; font-size:15px; letter-spacing:.04em; color:var(--amber-500);}
+    .av-lot-table tfoot td[data-l]::before{content:attr(data-l); font-family:inherit; font-size:12.5px; font-weight:400; color:#d9e2ee;}
     /* กล่องค้นหา Lot: เต็มความกว้างเท่าการ์ด */
     .av-lot-bar{padding:12px 16px;}
     .av-lot-bar .search-shell{flex:1 1 100%; width:100%;}
     /* กล่องเกรด / คลัง: ชื่อใหญ่ เข้ม ตัดบรรทัดได้ (ไม่ตัด ...) / พื้นการ์ดสว่างขึ้น ขอบชัด ไม่กลืนพื้นหลัง */
-    .av-card{background:rgba(255,255,255,.075); border:1px solid rgba(255,255,255,.22); padding:12px 14px;}
+    .av-card{background:rgba(78,167,224,.13); border:1px solid rgba(78,167,224,.5); padding:12px 14px;}
     .av-card .lbl{font-size:14px; font-weight:700; letter-spacing:.02em; color:#fff; white-space:normal; text-transform:none;}
     .av-card .lbl i{width:11px; height:11px;}
     .av-card .val{font-size:19px;}
     .av-card.zero .val{color:#9fb0c3;}
     .av-card .nm{font-size:15px; color:#fff; white-space:normal; overflow:visible; text-overflow:clip; line-height:1.35;}
     .av-card .tag{font-size:12px;}
-    .av-card.wip{border:1px dashed rgba(255,255,255,.4);}
-    .av-card.active{background:rgba(242,169,28,.18);}
+    .av-card.wip{background:rgba(167,139,250,.14); border:1px dashed rgba(167,139,250,.65);}
+    .av-card.active{background:rgba(242,169,28,.2); border-color:var(--amber-500);}
     .av-total{background:linear-gradient(135deg, rgba(242,169,28,.3), rgba(242,169,28,.12)); border:1px solid rgba(242,169,28,.7);}
     .av-total .lbl{font-size:13px; color:#ffcf66;}
     .av-total .val{font-size:24px;}
@@ -1627,7 +1632,7 @@
           </span>
         </td>
         <td class="c-note" data-l="หมายเหตุ"><input type="text" class="note-input" maxlength="500" autocomplete="off" placeholder="หมายเหตุ (ถ้ามี)" value="${esc(r.note || '')}" data-seed-note="${r.seedId}"></td>
-        <td class="c-del"><button type="button" class="btn btn-sm btn-danger" data-remove-seed="${r.seedId}">ลบ</button></td>
+        <td class="c-del"><button type="button" class="btn btn-sm btn-danger btn-trash" data-remove-seed="${r.seedId}" title="ลบรายการนี้" aria-label="ลบ ${esc(r.name)}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></td>
       </tr>
     `).join('');
   }

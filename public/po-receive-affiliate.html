@@ -954,6 +954,7 @@
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
+<script src="/js/report-print.js"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
 <!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
 <link rel="stylesheet" href="/css/kpi-cards.css">
@@ -2100,10 +2101,47 @@
     XLSX.writeFile(wb, `stockcard_po_${po.poCode.replace(/[\\/:*?"<>|]/g, '-')}.xlsx`);
   });
   // พิมพ์: ใส่ class ชั่วคราวให้ CSS พิมพ์เฉพาะ Stock Card (กด Ctrl+P ปกติจะไม่โดน)
+  // พิมพ์: เอกสารทางการ (A4 แนวนอน) สร้างด้วย WIMReport — หัวบริษัท / ข้อมูล PO / ตารางรับราย Lot ต่อสินค้า / แถวรวม
   scPrintBtn.addEventListener('click', () => {
     if (!scPo) return;
-    document.body.classList.add('print-sc');
-    window.print();
+    const po = scPo, R = WIMReport, e = R.esc;
+    const comp = scCompanySelect.selectedOptions[0];
+    const pctTxt = (v) => (v === null || v === undefined || isNaN(v)) ? '-' : fmtPct(v);
+    const blocks = po.lines.map((line, idx) => {
+      const u = e(line.unit || '');
+      const rows = [{ cls: 'sub-row', cells: [fmtDate(po.dateBuy), 'เปิด PO', e(po.poCode), '-', '-', fmtQty(line.amountPOInUnit), '-', fmtQty(line.amountPOInUnit), '0.0%'] }];
+      let recNo = 0, prev = null;
+      (line.ledger || []).forEach((r) => {
+        const key = r.docRec + '|' + r.dateRec;
+        if (key !== prev) { recNo++; prev = key; }
+        rows.push([fmtDate(r.dateRec), 'รับครั้งที่ ' + recNo, e(r.docRec || '-'), e(r.docRef && String(r.docRef).trim() ? r.docRef : '-'), e(r.lotNo || '-'), '-',
+          r.unitError ? e(fmtQty(r.amountRec) + ' ' + (r.unitRec || '') + ' *') : fmtQty(r.qty),
+          { h: fmtQty(r.balance), cls: r.balance < 0 ? 'neg' : '' }, pctTxt(r.cumPct)]);
+      });
+      if (po.completed) rows.push({ cls: 'sub-row', cells: [po.dateComplete ? fmtDate(po.dateComplete) : '-', 'สิ้นสุด PO', { h: e(po.completeNote ? 'หมายเหตุ: ' + po.completeNote : 'ปิด PO แล้ว (ไม่รับเพิ่ม)'), span: 3 }, '-', '-', { h: fmtQty(line.balance), cls: line.balance < 0 ? 'neg' : '' }, pctTxt(line.pct)] });
+      const head = `<div class="rpt-grp"><b>${idx + 1}. ${e(line.invName || '(ไม่ระบุสินค้า)')}</b> &nbsp;·&nbsp; ${e(STATUS_LABEL[line.status] || line.status)}
+          <div class="rsub">จำนวน PO ${fmtQty(line.amountPOInUnit)} ${u} &nbsp;|&nbsp; รับแล้ว ${fmtQty(line.received)} ${u} &nbsp;|&nbsp; คงเหลือ ${fmtQty(line.balance)} ${u} &nbsp;|&nbsp; จำนวนรับ ${line.receipts.length} ครั้ง</div></div>`;
+      const tbl = R.table({
+        cols: [9, 11, 14, 14, 16, 9.5, 9.5, 9.5, 7.5],
+        head: ['วันที่', 'รายการ', 'เลขที่เอกสาร', 'เลขที่อ้างอิง', 'Lot No.', 'จำนวน PO (' + u + ')', 'จำนวนรับ (' + u + ')', 'คงเหลือ PO (' + u + ')', '% รับสะสม'],
+        align: ['l', 'l', 'l', 'l', 'l', 'r', 'r', 'r', 'r'],
+        rows,
+        foot: [[{ h: 'รวมรับ ' + line.receipts.length + ' ครั้ง · ' + (line.ledger || []).length + ' Lot No.', span: 5 }, { h: fmtQty(line.amountPOInUnit), cls: 'r' }, { h: fmtQty(line.received), cls: 'r' }, { h: fmtQty(line.balance), cls: 'r' + (line.balance < 0 ? ' neg' : '') }, { h: pctTxt(line.pct), cls: 'r' }]]
+      });
+      const warn = line.unitErrors > 0 ? `<p class="rpt-note">* หน่วยรับไม่ตรงกับหน่วย PO (${u}) ไม่นำมาหักยอดคงเหลือ</p>` : '';
+      return `<div class="rpt-blk">${head}${tbl}${warn}</div>`;
+    }).join('');
+    R.print({
+      orient: 'landscape',
+      title: 'รายงานการรับเมล็ดพันธุ์จากบริษัทในเครือ', titleEn: 'Affiliate Seed Receiving Report (Stock Card by PO)',
+      company: { id: scCompanySelect.value, name: comp ? comp.text : '' },
+      info: [
+        ['PO No.', e(po.poCode)], ['วันที่ออก PO', fmtDate(po.dateBuy)],
+        ['Supplier', e(po.supName || '-')], ['สถานะ PO', e(STATUS_LABEL[po.status] || po.status) + (po.completed ? ' · สิ้นสุด PO' : '')],
+        ['จำนวนสินค้า', po.lines.length + ' รายการ'], ['รับแล้ว', po.receiptCount + ' ครั้ง']
+      ],
+      body: blocks
+    });
   });
   window.addEventListener('afterprint', () => document.body.classList.remove('print-sc'));
 
@@ -2265,7 +2303,7 @@
       <div class="an-grid">
         <div class="an-card" style="margin-bottom:0">
           <h3>สถานะ PO แยกตาม Supplier</h3>
-          <div class="sub">จำนวน PO ในแต่ละสถานะ</div>
+          <div class="rsub">จำนวน PO ในแต่ละสถานะ</div>
           <div class="an-chart"><canvas id="anSupChart"></canvas></div>
         </div>
         <div class="an-card" style="margin-bottom:0">
