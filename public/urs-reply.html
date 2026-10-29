@@ -68,6 +68,8 @@
   .item-no{width:28px; height:28px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; background:rgba(242,169,28,.12); border:1px solid rgba(242,169,28,.35); color:var(--amber-500);}
   .item-title{flex:1; min-width:0;}
   .item-name{font-size:15px; font-weight:600; color:#fff; word-break:break-word;}
+  .item-note{margin-top:3px; font-size:13px; color:#ffcf66; word-break:break-word;}
+  .item-note b{font-weight:600; color:var(--concrete-200);}
   .item-meta{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:6px; font-size:12.5px; color:var(--concrete-400);}
   .item-meta b{color:#fff; font-weight:600;}
   .type-chip{display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; background:rgba(255,255,255,.07); color:var(--concrete-200);}
@@ -329,6 +331,7 @@
           <div class="item-no">${i + 1}</div>
           <div class="item-title">
             <div class="item-name">${esc(it.InvName) || '-'}</div>
+            ${it.NoteReq && String(it.NoteReq).trim() ? `<div class="item-note"><b>หมายเหตุ:</b> ${esc(it.NoteReq)}</div>` : ''}
             <div class="item-meta">
               ${it.SeedName ? `<span class="type-chip">${esc(it.SeedName)}</span>` : ''}
               <span>จำนวน <b>${fmtNum(it.AmountReq)}</b> ${esc(it.UnitName) || ''}</span>

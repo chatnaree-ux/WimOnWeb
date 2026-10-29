@@ -2511,7 +2511,8 @@ function parseUrsRequestBody(body, idCompReq) {
     idInvMain: parseInt(it.idInvMain, 10),
     amountReq: Number(it.amountReq),
     idUnit: it.idUnit === null || it.idUnit === undefined ? null : parseInt(it.idUnit, 10),
-    dateNeeded: it.dateNeeded
+    dateNeeded: it.dateNeeded,
+    noteReq: erpText(it.noteReq).slice(0, 500) || null   // หมายเหตุรายการ (ไม่บังคับ) — คอลัมน์ ERP เป็น varchar (TIS-620): แปลงอักขระนอกไทย/อังกฤษก่อน
   }));
   for (const [i, r] of rows.entries()) {
     if (!r.idInvMain) return { error: `รายการที่ ${i + 1}: เมล็ดพันธุ์ไม่ถูกต้อง` };
@@ -2580,9 +2581,10 @@ app.post('/api/urs/requests', requireMenu('urs_request', { companyParam: 'idComp
         .input('amountReq', sql.Decimal(18, 6), r.amountReq)
         .input('idUnit', sql.Int, r.idUnit)
         .input('dateNeeded', sql.VarChar, r.dateNeeded)
+        .input('noteReq', sql.NVarChar, r.noteReq)
         .query(
-          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded)
-           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23))`
+          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded, NoteReq)
+           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23), @noteReq)`
         );
     }
 
@@ -2691,22 +2693,23 @@ app.put('/api/urs/requests/:idUrs', requireMenu('urs_request'), requireUrsDocCom
         .input('idInvMain', sql.Int, r.idInvMain)
         .input('amountReq', sql.Decimal(18, 6), r.amountReq)
         .input('idUnit', sql.Int, r.idUnit)
-        .input('dateNeeded', sql.VarChar, r.dateNeeded);
+        .input('dateNeeded', sql.VarChar, r.dateNeeded)
+        .input('noteReq', sql.NVarChar, r.noteReq);
       if (old) {
         await request.input('idUrsDt', sql.Int, old.idUrsDt).query(
           `UPDATE GR_Group.devsk.SeedUrgentReqDt
-           SET AmountReq = @amountReq, idUnit = @idUnit, DateNeeded = CONVERT(date, @dateNeeded, 23)
+           SET AmountReq = @amountReq, idUnit = @idUnit, DateNeeded = CONVERT(date, @dateNeeded, 23), NoteReq = @noteReq
            WHERE idUrsDt = @idUrsDt`
         );
       } else if (sent) {
         await request.input('stSent', sql.VarChar(1), URS_ST_SENT).input('idPs', sql.Int, idPs).query(
-          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded, stReq, idPsSendReq, DateSentReq)
-           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23), @stSent, @idPs, GETDATE())`
+          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded, NoteReq, stReq, idPsSendReq, DateSentReq)
+           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23), @noteReq, @stSent, @idPs, GETDATE())`
         );
       } else {
         await request.query(
-          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded)
-           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23))`
+          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded, NoteReq)
+           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23), @noteReq)`
         );
       }
     }
@@ -2793,7 +2796,7 @@ app.get('/api/urs/requests', requireMenu('urs_request', { companyParam: 'idComp'
       .input('stDone', sql.VarChar(1), URS_ST_DONE)
       .query(
         `WITH Req AS (
-           SELECT dt.idUrsDt, dt.idUrs, dt.idInvMain, dt.AmountReq, dt.idUnit, dt.DateNeeded,
+           SELECT dt.idUrsDt, dt.idUrs, dt.idInvMain, dt.AmountReq, dt.idUnit, dt.DateNeeded, dt.NoteReq,
                   CASE WHEN mt.idPsCancel IS NOT NULL THEN @stCancel ELSE dt.stReq END AS stReq,
                   dt.DateSentReq, dt.DateSent, dt.NotSentNote, dt.idPsReplied, dt.DateReplied,
                   ISNULL(dt.idPsDel, mt.idPsCancel) AS idPsDel, ISNULL(dt.DateDel, mt.DateCancel) AS DateDel,
@@ -2834,7 +2837,7 @@ app.get('/api/urs/requests', requireMenu('urs_request', { companyParam: 'idComp'
          SELECT r.idUrsDt, r.idUrs, r.idCompReq, r.idCompTarget, ct.CompName AS CompNameTarget, r.DocReq, r.ReasonReq, r.stReq,
                 CONVERT(char(10), r.DateReq, 23) AS DateReq,
                 CONVERT(char(10), r.DateNeeded, 23) AS DateNeeded,
-                r.idInvMain, i.InvName, sp.SeedName, r.AmountReq, r.idUnit, u.UnitName, r.idPsReq,
+                r.idInvMain, i.InvName, sp.SeedName, r.AmountReq, r.NoteReq, r.idUnit, u.UnitName, r.idPsReq,
                 CASE WHEN r.stReq IN (@stCancel, @stDone) THEN NULL ELSE ISNULL(sav.AmtStockAV, 0) END AS AmtStockAV,
                 CASE WHEN r.stReq IN (@stCancel, @stDone) THEN NULL ELSE ISNULL(sgf.AmtStockGR, 0) END AS AmtStockGR,
                 CASE WHEN r.stReq IN (@stCancel, @stDone) THEN NULL ELSE ISNULL(sgf.AmtStockFL, 0) END AS AmtStockFL,
@@ -3019,7 +3022,7 @@ async function buildUrsMessage(transaction, idUrs, origin, edited) {
     .input('idUrs', sql.Int, idUrs)
     .input('stCancel', sql.VarChar(1), URS_ST_CANCEL)
     .query(
-      `SELECT i.InvName, dt.AmountReq, u.UnitName, CONVERT(char(10), dt.DateNeeded, 23) AS DateNeeded
+      `SELECT i.InvName, dt.AmountReq, dt.NoteReq, u.UnitName, CONVERT(char(10), dt.DateNeeded, 23) AS DateNeeded
        FROM GR_Group.devsk.SeedUrgentReqDt dt
        LEFT JOIN devsk.dInventoryMain i ON dt.idInvMain = i.idInvMain
        LEFT JOIN devsk.dInvUnit u ON dt.idUnit = u.idUnit
@@ -3028,7 +3031,7 @@ async function buildUrsMessage(transaction, idUrs, origin, edited) {
     );
   const h = head.recordset[0] || {};
   const lines = items.recordset.map((r, i) =>
-    `${i + 1}. ${r.InvName || '-'} — ${ursFmtNum(r.AmountReq)} ${r.UnitName || ''} (ต้องการ ${ursFmtDateThai(r.DateNeeded)})`);
+    `${i + 1}. ${r.InvName || '-'} — ${ursFmtNum(r.AmountReq)} ${r.UnitName || ''} (ต้องการ ${ursFmtDateThai(r.DateNeeded)})${r.NoteReq && String(r.NoteReq).trim() ? `\n    หมายเหตุ: ${String(r.NoteReq).trim()}` : ''}`);
   return [
     edited ? `✏️ แก้ไขคำร้องขอเมล็ดพันธุ์เร่งด่วน ${h.DocReq} (ข้อมูลล่าสุด)` : `📌 คำร้องขอเมล็ดพันธุ์เร่งด่วน ${h.DocReq}`,
     `จาก: ${h.CompName || '-'}`,
@@ -3130,7 +3133,7 @@ app.get('/api/urs/reply/:idUrs', async (req, res) => {
       .input('idUrs', sql.Int, idUrs)
       .input('stCancel', sql.VarChar(1), URS_ST_CANCEL)
       .query(
-        `SELECT dt.idUrsDt, dt.idInvMain, i.InvName, sp.SeedName, dt.AmountReq, u.UnitName,
+        `SELECT dt.idUrsDt, dt.idInvMain, i.InvName, sp.SeedName, dt.AmountReq, dt.NoteReq, u.UnitName,
                 CONVERT(char(10), dt.DateNeeded, 23) AS DateNeeded, dt.stReq,
                 CONVERT(varchar(16), dt.DateSentReq, 120) AS DateSentReq,
                 CONVERT(char(10), dt.DateSent, 23) AS DateSent, dt.NotSentNote,

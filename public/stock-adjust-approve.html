@@ -1347,12 +1347,12 @@
      parts: [{ html }] = บล็อกไม่ตัดข้ามหน้า / [{ cols:[%], thead, cls, rows:[{ html, keep }] }] = ตาราง (keep = ติดกับแถวถัดไป เช่น แถวตำแหน่ง) */
   const PAGE_MM = { P: [194, 279], L: [281, 192] };   // A4 − ขอบ 8 มม. (เผื่อปัดเศษไม่ให้ล้นเป็นหน้าว่าง)
   const MMPX = 96 / 25.4;
-  const IOS_PRINT = new URLSearchParams(location.search).get('autoprint') === '1';
+  const IOS_PRINT = IS_IOS || new URLSearchParams(location.search).get('autoprint') === '1';   // iPhone / iPad พิมพ์จากหน้านี้เองก็ใช้แผ่นเตี้ยลง (ขอบ iOS กินที่)
   const tableHtml = (p, rows) => `<div class="ps-part"><table class="${p.cls || ''}"><colgroup>${p.cols.map(w => `<col style="width:${w}%">`).join('')}</colgroup>
       <thead>${p.thead}</thead><tbody>${rows.map(x => x.html).join('')}</tbody></table></div>`;
   async function pagedHtml({ landscape, head, parts, foot, maxPages }){
     printSeq++;   // เริ่มเตรียมเอกสารใหม่ = ยกเลิกคำสั่งพิมพ์ที่ยังรอรูปอยู่ (#printArea ถูกใช้วัดความสูงหน้า)
-    const [w, h0] = PAGE_MM[landscape ? 'L' : 'P'], h = IOS_PRINT ? h0 - 34 : h0;   // iPhone: ขอบ + หัวท้ายกระดาษของ iOS กินที่ → แผ่นเตี้ยลงไม่ให้ล้นหน้า
+    const [w, h0] = PAGE_MM[landscape ? 'L' : 'P'], h = IOS_PRINT ? h0 - 54 : h0;   // iPhone: ขอบ + หัวท้ายกระดาษของ iOS กินที่ → แผ่นเตี้ยลงไม่ให้ล้นหน้า
     if(document.fonts && document.fonts.ready) await document.fonts.ready;
     const pa = $('printArea'), keep = pa.getAttribute('style');
     pa.style.cssText = `display:block; position:absolute; left:-10000px; top:0; width:${w}mm; visibility:hidden;`;
@@ -1413,7 +1413,7 @@
   function embedShow(html){
     const pa = $('printArea');
     pa.innerHTML = html;
-    pa.querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = p.style.height; if(IOS_PRINT) p.style.height = 'auto'; });   // ย่อบนจอเล็กตัดบรรทัดต่างได้ → แผ่นยืดได้ ไม่ตัดท้าย
+    pa.querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = IOS_PRINT ? '0' : p.style.height; if(IOS_PRINT) p.style.height = 'auto'; });   // ย่อบนจอเล็กตัดบรรทัดต่างได้ → แผ่นยืดได้ ไม่ตัดท้าย
     pa.style.width = (194 + 16 + 0.8) + 'mm';   // แผ่น A4 แนวตั้ง = พื้นที่พิมพ์ + ขอบ 8 มม. 2 ข้าง
     document.body.classList.add('printing', 'pv');
     const fit = () => { pa.style.setProperty('--pvz', 1); const w = pa.getBoundingClientRect().width; pa.style.setProperty('--pvz', Math.min(1, (window.innerWidth - 16) / w).toFixed(3)); };
@@ -1434,6 +1434,7 @@
     if(EMBED){ embedShow(html); return Promise.resolve(true); }
     const my = ++printSeq;
     $('printArea').innerHTML = html;
+    if(IOS_PRINT) $('printArea').querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = '0'; p.style.height = 'auto'; });
     const imgs = [...$('printArea').querySelectorAll('img')].filter(i => !i.complete);
     if(imgs.length) showToast('กำลังเตรียมเอกสารสำหรับพิมพ์…');
     const ready = Promise.race([Promise.all(imgs.map(i => new Promise(ok => { i.addEventListener('load', ok); i.addEventListener('error', ok); }))), new Promise(ok => setTimeout(ok, 3000))]);

@@ -957,7 +957,10 @@
     .items-table td.c-reason, .items-table td.qc{flex-basis:100%;}
     .items-table .ref-grid{white-space:normal;}
     .items-table .qc-grid{grid-template-columns:1fr 1fr; white-space:normal;}
-    .items-table .cell-in, .items-table .cell-in.price, .items-table select.reason{width:100%; min-height:38px; height:38px; padding:4px 10px; font-size:16px;}
+    /* ช่องกรอก: 16px = ขนาดต่ำสุดที่ iOS ไม่ซูมหน้าตอนแตะ → ปรับที่ที่เหลือให้ใกล้กัน: ข้อมูลในการ์ด 15px / ช่องกรอกใช้ฟอนต์เดียวกับข้อมูล ชิดซ้าย พื้นจางแทนกล่องดำ ไม่ใหญ่เด่นกว่าส่วนอื่น */
+    .items-table tbody tr td{font-size:15px;}
+    .items-table .cell-in, .items-table .cell-in.price, .items-table select.reason{width:100%; min-height:40px; height:40px; padding:4px 10px; font-size:16px; font-family:inherit; font-weight:400; text-align:left; background-color:rgba(255,255,255,.06); border:1px solid rgba(242,169,28,.42); border-radius:8px; color:#fff;}
+    .items-table .cell-in:focus, .items-table select.reason:focus{border-color:var(--amber-500); background-color:rgba(255,255,255,.1);}
     .items-table td.num{text-align:left;}
     #itemModal{padding:8px;}
     .modal-wide{height:calc(100dvh - 16px); max-height:none;}
@@ -2408,11 +2411,12 @@
     // รอโลโก้โหลดก่อนสั่งพิมพ์ (โหลดไม่ได้ / นานเกิน 4 วินาที = ซ่อนโลโก้แล้วพิมพ์ต่อ)
     await waitForImage($('pdLogo'));
     document.body.classList.add('printing');
-    // iPhone / iPad: พิมพ์ตามความกว้างจอ (390px) ตาราง 15 คอลัมน์เลยทับกัน → ล็อกความกว้างเท่ากระดาษ A4 แนวนอน (1122px) ให้ iOS ย่อทั้งหน้าเอง
-    if(IS_IOS) $('printArea').style.width = '1122px';
+    // iPhone / iPad: iOS จัดหน้าพิมพ์แบบกระดาษแนวตั้ง (~794px) ไม่สน @page แนวนอน → ตาราง 15 คอลัมน์ทับกัน
+    //   จัดตารางที่ความกว้าง A4 แนวนอน (1122px) แล้วย่อด้วย zoom เหลือ ~740px (กว้างหน้ากระดาษแนวตั้งของ iOS) ไม่ตัดขอบ / ไม่ทับกัน
+    if(IS_IOS){ const pa = $('printArea'); pa.style.width = '1122px'; pa.style.zoom = '0.66'; }
     window.print();
   });
-  window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); $('printArea').style.width = ''; });
+  window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); $('printArea').style.width = ''; $('printArea').style.zoom = ''; });
 
   /* ==================================================================
      ใบเอกสาร (ดูบนจอ / พิมพ์ A4 แนวตั้ง) — template เดียวกัน

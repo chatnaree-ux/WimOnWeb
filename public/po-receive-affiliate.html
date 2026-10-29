@@ -474,6 +474,10 @@
     #scResult .sc-table td[data-l]::before{content:attr(data-l); color:var(--concrete-400); font-size:12px; text-align:left; flex-shrink:0;}
     #scResult .sc-table td:first-child{grid-column:1 / -1; display:block; text-align:left; font-weight:700; font-size:14.5px; padding-bottom:6px;}
     #scResult .sc-table td:first-child::before{content:none;}
+    /* ป้ายยาว (เช่น จำนวน PO (กิโลกรัม)) + ตัวเลข อยู่แถวเดียวกันในช่องครึ่งจอ = ตัวเลขถูกบีบจนแตกทีละตัวอักษร → ป้ายอยู่เหนือค่า ตัวเลขห้ามตัดกลางคำ */
+    #scResult .sc-table td:not(:first-child){flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:1px; text-align:left;}
+    #scResult .sc-table td.num, #scResult .sc-table td.n{overflow-wrap:normal; word-break:keep-all; white-space:nowrap; font-size:15px;}
+    #scResult .sc-table td[colspan]{flex-direction:row;}
     #scResult .sc-table tfoot td[colspan]{grid-column:1 / -1; display:block; text-align:left;}
     #anResult .an-table-wrap{overflow:visible;}
     #anResult .an-table, #anResult .an-table tbody, #anResult .an-table tfoot{display:block; width:100% !important; min-width:0 !important;}
