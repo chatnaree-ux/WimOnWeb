@@ -521,7 +521,7 @@
 
             <section class="doc-section" id="c-overview">
               <div class="sec-head"><span class="sec-no">01</span><h2>ภาพรวมการทำงาน</h2></div>
-              <p>การตรวจนับสต๊อกบนเว็บ ใช้แทนการนับด้วยกระดาษแล้วไปคีย์ใบขอปรับยอดใน WIM Desktop: ระบบเก็บยอดตามระบบ (ERP) ไว้ตอนเริ่มนับ เทียบกับยอดที่นับได้จริง สรุปรายการ <b>ตรงกัน / ขาด / เกิน</b> ให้ แล้วผู้ตรวจสอบส่งเฉพาะรายการที่ต้องปรับไปขออนุมัติ เมื่ออนุมัติครบ 3 ขั้น ระบบ<b>ปรับยอดสต๊อกและลง Stock Card ให้เอง</b></p>
+              <p>ระบบจะเก็บยอดตามระบบ (ERP) ไว้ตอนเริ่มนับ เทียบกับยอดที่นับได้จริง สรุปรายการ <b>ตรงกัน / ขาด / เกิน</b> ให้ แล้วผู้ตรวจสอบส่งเฉพาะรายการที่ต้องปรับไปขออนุมัติ เมื่ออนุมัติครบ 3 ขั้นตอน ระบบจึงจะ<b> ปรับยอดสต๊อกจริง</b></p>
               <div class="flow">
                 <div class="flow-step" style="--c:var(--concrete-200)">
                   <div class="flow-who">ผู้ตรวจนับ</div>
@@ -543,14 +543,14 @@
                 </div>
                 <div class="flow-step" style="--c:#a78bfa">
                   <div class="flow-who">รับทราบ / ตรวจสอบ / อนุมัติ</div>
-                  <div class="flow-title">4. อนุมัติปรับยอด 3 ขั้น</div>
+                  <div class="flow-title">4. อนุมัติปรับยอด 3 ขั้นตอน</div>
                   <div class="flow-desc">ระบบสร้างใบขอปรับยอดสต๊อก (RQ) 1 ใบ ส่งเข้าเมนูอนุมัติและ<b>งานรออนุมัติ</b>ของผู้อนุมัติ</div>
                   <div class="flow-st"><span class="flow-st-l">สถานะเอกสาร</span><span class="badge st-APPROVE">รออนุมัติปรับยอด</span></div>
                 </div>
                 <div class="flow-step" style="--c:var(--ok-green)">
                   <div class="flow-who">ระบบ</div>
                   <div class="flow-title">5. ปรับสต๊อก</div>
-                  <div class="flow-desc">อนุมัติครบ 3 ขั้น ระบบปรับยอดคงเหลือของแต่ละ Lot และลง Stock Card ทันที</div>
+                  <div class="flow-desc">อนุมัติครบ 3 ขั้นตอน ระบบปรับยอดคงเหลือของแต่ละ Lot ทันที</div>
                   <div class="flow-st"><span class="flow-st-l">สถานะเอกสาร</span><span class="badge st-POSTED">ปรับสต๊อกแล้ว</span><span class="badge st-DONE">เสร็จสิ้น</span></div>
                 </div>
               </div>
@@ -560,26 +560,35 @@
               <div class="sec-head"><span class="sec-no">02</span><h2>เข้าสู่เมนูและหน้ารายการ</h2></div>
               <p>เปิดเมนู <span class="ui">คลังวัสดุและสินค้า › ตรวจนับสต๊อก › เอกสารตรวจนับสต๊อก</span> (หรือการ์ด <b>ตรวจนับสต๊อก</b> ในหน้า Home ที่บอกจำนวนเอกสารกำลังนับ / รอตรวจสอบ)</p>
               <figure class="shot"><a href="images/manual/stock-count/sc-list.png" target="_blank"><img src="images/manual/stock-count/sc-list.png" alt="หน้ารายการเอกสารตรวจนับ" loading="lazy"></a><figcaption>หน้ารายการเอกสารตรวจนับ (คลิกที่ภาพเพื่อดูขนาดเต็ม)</figcaption></figure>
-              <ul class="bullets">
-                <li><span class="ui">+ สร้างเอกสารตรวจนับ</span> เริ่มรอบนับใหม่ · <span class="ui">ขั้นตอนการตรวจนับ</span> เปิด/ปิดกล่อง 4 ขั้นตอนย่อ</li>
-                <li>แท็บ <b>รายการเอกสาร</b> (ทุกใบตามบริษัทและช่วงวันที่) · <b>งานของฉัน</b> (ใบที่รอคุณ เช่น คุณเป็นผู้ตรวจนับหรือผู้ตรวจสอบ มีตัวเลขสีแดงบอกจำนวน) · <b>ภาพรวม</b> (ดูหัวข้อ 09)</li>
-                <li><b>การ์ดสถานะ</b> (ร่าง / กำลังนับ / รอตรวจสอบ / รออนุมัติปรับยอด / เสร็จสิ้น / ยกเลิก) กดเพื่อกรองรายการ เปลี่ยนตัวกรองแล้วรายการโหลดใหม่เอง</li>
-                <li><span class="ui">ตัวกรองเพิ่มเติม</span> กรองคลังหลัก ประเภท และวิธีนับ · <span class="ui">Export Excel</span> ส่งออกรายการตามตัวกรอง</li>
-                <li>คอลัมน์ <b>ผลการนับ</b>: กำลังนับแสดงแถบความคืบหน้า (นับแล้ว / ทั้งหมด) ปิดการนับแล้วแสดงจำนวน ตรง / ขาด / เกิน</li>
-              </ul>
+                            <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>+ สร้างเอกสารตรวจนับ</b>: เริ่มรอบตรวจนับใหม่ (ดูหัวข้อ 03)</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>ขั้นตอนการตรวจนับ</b>: เปิด / ปิดกล่องสรุป 4 ขั้นตอน</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>งานของฉัน</b>: เอกสารที่รอคุณดำเนินการ (เช่น คุณเป็นผู้ตรวจนับหรือผู้ตรวจสอบ) ตัวเลขสีแดงคือจำนวนใบ · แท็บ <b>รายการเอกสาร</b> = ทุกใบ · <b>ภาพรวม</b> ดูหัวข้อ 09</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>บริษัท / วันที่ตรวจนับ</b>: เลือกแล้วรายการโหลดใหม่เอง</span></li>
+                <li><span class="pin pin-inline">5</span><span><span class="ui">Refresh</span> ดึงข้อมูลล่าสุดจากระบบ</span></li>
+                <li><span class="pin pin-inline">6</span><span><b>ค้นหา</b> เลขที่เอกสาร / เลข RQ / คลัง / ผู้ตรวจนับ</span></li>
+                <li><span class="pin pin-inline">7</span><span><b>ตัวกรองเพิ่มเติม</b> (คลังหลัก / ประเภทการตรวจนับ / วิธีนับ) และ <span class="ui">Export Excel</span> ส่งออกรายการตามตัวกรอง</span></li>
+                <li><span class="pin pin-inline">8</span><span><b>การ์ดสถานะ</b> (ร่าง / กำลังนับ / รอตรวจสอบ / รออนุมัติปรับยอด / เสร็จสิ้น / ยกเลิก) กดเพื่อกรองรายการ</span></li>
+                <li><span class="pin pin-inline">9</span><span><b>แถวเอกสาร</b>: ลูกศร › หน้าแถวขยายดูรายละเอียด กดที่แถวเพื่อเปิดเอกสาร · ป้ายสถานะดูความหมายในหัวข้อ 11</span></li>
+                <li><span class="pin pin-inline">10</span><span><b>ผลการนับ</b>: กำลังนับแสดงแถบความคืบหน้า (นับแล้ว / ทั้งหมด) ปิดการนับแล้วแสดงจำนวน ตรง / ขาด / เกิน</span></li>
+              </ol>
             </section>
 
             <section class="doc-section" id="c-create">
               <div class="sec-head"><span class="sec-no">03</span><h2>สร้างเอกสารตรวจนับ</h2></div>
               <p>กด <span class="ui">+ สร้างเอกสารตรวจนับ</span> แล้วกรอกข้อมูล</p>
               <figure class="shot"><a href="images/manual/stock-count/sc-form.png" target="_blank"><img src="images/manual/stock-count/sc-form.png" alt="สร้างเอกสารตรวจนับ" loading="lazy"></a><figcaption>หน้าต่างสร้างเอกสารตรวจนับ</figcaption></figure>
-              <ol class="steps">
-                <li><b>บริษัท</b> และ <b>คลัง / พื้นที่จัดเก็บ</b>: เลือก<b>คลังหลัก</b> = นับทุกตำแหน่งในคลัง หรือเลือก<b>พื้นที่ย่อย</b> (เช่น RACK A) = นับเฉพาะตำแหน่งในพื้นที่นั้น หน้าต่างเลือกคลังบอกระดับการตรวจนับของแต่ละคลังด้วย (นานแค่ไหนแล้วที่ไม่ได้นับ)</li>
-                <li><b>วันที่ตรวจนับ</b> และ <b>ครั้งที่นับ</b> (ระบบเสนอให้ ถ้าวันเดียวกันนับคลังเดิมซ้ำ = ครั้งที่ 2)</li>
-                <li><b>ประเภทการตรวจนับ</b> เช่น ประจำวัน / ประจำสัปดาห์ / ประจำเดือน / เฉพาะรายการ</li>
-                <li><b>ผู้ตรวจนับ</b> (คนนับ) และ <b>ผู้ตรวจสอบ</b> (คนตรวจผลต่างและส่งขออนุมัติ)</li>
-                <li><b>ค่ายอมรับผลต่าง (%)</b>: ผลต่างไม่เกินค่านี้ ระบบตั้งเป็น "ไม่ต้องปรับ" ให้ (ผู้ตรวจสอบเปลี่ยนได้) ใส่ 0 = ทุกผลต่างต้องตรวจสอบ</li>
-                <li><b>Blind count</b>: ซ่อนยอดในระบบระหว่างนับ ผู้นับต้องนับจากของจริงเท่านั้น (เห็นผลต่างหลังปิดการนับ) เหมาะกับการนับตรวจสอบ</li>
+                            <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>บริษัท</b> ที่จะตรวจนับ</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>คลัง / พื้นที่จัดเก็บ</b>: กดเลือก — <b>คลังหลัก</b> = นับทุกตำแหน่งในคลัง · <b>พื้นที่ย่อย</b> (เช่น RACK A) = นับเฉพาะตำแหน่งในพื้นที่นั้น หน้าต่างเลือกคลังบอกระดับการตรวจนับของแต่ละคลังด้วย</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>วันที่ตรวจนับ</b></span></li>
+                <li><span class="pin pin-inline">4</span><span><b>ครั้งที่นับ</b>: ระบบเสนอให้ ถ้าวันเดียวกันนับคลังเดิมซ้ำ = ครั้งที่ 2</span></li>
+                <li><span class="pin pin-inline">5</span><span><b>ประเภทการตรวจนับ</b> เช่น ประจำวัน / ประจำสัปดาห์ / ประจำเดือน / เฉพาะรายการ</span></li>
+                <li><span class="pin pin-inline">6</span><span><b>ผู้ตรวจนับ</b> (คนนับ)</span></li>
+                <li><span class="pin pin-inline">7</span><span><b>ผู้ตรวจสอบ</b> (คนตรวจผลต่างและส่งขออนุมัติ)</span></li>
+                <li><span class="pin pin-inline">8</span><span><b>ค่ายอมรับผลต่าง (%)</b>: ผลต่างไม่เกินค่านี้ ระบบตั้งเป็น "ไม่ต้องปรับ" ให้ (ผู้ตรวจสอบเปลี่ยนได้) ใส่ 0 = ทุกผลต่างต้องตรวจสอบ</span></li>
+                <li><span class="pin pin-inline">9</span><span><b>Blind count</b>: ซ่อนยอดในระบบระหว่างนับ ผู้นับต้องนับจากของจริงเท่านั้น (เห็นผลต่างหลังปิดการนับ) เหมาะกับการนับตรวจสอบ</span></li>
+                <li><span class="pin pin-inline">10</span><span><b>หมายเหตุ</b> (ไม่บังคับ) แล้วกด <span class="ui">บันทึก</span></span></li>
               </ol>
               <div class="callout tip"><span class="ic">💡</span><span>ถ้าคลัง / พื้นที่ที่เลือก มีเอกสารตรวจนับอื่นที่ยังไม่จบอยู่ ระบบจะเตือนก่อนบันทึก กันการนับซ้อนกัน</span></div>
             </section>
@@ -587,6 +596,14 @@
             <section class="doc-section" id="c-mode">
               <div class="sec-head"><span class="sec-no">04</span><h2>เลือกวิธีนับ แล้วเริ่มตรวจนับ</h2></div>
               <figure class="shot"><a href="images/manual/stock-count/sc-mode.png" target="_blank"><img src="images/manual/stock-count/sc-mode.png" alt="เลือกวิธีนับ" loading="lazy"></a><figcaption>เอกสารสถานะร่าง: เลือกวิธีนับ แล้วกดเริ่มตรวจนับ</figcaption></figure>
+              <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>แถบขั้นตอน</b>: วงสีส้มคือขั้นที่เอกสารอยู่ตอนนี้</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>Offline Count Sheet</b>: พิมพ์ใบนับ / Export Excel ไปนับที่คลัง แล้วกรอกยอดในระบบ</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>ชนิดใบนับ</b>: แบบมีรายการ (ระบบพิมพ์รายการ Lot ตามตำแหน่งให้) หรือแบบเปล่า (เขียน Lot / จำนวนที่พบเอง)</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>Live Count</b>: นับสดผ่านมือถือ / แท็บเล็ต</span></li>
+                <li><span class="pin pin-inline">5</span><span><b>คำเตือน snapshot</b>: กดเริ่มแล้วระบบเก็บยอด ERP ณ ตอนนั้น และแก้หัวเอกสารไม่ได้อีก</span></li>
+                <li><span class="pin pin-inline">6</span><span><span class="ui">เริ่มตรวจนับ</span></span></li>
+              </ol>
               <div class="ref-table-wrap"><table class="ref-table">
                 <thead><tr><th>วิธีนับ</th><th>เหมาะกับ</th><th>ทำงานอย่างไร</th></tr></thead>
                 <tbody>
@@ -601,11 +618,15 @@
             <section class="doc-section" id="c-sheet">
               <div class="sec-head"><span class="sec-no">05</span><h2>นับด้วยใบนับ (Offline Count Sheet)</h2></div>
               <figure class="shot"><a href="images/manual/stock-count/sc-sheet.png" target="_blank"><img src="images/manual/stock-count/sc-sheet.png" alt="บันทึกยอดนับจากใบนับ" loading="lazy"></a><figcaption>แท็บบันทึกยอดนับ: แถบขั้นตอนด้านบนบอกว่าเอกสารอยู่ขั้นไหน</figcaption></figure>
-              <ol class="steps">
-                <li>กด <span class="ui">พิมพ์ใบนับ</span> (A4 มีหัวเอกสารและช่องลงนาม) หรือ <span class="ui">Export Excel</span> ไปนับที่คลัง</li>
-                <li>กลับมากรอก <b>ยอดนับจริง</b> ในตาราง (เลือกตำแหน่ง / ค้นหา Lot ได้) ปรับ <b>สถานะคุณภาพ</b> (ปกติ / รอตรวจสอบคุณภาพ / Hold / Reject) และหมายเหตุได้ แล้วกด <span class="ui">บันทึกยอดนับ</span> — ระหว่างนับบันทึกหลายครั้งได้</li>
-                <li>หรือกด <span class="ui">นำเข้า Excel ที่กรอกแล้ว</span>: ระบบอ่านยอดที่เปลี่ยน แสดงเป็นช่องสีส้มให้ตรวจ แล้วกดบันทึก (นำเข้าไฟล์เดิมซ้ำได้ ยอดไม่เบิ้ล)</li>
-                <li>เจอของที่<b>ไม่อยู่ในรายการ</b> กด <span class="ui">+ เพิ่มรายการที่พบ</span>: ถ้าเป็น Lot ในระบบ ระบบเพิ่มเป็นรายการนอกขอบเขต ถ้าไม่พบในระบบ บันทึกเป็น "รายการไม่พบในระบบ" ให้ผู้ตรวจสอบจัดการ</li>
+                            <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>แถบขั้นตอน</b> อยู่ที่ขั้น 2 ตรวจนับ</span></li>
+                <li><span class="pin pin-inline">2</span><span><span class="ui">พิมพ์ใบนับ</span> ใบ A4 มีหัวเอกสารและช่องลงนาม ไปนับที่คลัง</span></li>
+                <li><span class="pin pin-inline">3</span><span><span class="ui">Export Excel</span> ส่งออกรายการไปกรอกยอดนอกระบบ</span></li>
+                <li><span class="pin pin-inline">4</span><span><span class="ui">นำเข้า Excel ที่กรอกแล้ว</span>: ระบบอ่านยอดที่เปลี่ยนจากเดิม แสดงเป็นช่องสีส้มให้ตรวจก่อนกดบันทึก (นำเข้าไฟล์เดิมซ้ำได้ ยอดไม่เบิ้ล)</span></li>
+                <li><span class="pin pin-inline">5</span><span><span class="ui">+ เพิ่มรายการที่พบ</span> เจอของที่ไม่อยู่ในรายการ: ถ้าเป็น Lot ในระบบ ระบบเพิ่มเป็นรายการนอกขอบเขต ถ้าไม่พบในระบบ บันทึกเป็น "รายการไม่พบในระบบ" ให้ผู้ตรวจสอบจัดการ</span></li>
+                <li><span class="pin pin-inline">6</span><span><b>ยอดนับจริง</b>: กรอกยอดที่นับได้ (คอลัมน์ถัดไปทางขวาคือสถานะคุณภาพ / วันหมดอายุ / หมายเหตุ)</span></li>
+                <li><span class="pin pin-inline">7</span><span><span class="ui">บันทึกยอดนับ</span>: ระหว่างนับบันทึกหลายครั้งได้ ปุ่มสีเทา = ยังไม่มียอดที่แก้ไข</span></li>
+                <li><span class="pin pin-inline">8</span><span><span class="ui">ปิดการนับ / สรุปผล</span> เมื่อนับครบ (แถบด้านล่างบอกว่านับแล้วกี่รายการ)</span></li>
               </ol>
               <p>ปุ่มด้านล่างจอบอกว่า <b>นับแล้วกี่รายการ</b> และมีปุ่ม <span class="ui">ปิดการนับ / สรุปผล</span> เมื่อนับครบ</p>
             </section>
@@ -613,11 +634,11 @@
             <section class="doc-section" id="c-live">
               <div class="sec-head"><span class="sec-no">06</span><h2>นับสดด้วยมือถือ (Live Count)</h2></div>
               <figure class="shot"><a href="images/manual/stock-count/sc-live.png" target="_blank"><img src="images/manual/stock-count/sc-live.png" alt="Live Count" loading="lazy"></a><figcaption>แท็บนับ (Live Count): ช่องสแกน / พิมพ์ Lot No. และรายการที่นับล่าสุด</figcaption></figure>
-              <ol class="steps">
-                <li>ยิงบาร์โค้ดด้วยเครื่องสแกน หรือกด <span class="ui">สแกนด้วยกล้อง</span> หรือพิมพ์ Lot No. / รหัสสินค้า แล้วกดค้นหา</li>
-                <li>เลือกรายการที่ตรง (ถ้าพบหลายตำแหน่ง) กรอก <b>ยอดนับ</b> และสถานะคุณภาพ แล้วบันทึก — ยอดเข้าระบบทันที แล้วพร้อมสแกน Lot ถัดไป</li>
-                <li>ไม่พบในเอกสาร: ระบบหา Lot นอกขอบเขตให้ หรือบันทึกเป็นรายการไม่พบในระบบ (กรอกชื่อ / ลักษณะสินค้า ตำแหน่ง จำนวน)</li>
-                <li>ด้านขวาแสดง <b>ความคืบหน้า</b> และ <b>นับล่าสุด</b> ตรวจย้อนได้ว่าใครนับอะไรเวลาไหน · นับครบแล้วกด <span class="ui">สิ้นสุดการตรวจนับ</span></li>
+                            <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>ช่องสแกน / พิมพ์ Lot No.</b>: ยิงบาร์โค้ดด้วยเครื่องสแกน หรือพิมพ์ Lot No. / รหัสสินค้า แล้วกดค้นหา → เลือกรายการที่ตรง → กรอกยอดนับและสถานะคุณภาพ → <span class="ui">บันทึก</span> (ยอดเข้าระบบทันที) → <span class="ui">Lot ถัดไป</span> · ไม่พบในเอกสาร: ระบบหา Lot นอกขอบเขตให้ หรือบันทึกเป็นรายการไม่พบในระบบ</span></li>
+                <li><span class="pin pin-inline">2</span><span><span class="ui">สแกนด้วยกล้อง</span> ใช้กล้องมือถือสแกนบาร์โค้ด</span></li>
+                <li><span class="pin pin-inline">3</span><span><span class="ui">สิ้นสุดการตรวจนับ</span> เมื่อนับครบ ไปขั้นปิดการนับ</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>ความคืบหน้า</b> และ <b>นับล่าสุด</b>: ตรวจย้อนได้ว่าใครนับอะไรเวลาไหน</span></li>
               </ol>
               <div class="callout tip"><span class="ic">💡</span><span>นับ Lot เดิมซ้ำ (เช่น ของอยู่ 2 กอง) ระบบบวกยอดให้ · หลายคนนับเอกสารเดียวกันพร้อมกันได้ ระบบเก็บชื่อผู้นับทุกครั้ง</span></div>
             </section>
@@ -626,10 +647,11 @@
               <div class="sec-head"><span class="sec-no">07</span><h2>ปิดการนับ / สรุปผล</h2></div>
               <figure class="shot narrow"><a href="images/manual/stock-count/sc-close.png" target="_blank"><img src="images/manual/stock-count/sc-close.png" alt="ปิดการนับ" loading="lazy"></a><figcaption>หน้าต่างปิดการนับ</figcaption></figure>
               <p>ถ้ายังมีรายการที่<b>ไม่ได้นับ</b> ต้องเลือกวิธีจัดการ:</p>
-              <ul class="bullets">
-                <li><b>ถือว่าไม่พบของ = ยอดนับ 0</b> (ค่าเริ่มต้น): รายการนั้นกลายเป็นรายการขาดทั้งหมด — ใช้เมื่อนับครบพื้นที่แล้วจริง ๆ</li>
-                <li><b>ไม่นำมาคิด</b>: ไม่เทียบผลต่าง ไม่ปรับยอด — ใช้เมื่อยังไม่ได้นับบางส่วนด้วยเหตุผลอื่น (เช่น เข้าไม่ถึงของ)</li>
-              </ul>
+                            <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>ถือว่าไม่พบของ = ยอดนับ 0</b> (ค่าเริ่มต้น): รายการที่ไม่ได้นับกลายเป็นรายการขาดทั้งหมด — ใช้เมื่อนับครบพื้นที่แล้วจริง ๆ</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>ไม่นำมาคิด</b>: ไม่เทียบผลต่าง ไม่ปรับยอด — ใช้เมื่อยังไม่ได้นับบางส่วนด้วยเหตุผลอื่น (เช่น เข้าไม่ถึงของ)</span></li>
+                <li><span class="pin pin-inline">3</span><span><span class="ui">ปิดการนับ</span> (หรือ <span class="ui">ยังไม่ปิด</span> เพื่อกลับไปนับต่อ)</span></li>
+              </ol>
               <p>ปิดแล้วระบบสรุป <b>Dashboard สรุปผลการตรวจนับ</b> ให้ และเอกสารไปรอผู้ตรวจสอบ ถ้าปิดเร็วไป ผู้ตรวจสอบกด <span class="ui">เปิดการนับต่อ</span> ได้</p>
             </section>
 
@@ -637,7 +659,31 @@
               <div class="sec-head"><span class="sec-no">08</span><h2>ตรวจสอบผลต่าง และส่งขออนุมัติปรับยอด (ผู้ตรวจสอบ)</h2></div>
               <p>ส่วนนี้สำหรับผู้มีสิทธิ์ <b>ตรวจสอบผลต่างและส่งขออนุมัติปรับยอด</b> เปิดเอกสารสถานะ <span class="badge st-REVIEW">รอตรวจสอบ</span> (จากแท็บงานของฉัน หรือการ์ดรอตรวจสอบ)</p>
               <figure class="shot"><a href="images/manual/stock-count/sc-review.png" target="_blank"><img src="images/manual/stock-count/sc-review.png" alt="Dashboard สรุปผลการตรวจนับ" loading="lazy"></a><figcaption>Dashboard สรุปผลการตรวจนับ: ตรงกัน / ขาด / เกิน / ยังไม่นับ / ไม่พบในระบบ และความแม่นยำ</figcaption></figure>
+              <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>แถบขั้นตอน</b> อยู่ที่ขั้น 3 สรุปผล / ตรวจสอบผลต่าง</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>การ์ดสรุปผล</b>: รายการที่บันทึก / ยอดตรงกัน / ขาด / เกิน / ยังไม่นับ</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>ไม่พบในระบบ</b>: สิ่งที่เจอแต่ไม่มีในระบบ ต้องจัดการให้ครบก่อนส่งขออนุมัติ</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>ความแม่นยำ</b> = ตรงกัน ÷ รายการที่นับ</span></li>
+                <li><span class="pin pin-inline">5</span><span><span class="ui">เปิดการนับต่อ</span> ถ้าปิดเร็วไป</span></li>
+                <li><span class="pin pin-inline">6</span><span><span class="ui">สั่งนับซ้ำรายการที่เลือก</span> ติ๊กช่องนับซ้ำในตารางก่อน</span></li>
+                <li><span class="pin pin-inline">7</span><span><span class="ui">ส่งขออนุมัติปรับยอด</span></span></li>
+              </ol>
               <figure class="shot"><a href="images/manual/stock-count/sc-review-lines.png" target="_blank"><img src="images/manual/stock-count/sc-review-lines.png" alt="ตรวจสอบผลต่าง" loading="lazy"></a><figcaption>ตารางตรวจสอบผลต่าง (ใต้ Dashboard)</figcaption></figure>
+              <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>ปุ่มกรอง</b>: มีผลต่าง / ขาด / เกิน / ตรงกัน / ยังไม่นับ / ส่งปรับยอด / ทั้งหมด</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>นับซ้ำ</b>: ติ๊กรายการที่ต้องการให้นับใหม่</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>ยอดตาม ERP</b>: ยอด ณ ตอนกดเริ่มนับ (snapshot)</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>ยอดนับจริง</b>: ยอดที่นับได้</span></li>
+                <li><span class="pin pin-inline">5</span><span><span class="ui">Export ผลการนับ</span> ส่งออกเป็น Excel</span></li>
+              </ol>
+              <figure class="shot"><a href="images/manual/stock-count/sc-review-right.png" target="_blank"><img src="images/manual/stock-count/sc-review-right.png" alt="คอลัมน์ผลต่างและสาเหตุ" loading="lazy"></a><figcaption>เลื่อนตารางไปทางขวา: ผลต่าง สถานะ สถานะคุณภาพ สาเหตุ และช่องส่งปรับยอด</figcaption></figure>
+              <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>ผลต่าง</b>: จำนวนที่ต่าง (− = ขาด / + = เกิน) และเปอร์เซ็นต์ของยอดในระบบ</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>สถานะผลต่าง</b>: ขาด / เกิน / ตรงกัน</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>สถานะคุณภาพ</b>: ปกติ / รอตรวจสอบคุณภาพ / Hold / Reject</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>สาเหตุ / หมายเหตุ</b>: เลือกสาเหตุ (จำเป็นสำหรับรายการที่ส่งปรับยอด) และพิมพ์หมายเหตุเพิ่มได้</span></li>
+                <li><span class="pin pin-inline">5</span><span><b>ส่งปรับยอด</b>: ติ๊ก = ส่งขออนุมัติ ระบบติ๊กให้รายการที่ต่างเกินค่ายอมรับ เอาออกได้ถ้าไม่ต้องการปรับ</span></li>
+              </ol>
               <ol class="steps">
                 <li>ดูรายการผลต่าง (ปุ่มกรอง มีผลต่าง / ขาด / เกิน / ส่งปรับยอด) ระบบติ๊ก<b>ส่งปรับยอด</b>ให้ทุกรายการที่ต่างเกินค่ายอมรับ เอาออกได้ถ้าไม่ต้องการปรับ</li>
                 <li>ระบุ <b>สาเหตุ</b> ของทุกรายการที่ส่งปรับยอด (จำเป็น) เช่น นับคลาดเคลื่อน / บันทึกรับ-จ่ายในระบบผิด / เบิกใช้แล้วยังไม่ตัดระบบ</li>
@@ -652,11 +698,15 @@
             <section class="doc-section" id="c-overview2">
               <div class="sec-head"><span class="sec-no">09</span><h2>ภาพรวม และระดับการตรวจนับ</h2></div>
               <figure class="shot"><a href="images/manual/stock-count/sc-overview.png" target="_blank"><img src="images/manual/stock-count/sc-overview.png" alt="ภาพรวม" loading="lazy"></a><figcaption>แท็บภาพรวม (เลือกบริษัท)</figcaption></figure>
-              <ul class="bullets">
-                <li><b>สรุป 30 วัน</b>: จำนวนเอกสาร รายการที่นับ ความแม่นยำ (ตรงกัน ÷ นับแล้ว) ขาด / เกิน และเอกสารที่ยังไม่จบ</li>
-                <li><b>แผนตรวจนับรายคลัง</b>: เรียงคลังที่ควรนับก่อน ตาม <b>ระดับการตรวจนับ</b> (อายุนับจากครั้งล่าสุดที่นับบนเว็บ): <span class="lvx l0">ยังไม่เคยนับ</span> <span class="lvx l1">ระดับ 1 &lt; 90 วัน</span> <span class="lvx l2">ระดับ 2 90–180 วัน</span> <span class="lvx l3">ระดับ 3 181–365 วัน</span> <span class="lvx l4">ระดับ 4 ≥ 366 วัน</span></li>
-                <li><b>สาเหตุผลต่าง</b> และ <b>สินค้าที่ขาดบ่อย</b>: ใช้หาต้นเหตุที่ต้องแก้ เช่น การตัดเบิกในระบบไม่ทัน</li>
-              </ul>
+                            <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>เอกสารที่ยังไม่ปิด</b>: ร่าง / กำลังนับ / รอตรวจสอบ / รออนุมัติปรับยอด กดการ์ดเพื่อดูรายการ</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>ผลการนับ 30 วันล่าสุด</b>: เอกสารที่ปิดการนับ รายการที่นับ ตรงกัน ขาด เกิน</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>ความแม่นยำ</b> = ตรงกัน ÷ รายการที่นับ</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>สัดส่วนผลการนับ</b>: ตรงกัน / ขาด / เกิน</span></li>
+                <li><span class="pin pin-inline">5</span><span><b>สาเหตุผลต่าง</b>: ใช้หาต้นเหตุที่ต้องแก้ เช่น การตัดเบิกในระบบไม่ทัน</span></li>
+                <li><span class="pin pin-inline">6</span><span><b>สินค้าที่ขาดบ่อย</b> 10 อันดับ (90 วัน)</span></li>
+                <li><span class="pin pin-inline">7</span><span><b>แผนตรวจนับรายคลัง</b>: เรียงคลังที่ควรนับก่อน ตาม <b>ระดับการตรวจนับ</b> (อายุนับจากครั้งล่าสุดที่นับบนเว็บ): <span class="lvx l0">ยังไม่เคยนับ</span> <span class="lvx l1">ระดับ 1 &lt; 90 วัน</span> <span class="lvx l2">ระดับ 2 90–180 วัน</span> <span class="lvx l3">ระดับ 3 181–365 วัน</span> <span class="lvx l4">ระดับ 4 ≥ 366 วัน</span></span></li>
+              </ol>
             </section>
 
             <section class="doc-section" id="c-print">
@@ -734,7 +784,7 @@
 
             <section class="doc-section" id="a-overview">
               <div class="sec-head"><span class="sec-no">01</span><h2>ภาพรวมการทำงาน</h2></div>
-              <p><b>ใบขอปรับยอดสต๊อก (RQ)</b> มาได้ 3 ทาง: จากการตรวจนับบนเว็บ / จาก WIM Desktop / จากการขอกลับรายการ — ทุกใบผ่าน 3 ขั้นเหมือนกัน กดขั้นไหนก่อนก็ได้ ขั้นที่ทำให้<b>ครบ 3 ขั้น</b> = ระบบปรับสต๊อกจริงทันที</p>
+              <p><b>ใบขอปรับยอดสต๊อก (RQ)</b> มาได้ 3 ทาง: จากการตรวจนับบนเว็บ / จาก WIM Desktop / จากการขอกลับรายการ — ทุกใบผ่าน 3 ขั้นตอนเหมือนกัน กดขั้นตอนไหนก่อนก็ได้ และขั้นตอนที่<b>เป็นขั้นตอนสุดท้าย</b> = ระบบปรับสต๊อกจริงทันที</p>
               <div class="flow">
                 <div class="flow-step" style="--c:#8b72e6">
                   <div class="flow-who">ผู้รับทราบ</div>
@@ -752,38 +802,59 @@
                   <div class="flow-desc">อนุมัติ — ถ้าอีก 2 ขั้นผ่านแล้ว ระบบปรับยอดคงเหลือและลง Stock Card ทันที</div>
                 </div>
               </div>
-              <div class="callout tip"><span class="ic">💡</span><span>คนที่มีสิทธิ์หลายขั้นกดต่อกันได้เลย ระบบบันทึกชื่อคนกดและเวลาของทุกขั้นไว้ตรวจย้อนหลัง</span></div>
             </section>
 
             <section class="doc-section" id="a-inbox">
               <div class="sec-head"><span class="sec-no">02</span><h2>งานรออนุมัติ: ที่เดียวสำหรับทุกเรื่อง</h2></div>
               <p>เมนู <span class="ui">งานรออนุมัติ</span> (บนสุดของเมนูซ้าย มีตัวเลขบอกจำนวนงาน) รวมทุกเรื่องที่รอคุณ ทั้งใบขอปรับยอดสต๊อก ส่งคืนสินค้า Supplier และขอรับซื้อเมล็ด Over PO</p>
               <figure class="shot"><a href="images/manual/stock-count/apv-inbox.png" target="_blank"><img src="images/manual/stock-count/apv-inbox.png" alt="งานรออนุมัติ" loading="lazy"></a><figcaption>หน้างานรออนุมัติ</figcaption></figure>
-              <ul class="bullets">
-                <li>แท็บ <b>งานอนุมัติที่ระบุชื่อฉัน</b> / <b>งานอนุมัติตามสิทธิ์ของฉัน</b> (แสดงเมื่อมีงานทั้ง 2 แบบ) · ตัวกรอง <b>ขั้นตอน</b> (รับทราบ / ตรวจสอบ / อนุมัติ) สำหรับคนที่มีหลายสิทธิ์</li>
-                <li>ปุ่มสีหน้าแถว (<b>ดำเนินการ</b>) = ขั้นของคุณ กดแล้วเปิดใบขอปรับยอดเพื่อกด ปิดแล้วกลับมาหน้านี้</li>
-                <li>ติ๊กหลายใบแล้วกดขั้นเดียวกันพร้อมกันได้ (แถบด้านบนตาราง)</li>
-                <li>ป้าย <b>ค้าง … วัน</b> เปลี่ยนเป็นสีส้มเมื่อเกิน 7 วัน และสีแดงเมื่อเกิน 30 วัน</li>
-              </ul>
+                            <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>การ์ดสรุป</b>: รอฉันทั้งหมด และแยกตามเรื่อง กดเพื่อกรอง ตัวเลขเปลี่ยนตามตัวกรองที่เลือกอยู่</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>ตัวกรองขั้นตอน</b> (รับทราบ / ตรวจสอบ / อนุมัติ): แสดงเมื่อคุณมีงานมากกว่า 1 ขั้นตอน</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>ค้นหา</b> เลขที่เอกสาร / บริษัท / รายละเอียด</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>บริษัท</b> และ <b>เรียงตาม</b> (ส่งล่าสุดก่อน / ค้างนานสุดก่อน)</span></li>
+                <li><span class="pin pin-inline">5</span><span><span class="ui">Refresh</span></span></li>
+                <li><span class="pin pin-inline">6</span><span><b>แถบเลือกหลายใบ</b> (ใบขอปรับยอดสต๊อก): ติ๊กหลายใบแล้วกดขั้นตอนเดียวกันพร้อมกัน</span></li>
+                <li><span class="pin pin-inline">7</span><span><b>ดำเนินการ</b>: ปุ่มสีตามขั้นตอนของคุณ กดแล้วเปิดใบขอปรับยอดเพื่อกด ปิดแล้วกลับมาหน้านี้</span></li>
+                <li><span class="pin pin-inline">8</span><span><b>ความคืบหน้า</b>: ✓ ขั้นที่ผ่านแล้ว ○ ขั้นที่ยังรอ</span></li>
+                <li><span class="pin pin-inline">9</span><span><b>ค้าง … วัน</b>: สีส้มเมื่อเกิน 7 วัน สีแดงเมื่อเกิน 30 วัน</span></li>
+              </ol>
+              <p>แท็บ <b>งานอนุมัติที่ระบุชื่อฉัน</b> / <b>งานอนุมัติตามสิทธิ์ของฉัน</b> จะแสดงเมื่อคุณมีงานทั้ง 2 แบบ</p>
               <p>หรือใช้เมนูเฉพาะขั้นใน <span class="ui">คลังวัสดุและสินค้า › ตรวจนับสต๊อก</span>: <span class="ui">รับทราบปรับยอดสต๊อก</span> / <span class="ui">ตรวจสอบปรับยอดสต๊อก</span> / <span class="ui">อนุมัติปรับยอดสต๊อก</span> แสดงเป็นการ์ดใบที่รอขั้นนั้น</p>
               <figure class="shot"><a href="images/manual/stock-count/adj-list.png" target="_blank"><img src="images/manual/stock-count/adj-list.png" alt="เมนูตรวจสอบปรับยอดสต๊อก" loading="lazy"></a><figcaption>เมนูตรวจสอบปรับยอดสต๊อก (การ์ดใบที่รอขั้นตรวจสอบ)</figcaption></figure>
+              <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>แถบเลือกหลายใบ</b>: เลือกทั้งหมด แล้วกดขั้นตอนพร้อมกัน</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>ช่องติ๊ก</b>เลือกใบที่ต้องการ</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>ที่มา</b>: ตรวจนับ SC… / WIM Desktop / กลับรายการ …</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>ขั้นที่ผ่านแล้ว</b> (✓) และที่ยังรอ (○)</span></li>
+                <li><span class="pin pin-inline">5</span><span><b>ปุ่มขั้นตอนของคุณ</b> กดแล้วเปิดใบขอปรับยอด</span></li>
+              </ol>
             </section>
 
             <section class="doc-section" id="a-doc">
               <div class="sec-head"><span class="sec-no">03</span><h2>เปิดใบขอปรับยอด แล้วกดขั้นของคุณ</h2></div>
               <figure class="shot"><a href="images/manual/stock-count/adj-doc.png" target="_blank"><img src="images/manual/stock-count/adj-doc.png" alt="ใบขอปรับยอดสต๊อก" loading="lazy"></a><figcaption>หน้าต่างใบขอปรับยอดสต๊อก (เปิดจากขั้นตรวจสอบ)</figcaption></figure>
-              <ul class="bullets">
-                <li>ด้านบน: เหตุผล วันที่ขอ จำนวนรายการ ผู้ออกคำสั่ง / ผู้ปฏิบัติงาน และกล่อง 3 ขั้น (ชื่อคนกดและเวลา)</li>
-                <li><b>รายการปรับยอด</b>: ยอดก่อนปรับ / ปรับ (+ / −) / ยอดหลังปรับ และ <b>ยอดปัจจุบัน</b> — ถ้ายอดเปลี่ยนหลังส่งขอ มีป้ายเตือน</li>
-                <li>ใบจากการตรวจนับ มี <b>ผลการตรวจนับ</b> และปุ่มเปิดใบสรุปผลการตรวจนับให้ดูประกอบ</li>
-                <li>ปุ่มสีขวาบน = ขั้นของคุณ (รับทราบ / ตรวจสอบ / อนุมัติปรับยอด) · <span class="ui">ส่งกลับแก้ไข</span> (ใบจากการตรวจนับ) · <span class="ui">พิมพ์ใบขอปรับยอดสต๊อก</span></li>
-              </ul>
+                            <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>ที่มาของใบ</b>: จากการตรวจนับ / จาก WIM Desktop / กลับรายการ</span></li>
+                <li><span class="pin pin-inline">2</span><span><span class="ui">พิมพ์ใบขอปรับยอดสต๊อก</span></span></li>
+                <li><span class="pin pin-inline">3</span><span><span class="ui">ส่งกลับแก้ไข</span> (ใบจากการตรวจนับ) — ต้องระบุเหตุผล</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>ปุ่มขั้นตอนของคุณ</b> (รับทราบ / ตรวจสอบ / อนุมัติปรับยอด)</span></li>
+                <li><span class="pin pin-inline">5</span><span><b>กล่อง 3 ขั้นตอน</b>: แสดงชื่อคนกดและเวลา ขั้นที่ยังไม่ทำเป็น "รอดำเนินการ"</span></li>
+                <li><span class="pin pin-inline">6</span><span><b>รายการปรับยอด</b>: ยอดก่อนปรับ / ปรับ (+ / −) / ยอดหลังปรับ</span></li>
+                <li><span class="pin pin-inline">7</span><span><b>ยอดปัจจุบัน</b>: ถ้ายอดเปลี่ยนหลังส่งขอ จะมีป้ายเตือน</span></li>
+              </ol>
               <div class="callout tip"><span class="ic">💡</span><span>ใบจาก WIM Desktop ส่งกลับแก้ไขบนเว็บไม่ได้ (ต้องจัดการใน WIM Desktop) ส่วนใบจากการตรวจนับ ส่งกลับแล้วเอกสารตรวจนับกลับไปรอตรวจสอบผลต่าง</span></div>
             </section>
 
             <section class="doc-section" id="a-final">
               <div class="sec-head"><span class="sec-no">04</span><h2>ขั้นสุดท้าย = ปรับสต๊อกจริง</h2></div>
               <figure class="shot narrow"><a href="images/manual/stock-count/adj-final.png" target="_blank"><img src="images/manual/stock-count/adj-final.png" alt="ยืนยันขั้นสุดท้าย" loading="lazy"></a><figcaption>หน้าต่างยืนยันขั้นสุดท้าย: แสดงทุก Lot ที่จะถูกปรับ</figcaption></figure>
+              <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>คำเตือนขั้นสุดท้าย</b>: กดยืนยันแล้วระบบปรับยอดสต๊อกจริงทันที</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>รายการ Lot ที่จะถูกปรับ</b> พร้อมจำนวน</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>หมายเหตุ</b> (ถ้ามี)</span></li>
+                <li><span class="pin pin-inline">4</span><span><span class="ui">ยืนยัน</span></span></li>
+              </ol>
               <p>เมื่อกดยืนยันขั้นที่ทำให้ครบ 3 ขั้น ระบบทำทั้งหมดในครั้งเดียว:</p>
               <ul class="bullets">
                 <li>ปรับยอดคงเหลือของแต่ละ Lot ตามตำแหน่ง (เพิ่ม / ลด) และออกเลขเอกสารปรับยอด (เช่น 6910/00003)</li>
@@ -797,28 +868,46 @@
               <div class="sec-head"><span class="sec-no">05</span><h2>รายการขอปรับยอดสต๊อก (ติดตาม / พิมพ์ / ส่งลิงก์)</h2></div>
               <p>เมนู <span class="ui">รายการขอปรับยอดสต๊อก</span> สำหรับเจ้าหน้าที่ ติดตามใบขอปรับยอดทุกใบ (ทั้งจาก WIM Desktop การตรวจนับ และกลับรายการ) แท็บ <b>รายการรออนุมัติ</b> / <b>รายการยกเลิก</b></p>
               <figure class="shot"><a href="images/manual/stock-count/adj-track.png" target="_blank"><img src="images/manual/stock-count/adj-track.png" alt="รายการขอปรับยอดสต๊อก" loading="lazy"></a><figcaption>เมนูรายการขอปรับยอดสต๊อก</figcaption></figure>
-              <ul class="bullets">
-                <li>ป้ายที่มา: <b>ตรวจนับ SC…</b> / <b>WIM Desktop</b> / <b>กลับรายการ …</b> · ป้ายค้างกี่วัน · ขั้นที่ผ่านแล้ว</li>
-                <li><span class="ui">ส่งลิงก์ตามอนุมัติ</span>: คัดลอกข้อความพร้อมลิงก์ของขั้นที่ค้าง ส่งทาง LINE ให้ผู้อนุมัติกดต่อได้ทันที</li>
-                <li><span class="ui">พิมพ์</span>: ใบขอปรับยอดสต๊อก A4 พร้อมช่องลงนาม</li>
-              </ul>
+                            <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>แท็บ</b>: รายการรออนุมัติ / รายการยกเลิก (ใบที่อนุมัติครบแล้วดูในรายงานการปรับยอดสต๊อก)</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>ที่มา</b> และตัวกรองบริษัท / วันที่ขอปรับ / ค้นหา</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>เลขที่ใบ</b> และป้ายที่มา: ตรวจนับ SC… / WIM Desktop / กลับรายการ …</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>ขั้นอนุมัติ</b> และป้าย <b>ค้าง … วัน</b></span></li>
+                <li><span class="pin pin-inline">5</span><span><span class="ui">ส่งลิงก์ตามอนุมัติ</span>: คัดลอกข้อความพร้อมลิงก์ของขั้นที่ค้าง ส่งทาง LINE ให้ผู้อนุมัติกดต่อได้ทันที</span></li>
+                <li><span class="pin pin-inline">6</span><span><span class="ui">พิมพ์</span> ใบขอปรับยอดสต๊อก A4 พร้อมช่องลงนาม</span></li>
+                <li><span class="pin pin-inline">7</span><span><span class="ui">รายละเอียด</span> เปิดใบขอปรับยอด (ดูอย่างเดียว)</span></li>
+              </ol>
             </section>
 
             <section class="doc-section" id="a-report">
               <div class="sec-head"><span class="sec-no">06</span><h2>รายงานการปรับยอดสต๊อก</h2></div>
               <p>เมนู <span class="ui">รายงาน › รายงานสต๊อก › รายงานการปรับยอดสต๊อก</span> ดูการปรับสต๊อกจริงทุกใบ (ทั้งจาก WIM Desktop และเว็บ)</p>
               <figure class="shot"><a href="images/manual/stock-count/adj-report.png" target="_blank"><img src="images/manual/stock-count/adj-report.png" alt="รายงานการปรับยอดสต๊อก" loading="lazy"></a><figcaption>มุมมองตามเอกสาร (กด + เพื่อดูรายการที่ปรับ)</figcaption></figure>
-              <ul class="bullets">
-                <li>เลือกบริษัท และวันที่ปรับเป็น <b>เดือน / ปี / ช่วงวันที่</b> หรือค้นด้วยเลขที่รายการ / เลขใบขอปรับยอด (ค้นทุกช่วงวันที่) — เปลี่ยนเงื่อนไขแล้วโหลดใหม่เอง</li>
-                <li>3 มุมมอง: <b>ตามเอกสาร</b> · <b>ตามรายการ</b> (เรียงตามคอลัมน์ได้) · <b>ภาพรวม</b> (แนวโน้ม 12 เดือน สินค้าที่ปรับบ่อย คลัง สาเหตุ ที่มา)</li>
-                <li><span class="ui">Export Excel</span> และ <span class="ui">พิมพ์รายงาน</span> (A4 แนวนอน) · 📂 เปิดดูใบขอปรับยอดของรายการนั้น</li>
-              </ul>
+                            <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>โหมดวันที่ปรับ</b>: วันที่ / เดือน / ปี</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>บริษัท</b> (ต้องเลือก) และตัวกรองประเภท / คลังหลัก / ตัวดำเนินการ / สินค้า-Lot No. · เปลี่ยนแล้วรายงานโหลดใหม่เอง</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>เลขที่รายการ / ใบขอปรับยอด</b>: ระบุแล้วค้นทุกช่วงวันที่</span></li>
+                <li><span class="pin pin-inline">4</span><span><span class="ui">Refresh</span></span></li>
+                <li><span class="pin pin-inline">5</span><span><span class="ui">Export Excel</span> (และ <span class="ui">พิมพ์รายงาน</span> A4 แนวนอน อยู่ข้างกัน)</span></li>
+                <li><span class="pin pin-inline">6</span><span><b>3 มุมมอง</b>: ตามเอกสาร · ตามรายการ (เรียงตามคอลัมน์ได้) · ภาพรวม (แนวโน้ม 12 เดือน สินค้าที่ปรับบ่อย คลัง สาเหตุ ที่มา)</span></li>
+                <li><span class="pin pin-inline">7</span><span>📂 <b>ดูใบขอปรับยอดสต๊อก</b> ของเอกสารนั้น</span></li>
+                <li><span class="pin pin-inline">8</span><span>↺ <b>ขอกลับรายการ</b> (ดูหัวข้อ 07)</span></li>
+                <li><span class="pin pin-inline">9</span><span><b>+ / −</b> กาง / ซ่อนรายการที่ปรับของเอกสาร</span></li>
+              </ol>
             </section>
 
             <section class="doc-section" id="a-reverse">
               <div class="sec-head"><span class="sec-no">07</span><h2>ปรับผิด: ขอกลับรายการ</h2></div>
               <p>ยอดที่ปรับแล้วแก้หรือลบไม่ได้ ถ้าปรับผิด ผู้มีสิทธิ์ <b>ขอกลับรายการปรับยอดสต๊อก</b> กดปุ่ม <span class="ui">↺</span> ในรายงาน (มุมมองตามเอกสาร) หรือ <span class="ui">ขอกลับรายการ</span> ในใบขอปรับยอดที่ปรับแล้ว — ใช้ได้กับเอกสารปรับจาก WIM Desktop ด้วย</p>
               <figure class="shot"><a href="images/manual/stock-count/adj-reverse.png" target="_blank"><img src="images/manual/stock-count/adj-reverse.png" alt="ขอกลับรายการ" loading="lazy"></a><figcaption>หน้าต่างขอกลับรายการ</figcaption></figure>
+              <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>เลือกทั้งหมดที่กลับรายการได้</b></span></li>
+                <li><span class="pin pin-inline">2</span><span><b>ติ๊กเลือกรายการ</b> ที่ต้องการกลับ</span></li>
+                <li><span class="pin pin-inline">3</span><span><b>กลับรายการ</b>: การปรับทิศตรงข้ามกับที่ปรับเดิม คิดจากยอดคงเหลือตอนนี้</span></li>
+                <li><span class="pin pin-inline">4</span><span><b>สถานะ</b>: กลับรายการได้ / Lot ถูกล็อก / ยอดไม่พอ / กลับรายการแล้ว — ระบบบอกเหตุผลที่กลับไม่ได้</span></li>
+                <li><span class="pin pin-inline">5</span><span><b>เหตุผลการกลับรายการ</b> (จำเป็น)</span></li>
+                <li><span class="pin pin-inline">6</span><span><span class="ui">ส่งขอกลับรายการ</span></span></li>
+              </ol>
               <ol class="steps">
                 <li>เลือกรายการที่จะกลับ (ระบบติ๊กรายการที่กลับได้ให้) ระบบคำนวณการปรับทิศตรงข้าม และยอดหลังกลับรายการ จากยอดคงเหลือตอนนี้</li>
                 <li>กรอก <b>เหตุผลการกลับรายการ</b> แล้วกด <span class="ui">ส่งขอกลับรายการ</span></li>

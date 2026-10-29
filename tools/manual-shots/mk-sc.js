@@ -1,4 +1,4 @@
-// ถ่ายรูปประกอบคู่มือตรวจนับสต๊อก + อนุมัติปรับยอดสต๊อก (WebKit 1920 × scale 1.5) จากหน้าจริง + ข้อมูลจำลอง (ไม่ต่อ DB / ไม่ใช้ session)
+// ถ่ายรูปประกอบคู่มือตรวจนับสต๊อก + อนุมัติปรับยอดสต๊อก (WebKit 1366 × scale 2) จากหน้าจริง + ข้อมูลจำลอง (ไม่ต่อ DB / ไม่ใช้ session)
 //   ใช้: node mk-sc.js [ชื่อรูป ...]  → public/images/manual/stock-count/
 //   ชื่อบุคคลในรูปกำหนดใน P (ผู้ตรวจนับ / ผู้ตรวจสอบ / ผู้รับทราบ / ผู้ตรวจสอบปรับยอด / ผู้อนุมัติ) แก้แล้วรันใหม่ได้
 const http = require('http'), fs = require('fs'), path = require('path');
@@ -93,10 +93,10 @@ const INBOX = (() => {
     my: my.map(k => ({ code: k, name: { ack: 'รับทราบ', check: 'ตรวจสอบ', approve: 'อนุมัติปรับยอด' }[k] })), progress: prog3(done), href: `/stock-adjust-approve?id=${id}&step=${my[0]}&from=inbox` });
   const data = [
     it(1, 'RQ6910/00098', 'ตรวจนับสต๊อก SC6910/0004 (ประจำสัปดาห์)', 'ตรวจนับ SC6910/0004', 3, ['check'], 1, '2026-10-26T13:00:00.000Z'),
-    it(2, 'RQ6910/00099', 'ตรวจนับสต๊อก SC6910/0007 (ประจำเดือน)', 'ตรวจนับ SC6910/0007', 5, ['check'], 1, '2026-10-24T15:20:00.000Z'),
-    { ...it(3, 'RQ6910/00100', 'ปรับยอดตามการชั่งน้ำหนักจริงหน้างาน', 'WIM Desktop', 2, ['check'], 1, '2026-10-15T09:40:00.000Z'), srcType: 'PC' }];
+    it(2, 'RQ6910/00099', 'ตรวจนับสต๊อก SC6910/0007 (ประจำเดือน)', 'ตรวจนับ SC6910/0007', 5, ['ack'], 0, '2026-10-24T15:20:00.000Z'),
+    { ...it(3, 'RQ6910/00100', 'ปรับยอดตามการชั่งน้ำหนักจริงหน้างาน', 'WIM Desktop', 2, ['approve'], 2, '2026-10-15T09:40:00.000Z'), srcType: 'PC' }];
   return { success: true, data, counts: { rq: 3, rts: 0, ops: 0 }, total: 3, named: 0, role: 3, more: {}, badge: 3, badgeCounts: { rq: 3, rts: 0, ops: 0 }, unrestricted: false, eligible: true,
-    mods: { rq: true, rts: false, ops: false }, me: P.check.id, postingReady: true, can: { rqBulk: ['check'] } };
+    mods: { rq: true, rts: false, ops: false }, me: P.check.id, postingReady: true, can: { rqBulk: ['ack', 'check', 'approve'] } };
 })();
 const RPT_DOCS = [
   { id: 6480, docCode: '6910/00003', date: '2026-10-27T15:10:00', idComp: 4, compCode: 'AV', compName: COMP.name, note: 'ตรวจนับสต๊อก SC6910/0004 (ประจำสัปดาห์)', cmd: P.reviewer.name, act: P.counter.name, idRq: 1, rqCode: 'RQ6910/00098', src: 'SC', scCode: 'SC6910/0004', apv: P.approve.name, revOf: null },
@@ -150,28 +150,94 @@ function api(url, user) {
   return { success: true, data: [] };
 }
 
+// หมุด: [เลข, selector (Playwright), ลำดับที่, ตำแหน่ง tr|tl|l|r|c, dx, dy] — เลขตรงกับรายการใต้ภาพในคู่มือ
 const SHOTS = {
   // ---- ฝั่งตรวจนับ ----
-  async 'sc-list'(page) { await go(page, '/stock-count', P.counter); await page.evaluate(() => { const b = document.getElementById('stepsBox'); if (b && b.hidden) document.getElementById('stepsToggle').click(); }); await page.waitForTimeout(300); return top(page, 1180); },
-  async 'sc-form'(page) { await go(page, '/stock-count', P.counter); await page.click('#btnNew'); await page.waitForTimeout(900); return page.locator('.modal-box:visible').first().screenshot({ type: 'png' }); },
-  async 'sc-mode'(page) { await go(page, '/stock-count?id=5', P.counter); return top(page, 980); },
-  async 'sc-sheet'(page) { await go(page, '/stock-count?id=1', P.counter); return top(page, 1150); },
-  async 'sc-live'(page) { await go(page, '/stock-count?id=2', P.counter); return top(page, 1000); },
-  async 'sc-close'(page) { await go(page, '/stock-count?id=1', P.counter); await page.locator('[data-act="close"]').first().click(); await page.waitForTimeout(700); return page.locator('.modal-box:visible').first().screenshot({ type: 'png' }); },
-  async 'sc-review'(page) { await go(page, '/stock-count?id=3', P.reviewer); return top(page, 1300); },
+  async 'sc-list'(page) { await go(page, '/stock-count', P.counter); await page.evaluate(() => { const b = document.getElementById('stepsBox'); if (b && b.hidden) document.getElementById('stepsToggle').click(); }); await page.waitForTimeout(300);
+    return top(page, 1180, 'sc-list', [[1, '#btnNew'], [2, '#stepsToggle'], [3, '[data-ltab="mine"]'], [4, '#fComp'], [5, '#btnReload'], [6, '#fSearch'], [7, '#btnMoreFlt'], [8, '#listDash > *', 2], [9, '#listBody tr:nth-child(1) td:nth-child(3)'], [10, '#listBody tr:nth-child(5) td:nth-child(8)', 0, 'tr']]); },
+  async 'sc-form'(page) { await go(page, '/stock-count', P.counter); await page.click('#btnNew'); await page.waitForTimeout(900);
+    await pins(page, 'sc-form', [[1, '#hComp'], [2, '#hWhPick'], [3, '#hDate'], [4, '#hRound'], [5, '#hType'], [6, '#hCounter'], [7, '#hReviewer'], [8, '#hTol'], [9, 'label:has(#hBlind)', 0, 'tr'], [10, '#hNote']]);
+    return page.locator('.modal-box:visible').first().screenshot({ type: 'png' }); },
+  async 'sc-mode'(page) { await go(page, '/stock-count?id=5', P.counter);
+    return top(page, 980, 'sc-mode', [[1, '.stepper .stp.cur', 0, 'tr'], [2, '.mode-card[data-mode="O"]'], [3, 'input[name="sheet"][value="P"]', 0, 'l', -4], [4, '.mode-card[data-mode="L"]'], [5, '.warn-box', 0, 'tl'], [6, '[data-act="start"]']]); },
+  async 'sc-sheet'(page) { await go(page, '/stock-count?id=1', P.counter);
+    return top(page, 1150, 'sc-sheet', [[1, '.stepper .stp.cur', 0, 'tr'], [2, '[data-act="print"]', 1], [3, '[data-act="export"]'], [4, '[data-act="import"]'], [5, '[data-act="add-u"]'], [6, '.qty-in', 1], [7, '[data-act="save-qty"]'], [8, '[data-act="close"]']]); },
+  async 'sc-live'(page) { await go(page, '/stock-count?id=2', P.counter);
+    return top(page, 1000, 'sc-live', [[1, '#scanInput'], [2, '[data-live="camera"]'], [3, '[data-act="close"]'], [4, '.card:has(h2:text("ความคืบหน้า"))', 0, 'tl', 6, 6]]); },
+  async 'sc-close'(page) { await go(page, '/stock-count?id=1', P.counter); await page.locator('[data-act="close"]').first().click(); await page.waitForTimeout(700);
+    await pins(page, 'sc-close', [[1, 'input[name="crule"][value="Z"]', 0, 'r', 258, 0], [2, 'input[name="crule"][value="X"]', 0, 'r', 214, 0], [3, '[data-act="close-confirm"]', 0, 'tr', -6, 2]]);
+    return page.locator('.modal-box:visible').first().screenshot({ type: 'png' }); },
+  async 'sc-review'(page) { await go(page, '/stock-count?id=3', P.reviewer);
+    return top(page, 1300, 'sc-review', [[1, '.stepper .stp.cur', 0, 'tr'], [2, '.dash-card', 0], [3, '.dash-card', 5], [4, '.box:has-text("ความแม่นยำ")', 0, 'tl', 8, 8], [5, '[data-act="reopen"]'], [6, '[data-act="recount"]'], [7, '[data-act="submit"]']]); },
   // ตารางตรวจสอบผลต่าง (การ์ดใต้ Dashboard) — ซ่อนแถบปุ่มลอยด้านล่างชั่วคราวไม่ให้บังตาราง
   async 'sc-review-lines'(page) { await go(page, '/stock-count?id=3', P.reviewer); await page.addStyleTag({ content: '.save-bar{position:static !important}' }); await page.waitForTimeout(300);
-    return page.locator('.card', { hasText: 'ตรวจสอบผลต่าง' }).last().screenshot({ type: 'png' }); },
-  async 'sc-overview'(page) { await go(page, '/stock-count', P.reviewer); await page.selectOption('#fComp', '4').catch(() => {}); await page.click('[data-ltab="overview"]'); await page.waitForTimeout(1200); return top(page, 1250); },
+    const card = page.locator('.card', { hasText: 'ตรวจสอบผลต่าง' }).last(); await card.scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
+    await pinsDoc(page, 'sc-review-lines', [[1, '.seg button', 0, 'tl'], [2, '.ln-table thead th:has-text("นับซ้ำ")', 0, 'tr'], [3, '.ln-table thead th:has-text("ยอดตาม ERP")', 0, 'tr'], [4, '.ln-table thead th:has-text("ยอดนับจริง")', 0, 'tr'], [5, 'text=Export ผลการนับ', 0, 'tr']]);
+    return card.screenshot({ type: 'png' }); },
+  // คอลัมน์ฝั่งขวาของตารางตรวจสอบผลต่าง (เลื่อนตารางไปสุดขวา): ผลต่าง / สถานะผลต่าง / สถานะคุณภาพ / สาเหตุ
+  async 'sc-review-right'(page) { await go(page, '/stock-count?id=3', P.reviewer); await page.addStyleTag({ content: '.save-bar{position:static !important}' }); await page.waitForTimeout(300);
+    const card = page.locator('.card', { hasText: 'ตรวจสอบผลต่าง' }).last(); await card.scrollIntoViewIfNeeded();
+    // ซ่อนคอลัมน์ที่ค่าซ้ำทุกแถว (ผู้ตรวจนับ / ผู้ตรวจสอบ / วันหมดอายุ / สถานะดำเนินการ) ให้เห็น ผลต่าง → ส่งปรับยอด ในภาพเดียว
+    const info = await page.evaluate(() => { const tbl = document.querySelector('.ln-table'); const ths = [...tbl.querySelectorAll('thead tr:first-child th')];
+      const idx = ['ผู้ตรวจนับ', 'ผู้ตรวจสอบ', 'วันหมดอายุ', 'สถานะดำเนินการ'].map(n => ths.findIndex(t => t.textContent.trim() === n)).filter(i => i >= 0);
+      let hidden = 0; tbl.querySelectorAll('tr').forEach(tr => { if (tr.children.length === ths.length) idx.forEach(i => { tr.children[i].style.display = 'none'; hidden++; }); });
+      const t = document.querySelector('.ln-area .table-responsive'); const th = ths.find(x => x.textContent.trim() === 'ผลต่าง'); if (t && th) t.scrollLeft = th.offsetLeft - 6;
+      return { n: ths.length, idx, hidden, sw: t && t.scrollWidth, cw: t && t.clientWidth }; });
+    console.log('  review-right', JSON.stringify(info)); await page.waitForTimeout(400);
+    await pinsDoc(page, 'sc-review-right', [[1, '.ln-table thead th:text-is("ผลต่าง")', 0, 'tr'], [2, '.ln-table thead th:has-text("สถานะผลต่าง")', 0, 'tr'], [3, '.ln-table thead th:has-text("สถานะคุณภาพ")', 0, 'tr'], [4, '.ln-table thead th:has-text("สาเหตุ")', 0, 'tr'], [5, '.ln-table thead th:has-text("ส่งปรับยอด")', 0, 'tr']]);
+    return card.screenshot({ type: 'png' }); },
+  async 'sc-overview'(page) { await go(page, '/stock-count', P.reviewer); await page.selectOption('#fComp', '4').catch(() => {}); await page.click('[data-ltab="overview"]'); await page.waitForTimeout(1200);
+    return top(page, 1650, 'sc-overview', [[1, 'text=เอกสารที่ยังไม่ปิด', 0, 'l', -2], [2, 'text=ผลการนับ 30 วันล่าสุด', 0, 'l', -2], [3, 'text=ความแม่นยำ', 0, 'l', -2], [4, 'h3:has-text("สัดส่วนผลการนับ")', 0, 'l', -2], [5, 'h3:has-text("สาเหตุผลต่าง")', 0, 'l', -2], [6, 'h3:has-text("สินค้าที่ขาดบ่อย")', 0, 'l', -2], [7, 'h3:has-text("แผนตรวจนับรายคลัง")', 0, 'l', -2]]); },
   // ---- ฝั่งอนุมัติปรับยอด ----
-  async 'apv-inbox'(page) { await go(page, '/approvals', P.check); return top(page, 900); },
-  async 'adj-list'(page) { await go(page, '/stock-adjust-approve?step=check', P.check); return top(page, 900); },
-  async 'adj-doc'(page) { await go(page, '/stock-adjust-approve?id=1&step=check', P.check); await page.waitForTimeout(500); return page.locator('#docModal .modal-box').screenshot({ type: 'png' }); },
-  async 'adj-final'(page) { globalThis.__final = 1; await go(page, '/stock-adjust-approve?id=1&step=approve', P.approve); await page.locator('[data-step="approve"]').first().click(); await page.waitForTimeout(600); globalThis.__final = 0; return page.locator('#dlgModal .modal-box').screenshot({ type: 'png' }); },
-  async 'adj-track'(page) { await go(page, '/stock-adjust-list', P.reviewer); return top(page, 900); },
-  async 'adj-report'(page) { await go(page, '/stock-adjust-report', P.reviewer); await page.locator('.rp-table [data-toggle]').first().click(); await page.waitForTimeout(400); return top(page, 1150); },
-  async 'adj-reverse'(page) { await go(page, '/stock-adjust-report', P.reviewer); await page.locator('[data-rev]:visible').first().click(); await page.waitForTimeout(900); await page.fill('#rvxNote', 'ปรับผิด Lot — ต้องปรับที่ Lot 684-041-00012'); await page.waitForTimeout(200); return page.locator('.rvx-box').screenshot({ type: 'png' }); }
+  async 'apv-inbox'(page) { await go(page, '/approvals', P.check);
+    return top(page, 900, 'apv-inbox', [[1, '#ibDash > *', 0], [2, '#ibSteps button', 1], [3, '#fQ'], [4, '#fComp'], [5, '#btnRefresh'], [6, '#ibBulk .bulk', 0, 'tl', 8, 6], [7, '.ib-table tbody tr:nth-child(1) .act .btn'], [8, '.ib-table tbody tr:nth-child(1) .prog', 0, 'tr'], [9, '.ib-table tbody tr:nth-child(1) .age', 0, 'r']]); },
+  async 'adj-list'(page) { await go(page, '/stock-adjust-approve?step=check', P.check);
+    return top(page, 900, 'adj-list', [[1, '.bulk', 0, 'tl', 8, 6], [2, '.rq-card .pick', 0, 'l', -4], [3, '.rq-card .src', 0, 'tl', -2, -2], [4, '.rq-card .steps .stp', 0, 'tl', 0, -2], [5, '.rq-card .go', 0]]); },
+  async 'adj-doc'(page) { await go(page, '/stock-adjust-approve?id=1&step=check', P.check); await page.waitForTimeout(500);
+    await pins(page, 'adj-doc', [[1, '#docModal .doc-no', 0, 'r', 6, 0], [2, '#docModal [data-act="print"]'], [3, '#docModal [data-act="sendback"]'], [4, '#docModal [data-step]'], [5, '#docModal .step-grid', 0, 'tl', -4, -4], [6, '#docModal .ln-table', 0, 'tl', -8, -8], [7, '#docModal .ln-table thead th:has-text("ยอดปัจจุบัน")', 0, 'tr']]);
+    return page.locator('#docModal .modal-box').screenshot({ type: 'png' }); },
+  async 'adj-final'(page) { globalThis.__final = 1; await go(page, '/stock-adjust-approve?id=1&step=approve', P.approve); await page.locator('[data-step="approve"]').first().click(); await page.waitForTimeout(600); globalThis.__final = 0;
+    await pins(page, 'adj-final', [[1, '#dlgModal .warn-box', 0, 'tr', -6, -2], [2, '#dlgModal .post-list', 0, 'tr', -6, -2], [3, '#stepNote'], [4, '#dlgModal [data-confirm]']]);
+    return page.locator('#dlgModal .modal-box').screenshot({ type: 'png' }); },
+  async 'adj-track'(page) { await go(page, '/stock-adjust-list', P.reviewer);
+    return top(page, 900, 'adj-track', [[1, 'button:has-text("รายการรออนุมัติ")', 0, 'tl'], [2, '#tSrc'], [3, '.trk-table tbody tr:nth-child(1) td.no .src', 0, 'tl', -2, -2], [4, '.trk-table thead th:has-text("ขั้นอนุมัติ")', 0, 'tl', 10, 0], [5, '.trk-table tbody tr:nth-child(1) [data-rshare]'], [6, '.trk-table tbody tr:nth-child(1) [data-rprint]'], [7, '.trk-table tbody tr:nth-child(1) [data-open]']]); },
+  async 'adj-report'(page) { await go(page, '/stock-adjust-report', P.reviewer); await page.locator('.rp-table [data-toggle]').first().click(); await page.waitForTimeout(400);
+    return top(page, 1150, 'adj-report', [[1, '[data-dmode="month"]'], [2, '#fComp'], [3, '#fDoc'], [4, '#btnShow'], [5, '#btnXls'], [6, '#viewTabs button', 0, 'tl'], [7, '.rp-table .ic-btn:not(.rv)', 0], [8, '.rp-table .ic-btn.rv', 0], [9, '.rp-table .ex-btn', 0]]); },
+  async 'adj-reverse'(page) { await go(page, '/stock-adjust-report', P.reviewer); await page.locator('[data-rev]:visible').first().click(); await page.waitForTimeout(900); await page.fill('#rvxNote', 'ปรับผิด Lot — ต้องปรับที่ Lot 684-041-00012'); await page.waitForTimeout(200);
+    await pins(page, 'adj-reverse', [[1, '.rvx-all', 0, 'r', 6, 0], [2, '.rvx-tbl tbody tr:nth-child(1) .rvx-ck', 0, 'tl', -12, -12], [3, '.rvx-tbl thead th:nth-child(5)', 0, 'tr'], [4, '.rvx-tbl tbody tr:nth-child(3) .st .rvx-chip', 0, 'r', 6, 0], [5, '#rvxNote', 0, 'tr', -8, -6], [6, '[data-rvx="send"]']]);
+    return page.locator('.rvx-box').screenshot({ type: 'png' }); }
 };
+
+// หมุดเลขแดงบนภาพ — หาตำแหน่งด้วย Playwright locator (ซ่อนอยู่ = ใช้ตำแหน่งแม่ของมัน) แล้ววาง div ใน body (ภาพที่ถ่ายจึงมีหมุดติดไปด้วย)
+async function pinPoints(page, name, list, docCoords) {
+  const pts = [];
+  const sc = docCoords ? await page.evaluate(() => ({ x: scrollX, y: scrollY })) : { x: 0, y: 0 };
+  for (const [n, sel, idx = 0, place = 'tr', dx = 0, dy = 0] of list) {
+    const loc = page.locator(sel).nth(idx); let box = null;
+    for (const up of ['', 'xpath=..', 'xpath=../..', 'xpath=../../..']) {
+      const l = up ? loc.locator(up) : loc; box = await l.boundingBox({ timeout: 1500 }).catch(() => null);
+      if (box && box.width >= 2 && box.height >= 2) break; box = null;
+    }
+    if (!box) { console.log('  ไม่พบหมุด', name, n, sel, idx); continue; }
+    const r = box.x + box.width, b = box.y + box.height, mx = box.x + box.width / 2, my = box.y + box.height / 2;
+    const c = { tr: [r - 4, box.y], tl: [box.x + 4, box.y], l: [box.x - 14, my], r: [r + 14, my], c: [mx, my] }[place];
+    pts.push([n, c[0] + dx + sc.x, c[1] + dy + sc.y]);
+  }
+  return pts;
+}
+async function drawPins(page, pts) {
+  await page.evaluate((pts) => {
+    pts.forEach(([n, x, y]) => {
+      const d = document.createElement('div'); d.textContent = n; d.setAttribute('data-mkpin', '1');
+      d.style.cssText = 'position:absolute; z-index:2147483000; width:24px; height:24px; left:' + (x - 12) + 'px; top:' + (y - 12) + 'px; border-radius:50%; background:#e5533d; color:#fff; font:700 13px Inter,sans-serif; display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 3px rgba(229,83,61,.35), 0 2px 6px rgba(0,0,0,.55); pointer-events:none;';
+      document.body.appendChild(d);
+    });
+  }, pts);
+}
+// หมุดบนหน้าที่ไม่เลื่อน (หน้าต่าง popup / เริ่มที่บนสุด)
+async function pins(page, name, list) { await page.evaluate(() => window.scrollTo(0, 0)); await drawPins(page, await pinPoints(page, name, list, false)); }
+// หมุดตามพิกัดเอกสาร (หลังเลื่อนหน้าแล้ว)
+async function pinsDoc(page, name, list) { await drawPins(page, await pinPoints(page, name, list, true)); }
 
 async function go(page, url, user) {
   await page.addInitScript(u => sessionStorage.setItem('wim_user', JSON.stringify({ idPs: u.id, PsName: u.name, idComp: 4 })), user);
@@ -186,7 +252,13 @@ async function go(page, url, user) {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
 }
-async function top(page, h) { const m = await page.$('main'); const b = await m.boundingBox(); return page.screenshot({ type: 'png', clip: { x: b.x, y: Math.max(0, b.y - 12), width: b.width, height: Math.min(h, b.height + 24) } }); }
+async function top(page, h, name, list) {
+  const vh = Math.min(h + 150, 1700); await page.setViewportSize({ width: 1366, height: vh }); await page.waitForTimeout(500);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  if (list) await drawPins(page, await pinPoints(page, name, list, false));
+  const m = await page.$('main'); const b = await m.boundingBox();
+  return page.screenshot({ type: 'png', clip: { x: b.x, y: Math.max(0, b.y - 12), width: b.width, height: Math.min(vh - Math.max(0, b.y - 12), b.height + 24) } });
+}
 async function view(page) { const m = await page.$('main'); const b = await m.boundingBox(); const vh = page.viewportSize().height; return page.screenshot({ type: 'png', clip: { x: b.x, y: 0, width: b.width, height: vh } }); }
 
 (async () => {
@@ -202,7 +274,8 @@ async function view(page) { const m = await page.$('main'); const b = await m.bo
   const b = await webkit.launch();
   for (const [name, fn] of Object.entries(SHOTS)) {
     if (only.length && !only.includes(name)) continue;
-    const ctx = await b.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1.5 });
+    // 1366 (จอโน้ตบุ๊ก) × 2: ภาพแสดงในคู่มือกว้างราว 960px — ตัวหนังสือเกือบเท่าจอจริง (1920 ย่อลงครึ่งหนึ่งแล้วอ่านไม่ออก)
+    const ctx = await b.newContext({ viewport: { width: 1366, height: 900 }, deviceScaleFactor: 2 });
     const page = await ctx.newPage(); page.on('pageerror', e => console.log('  pageerror', name, e.message.slice(0, 120)));
     try { const buf = await fn(page); fs.writeFileSync(path.join(process.argv.includes('--tmp') ? __dirname : OUT, name + '.png'), buf); console.log('✓', name); }
     catch (e) { console.log('✗', name, e.message.split('\n')[0]); }
