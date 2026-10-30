@@ -2660,8 +2660,8 @@
       parts.push(h3(`ของที่พบแต่ไม่อยู่ในระบบ (${fmtInt(umOther.length)} รายการ)`));
       parts.push({ cols: [4, 18, 30, 16, 12, 20], thead: '<tr><th>#</th><th>Lot / รหัสที่พบ</th><th>ชื่อ / ลักษณะ</th><th>ตำแหน่ง</th><th>จำนวน</th><th>การจัดการ</th></tr>', rows: umRows });
     }
-    $('printArea').classList.toggle('sum-p', IOS_SUM);
-    doPrint(await pagedHtml({ landscape: !IOS_SUM, head, parts, foot }), !IOS_SUM);
+    $('printArea').classList.remove('sum-p');   // ใบสรุปผล = แนวนอนเสมอ (เคยลองแนวตั้งบน iOS แล้วหัวเอกสารทับกัน / footer ตกหน้า → ยกเลิก)
+    doPrint(await pagedHtml({ landscape: true, head, parts, foot }), true);
   }
 
   /* ---------- Excel: Export ใบนับ / นำเข้ายอดที่กรอกแล้ว (จับคู่ด้วยคอลัมน์ ID) ---------- */
