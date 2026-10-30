@@ -490,8 +490,10 @@ function compFilter(access, request, column) {
   if (access.allComps) return '';
   const ids = [...access.comps].map(Number).filter(Number.isInteger);
   if (ids.length === 0) return 'AND 1 = 0';
-  ids.forEach((id, i) => request.input(`accComp${i}`, sql.Int, id));
-  return `AND ${column} IN (${ids.map((_, i) => `@accComp${i}`).join(', ')})`;
+  // เรียกซ้ำใน request เดียวกันได้ (เช่น บริษัท + คลัง) — ชื่อ parameter ต้องไม่ซ้ำ ไม่งั้น mssql ขึ้น EDUPEPARAM (ผู้ใช้ที่จำกัดบริษัทโหลดไม่ได้)
+  const n = request.__compFilterN = (request.__compFilterN || 0) + 1;
+  ids.forEach((id, i) => request.input(`accComp${n}_${i}`, sql.Int, id));
+  return `AND ${column} IN (${ids.map((_, i) => `@accComp${n}_${i}`).join(', ')})`;
 }
 
 // ต้อง login: เก็บ idPs (จาก session) ไว้ที่ req.idPs ให้ handler ใช้ต่อ

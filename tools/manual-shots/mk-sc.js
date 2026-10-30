@@ -164,7 +164,7 @@ const SHOTS = {
     return page.locator('#whModal .modal-box').screenshot({ type: 'png' }); },
   // ตั้งค่าประเภท / สาเหตุ (เฉพาะผู้มีสิทธิ์ stock_count_setup)
   async 'sc-setup'(page) { await go(page, '/stock-count', P.reviewer); await page.click('#btnSetup'); await page.waitForTimeout(900);
-    await pins(page, 'sc-setup', [[1, '.su-tabs button', 0, 'tl', 6, 4], [2, '.su-tabs button', 1, 'tl', 6, 4], [3, '.su-ord', 1, 'l', -2, 0], [4, '[data-suact]', 1, 'l', -16, 0], [5, '[data-suedit]', 1, 'l', -4, 0], [6, '[data-suadd]', 0, 'l', -6, 0]]);
+    await pins(page, 'sc-setup', [[1, '.su-tabs button', 0, 'tl', 6, 4], [2, '.su-tabs button', 1, 'tl', 6, 4], [3, '.su-ord', 1, 'l', -2, 0], [4, '[data-suact]', 1, 'l', -16, 0], [5, '[data-suedit]', 1, 'tr', 4, -4], [6, '[data-suadd]', 0, 'l', -6, 0]]);
     return page.locator('#dlgModal .modal-box').screenshot({ type: 'png' }); },
   async 'sc-setup-form'(page) { await go(page, '/stock-count', P.reviewer); await page.click('#btnSetup'); await page.waitForTimeout(700); await page.click('[data-suadd]'); await page.waitForTimeout(500);
     await pins(page, 'sc-setup-form', [[1, '#suCode'], [2, '#suName'], [3, '#suEn'], [4, '.su-hint', 0, 'tr', -24, -6], [5, '[data-susave]', 0, 'tl', 4, 2]]);

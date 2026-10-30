@@ -1017,23 +1017,34 @@
     #dlgModal .form-grid.g2 input{height:46px; min-height:46px;}
     #dlgModal .form-grid.g2 .form-group.full{grid-column:1 / -1;}
   }
-  .su-tabs{display:flex; border-bottom:1px solid rgba(255,255,255,.12); margin-bottom:14px;}
-  .su-tabs button{flex:1; display:flex; align-items:center; justify-content:center; gap:8px; min-height:46px; padding:0 8px; background:none; border:0; border-bottom:3px solid transparent; margin-bottom:-1px; color:var(--concrete-400); font:inherit; font-size:14.5px; font-weight:600; cursor:pointer;}
-  .su-tabs button:hover{color:#fff;}
-  .su-tabs button.on{color:var(--amber-500); border-bottom-color:var(--amber-500);}
-  .su-tabs svg{width:18px; height:18px; flex:none;}
+  .su-tabs{display:flex; gap:4px; padding:5px; margin-bottom:14px; border-radius:12px; background:rgba(78,167,224,.1); border:1px solid rgba(78,167,224,.3);}
+  .su-tabs button{flex:1; display:flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:0 8px; background:none; border:1px solid transparent; border-radius:8px; color:var(--concrete-200); font:inherit; font-size:14.5px; font-weight:600; cursor:pointer; transition:background .15s, border-color .15s;}
+  .su-tabs button:hover{background:rgba(255,255,255,.06); color:#fff;}
+  .su-tabs button.on{background:rgba(242,169,28,.2); border-color:rgba(242,169,28,.75); color:#ffcf66; box-shadow:0 2px 8px -3px rgba(0,0,0,.5);}
+  .su-tabs svg{width:20px; height:20px; flex:none;}
+  .su-tabs button[data-sutab=type] svg{color:#4ea7e0;}
+  .su-tabs button[data-sutab=cause] svg{color:#ff8a75;}
   .su-hint{font-size:12.5px; color:var(--concrete-400); margin:0 0 12px; line-height:1.6;}
-  .su-row{display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.1); border-radius:10px; background:rgba(255,255,255,.03); margin-bottom:8px;}
-  .su-row.off .su-main{opacity:.55;}
-  .su-ord{display:flex; align-items:center; gap:6px; flex:none;}
-  .su-ord button{width:36px; height:36px; border-radius:8px; border:1px solid rgba(78,167,224,.45); background:rgba(78,167,224,.1); color:#a9d8f5; cursor:pointer; font-size:12px; padding:0;}
+  .su-row{display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid rgba(255,255,255,.1); border-radius:10px; background:rgba(255,255,255,.03); margin-bottom:6px;}
+  .su-row.off .su-main b, .su-row.off .su-main small{opacity:.55;}
+  .su-ord{display:flex; align-items:center; gap:4px; flex:none;}
+  .su-ord button{width:32px; height:32px; border-radius:8px; border:1px solid rgba(78,167,224,.45); background:rgba(78,167,224,.1); color:#a9d8f5; cursor:pointer; font-size:11px; padding:0;}
   .su-ord button:disabled{opacity:.25; cursor:default;}
-  .su-ord .no{min-width:26px; text-align:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500); font-size:15px;}
-  .su-main{flex:1 1 auto; min-width:0;}
+  .su-ord .no{min-width:24px; text-align:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500); font-size:15px;}
+  .su-main{flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:4px 14px; flex-wrap:wrap;}
   .su-main b{color:#fff; font-weight:600; overflow-wrap:anywhere;}
-  .su-main small{display:block; color:var(--concrete-400); font-size:12px; margin-top:2px;}
-  .su-main .switch{font-size:13px; margin-top:6px;}
-  .su-row .btn{flex:none; min-height:40px;}
+  .su-main small{color:var(--concrete-400); font-size:12px;}
+  .su-main .switch{font-size:13px; margin-left:auto;}
+  .su-row .btn{flex:none; min-height:36px; padding:0 12px;}
+  @media (max-width:560px){
+    .su-tabs button{font-size:13px; gap:5px; padding:0 4px; white-space:nowrap;} .su-tabs svg{width:17px; height:17px;}
+    .su-row{padding:10px 12px; margin-bottom:8px;}
+    .su-ord button{width:36px; height:36px;}
+    .su-main{flex-direction:column; align-items:flex-start; gap:2px;}
+    .su-main small{display:block;}
+    .su-main .switch{margin:6px 0 0;}
+    .su-row .btn{min-height:40px;}
+  }
   .su-form .form-group{margin-bottom:12px;}
   .su-form input[type=text], .su-form input[type=number]{height:46px; min-height:46px;}
   .dc-more{margin-top:10px;}
