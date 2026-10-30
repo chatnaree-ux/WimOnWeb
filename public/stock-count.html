@@ -724,7 +724,6 @@
   .dc-meta{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:4px 12px; margin:10px 0 6px; font-size:13px; color:var(--concrete-200);}
   .dc-meta{font-size:14px !important;}
   .dc-meta .k{display:block; color:#b8c3d1; font-size:12.5px; font-weight:500;}
-  @container (max-width: 420px){ .dc-meta{grid-template-columns:1fr;} }
 
   /* ---------- หัวเอกสาร + ขั้นตอน ---------- */
   .doc-top{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px;}
@@ -750,7 +749,19 @@
   .kv .it .v{font-size:15.5px; color:#fff; font-weight:600; line-height:1.45; overflow-wrap:anywhere;}
   .kv .it.wide{grid-column:span 2;}
   @media (max-width:1100px){ .kv{grid-template-columns:repeat(2, minmax(0, 1fr));} }
-  @media (max-width:560px){ .kv{grid-template-columns:1fr;} .kv .it.wide{grid-column:auto;} }
+  @media (max-width:560px){
+    .kv{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px 16px !important;}
+    .kv .it.wide, .kv .it.mw{grid-column:1 / -1;}
+    .kv .it .k{font-size:12.5px;} .kv .it .v{font-size:14.5px;}
+    .doc-top{flex-direction:column; align-items:stretch; gap:12px;}
+    .doc-top .doc-no{font-size:24px;}
+    .doc-top .doc-sub{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; line-height:1.5;}
+    .doc-top .acts{display:grid; grid-template-columns:1fr 1fr; gap:10px; justify-content:stretch;}
+    .doc-top .acts .btn{width:100%; min-height:44px; justify-content:center; text-align:center; padding-left:8px; padding-right:8px;}
+    .doc-top .acts .btn:last-child:nth-child(odd){grid-column:1 / -1;}
+    .stepper{overflow:visible;}
+    .stepper .stp{min-width:0; font-size:12.5px; padding:0 2px; line-height:1.35;}
+  }
 
   /* ---------- Dashboard ---------- */
   .dash{display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:14px;}
@@ -799,6 +810,13 @@
   .seg button{padding:7px 12px; border-radius:7px; cursor:pointer; font:inherit; font-size:12.5px; background:rgba(78,167,224,.08); border:1px solid rgba(78,167,224,.35); color:#a9d8f5;}
   .seg button.on{background:rgba(242,169,28,.18); border-color:rgba(242,169,28,.8); color:#ffcf66; font-weight:600;}
   .seg button .n{font-family:'JetBrains Mono',monospace; font-size:11px; opacity:.85; margin-left:4px;}
+  @media (max-width:560px){
+    .ln-tools select{flex:1 1 100%; width:100%; min-height:42px;}
+    .ln-tools .seg{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; width:100%;}
+    .ln-tools .seg button{min-height:42px; padding:6px 4px; font-size:13px; display:flex; align-items:center; justify-content:center; gap:5px; white-space:nowrap;}
+    .ln-tools .seg button .n{margin-left:0;}
+    .ln-tools .seg button:last-child:nth-child(3n+1){grid-column:1 / -1;}
+  }
   .ln-table{min-width:1100px;}
   .ln-table td{vertical-align:middle;}
   .ln-table td.loc{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-400); white-space:nowrap;}
@@ -837,12 +855,31 @@
   .ln-card.counted{border-left:4px solid var(--sky-blue);}
   .ln-card .t1{display:flex; justify-content:space-between; gap:8px; align-items:flex-start;}
   .ln-card .t1 b{color:#fff; font-size:14px;}
-  .ln-card .sub{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-400); margin-top:2px; overflow-wrap:anywhere;}
+  .ln-card .sub{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--concrete-400); margin:2px 0 0; overflow-wrap:anywhere;}
   .ln-card .row2{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; align-items:end;}
   .ln-card .row2 .k{font-size:11.5px; color:var(--concrete-400);}
   .ln-card .row2 .v{font-family:'JetBrains Mono',monospace; font-size:15px; color:#fff;}
   .ln-card .qty-in{width:100%; text-align:right; font-family:'JetBrains Mono',monospace;}
-  .ln-card .more{display:grid; grid-template-columns:1fr; gap:8px; margin-top:8px;}
+  .ln-card .more{display:grid; grid-template-columns:1fr; gap:10px; margin-top:12px;}
+  .ln-card .more .fld{display:flex; flex-direction:column; gap:4px; min-width:0;}
+  .ln-card .more .fld .k{font-size:12px; color:var(--concrete-400);}
+  .ln-card .more select, .ln-card .more input.note-in{min-height:40px; padding:8px 10px; font-size:14px;}
+  .ln-card .more .sw2{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .ln-card .more .sw2 .switch{min-height:40px; padding:0 10px; gap:8px; border:1px solid rgba(255,255,255,.14); border-radius:8px; background:rgba(255,255,255,.03);}
+  .ln-card .more .sw2 .switch:only-child{grid-column:1 / -1;}
+  /* ตัวเลือกจับคู่รายการไม่พบในระบบ: การ์ดตัวเลือก แยก Lot / ชื่อสินค้า / รหัส / ตำแหน่ง ให้ชัด */
+  .um-list{display:flex; flex-direction:column; gap:8px; max-height:38vh; overflow-y:auto; margin-top:6px; padding-right:2px; -webkit-overflow-scrolling:touch;}
+  .um-opt{display:flex; gap:12px; align-items:flex-start; padding:12px; border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.03); cursor:pointer;}
+  .um-opt:has(input:checked){border-color:var(--amber-500); background:rgba(242,169,28,.12);}
+  .um-opt input{width:20px; height:20px; min-height:0; padding:0; flex:none; margin-top:2px; accent-color:var(--amber-500);}
+  .um-b{flex:1; min-width:0; display:flex; flex-direction:column; gap:7px;}
+  .um-b .k{display:block; font-size:11.5px; color:var(--concrete-400); margin-bottom:1px;}
+  .um-b .lot{font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; color:var(--amber-500); overflow-wrap:anywhere;}
+  .um-b .nm{font-size:15px; font-weight:600; color:#fff; line-height:1.4; overflow-wrap:anywhere;}
+  .um-b .meta{display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; font-size:13.5px; color:#fff;}
+  .um-b .meta > div{min-width:0; overflow-wrap:anywhere;}
+  .um-b .meta .full{grid-column:1 / -1;}
+  .um-q{margin-bottom:6px;}
   .save-bar{position:sticky; bottom:0; z-index:8; display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;
     margin-top:12px; padding:12px 14px; border-radius:10px; background:rgba(12,20,32,.94); border:1px solid rgba(242,169,28,.45); backdrop-filter:blur(4px);}
   @media (max-width:900px){ .review-bar{position:static;} .save-bar .action-bar{display:grid; grid-template-columns:1fr; width:100%;} }
@@ -939,13 +976,55 @@
   .switch{display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13.5px; color:var(--concrete-200);}
   .switch input{width:18px; height:18px; min-height:0 !important; accent-color:var(--amber-500);}
   .wh-list{display:flex; flex-direction:column; gap:4px;}
-  .wh-item{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; cursor:pointer; border:1px solid transparent; color:var(--concrete-200);}
+  .wh-item{--lv:0; margin-left:calc(min(var(--lv), 5) * 14px); display:flex; flex-direction:column; gap:3px; padding:10px 12px; border-radius:8px; cursor:pointer; border:1px solid rgba(255,255,255,.08); border-left:3px solid rgba(78,167,224,.55); background:rgba(255,255,255,.025); color:var(--concrete-200);}
+  .wh-item .wh-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .wh-item .wh-par{font-size:12px; color:var(--concrete-400);}
+  .wh-item .wh-par::before{content:"↳ อยู่ใน ";}
   .wh-item:hover{background:rgba(255,255,255,.04); border-color:rgba(242,169,28,.35);}
-  .wh-item.main{font-weight:700; color:#fff; background:rgba(242,169,28,.05);}
+  .wh-item.main{font-weight:700; color:#fff; border-left-color:var(--amber-500); background:rgba(255,255,255,.05);}
   .wh-item .nl{font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--concrete-400); white-space:nowrap;}
-  .wh-item .pth{overflow-wrap:anywhere;}
-  .wh-item .wr{display:flex; align-items:center; gap:8px; flex-shrink:0;}
-  @media (max-width:560px){ .wh-item{flex-wrap:wrap; row-gap:6px;} .wh-item .pth{flex:1 1 100%;} .wh-item .wr{margin-left:auto;} }
+  .wh-item .pth{overflow-wrap:anywhere; min-width:0; color:#fff; font-weight:600; line-height:1.4;}
+  .wh-item .lv{flex:none;}
+  @media (max-width:560px){
+    .wh-list{gap:8px;}
+    .wh-item{margin-left:calc(min(var(--lv), 3) * 10px); padding:12px;}
+    .wh-item .pth{font-size:15px;}
+    .wh-item .nl{white-space:normal; font-size:12px;}
+    .wh-legend{gap:8px; line-height:1.6;}
+    /* ฟอร์มหัวเอกสาร: 2 คอลัมน์ (วันที่ | ครั้งที่) ที่เหลือเต็มแถว — ช่องที่ตั้ง span 2 ไว้ไม่ทำให้เกิดคอลัมน์เกิน */
+    #formModal .form-grid{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px 12px;}
+    #formModal .form-grid > .form-group{grid-column:1 / -1 !important;}
+    #formModal .form-grid > .form-group.half{grid-column:auto !important;}
+    #formModal .form-group label{display:block; line-height:1.5;}
+    #formModal .lbl-note{display:block; margin-top:2px;}
+    #formModal .date-overlay-wrap{width:100%;}
+    .modal-foot{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    .modal-foot .btn{min-height:46px; justify-content:center;}
+    .modal-body{padding:16px;}
+    /* Live count: ปุ่มเท่ากัน ไม่ล้นกรอบ (ข้อความยาวขึ้นบรรทัดใหม่ได้) */
+    .live-acts{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;}
+    .live-acts.stack{grid-template-columns:1fr;}
+    .live-acts .btn{min-width:0; white-space:normal; line-height:1.3; text-align:center; justify-content:center; padding:8px 10px;}
+    .scan-row input{min-width:0;}
+    .scan-row .btn{flex:none; width:56px; padding:0;}
+    .tab-bar{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; border-bottom:0; margin-bottom:16px;}
+    .tab-bar .nav-btn{min-height:46px; padding:8px 10px; justify-content:center; text-align:center; white-space:normal; line-height:1.3; border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.03); font-size:13.5px;}
+    .tab-bar .nav-btn.active{border-color:var(--amber-500); background:rgba(242,169,28,.14);}
+    .um-act{display:grid !important; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;}
+    .um-act .btn{min-width:0; min-height:48px; white-space:normal; line-height:1.3; justify-content:center; text-align:center;}
+    .um-act .btn:last-child:nth-child(odd){grid-column:1 / -1;}
+    #dlgModal .form-grid.g2{grid-template-columns:repeat(2, minmax(0, 1fr)) !important; align-items:end;}
+    #dlgModal .form-grid.g2 input{height:46px; min-height:46px;}
+    #dlgModal .form-grid.g2 .form-group.full{grid-column:1 / -1;}
+  }
+  .dc-more{margin-top:10px;}
+  .dc-more .btn{width:100%; justify-content:center; min-height:44px; pointer-events:none;}
+  .dc-more .btn svg{width:18px; height:18px;}
+  .hbar .lb.rk{align-items:flex-start; gap:10px;}
+  .hbar .lb.rk .rank{flex:none; margin:1px 0 0;}
+  .hbar .lb.rk .nm{flex:1; min-width:0; line-height:1.4; overflow-wrap:anywhere;}
+  .hbar .lb.rk .nm small{display:block; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--concrete-400); margin-top:1px;}
+  .hbar .lb.rk b:last-child{margin-left:0; padding-top:1px;}
   .wh-legend{font-size:12.5px; color:var(--concrete-400); margin:0 0 10px; display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center;}
   #whBody .wh-legend{padding:0 12px;}
   .wh-legend .lg-t{flex:1 1 100%;}
@@ -1019,6 +1098,7 @@
   #printArea .ps-sign .sg img{max-height:9mm; max-width:100%; object-fit:contain;}
   #printArea .ps-sign .sg + .l{margin-top:0;}
   #printArea .ps-16 th, #printArea .ps-16 td{font-size:7.6pt; padding:1.2mm 1.1mm;}
+  #printArea.sum-p .ps-16 th, #printArea.sum-p .ps-16 td{font-size:5.6pt; padding:.9mm .5mm; overflow-wrap:anywhere;}
   #printArea .ps-sum{margin:0 0 4mm; table-layout:fixed;}
   #printArea .ps-sum td{text-align:center; padding:1.6mm 1mm;}
   #printArea .ps-sum td span{display:block; font-size:8pt; color:#333;}
@@ -1214,11 +1294,11 @@
             <svg class="picker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-group half">
           <label for="hDate">วันที่ตรวจนับ<span class="req">*</span></label>
           <span class="date-overlay-wrap" tabindex="0"><input type="date" id="hDate"><span class="date-overlay-text empty" id="hDateText">วว/ดด/ปปปป</span></span>
         </div>
-        <div class="form-group">
+        <div class="form-group half">
           <label for="hRound">ครั้งที่นับ<span class="req">*</span></label>
           <input type="number" id="hRound" min="1" step="1" inputmode="numeric">
         </div>
@@ -1361,6 +1441,7 @@
   const PAGE_SIZE = 150;
   const EPS = 1e-6;
   const IC = {
+    menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>',
@@ -1685,8 +1766,9 @@
           <div><span class="k">ประเภท</span>${esc(d.typeName)}</div>
           <div style="grid-column:1/-1"><span class="k">คลัง / พื้นที่</span>${esc(d.idWhScope !== d.idParent0 ? d.scopePath : d.whName)}</div>
           <div><span class="k">วิธีนับ</span>${modeTag(d)}</div>
-          <div style="grid-column:1/-1"><span class="k">ผลการนับ</span>${resultCell(d, s, base ? Math.round(s.counted / base * 100) : 0, base)}</div>
+          <div><span class="k">ผลการนับ</span>${resultCell(d, s, base ? Math.round(s.counted / base * 100) : 0, base)}</div>
         </div>
+        <div class="dc-more"><span class="btn btn-secondary">${IC.menu || ''} รายละเอียด</span></div>
       </div>`;
     }).join('');
   }
@@ -1769,7 +1851,7 @@
     const topBox = `<div class="box ov-box">
         <h3 class="mini-title">สินค้าที่ขาดบ่อย <span class="muted ov-sub">10 อันดับ · 90 วัน</span></h3>
         ${topShort.length ? `<div class="hbars">${topShort.map((x, i) => `<div class="hbar">
-          <div class="lb"><span><b class="rank">${i + 1}</b>${esc(x.invName)} <span class="muted mono" style="font-size:11.5px">${esc(x.invCode)}</span></span><b>${fmtInt(x.times)} ครั้ง</b></div>
+          <div class="lb rk"><b class="rank">${i + 1}</b><span class="nm">${esc(x.invName)}</span><b>${fmtInt(x.times)} ครั้ง</b></div>
           <div class="tr2"><span class="rb-s" style="width:${x.times / sMax * 100}%"></span></div>
           <div class="hb-sub">ขาดรวม ${fmtQty(x.qty)} ${esc(x.unit || '')} · ${fmtInt(x.docs)} เอกสาร</div>
         </div>`).join('')}</div>` : '<p class="muted ov-empty">ยังไม่มีสินค้าที่ขาดใน 90 วัน</p>'}
@@ -1896,9 +1978,10 @@
     const list = whList.filter(w => !q || w.path.toLowerCase().includes(q));
     const tip = (w) => w.nLot ? `ยังไม่เคยนับ ${w.n[0]} · ระดับ 4: ${w.n[4]} · 3: ${w.n[3]} · 2: ${w.n[2]} · 1: ${w.n[1]} (Lot)` : '';
     $('whBody').innerHTML = `<div class="wh-legend"><span class="lg-t">ระดับการตรวจนับ (ตาม Lot ที่นับนานสุด)</span>${LV_LEGEND}</div><div class="wh-list">${list.map(w => `
-      <div class="wh-item ${w.lvl === 0 ? 'main' : ''}" data-wh="${w.id}" style="padding-left:${q ? 12 : 12 + w.lvl * 16}px">
-        <span class="pth">${esc(q || w.lvl === 0 ? w.path : w.path.split(' › ').slice(1).join(' › '))}</span>
-        <span class="wr"><span class="nl">${fmtInt(w.nLot)} รายการ${w.lastDt ? ` · นับล่าสุด ${thDate(w.lastDt)}` : ''}</span>${lvChip(w.level, tip(w))}</span>
+      <div class="wh-item ${w.lvl === 0 ? 'main' : ''}" data-wh="${w.id}" style="--lv:${q ? 0 : w.lvl}">
+        <div class="wh-top"><span class="pth">${esc(q ? w.path : w.path.split(' › ').pop())}</span>${lvChip(w.level, tip(w))}</div>
+        ${!q && w.lvl > 0 ? `<div class="wh-par">${esc(w.path.split(' › ').slice(-2, -1)[0] || '')}</div>` : ''}
+        <div class="nl">${fmtInt(w.nLot)} รายการ${w.lastDt ? ` · นับล่าสุด ${thDate(w.lastDt)}` : ''}</div>
       </div>`).join('') || '<div class="state-box">ไม่พบคลังที่ตรงกับคำค้น</div>'}</div>`;
   }
   async function openEmp(target){
@@ -1985,9 +2068,9 @@
     const pa = $('printArea');
     pa.innerHTML = html;
     // ย่อบนจอเล็กอาจตัดบรรทัดต่างจากตอนพิมพ์เล็กน้อย → แผ่นบนจอสูงขึ้นได้ (ขั้นต่ำ = ความสูงหน้าพิมพ์) ไม่ตัดท้ายหน้า
-    pa.querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = p.style.height; });
-    pa.style.width = (PAGE_MM.L[0] + 16 + 0.8) + 'mm';   // แผ่น A4 แนวนอน = พื้นที่พิมพ์ + ขอบ 8 มม. 2 ข้าง
-    if(!document.getElementById('pvPage')){ const st = document.createElement('style'); st.id = 'pvPage'; st.textContent = '@page{size:A4 landscape; margin:8mm;}'; document.head.appendChild(st); }
+    pa.querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = p.style.height; if(IOS_SUM && pa.classList.contains('sum-p')) p.style.height = 'auto'; });
+    pa.style.width = (PAGE_MM[pa.classList.contains('sum-p') ? 'P' : 'L'][0] + 16 + 0.8) + 'mm';   // แผ่น A4 แนวนอน = พื้นที่พิมพ์ + ขอบ 8 มม. 2 ข้าง
+    if(!document.getElementById('pvPage')){ const st = document.createElement('style'); st.id = 'pvPage'; st.textContent = pa.classList.contains('sum-p') ? '@page{size:A4 portrait; margin:8mm;}' : '@page{size:A4 landscape; margin:8mm;}'; document.head.appendChild(st); }
     document.body.classList.add('printing', 'pv');
     const fit = () => { pa.style.setProperty('--pvz', 1); const w = pa.getBoundingClientRect().width; pa.style.setProperty('--pvz', Math.min(1, (window.innerWidth - 16) / w).toFixed(3)); };
     fit(); window.addEventListener('resize', fit);
@@ -2019,14 +2102,14 @@
     $('docView').innerHTML = `
       <div class="card">
         <div class="doc-top">
-          <div><div class="doc-no">${esc(d.docCode)}</div><div class="doc-sub">${statusBadge(d.status)} &nbsp;สร้างโดย ${esc(d.creator.name)} · ${thStamp(d.dateTs)}</div></div>
+          <div><div class="doc-no">${esc(d.docCode)}</div><div class="doc-sub">${statusBadge(d.status)} <span>สร้างโดย ${esc(d.creator.name)} · ${thStamp(d.dateTs)}</span></div></div>
           <div class="acts">${acts.join('')}</div>
         </div>
         ${d.status === 'CANCEL' ? '' : `<div class="stepper">${STEPS.map(([k, n], i) => `<div class="stp ${i < stepIdx ? 'done' : i === stepIdx ? 'cur' : ''}"><span class="dot">${i < stepIdx ? '✓' : i + 1}</span>${n}</div>`).join('')}</div>`}
         <div class="kv">
-          <div class="it"><div class="k">บริษัท</div><div class="v">${esc(d.compName)}</div></div>
+          <div class="it mw"><div class="k">บริษัท</div><div class="v">${esc(d.compName)}</div></div>
           <div class="it wide"><div class="k">คลัง / พื้นที่จัดเก็บ</div><div class="v">${esc(d.idWhScope === d.idParent0 ? d.whName : d.scopePath)}</div></div>
-          <div class="it"><div class="k">วันที่ตรวจนับ / ครั้งที่นับ</div><div class="v">${thDate(d.dateCount)} · ครั้งที่ ${d.round}</div></div>
+          <div class="it mw"><div class="k">วันที่ตรวจนับ / ครั้งที่นับ</div><div class="v">${thDate(d.dateCount)} · ครั้งที่ ${d.round}</div></div>
           <div class="it"><div class="k">ประเภทการตรวจนับ</div><div class="v">${esc(d.typeName)}</div></div>
           <div class="it"><div class="k">วิธีนับ</div><div class="v">${d.mode ? esc(MODE[d.mode]) + (d.sheetType ? ` (${esc(SHEET[d.sheetType])})` : '') : '-'}${d.blind ? ' · Blind count' : ''}</div></div>
           <div class="it"><div class="k">ผู้ตรวจนับ</div><div class="v">${esc(d.counter.name)}</div></div>
@@ -2360,11 +2443,13 @@
      parts: [{ html }] = บล็อกไม่ตัดข้ามหน้า / [{ cols:[%], thead, cls, rows:[{ html, keep }] }] = ตาราง (keep = ติดกับแถวถัดไป เช่น แถวตำแหน่ง) */
   const PAGE_MM = { P: [194, 279], L: [281, 192] };   // A4 − ขอบ 8 มม. (เผื่อปัดเศษไม่ให้ล้นเป็นหน้าว่าง)
   const MMPX = 96 / 25.4;
+  const IOS_SUM = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const tableHtml = (p, rows) => `<div class="ps-part"><table class="${p.cls || ''}"><colgroup>${p.cols.map(w => `<col style="width:${w}%">`).join('')}</colgroup>
       <thead>${p.thead}</thead><tbody>${rows.map(x => x.html).join('')}</tbody></table></div>`;
   async function pagedHtml({ landscape, head, parts, foot, maxPages }){
     printSeq++;   // เริ่มเตรียมเอกสารใหม่ = ยกเลิกคำสั่งพิมพ์ที่ยังรอรูปอยู่ (#printArea ถูกใช้วัดความสูงหน้า)
-    const [w, h] = PAGE_MM[landscape ? 'L' : 'P'];
+    let [w, h] = PAGE_MM[landscape ? 'L' : 'P'];
+    if(IOS_SUM && !landscape) h -= 54;   // iPhone: ขอบ + หัวท้ายกระดาษของ iOS กินที่
     if(document.fonts && document.fonts.ready) await document.fonts.ready;
     const pa = $('printArea'), keep = pa.getAttribute('style');
     pa.style.cssText = `display:block; position:absolute; left:-10000px; top:0; width:${w}mm; visibility:hidden;`;
@@ -2540,7 +2625,8 @@
       parts.push(h3(`ของที่พบแต่ไม่อยู่ในระบบ (${fmtInt(umOther.length)} รายการ)`));
       parts.push({ cols: [4, 18, 30, 16, 12, 20], thead: '<tr><th>#</th><th>Lot / รหัสที่พบ</th><th>ชื่อ / ลักษณะ</th><th>ตำแหน่ง</th><th>จำนวน</th><th>การจัดการ</th></tr>', rows: umRows });
     }
-    doPrint(await pagedHtml({ landscape: true, head, parts, foot }), true);
+    $('printArea').classList.toggle('sum-p', IOS_SUM);
+    doPrint(await pagedHtml({ landscape: !IOS_SUM, head, parts, foot }), !IOS_SUM);
   }
 
   /* ---------- Excel: Export ใบนับ / นำเข้ายอดที่กรอกแล้ว (จับคู่ด้วยคอลัมน์ ID) ---------- */
@@ -2765,7 +2851,7 @@
     } else if(L.step === 'nf'){
       main = `<div class="live-h"><span class="n warn">!</span><div><h3>ไม่พบ "${esc(L.q)}" ในเอกสาร</h3><p>อาจคีย์ / สแกนผิด ลองเลือกจากรายการใกล้เคียง หรือบันทึกเป็นรายการที่ไม่พบในระบบ</p></div></div>
         ${L.near.length ? `<div class="cand">${L.near.map(id => { const l = lineById.get(id); return `<button type="button" data-pickline="${id}"><span><b>${esc(l.invName)}</b><span class="s">Lot ${esc(l.lotNo)} · ${esc(l.loc)}</span></span><span class="q">เลือก</span></button>`; }).join('')}</div>` : ''}
-        <div class="live-acts">
+        <div class="live-acts stack">
           <button type="button" class="btn btn-secondary" data-live="reset">${IC.back} สแกนใหม่</button>
           <button type="button" class="btn btn-danger" data-act="add-u">${IC.plus} บันทึกเป็นไม่พบในระบบ</button>
         </div>`;
@@ -2873,8 +2959,8 @@
   /* ---------- เพิ่มรายการที่ไม่พบในระบบ ---------- */
   function addUnmatchedDlg(){
     dlg('บันทึกรายการที่พบแต่ไม่อยู่ในระบบ', `
-      <div class="form-grid" style="grid-template-columns:1fr 1fr">
-        <div class="form-group"><label>Lot / รหัส / บาร์โค้ดที่พบ</label><input id="uInput" value="${esc(live.q || '')}" maxlength="100"></div>
+      <div class="form-grid g2" style="grid-template-columns:1fr 1fr">
+        <div class="form-group"><label>Lot / รหัส / บาร์โค้ด</label><input id="uInput" value="${esc(live.q || '')}" maxlength="100"></div>
         <div class="form-group"><label>ตำแหน่งที่พบ</label><input id="uLoc" maxlength="100"></div>
         <div class="form-group full"><label>ชื่อ / ลักษณะสินค้า</label><input id="uItem" maxlength="300"></div>
         <div class="form-group"><label>จำนวน</label><input id="uQty" inputmode="decimal"></div>
@@ -2898,20 +2984,29 @@
   }
   function umDlg(id){
     const u = lineById.get(id);
-    const opts = doc.lines.filter(l => l.src !== 'U' && !l.exclude).map(l => `<option value="${l.id}" ${u.mapTo === l.id ? 'selected' : ''}>Lot No. ${esc(l.lotNo)} · ${esc(l.invName)} · ${esc(l.loc)}</option>`).join('');
+    const cands = doc.lines.filter(l => l.src !== 'U' && !l.exclude);
+    const opts = cands.map(l => `<label class="um-opt" data-q="${esc([l.lotNo, l.invName, l.invCode, l.loc].join(' ').toLowerCase())}"><input type="radio" name="umTo" value="${l.id}" ${u.mapTo === l.id ? 'checked' : ''}>
+      <div class="um-b">
+        <div><span class="k">Lot No.</span><span class="lot">${esc(l.lotNo || '-')}</span></div>
+        <div><span class="k">ชื่อสินค้า</span><div class="nm">${esc(l.invName)}</div></div>
+        <div class="meta"><div><span class="k">รหัสสินค้า</span>${esc(l.invCode || '-')}</div><div><span class="k">หน่วย</span>${esc(l.unit || '-')}</div>
+          <div class="full"><span class="k">คลัง / ตำแหน่งจัดเก็บ</span>${esc(l.loc || '-')}</div></div>
+      </div></label>`).join('');
     dlg('จัดการรายการไม่พบในระบบ', `
       <p><b class="mono">${esc(u.inputText || '-')}</b> ${esc(u.itemText || '')} · ${fmtQty(u.count)} ${esc(u.unitText || '')}</p>
-      <div class="form-group" style="margin-bottom:12px"><label>จับคู่กับรายการในเอกสาร (ยอดจะบวกเข้ารายการที่เลือก)</label><select id="umTo"><option value="">— เลือก —</option>${opts}</select></div>
+      <div class="form-group" style="margin-bottom:12px"><label>จับคู่กับรายการในเอกสาร (ยอดจะบวกเข้ารายการที่เลือก)</label>${cands.length > 5 ? '<input id="umQ" class="um-q" placeholder="ค้นหา Lot No. / ชื่อสินค้า / รหัส / ตำแหน่ง" autocomplete="off">' : ''}<div class="um-list" id="umList">${opts || '<p class="muted">ไม่มีรายการในเอกสารให้จับคู่</p>'}</div></div>
       <div class="form-group" style="margin-bottom:12px"><label>หมายเหตุ</label><input id="umNote" maxlength="500" value="${esc(u.mapNote || '')}"></div>
-      <div class="action-bar">
+      <div class="action-bar um-act">
         ${u.mapStatus && u.mapStatus !== 'P' ? `<button type="button" class="btn btn-secondary" data-umset="P" data-id="${id}">กลับเป็นรอตัดสินใจ</button>` : ''}
         <button type="button" class="btn btn-danger" data-umset="D" data-id="${id}">ทิ้งรายการ</button>
         <button type="button" class="btn btn-secondary" data-umset="N" data-id="${id}">ส่งตั้งรหัสใหม่</button>
         <button type="button" class="btn btn-primary" data-umset="M" data-id="${id}">${IC.check} จับคู่</button>
       </div>`, '680px');
+    const q = $('umQ');
+    if(q) q.addEventListener('input', () => { const v = q.value.trim().toLowerCase(); document.querySelectorAll('#umList .um-opt').forEach(el => { el.hidden = !!v && !el.dataset.q.includes(v); }); });
   }
   async function umSet(btn, id, status){
-    const body = { status, note: $('umNote').value, mapTo: status === 'M' ? $('umTo').value : null };
+    const body = { status, note: $('umNote').value, mapTo: status === 'M' ? ((document.querySelector('#umList input[name=umTo]:checked') || {}).value || '') : null };
     if(status === 'M' && !body.mapTo){ alert('กรุณาเลือกรายการที่จะจับคู่'); return; }
     await busy(btn, async () => {
       try{ await api(`/api/stock-count/doc/${doc.id}/unmatched/${id}`, { body }); closeModal('dlgModal'); showToast('บันทึกแล้ว'); await reload(); }
@@ -3007,11 +3102,11 @@
           <div><span class="k">สถานะดำเนินการ</span><div class="v sm">${esc(ACTION[l.action] || '-')}</div></div>
         </div>
         ${editable ? `<div class="more">
-          <select class="qual-sel q-${l.quality}" data-qual="${l.id}">${qualOpts(l.quality)}</select>
-          ${isDiff ? `<label class="switch"><input type="checkbox" data-adj="${l.id}" ${l.adjust ? 'checked' : ''}> ส่งปรับยอด</label>
-          <select data-cause="${l.id}">${causeOpts(l.idCause)}</select>` : ''}
-          <input class="note-in" data-note="${l.id}" value="${esc(l.note || '')}" placeholder="หมายเหตุ" maxlength="500">
-          <label class="switch"><input type="checkbox" class="rc" data-rc="${l.id}"> สั่งนับซ้ำ</label>
+          <div class="fld"><span class="k">สถานะคุณภาพ</span><select class="qual-sel q-${l.quality}" data-qual="${l.id}">${qualOpts(l.quality)}</select></div>
+          ${isDiff ? `<div class="fld"><span class="k">สาเหตุผลต่าง</span><select data-cause="${l.id}">${causeOpts(l.idCause)}</select></div>` : ''}
+          <div class="fld"><span class="k">หมายเหตุ</span><input class="note-in" data-note="${l.id}" value="${esc(l.note || '')}" placeholder="หมายเหตุ" maxlength="500"></div>
+          <div class="sw2">${isDiff ? `<label class="switch"><input type="checkbox" data-adj="${l.id}" ${l.adjust ? 'checked' : ''}> ส่งปรับยอด</label>` : ''}
+            <label class="switch"><input type="checkbox" class="rc" data-rc="${l.id}"> สั่งนับซ้ำ</label></div>
         </div>` : `<div class="sub">คุณภาพ: ${esc(QUALITY[l.quality])}${causeNote(l) ? ' · ' + esc(causeNote(l)) : ''}</div>`}
         <div class="sub">ผู้ตรวจนับ ${esc(counterTxt(l))} · ผู้ตรวจสอบ ${esc(reviewerTxt())}</div>
       </div>`;

@@ -192,6 +192,7 @@
   .table-header h2{margin:0;}
   .table-responsive{overflow-x:auto; border:1px solid rgba(255,255,255,.06); border-radius:8px;}
   table{width:100%; border-collapse:collapse; min-width:820px; font-size:13px;}
+  #wimRptArea table{min-width:0;}   /* รายงานพิมพ์ (WIMReport): ห้ามกว้างเกินแผ่น */
   thead th{
     text-align:left; padding:11px 12px; white-space:nowrap; position:sticky; top:0;
     font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:500; letter-spacing:.04em; text-transform:uppercase;
@@ -966,8 +967,13 @@
   .trend .stk{width:min(38px, 80%); display:flex; flex-direction:column-reverse; border-radius:6px 6px 2px 2px; overflow:hidden; min-height:2px; background:rgba(255,255,255,.06);}
   .trend .stk span{display:block; width:100%;}
   .trend .tv{font-family:'JetBrains Mono',monospace; font-size:12px; color:#fff; margin-bottom:4px;}
-  .trend .ml{font-size:12px; color:#b8c3d1; margin-top:6px; white-space:nowrap;}
-  @media (max-width:560px){ .trend{gap:3px; height:200px;} .trend .ml{font-size:10.5px;} .trend .tv{font-size:10.5px;} }
+  .trend .ml{font-size:12px; color:#b8c3d1; margin-top:6px; white-space:nowrap; text-align:center; display:flex; flex-direction:column; align-items:center; line-height:1.3;}
+  .yr-row{display:grid; grid-template-columns:repeat(12, minmax(0, 1fr)); gap:8px; margin-top:6px;}
+  .yr{--yc:242,169,28; height:18px; border:1.5px solid rgba(var(--yc),.8); border-top:0; border-radius:0 0 8px 8px; margin:0 2px; text-align:center; position:relative;}
+  .yr.y1{--yc:78,167,224;}
+  .yr span{position:absolute; left:50%; top:21px; transform:translateX(-50%); font-size:12px; font-weight:700; color:rgb(var(--yc)); white-space:nowrap;}
+  .yr-row{padding-bottom:26px;}
+  @media (max-width:560px){ .trend{gap:3px; height:200px;} .trend .ml{font-size:10px; max-width:100%; letter-spacing:-.2px;} .yr-row{gap:3px;} .trend .tv{font-size:10.5px;} }
   .hb{display:flex; flex-direction:column; gap:11px;}
   .hb .r{cursor:default;}
   .hb .r.click{cursor:pointer;}
@@ -975,6 +981,16 @@
   .hb .lb{display:flex; justify-content:space-between; gap:10px; font-size:14.5px; color:#e6e9ee; margin-bottom:5px;}
   .hb .lb span{min-width:0; overflow-wrap:anywhere;}
   .hb .lb small{color:var(--concrete-400); font-size:12px; margin-left:6px;}
+  .hb .lb .rank{vertical-align:top; margin-top:1px;}
+  @media (max-width:560px){
+    .hb .lb span{line-height:1.45;}
+    .hb .lb small{display:block; margin:1px 0 0 30px;}
+    .rp-filter{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px 12px;}
+    .rp-filter .form-group, .rp-filter .form-group.wide, .rp-filter .form-group.date{grid-column:1 / -1; flex:none; min-width:0; width:100%;}
+    .rp-filter .form-group.h{grid-column:auto;}
+    .rp-filter .rp-actions{grid-column:1 / -1;}
+    .rp-card .mt{grid-template-columns:1fr 1fr;} .rp-card .mt .full{grid-column:1 / -1;}
+  }
   .hb .lb b{font-family:'JetBrains Mono',monospace; white-space:nowrap; color:#fff;}
   .hb .tr{display:flex; height:10px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.07);}
   .hb .tr span{height:100%;}
@@ -1024,6 +1040,7 @@
 <script src="/js/sidebar.js"></script>
 <script src="/js/thai-datepicker.js"></script>
 <script src="/js/adj-reverse.js"></script>
+<script src="/js/report-print.js?v=20261030n"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
 </head>
 <body>
@@ -1054,8 +1071,8 @@
               <div class="date-fields" id="dateFields"></div>
             </div>
             <div class="form-group"><label for="fComp">บริษัท</label><select id="fComp"></select></div>
-            <div class="form-group"><label for="fGroup">ประเภท</label><select id="fGroup"></select></div>
-            <div class="form-group"><label for="fWh">คลังหลัก</label><select id="fWh"></select></div>
+            <div class="form-group h"><label for="fGroup">ประเภท</label><select id="fGroup"></select></div>
+            <div class="form-group h"><label for="fWh">คลังหลัก</label><select id="fWh"></select></div>
             <div class="form-group"><label for="fOp">ตัวดำเนินการ</label>
               <select id="fOp"><option value="">ทั้งหมด</option><option value="+">+ ปรับเพิ่ม</option><option value="-">− ปรับลด</option><option value="=">= ตั้งยอดใหม่</option></select></div>
             <div class="form-group wide"><label for="fQ">ชื่อสินค้า/วัสดุ · Lot No.</label><input type="search" id="fQ" placeholder="ชื่อสินค้า / รหัส / Lot No." maxlength="100"></div>
@@ -1282,7 +1299,7 @@
           <span>ผู้ออกคำสั่ง <b>${esc(shortName(d.cmd))}</b></span><span>ผู้ปฏิบัติงาน <b>${esc(shortName(d.act))}</b></span>
           <span style="grid-column:1/-1">${srcChip(d)} ${d.rqCode ? `<span class="muted">· ${esc(d.rqCode)}</span>` : ''}</span></div>
         ${st.open.has(d.id) ? d.lines.map(l => `<div class="ln-mini"><div class="t"><b>${esc(l.invName)}</b>${opHtml(l.op)}</div><div class="s"><span class="mono" style="color:var(--amber-500)">${esc(l.lotNo)}</span> · ${esc(l.wh || '-')}</div>
-          <div class="q"><div>คงเหลือ<b>${fmtQty(l.before)}</b></div><div>เปลี่ยนแปลง<b>${fmtQty(l.amount)}</b></div><div>คงเหลือใหม่<b>${fmtQty(l.after)}</b></div></div>${l.note ? `<div class="s">${esc(l.note)}</div>` : ''}${revChip(l)}</div>`).join('') : ''}
+          <div class="q"><div>คงเหลือ<b>${fmtQty(l.before)}</b></div><div>เปลี่ยนแปลง<b style="color:${l.op === '-' ? '#ff8a75' : l.op === '=' ? '#c4b5fd' : '#7cc4f0'}">${l.op === '-' ? '−' : l.op === '=' ? '=' : '+'}${fmtQty(l.amount)}</b></div><div>คงเหลือใหม่<b>${fmtQty(l.after)}</b></div></div>${l.note ? `<div class="s">${esc(l.note)}</div>` : ''}${revChip(l)}</div>`).join('') : ''}
         <div class="acts"><button type="button" class="btn btn-secondary btn-sm" data-toggle="${d.id}">${IC.list} ${st.open.has(d.id) ? 'ซ่อนรายการ' : `ดูรายการ (${d.lines.length})`}</button>
           ${d.idRq ? `<button type="button" class="btn btn-secondary btn-sm" data-rq="${d.idRq}" data-rqcode="${esc(d.rqCode)}">${IC.folder} ใบขอปรับ</button>` : ''}${revBtn(d, true)}</div></div>`).join('');
     return `<div class="rp-sub"><button type="button" class="btn btn-secondary" data-expandall="${allOpen ? 0 : 1}">${allOpen ? '− ซ่อนรายละเอียดรายการทั้งหมด' : '+ แสดงรายละเอียดรายการทั้งหมด'}</button> <span>กด + หรือแถวเอกสาร เพื่อดูรายการที่ปรับ · 📂 ดูใบขอปรับยอดสต๊อก${meta.canReverse ? ' · ↺ ขอกลับรายการ (ปรับผิด)' : ''}</span></div>
@@ -1310,8 +1327,8 @@
     const cards = list.map(({ l, d }) => `<div class="rp-card" style="--c:${l.op === '-' ? '#ff8a75' : l.op === '=' ? '#a78bfa' : '#4ea7e0'}">
         <div class="hd"><b style="color:#fff">${esc(l.invName)}</b>${opHtml(l.op)}</div>
         <div class="s" style="font-size:12.5px;color:var(--concrete-400);margin-top:3px"><span class="mono" style="color:var(--amber-500)">${esc(l.lotNo)}</span> · ${esc(l.wh || '-')}</div>
-        <div class="ln-mini" style="margin-top:8px"><div class="q" style="margin-top:0"><div>คงเหลือ<b>${fmtQty(l.before)}</b></div><div>เปลี่ยนแปลง<b>${fmtQty(l.amount)}</b></div><div>คงเหลือใหม่<b>${fmtQty(l.after)}</b></div></div></div>
-        <div class="mt" style="margin-top:8px"><span>วันที่ <b>${thStamp(d.date)}</b></span><span>หน่วย <b>${esc(l.unit || '-')}</b></span><span style="grid-column:1/-1">เลขที่ <b>${esc(d.docCode)}</b></span></div>
+        <div class="ln-mini" style="margin-top:8px"><div class="q" style="margin-top:0"><div>คงเหลือ<b>${fmtQty(l.before)}</b></div><div>เปลี่ยนแปลง<b style="color:${l.op === '-' ? '#ff8a75' : l.op === '=' ? '#c4b5fd' : '#7cc4f0'}">${l.op === '-' ? '−' : l.op === '=' ? '=' : '+'}${fmtQty(l.amount)}</b></div><div>คงเหลือใหม่<b>${fmtQty(l.after)}</b></div></div></div>
+        <div class="mt" style="margin-top:8px"><span>เลขที่เอกสาร <b>${esc(d.docCode)}</b></span><span>หน่วย <b>${esc(l.unit || '-')}</b></span><span class="full">วันที่ปรับ <b>${thStamp(d.date)}</b></span></div>
         ${l.note ? `<div class="nt" style="font-size:13px;margin-bottom:0">${esc(l.note)}</div>` : ''}${revChip(l)}</div>`).join('');
     return `<div class="rp-sub"><span>กดหัวคอลัมน์เพื่อเรียงลำดับ</span></div>
       <div class="rp-area"><div class="table-responsive"><table class="rp-table items"><thead><tr><th>#</th>${th}</tr></thead><tbody>${rows}</tbody></table></div>
@@ -1339,11 +1356,12 @@
       trendHtml = `<div class="legend"><span><i class="c-p"></i>ปรับเพิ่ม</span><span><i class="c-m"></i>ปรับลด</span><span><i class="c-s"></i>ตั้งยอดใหม่</span></div>
         <div class="trend">${trend.months.map(m => { const t = m.plus + m.minus + m.set; return `<div class="col ${inSel(m) ? 'sel' : ''}" data-tmonth="${m.y}-${m.m}" title="${TH_MONTH[m.m - 1]} ${m.y + 543}: ${fmtInt(m.docs)} เอกสาร · เพิ่ม ${fmtInt(m.plus)} · ลด ${fmtInt(m.minus)}${m.set ? ` · ตั้งยอด ${fmtInt(m.set)}` : ''} รายการ — กดเพื่อดูเดือนนี้">
           <span class="tv">${t ? fmtInt(t) : ''}</span><div class="stk" style="height:${t / mx * 100}%"><span class="c-p" style="height:${t ? m.plus / t * 100 : 0}%"></span><span class="c-m" style="height:${t ? m.minus / t * 100 : 0}%"></span><span class="c-s" style="height:${t ? m.set / t * 100 : 0}%"></span></div>
-          <span class="ml">${TH_MON[m.m - 1]} ${String(m.y + 543).slice(-2)}</span></div>`; }).join('')}</div>`;
+          <span class="ml">${TH_MON[m.m - 1]}</span></div>`; }).join('')}</div>
+        <div class="yr-row">${(() => { const g = []; trend.months.forEach(m => { const l = g[g.length - 1]; if(l && l.y === m.y) l.n++; else g.push({ y: m.y, n: 1 }); }); return g.map((x, i) => `<div class="yr y${i % 2}" style="grid-column:span ${x.n}"><span>${x.n >= 2 ? 'พ.ศ. ' : ''}${x.y + 543}</span></div>`).join(''); })()}</div>`;
     }
     const top = countBy(l => l.invCode).slice(0, 10), topMx = Math.max(1, ...top.map(x => x.n));
     const nameOf = new Map(L.map(l => [l.invCode, l.invName]));
-    const topHtml = top.length ? `<div class="hb">${top.map((x, i) => hbRow(`<span class="rank">${i + 1}</span>${esc(nameOf.get(x.k) || x.k)}`, x, topMx, `${esc(x.k)} · ${x.docs.size} เอกสาร`, `data-qitem="${esc(x.k)}" title="ดูรายการของสินค้านี้"`)).join('')}</div>` : '<p class="empty-dash">-</p>';
+    const topHtml = top.length ? `<div class="hb">${top.map((x, i) => hbRow(`<span class="rank">${i + 1}</span>${esc(nameOf.get(x.k) || x.k)}`, x, topMx, `${x.docs.size} เอกสาร`, `data-qitem="${esc(x.k)}" title="ดูรายการของสินค้านี้"`)).join('')}</div>` : '<p class="empty-dash">-</p>';
     const wh = countBy(l => l.mainWh || '(ไม่ระบุคลัง)').slice(0, 10), whMx = Math.max(1, ...wh.map(x => x.n));
     const whId = new Map(L.map(l => [l.mainWh || '(ไม่ระบุคลัง)', l.idWh0]));
     const whHtml = `<div class="hb">${wh.map(x => hbRow(esc(x.k), x, whMx, `${x.docs.size} เอกสาร`, whId.get(x.k) && !$('fWh').value ? `data-wh="${whId.get(x.k)}" title="กรองเฉพาะคลังนี้"` : '')).join('')}</div>`;
@@ -1519,31 +1537,29 @@
       const comp = meta.companies.find(x => String(x.id) === f.idComp);
       const nP = L.filter(l => l.op === '+').length, nM = L.filter(l => l.op === '-').length, nS = L.length - nP - nM;
       const stamp = thStamp(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString());
-      const head = `<div class="ps-co">${comp ? `<img src="${LOGO_BASE_URL + encodeURIComponent(comp.id)}.jpg" alt="" onerror="this.remove()">` : ''}
-          <div class="ps-cbody"><div class="ps-comp">${esc(comp ? comp.name : '')}</div><div class="ps-l">${esc([isItem ? 'มุมมองตามรายการ' : 'มุมมองตามเอกสาร', ...(filterText(f).slice(1).length ? filterText(f).slice(1) : ['ทุกประเภท', 'ทุกคลังหลัก'])].join(' · '))}</div></div>
-          <div class="ps-top"><h2>รายงานการปรับยอดสต๊อก</h2><div class="ps-en">STOCK ADJUSTMENT REPORT · ${isItem ? 'BY ITEM' : 'BY DOCUMENT'}</div>
-          <table class="ps-box"><tbody><tr><th>วันที่ปรับ</th><td>${esc(periodText(f))}</td></tr></tbody></table></div></div>`;
-      const sum = { html: `<div class="rp-sumrow"><div>เอกสาร<b>${fmtInt(data.docs.length)}</b></div><div>รายการที่ปรับ<b>${fmtInt(L.length)}</b></div><div>ปรับเพิ่ม<b>${fmtInt(nP)}</b></div><div>ปรับลด<b>${fmtInt(nM)}</b></div>${nS ? `<div>ตั้งยอดใหม่<b>${fmtInt(nS)}</b></div>` : ''}</div>` };
-      const op = (o) => o === '-' ? '−' : esc(o);
-      let part;
+      const R = WIMReport, e = R.esc;
+      const op = (o) => o === '-' ? '−' : e(o);
+      const info = [['วันที่ปรับ', e(periodText(f))], ['มุมมอง', isItem ? 'ตามรายการ' : 'ตามเอกสาร'], ['เอกสาร / รายการที่ปรับ', fmtInt(data.docs.length) + ' ใบ / ' + fmtInt(L.length) + ' รายการ'],
+        ['ปรับเพิ่ม / ปรับลด' + (nS ? ' / ตั้งยอดใหม่' : ''), fmtInt(nP) + ' / ' + fmtInt(nM) + (nS ? ' / ' + fmtInt(nS) : '')]];
+      const fl = filterText(f).slice(1); if(fl.length) info.push(['เงื่อนไข', e(fl.join(' · '))]);
+      let body;
       if(isItem){
-        part = { cls: 'rp-ps', cols: [4, 10.5, 20, 11, 7.5, 5.5, 7.5, 7.5, 6, 11.5, 9],
-          thead: '<tr><th>#</th><th>วันที่ปรับ</th><th>ชื่อสินค้า/วัสดุ</th><th>Lot No.</th><th>จำนวน<br>คงเหลือ</th><th>ตัว<br>ดำเนินการ</th><th>จำนวนที่<br>เปลี่ยนแปลง</th><th>จำนวน<br>คงเหลือใหม่</th><th>หน่วย</th><th>คลัง</th><th>หมายเหตุ</th></tr>',
-          rows: itemRows().map(({ l, d }, i) => ({ html: `<tr><td class="c">${i + 1}</td><td class="c">${thStampSec(d.date)}</td><td>${esc(l.invName)}</td><td>${esc(l.lotNo)}</td><td class="n">${fmtQty(l.before)}</td><td class="c">${op(l.op)}</td>
-            <td class="n chg">${fmtQty(l.amount)}</td><td class="n new">${fmtQty(l.after)}</td><td class="c">${esc(l.unit || '')}</td><td>${esc(l.wh || '-')}</td><td>${esc(l.note)}</td></tr>` })) };
+        body = R.table({ cols: [3, 11, 19, 13, 7, 4.5, 7, 7, 6, 12, 10.5],
+          head: ['#', 'วันที่ปรับ', 'ชื่อสินค้า/วัสดุ', 'Lot No.', 'คงเหลือ', 'ตัวดำเนินการ', 'จำนวนที่ปรับ', 'คงเหลือใหม่', 'หน่วย', 'คลัง', 'หมายเหตุ'],
+          align: ['c', 'l', 'l', 'l', 'r', 'c', 'r', 'r', 'c', 'l', 'l'],
+          rows: itemRows().map(({ l, d }, i) => [i + 1, { h: e(thStampSec(d.date)), cls: 'nw' }, e(l.invName), e(l.lotNo), fmtQty(l.before), op(l.op), fmtQty(l.amount), fmtQty(l.after), e(l.unit || ''), e(l.wh || '-'), e(l.note)]) });
       } else {
         const rows = [];
         [...data.byDoc.values()].forEach((d, i) => {
-          rows.push({ keep: true, html: `<tr class="grp"><td class="c">${i + 1}</td><td colspan="9">${esc(d.docCode)} · ${thDate(d.date)} · ${esc(d.note || '-')}
-            <span class="g2">· ผู้ออกคำสั่ง ${esc(shortName(d.cmd))} · ผู้ปฏิบัติงาน ${esc(shortName(d.act))}${d.rqCode ? ` · ${esc(d.rqCode)}` : ''}${d.apv ? ` · อนุมัติ ${esc(shortName(d.apv))}` : ''}</span></td></tr>` });
-          d.lines.forEach((l, k) => rows.push({ keep: k === 0, html: `<tr><td></td><td>${esc(l.lotNo)}</td><td>${esc(l.invName)}</td><td>${esc(l.wh || '-')}</td><td class="n">${fmtQty(l.before)}</td><td class="c">${op(l.op)}</td>
-            <td class="n chg">${fmtQty(l.amount)}</td><td class="n new">${fmtQty(l.after)}</td><td class="c">${esc(l.unit || '')}</td><td>${esc(l.note)}</td></tr>` }));
+          rows.push([i + 1, { h: '<b>' + e(d.docCode) + '</b> · ' + e(thDate(d.date)) + ' · ' + e(d.note || '-') + ' · ผู้ออกคำสั่ง ' + e(shortName(d.cmd)) + ' · ผู้ปฏิบัติงาน ' + e(shortName(d.act)) + (d.rqCode ? ' · ' + e(d.rqCode) : ''), span: 9 }]);
+          d.lines.forEach((l) => rows.push(['', e(l.lotNo), e(l.invName), e(l.wh || '-'), fmtQty(l.before), op(l.op), fmtQty(l.amount), fmtQty(l.after), e(l.unit || ''), e(l.note)]));
         });
-        part = { cls: 'rp-ps', cols: [4, 12, 22, 14, 8, 6, 8, 8, 6, 12],
-          thead: '<tr><th>ลำดับ</th><th>Lot No.</th><th>ชื่อสินค้า</th><th>คลัง</th><th>จำนวน<br>คงเหลือ</th><th>ตัว<br>ดำเนินการ</th><th>จำนวนที่<br>เปลี่ยนแปลง</th><th>จำนวน<br>คงเหลือใหม่</th><th>หน่วย</th><th>หมายเหตุ</th></tr>', rows };
+        body = R.table({ cols: [5, 13.5, 23.5, 14, 7.5, 5, 8, 8, 6, 9.5],
+          head: ['ลำดับ', 'Lot No.', 'ชื่อสินค้า', 'คลัง', 'คงเหลือ', 'ตัวดำเนินการ', 'จำนวนที่ปรับ', 'คงเหลือใหม่', 'หน่วย', 'หมายเหตุ'],
+          align: ['c', 'l', 'l', 'l', 'r', 'c', 'r', 'r', 'c', 'l'], rows });
       }
-      const foot = (p, n) => `<div class="ps-foot"><span>รายงานการปรับยอดสต๊อก · ${esc(periodText(f))} · พิมพ์โดย ${esc(shortName(me))}</span><span>หน้า ${p}/${n}</span><span>พิมพ์ ${stamp}</span></div>`;
-      await doPrint(await pagedHtml({ landscape: true, head, parts: [sum, part], foot }));
+      R.print({ orient: 'landscape', title: 'รายงานการปรับยอดสต๊อก', titleEn: 'Stock Adjustment Report · ' + (isItem ? 'By Item' : 'By Document'),
+        company: { id: comp ? comp.id : '', name: comp ? comp.name : '' }, info, body });
     } finally{ btn.disabled = false; btn.innerHTML = h; }
   }
 
@@ -1556,8 +1572,8 @@
     const rv = t.closest('[data-rev]'); if(rv){ e.stopPropagation(); AdjReverse.open(rv.dataset.rev, { onDone: () => load() }); return; }
     const dm = t.closest('[data-dmode]'); if(dm){ if(st.dmode !== dm.dataset.dmode){ st.dmode = dm.dataset.dmode; renderDateFields(); if(!$('fDoc').value.trim()) reload(); } return; }
     const v = t.closest('[data-view]'); if(v){ st.view = v.dataset.view; store.set('view', st.view); st.page = 1; render(); return; }
-    const tg = t.closest('[data-toggle]'); if(tg){ const id = Number(tg.dataset.toggle); if(st.open.has(id)) st.open.delete(id); else st.open.add(id); render(); return; }
-    const ea = t.closest('[data-expandall]'); if(ea){ const docs = [...data.byDoc.values()].slice((st.page - 1) * DOC_PAGE, st.page * DOC_PAGE); docs.forEach(d => ea.dataset.expandall === '1' ? st.open.add(d.id) : st.open.delete(d.id)); render(); return; }
+    const tg = t.closest('[data-toggle]'); if(tg){ const id = Number(tg.dataset.toggle); if(st.open.has(id)) st.open.delete(id); else st.open.add(id); const y = window.scrollY; render(); window.scrollTo(0, y); return; }
+    const ea = t.closest('[data-expandall]'); if(ea){ const docs = [...data.byDoc.values()].slice((st.page - 1) * DOC_PAGE, st.page * DOC_PAGE); docs.forEach(d => ea.dataset.expandall === '1' ? st.open.add(d.id) : st.open.delete(d.id)); const y = window.scrollY; render(); window.scrollTo(0, y); return; }
     const pg = t.closest('[data-page]'); if(pg && !pg.disabled){ st.page = Number(pg.dataset.page); render(); $('viewTabs').scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     const so = t.closest('[data-sort]'); if(so){ const k = so.dataset.sort; st.sort = st.sort.key === k ? { key: k, dir: -st.sort.dir } : { key: k, dir: 1 }; st.page = 1; render(); return; }
     const qi = t.closest('[data-qitem]'); if(qi){ $('fQ').value = qi.dataset.qitem; st.view = 'item'; store.set('view', 'item'); load(); return; }

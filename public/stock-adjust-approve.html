@@ -595,7 +595,15 @@
   .list-toolbar .form-group.trk-q{flex:1 1 220px;}
   .list-toolbar input, .list-toolbar .date-overlay-wrap{height:46px; min-height:46px;}
   .list-toolbar .date-overlay-wrap{width:100%;}
-  @media (max-width:560px){ .list-toolbar .form-group.trk-d{flex:1 1 calc(50% - 8px);} }
+  @media (max-width:560px){
+    .list-toolbar .form-group.trk-d{flex:1 1 calc(50% - 8px);}
+    .list-toolbar .form-group.trk-s, .list-toolbar .form-group.trk-q{flex:1 1 100%;}
+    .list-toolbar{gap:14px 12px;}
+    .seg{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px;}
+    .seg button{min-height:44px; display:flex; align-items:center; justify-content:center; gap:5px; padding:6px 4px; white-space:nowrap;}
+    .seg button .n{margin-left:0;}
+    .seg button:last-child:nth-child(odd){grid-column:1 / -1;}
+  }
   .trk-hint{font-size:12.5px; color:var(--concrete-400); margin:-4px 0 12px;}
   .trk-area{container-type:inline-size;}
   .trk-area .rq-list{display:none;}
@@ -1413,7 +1421,7 @@
   function embedShow(html){
     const pa = $('printArea');
     pa.innerHTML = html;
-    pa.querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = IOS_PRINT ? '0' : p.style.height; if(IOS_PRINT) p.style.height = 'auto'; });   // ย่อบนจอเล็กตัดบรรทัดต่างได้ → แผ่นยืดได้ ไม่ตัดท้าย
+    pa.querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = IOS_PRINT ? `calc(${p.style.height} - 14mm)` : p.style.height; if(IOS_PRINT) p.style.height = 'auto'; });   // ย่อบนจอเล็กตัดบรรทัดต่างได้ → แผ่นยืดได้ ไม่ตัดท้าย
     pa.style.width = (194 + 16 + 0.8) + 'mm';   // แผ่น A4 แนวตั้ง = พื้นที่พิมพ์ + ขอบ 8 มม. 2 ข้าง
     document.body.classList.add('printing', 'pv');
     const fit = () => { pa.style.setProperty('--pvz', 1); const w = pa.getBoundingClientRect().width; pa.style.setProperty('--pvz', Math.min(1, (window.innerWidth - 16) / w).toFixed(3)); };
@@ -1434,7 +1442,7 @@
     if(EMBED){ embedShow(html); return Promise.resolve(true); }
     const my = ++printSeq;
     $('printArea').innerHTML = html;
-    if(IOS_PRINT) $('printArea').querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = '0'; p.style.height = 'auto'; });
+    if(IOS_PRINT) $('printArea').querySelectorAll('.ps-pg').forEach(p => { p.style.minHeight = `calc(${p.style.height} - 14mm)`; p.style.height = 'auto'; });
     const imgs = [...$('printArea').querySelectorAll('img')].filter(i => !i.complete);
     if(imgs.length) showToast('กำลังเตรียมเอกสารสำหรับพิมพ์…');
     const ready = Promise.race([Promise.all(imgs.map(i => new Promise(ok => { i.addEventListener('load', ok); i.addEventListener('error', ok); }))), new Promise(ok => setTimeout(ok, 3000))]);
