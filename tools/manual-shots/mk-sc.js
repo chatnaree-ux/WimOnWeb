@@ -158,6 +158,10 @@ const SHOTS = {
   async 'sc-form'(page) { await go(page, '/stock-count', P.counter); await page.click('#btnNew'); await page.waitForTimeout(900);
     await pins(page, 'sc-form', [[1, '#hComp'], [2, '#hWhPick'], [3, '#hDate'], [4, '#hRound'], [5, '#hType'], [6, '#hCounter'], [7, '#hReviewer'], [8, '#hTol'], [9, 'label:has(#hBlind)', 0, 'tr'], [10, '#hNote']]);
     return page.locator('.modal-box:visible').first().screenshot({ type: 'png' }); },
+  // หน้าต่างเลือกคลัง / พื้นที่: แต่ละแถว = ชื่อ + ป้ายระดับ (ขวา) / "อยู่ใน …" / จำนวนรายการ · นับล่าสุด
+  async 'sc-wh'(page) { await go(page, '/stock-count', P.counter); await page.click('#btnNew'); await page.waitForTimeout(600); await page.click('#hWhPick'); await page.waitForTimeout(1000);
+    await pins(page, 'sc-wh', [[1, '#whSearch'], [2, '.wh-item.main', 0, 'l', 24, 0], [3, '.wh-item .lv', 1, 'tr', 6, -14], [4, '.wh-item .wh-par', 0, 'tl', -22, 8], [5, '.wh-item', 2, 'l', 6, 0]]);
+    return page.locator('#whModal .modal-box').screenshot({ type: 'png' }); },
   async 'sc-mode'(page) { await go(page, '/stock-count?id=5', P.counter);
     return top(page, 980, 'sc-mode', [[1, '.stepper .stp.cur', 0, 'tr'], [2, '.mode-card[data-mode="O"]'], [3, 'input[name="sheet"][value="P"]', 0, 'l', -4], [4, '.mode-card[data-mode="L"]'], [5, '.warn-box', 0, 'tl'], [6, '[data-act="start"]']]); },
   async 'sc-sheet'(page) { await go(page, '/stock-count?id=1', P.counter);
@@ -203,6 +207,9 @@ const SHOTS = {
     return top(page, 900, 'adj-track', [[1, 'button:has-text("รายการรออนุมัติ")', 0, 'tl'], [2, '#tSrc'], [3, '.trk-table tbody tr:nth-child(1) td.no .src', 0, 'tl', -2, -2], [4, '.trk-table thead th:has-text("ขั้นอนุมัติ")', 0, 'tl', 10, 0], [5, '.trk-table tbody tr:nth-child(1) [data-rshare]'], [6, '.trk-table tbody tr:nth-child(1) [data-rprint]'], [7, '.trk-table tbody tr:nth-child(1) [data-open]']]); },
   async 'adj-report'(page) { await go(page, '/stock-adjust-report', P.reviewer); await page.locator('.rp-table [data-toggle]').first().click(); await page.waitForTimeout(400);
     return top(page, 1150, 'adj-report', [[1, '[data-dmode="month"]'], [2, '#fComp'], [3, '#fDoc'], [4, '#btnShow'], [5, '#btnXls'], [6, '#viewTabs button', 0, 'tl'], [7, '.rp-table .ic-btn:not(.rv)', 0], [8, '.rp-table .ic-btn.rv', 0], [9, '.rp-table .ex-btn', 0]]); },
+  // ภาพรวมรายงานปรับยอด: กราฟ 12 เดือน + ปีกกาปี
+  async 'adj-dash'(page) { await go(page, '/stock-adjust-report', P.reviewer); await page.click('[data-view="dash"]'); await page.waitForTimeout(900);
+    return top(page, 1500, 'adj-dash', [[1, '.trend .col', 2, 'tr', -6, 0], [2, '.yr-row .yr', 1, 'r', 0, 6], [3, '.hb .r', 0, 'tr', 0, 14]]); },
   async 'adj-reverse'(page) { await go(page, '/stock-adjust-report', P.reviewer); await page.locator('[data-rev]:visible').first().click(); await page.waitForTimeout(900); await page.fill('#rvxNote', 'ปรับผิด Lot — ต้องปรับที่ Lot 684-041-00012'); await page.waitForTimeout(200);
     await pins(page, 'adj-reverse', [[1, '.rvx-all', 0, 'r', 6, 0], [2, '.rvx-tbl tbody tr:nth-child(1) .rvx-ck', 0, 'tl', -12, -12], [3, '.rvx-tbl thead th:nth-child(5)', 0, 'tr'], [4, '.rvx-tbl tbody tr:nth-child(3) .st .rvx-chip', 0, 'r', 6, 0], [5, '#rvxNote', 0, 'tr', -8, -6], [6, '[data-rvx="send"]']]);
     return page.locator('.rvx-box').screenshot({ type: 'png' }); }
