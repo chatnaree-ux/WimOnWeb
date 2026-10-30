@@ -287,6 +287,21 @@ const CENTRAL_AUTH_URL = 'https://auth.advanceseeds.com';
 const APP_CODE = 'wimweb-app';
 const APP_SECRET = '0dd959d32d613a4485fb9b0d6b4f23ced7a6d3499e6178d1';
 
+// เรียกระบบกลางจากหลังบ้าน: เครือข่ายสะดุด ("fetch failed" เช่น socket ค้าง / รีเซ็ต) ลองซ้ำ 3 ครั้ง + timeout 15 วินาที กันค้าง
+// และ log สาเหตุจริง (err.cause.code เช่น ENOTFOUND / ECONNRESET / ETIMEDOUT / CERT_*) ไว้ดูในคอนโซลของ server
+async function centralFetch(url, init, tries = 3) {
+  let lastErr;
+  for (let i = 1; i <= tries; i++) {
+    try { return await fetch(url, { ...init, signal: AbortSignal.timeout(15000) }); }
+    catch (e) {
+      lastErr = e;
+      console.error(`❌ เรียกระบบกลางไม่สำเร็จ (ครั้งที่ ${i}/${tries}) ${url}:`, e.message, e.cause ? (e.cause.code || e.cause.message) : '');
+      if (i < tries) await new Promise((r) => setTimeout(r, 400 * i));
+    }
+  }
+  throw lastErr;
+}
+
 // 1. Endpoint พาผู้ใช้ไปหน้า Login กลาง (SSO)
 // returnTo ต้องเป็น path ภายในเว็บนี้เท่านั้น (ขึ้นต้น / แต่ไม่ใช่ // หรือ /\) กัน open redirect
 const safeReturnTo = (v) => {
@@ -323,9 +338,11 @@ app.get('/auth/sso/callback', async (req, res) => {
   if (!ticket) {
     return res.redirect('/?error=no_ticket');
   }
+  // log (ปิดค่า ticket) ไว้เทียบเคสเปิดจากลิงก์ LINE กับ login ปกติ
+  console.log('SSO callback:', req.originalUrl.replace(/ticket=[^&]+/g, 'ticket=***'), '| ticket len', String(ticket).length, '| host', req.get('host'), '| UA', String(req.get('user-agent') || '').slice(0, 90));
 
   try {
-    const response = await fetch(`${CENTRAL_AUTH_URL}/sso/exchange`, {
+    const response = await centralFetch(`${CENTRAL_AUTH_URL}/sso/exchange`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticket, app: APP_CODE, app_secret: APP_SECRET })
@@ -360,8 +377,9 @@ app.get('/auth/sso/callback', async (req, res) => {
     delete req.session.returnTo;
     res.redirect(returnTo || '/main-menu');
   } catch (err) {
-    console.error('❌ SSO Exchange Error เต็มๆ:', err);
-    res.redirect(`/?error=${encodeURIComponent(err.message)}`);
+    console.error('❌ SSO Exchange Error เต็มๆ:', err, '| cause:', err && err.cause);
+    const why = err && err.cause && (err.cause.code || err.cause.message);
+    res.redirect(`/?error=${encodeURIComponent(err.message + (why ? ' (' + why + ')' : ''))}`);
   }
 });
 

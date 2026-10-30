@@ -134,6 +134,12 @@
     .save-info{display:none;}
     .save-inner .btn{flex:1;}
     .item-head{flex-wrap:wrap;}
+    /* หัวหน้า: แถวบน = โลโก้ + ชื่อหน้าแนวนอน / แถวล่าง = ปุ่ม "รายการร้องขอ" กับชื่อผู้ใช้ เท่ากัน ไม่ล้นกรอบ */
+    .topbar{flex-wrap:wrap; gap:10px 12px; padding:12px 16px;}
+    .topbar .spacer{display:none;}
+    .brand-text{flex:1 1 calc(100% - 52px); white-space:nowrap; min-width:0;}
+    .brand-text small{font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .top-link, .user-chip{flex:1 1 calc(50% - 6px); min-height:44px; display:flex; align-items:center; justify-content:center; box-sizing:border-box; max-width:none; font-size:13.5px;}
     .item-status{width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; padding-left:40px;}
     .replied-by{margin-top:0;}
   }

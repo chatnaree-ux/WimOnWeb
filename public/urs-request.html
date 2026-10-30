@@ -489,9 +489,9 @@
   .av-card.active .lbl{color:var(--amber-500);}
   .av-total{
     flex:0 0 190px; padding:10px 14px; border-radius:9px; display:flex; flex-direction:column; justify-content:center;
-    background:linear-gradient(135deg, rgba(242,169,28,.18), rgba(242,169,28,.05)); border:1px solid rgba(242,169,28,.4);
+    background:linear-gradient(135deg, rgba(62,207,142,.22), rgba(62,207,142,.07)); border:1px solid rgba(62,207,142,.6); box-shadow:inset 4px 0 0 #3ecf8e;
   }
-  .av-total .lbl{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--amber-500);}
+  .av-total .lbl{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:#7ee3b0;}
   .av-total .val{margin-top:4px; font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; color:#fff; white-space:nowrap;}
   .av-total .unit{font-size:11.5px; color:var(--concrete-400);}
 
@@ -764,27 +764,29 @@
     .av-lot-table tbody tr td.empty-msg, .av-lot-table tbody tr td.av-empty{flex:1 1 100%; text-align:center;}
     /* แถวรวม: การ์ดสรุป หัว "รวม" + ตัวเลขแต่ละช่องมีป้ายอยู่เหนือค่า เรียงเท่าๆ กัน */
     .av-lot-table tfoot{display:block; margin-top:4px;}
-    .av-lot-table tfoot tr{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 14px; padding:12px 14px; border-radius:12px; background:linear-gradient(135deg, rgba(242,169,28,.22), rgba(242,169,28,.08)); border:1px solid rgba(242,169,28,.55);}
-    .av-lot-table tfoot td{display:inline-flex; align-items:baseline; gap:6px; padding:0 !important; border:0 !important; background:none !important; text-align:left !important; font-size:17px; font-weight:700; color:#fff; font-family:'JetBrains Mono',monospace;}
+    .av-lot-table tfoot tr{display:flex; flex-wrap:nowrap; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:linear-gradient(135deg, rgba(62,207,142,.24), rgba(62,207,142,.09)); border:1px solid rgba(62,207,142,.7);}
+    .av-lot-table tfoot td{display:flex; flex-direction:column; align-items:flex-start; gap:1px; flex:1 1 0; min-width:0; padding:0 !important; border:0 !important; background:none !important; text-align:left !important; font-size:15px; font-weight:700; color:#fff; font-family:'JetBrains Mono',monospace; white-space:nowrap;}
     .av-lot-table tfoot td:empty{display:none;}
-    .av-lot-table tfoot td:not([data-l]){margin-right:auto; font-family:inherit; font-size:15px; letter-spacing:.04em; color:var(--amber-500);}
-    .av-lot-table tfoot td[data-l]::before{content:attr(data-l); font-family:inherit; font-size:12.5px; font-weight:400; color:#d9e2ee;}
+    .av-lot-table tfoot td:not([data-l]){flex:0 0 auto; margin-right:2px; font-family:inherit; font-size:14px; letter-spacing:.02em; color:#7ee3b0;}
+    .av-lot-table tfoot td[data-l]::before{content:attr(data-l); font-family:inherit; font-size:11px; font-weight:400; color:#d9e2ee;}
     /* กล่องค้นหา Lot: เต็มความกว้างเท่าการ์ด */
     .av-lot-bar{padding:12px 16px;}
     .av-lot-bar .search-shell{flex:1 1 100%; width:100%;}
     /* กล่องเกรด / คลัง: ชื่อใหญ่ เข้ม ตัดบรรทัดได้ (ไม่ตัด ...) / พื้นการ์ดสว่างขึ้น ขอบชัด ไม่กลืนพื้นหลัง */
-    .av-card{background:rgba(78,167,224,.13); border:1px solid rgba(78,167,224,.5); padding:12px 14px;}
+    .av-card{background:rgba(78,167,224,.2); border:1px solid rgba(78,167,224,.62); padding:12px 14px;}
     .av-card .lbl{font-size:14px; font-weight:700; letter-spacing:.02em; color:#fff; white-space:normal; text-transform:none;}
     .av-card .lbl i{width:11px; height:11px;}
     .av-card .val{font-size:19px;}
     .av-card.zero .val{color:#9fb0c3;}
     .av-card .nm{font-size:15px; color:#fff; white-space:normal; overflow:visible; text-overflow:clip; line-height:1.35;}
     .av-card .tag{font-size:12px;}
-    .av-card.wip{background:rgba(167,139,250,.14); border:1px dashed rgba(167,139,250,.65);}
+    .av-card.wip{background:rgba(78,167,224,.2); border:1px dashed rgba(78,167,224,.62);}
     .av-card.active{background:rgba(242,169,28,.2); border-color:var(--amber-500);}
-    .av-total{background:linear-gradient(135deg, rgba(242,169,28,.3), rgba(242,169,28,.12)); border:1px solid rgba(242,169,28,.7);}
-    .av-total .lbl{font-size:13px; color:#ffcf66;}
-    .av-total .val{font-size:24px;}
+    .av-total{background:linear-gradient(135deg, rgba(62,207,142,.28), rgba(62,207,142,.1)); border:1px solid rgba(62,207,142,.75); box-shadow:inset 4px 0 0 #3ecf8e;}
+    .av-total .lbl{font-size:13.5px; color:#7ee3b0;}
+    .av-total .val{font-size:30px; color:#fff;}
+    .st-grades .av-total .val{font-size:25px;}
+    .st-grades .av-total .lbl{font-size:13px;}
     .av-lot-table tbody tr td.blk-start{border-left:0 !important; box-shadow:none !important;}
   }
 </style>
