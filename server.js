@@ -6380,7 +6380,7 @@ const MENU_ADJ_TRACK = 'stock_adjust_track';
 const MENU_ADJ_REPORT = 'stock_adjust_report';
 // ขอกลับรายการปรับยอดสต๊อก (สิทธิ์ ไม่มีเมนู): ปุ่มในรายงาน / ใบขอปรับยอดที่ปรับแล้ว → RQ ใหม่ SrcType 'REV' → อนุมัติ 3 ขั้นตามปกติ
 const MENU_ADJ_REVERSE = 'stock_adjust_reverse';
-const MENU_SC_VIEW = [MENU_SC, MENU_SC_REVIEW, ...MENU_ADJ, MENU_ADJ_TRACK];
+const MENU_SC_VIEW = [MENU_SC, MENU_SC_REVIEW, MENU_SC_SETUP, ...MENU_ADJ, MENU_ADJ_TRACK];
 const SC_POSTING_READY = true;
 const SC_EPS = 1e-6;
 const SC_MAX_ENTRY_BATCH = 2000;
@@ -6693,9 +6693,9 @@ app.get('/api/stock-count/meta', requireMenu(MENU_SC_VIEW), async (req, res) => 
     const request = pool.request();
     const compSql = compFilter(req.access, request, 'c.idComp');
     const r = await request.query(
-      `SELECT idCountType, TypeCode, TypeName, TypeNameEn, CASE WHEN stDel IS NULL THEN 0 ELSE 1 END AS inactive
+      `SELECT idCountType, TypeCode, TypeName, TypeNameEn, SortOrder, CASE WHEN stDel IS NULL THEN 0 ELSE 1 END AS inactive
        FROM devsk.dInvCountType WITH (NOLOCK) ORDER BY SortOrder, idCountType;
-       SELECT idCountCause, CauseName, CASE WHEN stDel IS NULL THEN 0 ELSE 1 END AS inactive
+       SELECT idCountCause, CauseName, SortOrder, CASE WHEN stDel IS NULL THEN 0 ELSE 1 END AS inactive
        FROM devsk.dInvCountCause WITH (NOLOCK) ORDER BY SortOrder, idCountCause;
        SELECT c.idComp, LTRIM(RTRIM(c.CompCode)) AS CompCode, c.CompName
        FROM PchInvAndProject.dbo.dCompany c WITH (NOLOCK)
@@ -6704,8 +6704,8 @@ app.get('/api/stock-count/meta', requireMenu(MENU_SC_VIEW), async (req, res) => 
     const a = req.access;
     res.json({
       success: true,
-      types: r.recordsets[0].map(t => ({ id: t.idCountType, code: t.TypeCode, name: t.TypeName, nameEn: t.TypeNameEn, inactive: !!t.inactive })),
-      causes: r.recordsets[1].map(c => ({ id: c.idCountCause, name: c.CauseName, inactive: !!c.inactive })),
+      types: r.recordsets[0].map(t => ({ id: t.idCountType, code: t.TypeCode, name: t.TypeName, nameEn: t.TypeNameEn, sort: t.SortOrder, inactive: !!t.inactive })),
+      causes: r.recordsets[1].map(c => ({ id: c.idCountCause, name: c.CauseName, sort: c.SortOrder, inactive: !!c.inactive })),
       companies: r.recordsets[2].map(c => ({ id: c.idComp, code: c.CompCode || c.CompName, name: c.CompName })),
       can: {
         edit: hasMenu(a, MENU_SC), review: hasMenu(a, MENU_SC_REVIEW), cancel: hasMenu(a, MENU_SC_CANCEL), setup: hasMenu(a, MENU_SC_SETUP),
@@ -6717,6 +6717,88 @@ app.get('/api/stock-count/meta', requireMenu(MENU_SC_VIEW), async (req, res) => 
   } catch (err) {
     console.error('SC meta error:', err);
     res.status(500).json({ success: false, message: 'โหลดข้อมูลตั้งต้นไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ตั้งค่า "ประเภทการตรวจนับ" / "สาเหตุผลต่าง" (สิทธิ์ stock_count_setup): เพิ่ม / แก้ชื่อ / ลำดับ / ปิดการใช้งาน (stDel — ไม่ลบจริง เพราะเอกสารเก่าอ้างอิงอยู่)
+//   body: { id?, code (ประเภทเท่านั้น — ตั้งตอนเพิ่ม แก้ภายหลังไม่ได้), name, nameEn?, sort?, inactive? }
+function scSetupHandler(kind) {
+  const T = kind === 'type'
+    ? { tbl: 'devsk.dInvCountType', id: 'idCountType', name: 'TypeName', label: 'ประเภทการตรวจนับ' }
+    : { tbl: 'devsk.dInvCountCause', id: 'idCountCause', name: 'CauseName', label: 'สาเหตุ' };
+  return async (req, res) => {
+    try {
+      const b = req.body || {};
+      const id = scInt(b.id), name = String(b.name || '').trim().slice(0, 100);
+      const sort = b.sort === '' || b.sort == null ? null : scInt(b.sort);
+      if (!name) return scFail(res, 400, 'กรุณาระบุชื่อ' + T.label);
+      const pool = await poolPromise;
+      const dup = pool.request().input('n', sql.NVarChar(200), name).input('id', sql.Int, id || 0);
+      const d = await dup.query(`SELECT TOP 1 1 AS x FROM ${T.tbl} WITH (NOLOCK) WHERE ${T.name} = @n AND ${T.id} <> @id`);
+      if (d.recordset.length) return scFail(res, 409, 'มี' + T.label + 'ชื่อนี้อยู่แล้ว');
+      const rq = pool.request().input('name', sql.NVarChar(200), name).input('sort', sql.Int, sort).input('ps', sql.Int, req.idPs).input('del', sql.Bit, b.inactive ? 1 : null);
+      if (kind === 'type') {
+        const nameEn = String(b.nameEn || '').trim().slice(0, 100) || null;
+        rq.input('en', sql.NVarChar(100), nameEn);
+        if (id) { await rq.input('id', sql.Int, id).query('UPDATE devsk.dInvCountType SET TypeName = @name, TypeNameEn = @en, SortOrder = ISNULL(@sort, SortOrder), stDel = @del, idPsTs = @ps, DateTs = GETDATE() WHERE idCountType = @id'); }
+        else {
+          const code = String(b.code || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 10);
+          if (!code) return scFail(res, 400, 'กรุณาระบุรหัสประเภท (ตัวอักษรอังกฤษ / ตัวเลข ไม่เกิน 10 ตัว)');
+          const c = await pool.request().input('c', sql.VarChar(10), code).query('SELECT TOP 1 1 AS x FROM devsk.dInvCountType WITH (NOLOCK) WHERE TypeCode = @c');
+          if (c.recordset.length) return scFail(res, 409, 'มีรหัสประเภทนี้อยู่แล้ว');
+          await rq.input('code', sql.VarChar(10), code).query('INSERT INTO devsk.dInvCountType (TypeCode, TypeName, TypeNameEn, SortOrder, stDel, idPsTs, DateTs) VALUES (@code, @name, @en, ISNULL(@sort, (SELECT ISNULL(MAX(SortOrder), 0) + 1 FROM devsk.dInvCountType)), @del, @ps, GETDATE())');
+        }
+      } else if (id) {
+        await rq.input('id', sql.Int, id).query('UPDATE devsk.dInvCountCause SET CauseName = @name, SortOrder = ISNULL(@sort, SortOrder), stDel = @del, idPsTs = @ps, DateTs = GETDATE() WHERE idCountCause = @id');
+      } else {
+        await rq.query('INSERT INTO devsk.dInvCountCause (CauseName, SortOrder, stDel, idPsTs, DateTs) VALUES (@name, ISNULL(@sort, (SELECT ISNULL(MAX(SortOrder), 0) + 1 FROM devsk.dInvCountCause)), @del, @ps, GETDATE())');
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error('SC setup error:', err);
+      res.status(500).json({ success: false, message: 'บันทึกไม่สำเร็จ', detail: err.message });
+    }
+  };
+}
+app.post('/api/stock-count/setup/type', requireMenu(MENU_SC_SETUP), scSetupHandler('type'));
+app.post('/api/stock-count/setup/cause', requireMenu(MENU_SC_SETUP), scSetupHandler('cause'));
+
+// เลื่อนลำดับ (ส่ง id ทั้งรายการตามลำดับใหม่) / เปิด-ปิดใช้งาน — บันทึกทันทีจากหน้าตั้งค่า
+const SC_SETUP_TBL = { type: { tbl: 'devsk.dInvCountType', id: 'idCountType' }, cause: { tbl: 'devsk.dInvCountCause', id: 'idCountCause' } };
+app.post('/api/stock-count/setup/:kind/order', requireMenu(MENU_SC_SETUP), async (req, res) => {
+  const T = SC_SETUP_TBL[req.params.kind];
+  if (!T) return scFail(res, 404, 'ไม่พบรายการ');
+  try {
+    const ids = (Array.isArray(req.body && req.body.ids) ? req.body.ids : []).map(scInt).filter(Number.isInteger);
+    if (!ids.length || new Set(ids).size !== ids.length) return scFail(res, 400, 'ข้อมูลลำดับไม่ถูกต้อง');
+    const pool = await poolPromise, tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        await new sql.Request(tx).input('id', sql.Int, ids[i]).input('o', sql.Int, i + 1).input('ps', sql.Int, req.idPs)
+          .query(`UPDATE ${T.tbl} SET SortOrder = @o, idPsTs = @ps, DateTs = GETDATE() WHERE ${T.id} = @id`);
+      }
+      await tx.commit();
+    } catch (e) { try { await tx.rollback(); } catch (e2) {} throw e; }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('SC setup order error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกลำดับไม่สำเร็จ', detail: err.message });
+  }
+});
+app.post('/api/stock-count/setup/:kind/active', requireMenu(MENU_SC_SETUP), async (req, res) => {
+  const T = SC_SETUP_TBL[req.params.kind];
+  if (!T) return scFail(res, 404, 'ไม่พบรายการ');
+  try {
+    const id = scInt(req.body && req.body.id);
+    if (!id) return scFail(res, 400, 'ไม่พบรายการ');
+    const pool = await poolPromise;
+    await pool.request().input('id', sql.Int, id).input('del', sql.Bit, req.body.inactive ? 1 : null).input('ps', sql.Int, req.idPs)
+      .query(`UPDATE ${T.tbl} SET stDel = @del, idPsTs = @ps, DateTs = GETDATE() WHERE ${T.id} = @id`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('SC setup active error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกไม่สำเร็จ', detail: err.message });
   }
 });
 

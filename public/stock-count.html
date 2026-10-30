@@ -1017,6 +1017,25 @@
     #dlgModal .form-grid.g2 input{height:46px; min-height:46px;}
     #dlgModal .form-grid.g2 .form-group.full{grid-column:1 / -1;}
   }
+  .su-tabs{display:flex; border-bottom:1px solid rgba(255,255,255,.12); margin-bottom:14px;}
+  .su-tabs button{flex:1; display:flex; align-items:center; justify-content:center; gap:8px; min-height:46px; padding:0 8px; background:none; border:0; border-bottom:3px solid transparent; margin-bottom:-1px; color:var(--concrete-400); font:inherit; font-size:14.5px; font-weight:600; cursor:pointer;}
+  .su-tabs button:hover{color:#fff;}
+  .su-tabs button.on{color:var(--amber-500); border-bottom-color:var(--amber-500);}
+  .su-tabs svg{width:18px; height:18px; flex:none;}
+  .su-hint{font-size:12.5px; color:var(--concrete-400); margin:0 0 12px; line-height:1.6;}
+  .su-row{display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.1); border-radius:10px; background:rgba(255,255,255,.03); margin-bottom:8px;}
+  .su-row.off .su-main{opacity:.55;}
+  .su-ord{display:flex; align-items:center; gap:6px; flex:none;}
+  .su-ord button{width:36px; height:36px; border-radius:8px; border:1px solid rgba(78,167,224,.45); background:rgba(78,167,224,.1); color:#a9d8f5; cursor:pointer; font-size:12px; padding:0;}
+  .su-ord button:disabled{opacity:.25; cursor:default;}
+  .su-ord .no{min-width:26px; text-align:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500); font-size:15px;}
+  .su-main{flex:1 1 auto; min-width:0;}
+  .su-main b{color:#fff; font-weight:600; overflow-wrap:anywhere;}
+  .su-main small{display:block; color:var(--concrete-400); font-size:12px; margin-top:2px;}
+  .su-main .switch{font-size:13px; margin-top:6px;}
+  .su-row .btn{flex:none; min-height:40px;}
+  .su-form .form-group{margin-bottom:12px;}
+  .su-form input[type=text], .su-form input[type=number]{height:46px; min-height:46px;}
   .dc-more{margin-top:10px;}
   .dc-more .btn{width:100%; justify-content:center; min-height:44px; pointer-events:none;}
   .dc-more .btn svg{width:18px; height:18px;}
@@ -1215,6 +1234,10 @@
               <button type="button" class="btn btn-secondary" id="btnExport" title="Export รายการตามตัวกรองที่เลือกเป็น Excel">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                 Export Excel
+              </button>
+              <button type="button" class="btn btn-secondary" id="btnSetup" hidden title="เพิ่ม / แก้ไข ประเภทการตรวจนับ และสาเหตุผลต่าง">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+                ตั้งค่าประเภท / สาเหตุ
               </button>
             </div>
             <div class="more-flt" id="moreFlt" hidden>
@@ -1587,6 +1610,7 @@
     setDate('fFrom', isoDate(from));
     setDate('fTo', isoDate(to));
     $('createRow').hidden = !meta.can.edit;
+    $('btnSetup').hidden = !meta.can.setup;
     $('emptyNew').hidden = !meta.can.edit;
     // ขั้นตอน: เปิดครั้งแรกบนจอใหญ่ / มือถือพับไว้ (กินพื้นที่) — ผู้ใช้กดเปิด-ปิดแล้วจำค่าไว้
     const stepsOpen = (() => { try{ const v = localStorage.getItem('sc_steps'); return v ? v === '1' : window.innerWidth > 900; } catch(e){ return window.innerWidth > 900; } })();
@@ -2982,6 +3006,72 @@
       } catch(err){ alert(err.message); }
     });
   }
+  /* ---------- ตั้งค่า ประเภทการตรวจนับ / สาเหตุผลต่าง (สิทธิ์ stock_count_setup) ---------- */
+  const su = { tab: 'type', edit: null };
+  const SU_IC = { type: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>', cause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>' };
+  function setupOpen(tab){ su.tab = tab || 'type'; su.edit = null; setupRender(true); }
+  function setupRender(open){
+    const isT = su.tab === 'type', rows = isT ? meta.types : meta.causes;
+    let body;
+    if(su.edit){
+      const e = su.edit, isNew = !e.id;
+      body = `<div class="su-form">
+        ${isT ? `<div class="form-group"><label>รหัสประเภท${isNew ? '<span class="req">*</span>' : ''}</label><input type="text" id="suCode" maxlength="10" value="${esc(e.code || '')}" ${isNew ? 'placeholder="เช่น QUARTER (อังกฤษ/ตัวเลข ไม่เกิน 10 ตัว)"' : 'readonly'} autocapitalize="characters"></div>` : ''}
+        <div class="form-group"><label>${isT ? 'ชื่อประเภท (ไทย)' : 'ชื่อสาเหตุ'}<span class="req">*</span></label><input type="text" id="suName" maxlength="100" value="${esc(e.name || '')}"></div>
+        ${isT ? `<div class="form-group"><label>ชื่อภาษาอังกฤษ</label><input type="text" id="suEn" maxlength="100" value="${esc(e.nameEn || '')}"></div>` : ''}
+        ${isNew ? '<p class="su-hint">รายการใหม่จะอยู่ <b>ลำดับสุดท้าย</b> — บันทึกแล้วเลื่อนขึ้น-ลงได้ที่ปุ่ม ▲▼ ในหน้ารายการ</p>' : ''}
+        <div class="action-bar" style="margin-top:14px"><button type="button" class="btn btn-secondary" data-suback="1">ยกเลิก</button><button type="button" class="btn btn-primary" data-susave="1">${IC.check} บันทึก</button></div>
+      </div>`;
+    } else {
+      body = `<p class="su-hint">เลข = ลำดับที่แสดงในช่องเลือกของเอกสาร · กด ▲▼ เพื่อเลื่อน (บันทึกทันที) · ปิด "ใช้งาน" = ไม่แสดงให้เลือกในเอกสารใหม่ (เอกสารเก่ายังเห็นตามเดิม)</p>`
+        + (rows.map((r, i) => `<div class="su-row ${r.inactive ? 'off' : ''}">
+          <span class="su-ord"><button type="button" data-suup="${r.id}" ${i === 0 ? 'disabled' : ''} title="เลื่อนขึ้น">▲</button><span class="no">${i + 1}</span><button type="button" data-sudown="${r.id}" ${i === rows.length - 1 ? 'disabled' : ''} title="เลื่อนลง">▼</button></span>
+          <div class="su-main"><b>${esc(r.name)}</b><small>${isT ? esc([r.code, r.nameEn].filter(Boolean).join(' · ')) : (r.inactive ? 'ปิดใช้งาน' : '')}</small>
+            <label class="switch"><input type="checkbox" data-suact="${r.id}" ${r.inactive ? '' : 'checked'}> ใช้งาน</label></div>
+          <button type="button" class="btn btn-secondary btn-sm" data-suedit="${r.id}" title="แก้ไขชื่อ">${IC.edit}</button></div>`).join('') || '<p class="muted">ยังไม่มีรายการ</p>')
+        + `<div class="action-bar" style="margin-top:14px"><button type="button" class="btn btn-primary" data-suadd="1">${IC.plus} เพิ่ม${isT ? 'ประเภท' : 'สาเหตุ'}</button></div>`;
+    }
+    const html = `<div class="su-tabs" role="tablist"><button type="button" role="tab" data-sutab="type" class="${isT ? 'on' : ''}">${SU_IC.type} ประเภทการตรวจนับ</button><button type="button" role="tab" data-sutab="cause" class="${isT ? '' : 'on'}">${SU_IC.cause} สาเหตุผลต่าง</button></div>${body}`;
+    if(open) dlg('ตั้งค่าการตรวจนับ', html, '640px'); else $('dlgBody').innerHTML = html;
+  }
+  const setupFillType = () => { $('hType').innerHTML = meta.types.filter(t => !t.inactive).map(t => `<option value="${t.id}">${esc(t.name)}${t.nameEn ? ` (${esc(t.nameEn)})` : ''}</option>`).join(''); };
+  async function setupReload(){
+    const m = await api('/api/stock-count/meta');
+    meta.types = m.types; meta.causes = m.causes; setupFillType();
+  }
+  async function setupMove(id, dir){
+    const rows = su.tab === 'type' ? meta.types : meta.causes, i = rows.findIndex(r => r.id === id), j = i + dir;
+    if(i < 0 || j < 0 || j >= rows.length) return;
+    [rows[i], rows[j]] = [rows[j], rows[i]];
+    setupRender(false); setupFillType();
+    try{ await api('/api/stock-count/setup/' + su.tab + '/order', { body: { ids: rows.map(r => r.id) } }); }
+    catch(err){ alert(err.message); try{ await setupReload(); } catch(e){} setupRender(false); }
+  }
+  function setupClick(t){
+    let b;
+    if((b = t.closest('[data-sutab]'))){ su.tab = b.dataset.sutab; su.edit = null; setupRender(false); return; }
+    if((b = t.closest('[data-suup]'))){ setupMove(Number(b.dataset.suup), -1); return; }
+    if((b = t.closest('[data-sudown]'))){ setupMove(Number(b.dataset.sudown), 1); return; }
+    if((b = t.closest('[data-suact]'))){
+      const id = Number(b.dataset.suact), r = (su.tab === 'type' ? meta.types : meta.causes).find(x => x.id === id), inactive = !b.checked;
+      api('/api/stock-count/setup/' + su.tab + '/active', { body: { id, inactive } })
+        .then(() => { r.inactive = inactive; setupFillType(); setupRender(false); showToast(inactive ? 'ปิดใช้งานแล้ว' : 'เปิดใช้งานแล้ว'); })
+        .catch(err => { alert(err.message); b.checked = !inactive; });
+      return;
+    }
+    if((b = t.closest('[data-suedit]'))){ const id = Number(b.dataset.suedit); su.edit = Object.assign({}, (su.tab === 'type' ? meta.types : meta.causes).find(r => r.id === id)); setupRender(false); return; }
+    if(t.closest('[data-suadd]')){ su.edit = { id: 0 }; setupRender(false); return; }
+    if(t.closest('[data-suback]')){ su.edit = null; setupRender(false); return; }
+    if((b = t.closest('[data-susave]'))){
+      const cur = su.edit, body = { id: cur.id || null, name: $('suName').value, inactive: !!cur.inactive };
+      if(su.tab === 'type'){ body.code = $('suCode').value; body.nameEn = $('suEn').value; }
+      if(!body.name.trim()){ alert('กรุณาระบุชื่อ'); return; }
+      busy(b, async () => {
+        try{ await api('/api/stock-count/setup/' + su.tab, { body }); await setupReload(); showToast('บันทึกแล้ว'); su.edit = null; setupRender(false); }
+        catch(err){ alert(err.message); }
+      });
+    }
+  }
   function umDlg(id){
     const u = lineById.get(id);
     const cands = doc.lines.filter(l => l.src !== 'U' && !l.exclude);
@@ -3340,6 +3430,8 @@
       if(t.closest('#btnMoreFlt')){ const open = $('moreFlt').hidden; $('moreFlt').hidden = !open; $('btnMoreFlt').setAttribute('aria-expanded', open ? 'true' : 'false'); return; }
       if(t.closest('#btnClearFlt')){ ['fWh', 'fType', 'fMode'].forEach(id => { $(id).value = ''; }); $('fSearch').value = ''; listPage = 1; renderList(); return; }
       if(t.closest('#btnExport')){ exportList(); return; }
+      if(t.closest('#btnSetup')){ setupOpen('type'); return; }
+      if(t.closest('[data-sutab],[data-suup],[data-sudown],[data-suact],[data-suedit],[data-suadd],[data-suback],[data-susave]')){ setupClick(t); return; }
       const lp = t.closest('[data-lpage]');
       if(lp){ listPage = Number(lp.dataset.lpage); renderList(); $('listPage').scrollIntoView({ block: 'start' }); return; }
       const wh = t.closest('[data-wh]');

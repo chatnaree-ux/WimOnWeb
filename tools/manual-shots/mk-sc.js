@@ -162,6 +162,13 @@ const SHOTS = {
   async 'sc-wh'(page) { await go(page, '/stock-count', P.counter); await page.click('#btnNew'); await page.waitForTimeout(600); await page.click('#hWhPick'); await page.waitForTimeout(1000);
     await pins(page, 'sc-wh', [[1, '#whSearch'], [2, '.wh-item.main', 0, 'l', 24, 0], [3, '.wh-item .lv', 1, 'tr', 6, -14], [4, '.wh-item .wh-par', 0, 'tl', -22, 8], [5, '.wh-item', 2, 'l', 6, 0]]);
     return page.locator('#whModal .modal-box').screenshot({ type: 'png' }); },
+  // ตั้งค่าประเภท / สาเหตุ (เฉพาะผู้มีสิทธิ์ stock_count_setup)
+  async 'sc-setup'(page) { await go(page, '/stock-count', P.reviewer); await page.click('#btnSetup'); await page.waitForTimeout(900);
+    await pins(page, 'sc-setup', [[1, '.su-tabs button', 0, 'tl', 6, 4], [2, '.su-tabs button', 1, 'tl', 6, 4], [3, '.su-ord', 1, 'l', -2, 0], [4, '[data-suact]', 1, 'l', -16, 0], [5, '[data-suedit]', 1, 'l', -4, 0], [6, '[data-suadd]', 0, 'l', -6, 0]]);
+    return page.locator('#dlgModal .modal-box').screenshot({ type: 'png' }); },
+  async 'sc-setup-form'(page) { await go(page, '/stock-count', P.reviewer); await page.click('#btnSetup'); await page.waitForTimeout(700); await page.click('[data-suadd]'); await page.waitForTimeout(500);
+    await pins(page, 'sc-setup-form', [[1, '#suCode'], [2, '#suName'], [3, '#suEn'], [4, '.su-hint', 0, 'tr', -24, -6], [5, '[data-susave]', 0, 'tl', 4, 2]]);
+    return page.locator('#dlgModal .modal-box').screenshot({ type: 'png' }); },
   async 'sc-mode'(page) { await go(page, '/stock-count?id=5', P.counter);
     return top(page, 980, 'sc-mode', [[1, '.stepper .stp.cur', 0, 'tr'], [2, '.mode-card[data-mode="O"]'], [3, 'input[name="sheet"][value="P"]', 0, 'l', -4], [4, '.mode-card[data-mode="L"]'], [5, '.warn-box', 0, 'tl'], [6, '[data-act="start"]']]); },
   async 'sc-sheet'(page) { await go(page, '/stock-count?id=1', P.counter);
