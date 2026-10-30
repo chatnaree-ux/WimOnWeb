@@ -399,7 +399,7 @@
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
-<script src="/js/report-print.js"></script>
+<script src="/js/report-print.js?v=20261030n"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
 </head>
 <body>
@@ -915,14 +915,14 @@
     const unit = last.unit || '';
     R.print({
       orient: 'landscape',
-      title: 'บัตรสต๊อกสินค้า (Stock Card)', titleEn: 'Stock Card by Item',
+      title: 'Stock Card', titleEn: 'By Item',
       company: { id: companySelect.value, name: comp ? comp.text : '' },
       info: [
         ['สินค้า', e(confirmItemName.textContent)], ['จำนวนรายการ', rows.length + ' รายการ'],
         ['ช่วงเวลา', e(confirmRange.textContent)], ['รวมรับเข้า / จ่ายออก', fmtNum(sum('inQty')) + ' / ' + fmtNum(sum('outQty')) + ' ' + e(unit)]
       ],
       body: R.table({
-        cols: [3.5, 13.5, 24, 10, 11, 7.5, 7.5, 8.5, 5, 9.5],
+        cols: [3.5, 13, 22, 10, 11, 7.5, 7.5, 8.5, 7, 10],
         head: ['#', 'วันที่', 'รายละเอียด', 'คลัง', 'Lot No.', 'รับเข้า', 'จ่ายออก', 'คงเหลือ', 'หน่วย', 'ผู้ทำรายการ'],
         align: ['c', 'l', 'l', 'l', 'l', 'r', 'r', 'r', 'c', 'l'],
         rows: rows.map((r, i) => [i + 1, { h: e(r.date), cls: 'nw' }, e(r.detail), e(r.warehouse), e(r.lotNo),
