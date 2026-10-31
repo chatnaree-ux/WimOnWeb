@@ -489,9 +489,9 @@
   .av-card.active .lbl{color:var(--amber-500);}
   .av-total{
     flex:0 0 190px; padding:10px 14px; border-radius:9px; display:flex; flex-direction:column; justify-content:center;
-    background:linear-gradient(135deg, rgba(242,169,28,.18), rgba(242,169,28,.05)); border:1px solid rgba(242,169,28,.4);
+    background:linear-gradient(135deg, rgba(62,207,142,.22), rgba(62,207,142,.07)); border:1px solid rgba(62,207,142,.6); box-shadow:inset 4px 0 0 #3ecf8e;
   }
-  .av-total .lbl{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--amber-500);}
+  .av-total .lbl{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:#7ee3b0;}
   .av-total .val{margin-top:4px; font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; color:#fff; white-space:nowrap;}
   .av-total .unit{font-size:11.5px; color:var(--concrete-400);}
 
@@ -617,7 +617,7 @@
   .print-doc .pd-layout > tfoot > tr > td{padding:0 15mm; border:0; background:none; color:#111; font-size:inherit;}
   .print-doc .pd-layout tr:hover{background:none;}
   .print-doc .pd-space-top{height:15mm;}
-  .print-doc .pd-space-bottom{height:52mm;}
+  .print-doc .pd-space-bottom{height:15mm;}
   .print-doc .doc-header{display:flex; justify-content:space-between; align-items:flex-start; gap:20px; border-bottom:1.5px solid #555; padding-bottom:10px; margin-bottom:18px;}
   .print-doc .doc-header .co-block{display:flex; flex-direction:column; align-items:flex-start; gap:5px;}
   .print-doc .doc-header .co-logo{display:block; height:56px; max-width:220px; object-fit:contain; object-position:left center;}
@@ -632,12 +632,22 @@
   .print-doc .pd-items th,.print-doc .pd-items td{border:1px solid #999; padding:6px 8px; font-size:0.82rem; text-align:left; color:#111; background:none; position:static; font-family:inherit; text-transform:none; letter-spacing:0;}
   .print-doc .pd-items th{background:#f2f2f2; font-weight:700;}
   .print-doc .pd-items th.num,.print-doc .pd-items td.num{text-align:right;}
+  .print-doc .pd-note{margin-top:2px; font-size:0.78rem; color:#555;}
+  .req-list-table td.c-reason{min-width:200px; max-width:320px; white-space:normal;}
+  .btn-trash{display:inline-flex; align-items:center; justify-content:center; padding:6px 9px;}
+  .row-note{margin-top:3px; font-size:12.5px; font-weight:400; color:var(--concrete-400); white-space:normal;}
+  .note-input{width:100%; min-width:180px; padding:7px 9px; font-size:13px;}
   .print-doc .pd-items th.ctr,.print-doc .pd-items td.ctr{text-align:center;}
   .print-doc .pd-items tr{break-inside:avoid;}
-  /* ช่องลงชื่อ: ตรึงไว้ชิดล่างของกระดาษ (position:fixed ตอนพิมพ์ = ซ้ำทุกหน้า) */
-  .print-doc .sign-area{position:fixed; left:15mm; right:15mm; bottom:15mm; display:flex; justify-content:space-between; font-size:0.88rem; background:#fff;}
-  .print-doc .sign-box{text-align:center; width:45%;}
-  .print-doc .sign-line{border-bottom:1px dashed #333; margin-bottom:8px; height:40px;}
+  /* ลายเซ็นผู้ร้องขอ (ไม่มีขั้นอนุมัติ): ต่อท้ายตาราง ชิดขวา อยู่ในหน้าเดียวกับรายการสุดท้าย / รูปลายเซ็น (ถ้ามี) อยู่เหนือเส้น */
+  .print-doc .sign-one{width:62mm; margin:14mm 0 0 auto; text-align:center; font-size:0.9rem; break-inside:avoid; page-break-inside:avoid;}
+  .print-doc .sign-one .sg{height:15mm; display:flex; align-items:flex-end; justify-content:center; box-sizing:border-box; padding-bottom:2mm;}
+  .print-doc .sign-one .sg img{max-height:13mm; max-width:100%; object-fit:contain;}
+  .print-doc .sign-one .sl{border-top:1px solid #333; margin:0 4mm 4px;}
+  .print-doc .sign-one .sn{margin-top:1px;}
+  .print-doc .sign-one .sp{font-size:0.82rem; margin-top:1px;}
+  .print-doc .sign-one .sr{font-weight:700; margin-top:2px;}
+  .print-doc .sign-one .sd{margin-top:2px; color:#333;}
 
   /* ---------- RESPONSIVE ---------- */
   .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:19;}
@@ -657,6 +667,32 @@
   /* ---------- PRINT MODE ---------- */
   /* margin:0 เพื่อไม่ให้ browser พิมพ์หัว/ท้ายกระดาษของตัวเอง (ชื่อหน้าเว็บ, วันที่, URL) — ขอบกระดาษทำใน .pd-layout แทน */
   @page{size:A4 portrait; margin:0;}
+  /* มือถือ: รายการคำร้อง = การ์ดต่อรายการ (ตาราง 22 คอลัมน์อ่านบนจอเล็กไม่ได้) — ป้ายช่องมาจาก data-l (labelTable) */
+  @media (max-width:900px){
+    .req-list-wrap{max-height:none; overflow:visible; border:0;}
+    .req-list-wrap .req-list-table{min-width:0 !important; width:100%; display:block;}
+    .req-list-table thead{display:none;}
+    .req-list-table tbody{display:block;}
+    .req-list-table tbody tr{display:flex; flex-wrap:wrap; gap:8px 12px; margin:0 0 12px; padding:12px;
+      border:1px solid rgba(140,180,230,.28); border-left:4px solid var(--amber-500); border-radius:12px; background:rgba(120,160,220,.07);}
+    .req-list-table tbody tr.doc-cancel{opacity:.7; border-left-color:var(--steel-500);}
+    .req-list-table tbody tr td{display:block; flex:1 1 calc(50% - 12px); min-width:0; padding:0 !important; border:0 !important; background:none !important;
+      text-align:left; white-space:normal; overflow-wrap:anywhere; font-size:14px;}
+    .req-list-table td[data-l]::before{content:attr(data-l); display:block; margin-bottom:2px; font-size:12.5px; color:#c3cedc;}
+    .req-list-table tbody tr td{color:#f1f5fa;}
+    .req-list-table td:nth-child(1){display:none;}
+    .req-list-table td.doc-cell{order:-3; flex:1 1 55%; font-size:16px; font-weight:700; color:var(--amber-500); font-family:'JetBrains Mono',monospace;}
+    .req-list-table td.doc-cell::before, .req-list-table td.wrap::before, .req-list-table td.act::before{content:none;}
+    .req-list-table td:nth-child(6){order:-3; flex:0 0 auto; margin-left:auto;}
+    .req-list-table td:nth-child(6)::before{content:none;}
+    .req-list-table td.wrap{order:-2; flex-basis:100%; font-size:15px; font-weight:600; color:#fff;}
+    .req-list-table td.c-reason{order:-1; flex-basis:100%;}
+    .req-list-table td.act{order:10; flex:1 1 calc(50% - 12px);}
+    .req-list-table td.act:empty{display:none;}
+    .req-list-table td.act .icon-btn{width:100%; min-height:44px; display:flex; align-items:center; justify-content:center; gap:8px; padding:0 10px;}
+    .req-list-table td.act .icon-btn::after{content:attr(aria-label); font-size:13.5px; font-weight:600;}
+    .req-list-table td.num{text-align:left;}
+  }
   @media print{
     body.printing{background:#fff;}
     body.printing #app,
@@ -669,10 +705,98 @@
      และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
   select, input, textarea{max-width:100%; min-width:0;}
   .form-grid > *, .filter-bar > *{min-width:0;}
+
+  /* ---------- มือถือ: ตารางในฟอร์ม / popup = การ์ด (ไม่ให้เลื่อนซ้ายขวา) ---------- */
+  @media (max-width:900px){
+    /* รายการเมล็ดพันธุ์ที่ร้องขอ (ฟอร์ม) */
+    .seed-req-table, .seed-pick-table, .av-lot-table{min-width:0 !important; width:100%; display:block;}
+    .seed-req-table thead, .seed-pick-table thead, .av-lot-table thead{display:none;}
+    .seed-req-table tbody, .seed-pick-table tbody, .av-lot-table tbody{display:block;}
+    .seed-req-table tbody tr, .seed-pick-table tbody tr, .av-lot-table tbody tr{display:flex; flex-wrap:wrap; gap:8px 12px; margin:0 0 10px; padding:12px; position:relative;
+      border:1px solid rgba(140,180,230,.28); border-left:4px solid var(--amber-500); border-radius:12px; background:rgba(120,160,220,.07);}
+    .seed-req-table tbody tr td, .seed-pick-table tbody tr td, .av-lot-table tbody tr td{display:block; flex:1 1 calc(50% - 12px); min-width:0; padding:0 !important; border:0 !important; background:none !important;
+      text-align:left; white-space:normal; overflow-wrap:anywhere; font-size:15px; position:static;}
+    .seed-req-table td[data-l]::before, .seed-pick-table td[data-l]::before, .av-lot-table td[data-l]::before{content:attr(data-l); display:block; margin-bottom:2px; font-size:12px; font-weight:400; color:var(--concrete-400);}
+    .seed-req-table td.num, .seed-req-table td.ctr{text-align:left;}
+    .req-list-table .av-link, .seed-req-table .av-link{display:inline-flex; align-items:center; min-height:40px; padding:6px 10px; margin:-6px -10px;}
+    .seed-req-table td.c-no{order:-6; flex:0 0 auto; align-self:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500); font-size:15px;}
+    .seed-req-table td.c-no::before{content:"#"; display:inline; margin:0; font-size:inherit; color:inherit;}
+    .seed-req-table td.c-del{order:-5; flex:0 0 auto; margin-left:auto;}
+    .seed-req-table td.c-name{order:-4; flex-basis:100%; font-size:16px; font-weight:600; color:#fff;}
+    .seed-req-table td.c-note{flex-basis:100%;}
+    /* ช่องกรอก 16px (กัน iOS ซูม) — ฟอนต์เดียวกับข้อมูล ชิดซ้าย พื้นจาง ไม่เป็นกล่องดำเด่นกว่าส่วนอื่น */
+    .seed-req-table .qty-input, .seed-req-table .date-input, .seed-req-table .note-input{width:100%; min-height:38px; height:38px; padding:2px 8px; font-size:16px; font-family:inherit; text-align:left; background-color:rgba(255,255,255,.05); border:0; border-bottom:2px solid rgba(242,169,28,.6); border-radius:6px 6px 0 0; color:#fff; box-shadow:none;}
+    .seed-req-table .qty-input:focus, .seed-req-table .note-input:focus{background-color:rgba(255,255,255,.1); border-bottom-color:var(--amber-500); outline:0;}
+    .seed-req-table .date-overlay-wrap{display:block; width:100%;}
+    .seed-req-table .date-overlay-wrap .date-input{background-color:rgba(255,255,255,.05) !important; border:0 !important; border-bottom:2px solid rgba(242,169,28,.6) !important; border-radius:6px 6px 0 0; height:38px; min-height:38px;}
+    .seed-req-table .btn-trash{width:42px; height:42px; min-height:42px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:10px;}
+    /* popup เลือกเมล็ดพันธุ์ */
+    .seed-filter{display:grid !important; grid-template-columns:minmax(0, 1fr); gap:8px;}
+    .seed-filter select, .seed-filter .search-shell{width:100% !important; max-width:none; min-height:44px; font-size:16px;}
+    .seed-filter select{-webkit-appearance:none; appearance:none; background-color:#0d1522; color:#fff; border:1px solid rgba(255,255,255,.16); border-radius:10px; padding-right:38px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c3cedc' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; background-size:14px;}
+    .seed-pick-table tbody tr{display:grid; grid-template-columns:auto minmax(0, 1fr) auto; grid-template-areas:"code type act" "name name act"; align-items:center; gap:3px 10px; padding:10px 12px;}
+    .seed-pick-table tbody tr td{flex:none;}
+    .seed-pick-table td.p-code{grid-area:code; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--amber-500);}
+    .seed-pick-table td.p-type{grid-area:type; font-size:12.5px; color:#c3cedc;}
+    .seed-pick-table td.p-name{grid-area:name; font-size:15.5px; font-weight:600; color:#fff; line-height:1.3;}
+    .seed-pick-table td.p-act{grid-area:act;}
+    /* ปุ่ม + กลมเล็ก (แตะแล้วเพิ่มเลย) / เลือกแล้ว = ✓ เขียว */
+    .seed-pick-table td.p-act .btn{font-size:0; position:relative; width:46px; height:46px; min-height:46px; padding:0; border:0; border-radius:12px; background:transparent; box-shadow:none; opacity:1;}
+    .seed-pick-table td.p-act .btn::before, .seed-pick-table td.p-act .btn::after{content:""; position:absolute; left:50%; top:50%; background:var(--amber-500); border-radius:2px; transform:translate(-50%, -50%);}
+    .seed-pick-table td.p-act .btn::before{width:22px; height:4px;}
+    .seed-pick-table td.p-act .btn::after{width:4px; height:22px;}
+    .seed-pick-table td.p-act .btn:active{background:rgba(242,169,28,.16);}
+    /* เลือกแล้ว: เครื่องหมายถูกสีเขียว */
+    .seed-pick-table td.p-act .btn[disabled]::before{width:8px; height:15px; background:none; border:solid var(--ok-green); border-width:0 4px 4px 0; border-radius:1px; transform:translate(-50%, -62%) rotate(45deg);}
+    .seed-pick-table td.p-act .btn[disabled]::after{display:none;}
+    .seed-pick-table td::before{content:none !important;}
+    /* popup ยอดคงเหลือ + รายการ Lot / กระสอบ: 1 Lot = 1 การ์ด (ไม่มีแถวหัวสองชั้น / ไม่ให้ตารางกว้าง 2,000px) */
+    .modal-av{overflow-y:auto;}
+    .av-lot-wrap, .modal-av .av-lot-wrap{height:auto !important; max-height:none !important; overflow:visible !important; border:0;}
+    .av-lot-table tbody tr td{flex:1 1 calc(50% - 12px);}
+    .av-lot-table tbody tr td.c-seq{display:none;}
+    .av-lot-table tbody tr td.lot{order:-3; flex:1 1 100%; font-size:16px; font-weight:700; color:var(--amber-500); font-family:'JetBrains Mono',monospace;}
+    .av-lot-table tbody tr td.lot::before{content:none;}
+    .av-lot-table tbody tr td.num, .av-lot-table tbody tr td.ctr, .av-lot-table tbody tr td.qc{text-align:left;}
+    .av-lot-table tbody tr td.qc:empty, .av-lot-table tbody tr td.note:empty{display:none;}
+    .av-lot-table tbody tr td.note{flex-basis:100%;}
+    .av-lot-table tbody tr td.empty-msg, .av-lot-table tbody tr td.av-empty{flex:1 1 100%; text-align:center;}
+    /* แถวรวม: การ์ดสรุป หัว "รวม" + ตัวเลขแต่ละช่องมีป้ายอยู่เหนือค่า เรียงเท่าๆ กัน */
+    .av-lot-table tfoot{display:block; margin-top:4px;}
+    .av-lot-table tfoot tr{display:flex; flex-wrap:nowrap; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:linear-gradient(135deg, rgba(62,207,142,.24), rgba(62,207,142,.09)); border:1px solid rgba(62,207,142,.7);}
+    .av-lot-table tfoot td{display:flex; flex-direction:column; align-items:flex-start; gap:1px; flex:1 1 0; min-width:0; padding:0 !important; border:0 !important; background:none !important; text-align:left !important; font-size:15px; font-weight:700; color:#fff; font-family:'JetBrains Mono',monospace; white-space:nowrap;}
+    .av-lot-table tfoot td:empty{display:none;}
+    .av-lot-table tfoot td:not([data-l]){flex:0 0 auto; margin-right:2px; font-family:inherit; font-size:14px; letter-spacing:.02em; color:#7ee3b0;}
+    .av-lot-table tfoot td[data-l]::before{content:attr(data-l); font-family:inherit; font-size:11px; font-weight:400; color:#d9e2ee;}
+    /* กล่องค้นหา Lot: เต็มความกว้างเท่าการ์ด */
+    .av-lot-bar{padding:12px 16px;}
+    .av-lot-bar .search-shell{flex:1 1 100%; width:100%;}
+    /* กล่องเกรด / คลัง: ชื่อใหญ่ เข้ม ตัดบรรทัดได้ (ไม่ตัด ...) / พื้นการ์ดสว่างขึ้น ขอบชัด ไม่กลืนพื้นหลัง */
+    .av-card{background:rgba(78,167,224,.2); border:1px solid rgba(78,167,224,.62); padding:12px 14px;}
+    .av-card .lbl{font-size:14px; font-weight:700; letter-spacing:.02em; color:#fff; white-space:normal; text-transform:none;}
+    .av-card .lbl i{width:11px; height:11px;}
+    .av-card .val{font-size:19px;}
+    .av-card.zero .val{color:#9fb0c3;}
+    .av-card .nm{font-size:15px; color:#fff; white-space:normal; overflow:visible; text-overflow:clip; line-height:1.35;}
+    .av-card .tag{font-size:12px;}
+    .av-card.wip{background:rgba(78,167,224,.2); border:1px dashed rgba(78,167,224,.62);}
+    .av-card.active{background:rgba(242,169,28,.2); border-color:var(--amber-500);}
+    .av-total{background:linear-gradient(135deg, rgba(62,207,142,.28), rgba(62,207,142,.1)); border:1px solid rgba(62,207,142,.75); box-shadow:inset 4px 0 0 #3ecf8e;}
+    .av-total .lbl{font-size:13.5px; color:#7ee3b0;}
+    .av-total .val{font-size:30px; color:#fff;}
+    .st-grades .av-total .val{font-size:25px;}
+    .st-grades .av-total .lbl{font-size:13px;}
+    .av-lot-table tbody tr td.blk-start{border-left:0 !important; box-shadow:none !important;}
+  }
 </style>
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
+<link rel="stylesheet" href="/css/mobile-base.css">
+<!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
+<link rel="stylesheet" href="/css/kpi-cards.css">
+<script src="/js/kpi-icons.js"></script>
 </head>
 <body>
 
@@ -760,12 +884,12 @@
             </button>
           </div>
           <div class="table-responsive">
-            <table>
+            <table class="seed-req-table">
               <thead>
                 <tr>
-                  <th>#</th><th>ชื่อเมล็ดพันธุ์</th><th class="num">คงเหลือ (AV)</th><th class="num">คงเหลือ (GR)</th>
+                  <th>#</th><th class="ctr">ชื่อเมล็ดพันธุ์</th><th class="num">คงเหลือ (AV)</th><th class="num">คงเหลือ (GR)</th>
                   <th class="num">คงเหลือ (FLO)</th><th class="ctr">จำนวนที่ต้องการ</th><th>หน่วย</th>
-                  <th class="ctr">วันที่ต้องการใช้งาน</th><th></th>
+                  <th class="ctr">วันที่ต้องการใช้งาน</th><th class="ctr">หมายเหตุ</th><th></th>
                 </tr>
               </thead>
               <tbody id="seedTableBody"></tbody>
@@ -836,7 +960,7 @@
               <thead>
                 <tr class="group-row">
                   <th colspan="5" class="grp-manage">จัดการ</th>
-                  <th colspan="13">รายละเอียดการร้องขอ</th>
+                  <th colspan="14">รายละเอียดการร้องขอ</th>
                   <th colspan="4" class="grp-action">การดำเนินการ</th>
                 </tr>
                 <tr>
@@ -844,7 +968,7 @@
                   <th class="ctr">สถานะ</th>
                   <th>เลขที่ร้องขอ</th><th class="ctr">วันที่ร้องขอ</th><th class="ctr">ส่งคำร้องถึง<br>(บริษัทต้นทาง)</th><th class="ctr">วันที่ต้องการใช้งาน</th><th>ชื่อเมล็ดพันธุ์</th><th class="ctr">ประเภทพืช</th>
                   <th class="num">คงเหลือ (AV)</th><th class="num">คงเหลือ (GR)</th><th class="num">คงเหลือ (FLO)</th>
-                  <th class="num">จำนวนที่ต้องการ</th><th class="ctr">หน่วย</th><th>ผู้ร้องขอ</th>
+                  <th class="num">จำนวนที่ต้องการ</th><th class="ctr">หน่วย</th><th>ผู้ร้องขอ</th><th>เหตุผล/สาเหตุ<br>ที่เร่งด่วน</th>
                   <th class="ctr">กำหนดส่ง</th><th class="ctr">ผู้ตอบกลับ</th><th class="num">จำนวนที่จัดส่งแล้ว</th><th class="num">จำนวนคงค้างจัดส่ง</th>
                 </tr>
               </thead>
@@ -1044,21 +1168,17 @@
         </thead>
         <tbody id="pd_items"></tbody>
       </table>
+      <div class="sign-one">
+        <div class="sg"><img id="pd_esign" alt=""></div>
+        <div class="sl"></div>
+        <div class="sn">(<span id="pd_signName"></span>)</div>
+        <div class="sp"><span id="pd_signPos"></span></div>
+        <div class="sr">ผู้ร้องขอ</div>
+        <div class="sd">วันที่ <span id="pd_signDate"></span></div>
+      </div>
     </td></tr></tbody>
     <tfoot><tr><td><div class="pd-space-bottom"></div></td></tr></tfoot>
   </table>
-  <div class="sign-area">
-    <div class="sign-box">
-      <div class="sign-line"></div>
-      ลงชื่อ ....................................... ผู้ร้องขอ<br>
-      วันที่ ......../......../..........
-    </div>
-    <div class="sign-box">
-      <div class="sign-line"></div>
-      ลงชื่อ ....................................... ผู้อนุมัติ<br>
-      วันที่ ......../......../..........
-    </div>
-  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1097,7 +1217,7 @@
     const data = await res.json();
     if(!data.success) throw new Error(data.message || 'โหลดรายชื่อพนักงานไม่สำเร็จ');
     return (data.data || []).map(u => ({
-      id: u.idPs, name: u.PsName || '-', position: u.PositionName, compName: u.CompName, compCode: u.CompCode
+      id: u.idPs, name: u.PsName || '-', full: (u.PsFullName || '').trim(), position: u.PositionName, compName: u.CompName, compCode: u.CompCode
     }));
   }
   // ---------- รายการเมล็ดพันธุ์ (dInventoryMain กลุ่มเมล็ดพันธุ์ + ประเภทพืชจาก vSeedProduct) ----------
@@ -1169,7 +1289,7 @@
       idCompTarget: requestData.targetCompanyId,
       reasonReq: requestData.remark,
       items: requestData.items.map(r => ({
-        idInvMain: r.seedId, amountReq: r.qty, idUnit: r.unitId, dateNeeded: r.requiredDate
+        idInvMain: r.seedId, amountReq: r.qty, idUnit: r.unitId, dateNeeded: r.requiredDate, noteReq: r.note || ''
       }))
     });
   }
@@ -1440,10 +1560,10 @@
     $('seedModalBody').innerHTML = list.slice(0, SEED_RENDER_LIMIT).map(s => {
       const added = selectedSeeds.some(r => r.seedId === s.id);
       return `<tr>
-        <td>${esc(s.code)}</td><td>${esc(s.seedType) || '-'}</td><td>${esc(s.name)}</td>
-        <td>
+        <td class="p-code">${esc(s.code)}</td><td class="p-type">${esc(s.seedType) || '-'}</td><td class="p-name">${esc(s.name)}</td>
+        <td class="p-act">
           <button type="button" class="btn btn-sm ${added ? 'btn-disabled' : 'btn-primary'}"
-            data-seed-id="${esc(s.id)}" ${added ? 'disabled' : ''}>${added ? 'เพิ่มแล้ว' : 'เลือก'}</button>
+            data-seed-id="${esc(s.id)}" aria-label="${added ? 'เพิ่มแล้ว' : 'เลือก'} ${esc(s.name)}" ${added ? 'disabled' : ''}>${added ? 'เพิ่มแล้ว' : 'เลือก'}</button>
         </td>
       </tr>`;
     }).join('') || '<tr><td colspan="4" class="empty-msg">ไม่พบเมล็ดพันธุ์ที่ค้นหา</td></tr>';
@@ -1474,7 +1594,7 @@
 
     selectedSeeds.push({
       seedId: s.id, code: s.code, seedType: s.seedType, name: s.name, unitId: s.unitId, ...stock,
-      qty: 0, requiredDate: '' // วันที่ต้องการใช้งานกำหนดแยกรายเมล็ด
+      qty: 0, requiredDate: '', note: '' // วันที่ต้องการใช้งานกำหนดแยกรายเมล็ด / หมายเหตุรายการ (ไม่บังคับ)
     });
     renderSeedTable();
     renderSeedModalBody();
@@ -1496,24 +1616,25 @@
     $('noSeedMsg').style.display = 'none';
     tbody.innerHTML = selectedSeeds.map((r, idx) => `
       <tr>
-        <td>${idx + 1}</td>
-        <td>${esc(r.name)}</td>
-        <td class="num">${avLink(r.seedId, r.name, r.av, r.unit)}</td>
-        <td class="num">${stLink(r.seedId, r.name, r.gr, 2)}</td>
-        <td class="num">${stLink(r.seedId, r.name, r.flo, 1)}</td>
-        <td class="num">
+        <td class="c-no">${idx + 1}</td>
+        <td class="c-name">${esc(r.name)}</td>
+        <td class="num" data-l="คงเหลือ (AV)">${avLink(r.seedId, r.name, r.av, r.unit)}</td>
+        <td class="num" data-l="คงเหลือ (GR)">${stLink(r.seedId, r.name, r.gr, 2)}</td>
+        <td class="num" data-l="คงเหลือ (FLO)">${stLink(r.seedId, r.name, r.flo, 1)}</td>
+        <td class="num" data-l="จำนวนที่ต้องการ">
           <input type="text" inputmode="decimal" class="qty-input" autocomplete="off"
             value="${fmtNum(r.qty)}" data-seed-qty="${r.seedId}">
         </td>
-        <td>${esc(r.unit) || '-'}</td>
-        <td class="ctr">
+        <td data-l="หน่วย">${esc(r.unit) || '-'}</td>
+        <td class="ctr" data-l="วันที่ต้องการใช้งาน">
           <span class="date-overlay-wrap">
             <input type="date" class="date-input" min="${requestDateISO}"
               value="${r.requiredDate}" data-seed-date="${r.seedId}">
             <span class="date-overlay-text ${r.requiredDate ? '' : 'empty'}">${r.requiredDate ? formatDateThai(r.requiredDate) : DATE_PLACEHOLDER}</span>
           </span>
         </td>
-        <td><button type="button" class="btn btn-sm btn-danger" data-remove-seed="${r.seedId}">ลบ</button></td>
+        <td class="c-note" data-l="หมายเหตุ"><input type="text" class="note-input" maxlength="500" autocomplete="off" placeholder="หมายเหตุ (ถ้ามี)" value="${esc(r.note || '')}" data-seed-note="${r.seedId}"></td>
+        <td class="c-del"><button type="button" class="btn btn-sm btn-danger btn-trash" data-remove-seed="${r.seedId}" title="ลบรายการนี้" aria-label="ลบ ${esc(r.name)}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></td>
       </tr>
     `).join('');
   }
@@ -1616,6 +1737,12 @@
     return esc(v) || '';
   }
 
+  // มือถือ: ใส่ชื่อหัวคอลัมน์ให้แต่ละช่อง (การ์ดใช้ attr(data-l) แสดงเป็นป้ายเล็กเหนือค่า)
+  const AV_LABELS = ['#', 'Lot No.', 'คงเหลือ', 'รอเบิก', 'เบิกได้', 'หน่วย', 'คลัง', 'Supplier', 'วันที่รับเข้า', 'งอก (ทราย)', 'งอก (กระดาษ)', 'งอก (Media)', 'AA-Test', 'TZ-Test',
+    'Physical', 'Genetic', '% ค.ชื้น', 'เกรดจาก LAB', '% ก.นำไปใช้งาน', 'หมายเหตุใช้งาน', 'ทดสอบล่าสุด'];
+  function labelCells(tbody, labels){
+    tbody.querySelectorAll('tr').forEach(tr => [...tr.children].forEach((td, i) => { if(labels[i] && !td.hasAttribute('colspan')) td.setAttribute('data-l', labels[i]); }));
+  }
   function renderAvLots(){
     const term = $('avLotSearch').value.trim().toLowerCase();
     const list = !term ? av.lots : av.lots.filter(r =>
@@ -1635,7 +1762,7 @@
 
     $('avLotBody').innerHTML = list.map((r, idx) => `
       <tr>
-        <td class="ctr">${idx + 1}</td>
+        <td class="ctr c-seq">${idx + 1}</td>
         <td class="lot">${esc(r.LotNo) || '-'}</td>
         <td class="num hl">${fmtNum(r.Amount)}</td>
         <td class="num">${fmtNum(r.AmountWait)}</td>
@@ -1658,13 +1785,14 @@
         <td class="ctr blk-etc">${r.DateCheckLast ? formatDateThai(r.DateCheckLast) : '-'}</td>
       </tr>`).join('');
 
+    labelCells($('avLotBody'), AV_LABELS);
     const sum = (f) => list.reduce((s, r) => s + (Number(r[f]) || 0), 0);
     $('avLotFoot').innerHTML = `
       <tr>
         <td colspan="2" class="num">รวม</td>
-        <td class="num">${fmtNum(sum('Amount'))}</td>
-        <td class="num">${fmtNum(sum('AmountWait'))}</td>
-        <td class="num">${fmtNum(sum('AmtBal'))}</td>
+        <td class="num" data-l="คงเหลือ">${fmtNum(sum('Amount'))}</td>
+        <td class="num" data-l="รอเบิก">${fmtNum(sum('AmountWait'))}</td>
+        <td class="num" data-l="เบิกได้">${fmtNum(sum('AmtBal'))}</td>
         <td colspan="16"></td>
       </tr>`;
   }
@@ -1903,18 +2031,19 @@
 
     $('stLotBody').innerHTML = list.map((r, idx) => `
       <tr>
-        <td class="ctr">${idx + 1}</td>
+        <td class="ctr c-seq">${idx + 1}</td>
         ${L.main.map(c => mainTd(c, r)).join('')}
         ${ST_BLOCKS.map(b => stBlockCols(L, b.key).map((c, i) => qcTd(c, b, i === 0, r)).join('')).join('')}
       </tr>`).join('');
 
+    labelCells($('stLotBody'), ['#', ...L.main.map(c => c.l), ...ST_BLOCKS.flatMap(b => stBlockCols(L, b.key).map(c => c.l))].map(x => String(x).replace(/<br\s*\/?>/g, ' ')));
     // แถวรวม: ยอดน้ำหนัก / คงเหลือ อยู่ใต้คอลัมน์ของมันพอดี
     const sumIdx = L.main.findIndex(c => c.k === L.sumKey);
     const total = list.reduce((s, r) => s + (Number(r[L.sumKey]) || 0), 0);
     $('stLotFoot').innerHTML = `
       <tr>
         <td colspan="${sumIdx + 1}" class="num">รวม</td>
-        <td class="num">${fmtNum(total)}</td>
+        <td class="num" data-l="${esc(String(L.main[sumIdx].l).replace(/<br\s*\/?>/g, ' '))}">${fmtNum(total)}</td>
         <td colspan="${colCount - sumIdx - 2}"></td>
       </tr>`;
   }
@@ -1975,6 +2104,8 @@
       targetCompanyId: selectedTargetCompany,
       requesterId: selectedEmployee.id,
       requesterName: selectedEmployee.name,
+      requesterFull: selectedEmployee.full || '',
+      requesterPos: selectedEmployee.position || '',
       remark: $('remarkText').value.trim(),
       items: selectedSeeds.map(r => ({
         ...r,
@@ -2030,7 +2161,7 @@
      PRINT
   ================================================================== */
   // โลโก้บริษัทตาม idComp ของบริษัทที่ส่งคำร้องขอ
-  const LOGO_BASE_URL = 'http://seedsgroup.dyndns.org/spm/Center/Logo/';
+  const LOGO_BASE_URL = 'https://seedsgroup.dyndns.org/spm/Center/Logo/';
 
   function populatePrintArea(data){
     const co = companies.find(c => Number(c.id) === Number(data.companyId));
@@ -2042,31 +2173,40 @@
     $('pd_date').textContent = data.requestDateDisplay;
     $('pd_requester').textContent = data.requesterName;
     $('pd_remark').textContent = data.remark;
+    $('pd_signName').textContent = data.requesterFull || data.requesterName || '-';
+    $('pd_signPos').textContent = data.requesterPos || '-';
+    $('pd_signDate').textContent = data.requestDateDisplay || '';
+    const es = $('pd_esign');
+    es.style.display = '';
+    es.onerror = () => { es.style.display = 'none'; };
+    if(data.requesterId){ es.src = 'https://seedsgroup.dyndns.org/spm/images/eSign/' + encodeURIComponent(data.requesterId) + '.png'; } else { es.removeAttribute('src'); es.style.display = 'none'; }
     $('pd_items').innerHTML = data.items.map((r, idx) => `
       <tr>
-        <td class="ctr">${idx + 1}</td><td>${esc(r.name)}</td><td class="ctr">${esc(r.seedType) || '-'}</td>
+        <td class="ctr">${idx + 1}</td><td>${esc(r.name)}${r.note && String(r.note).trim() ? `<div class="pd-note">หมายเหตุ: ${esc(r.note)}</div>` : ''}</td><td class="ctr">${esc(r.seedType) || '-'}</td>
         <td class="num">${fmtNum(r.qty)}</td><td class="ctr">${esc(r.unit) || '-'}</td><td class="ctr">${r.requiredDateDisplay}</td>
       </tr>
     `).join('');
   }
 
   // รอโลโก้โหลดก่อนสั่งพิมพ์ (โหลดไม่ได้/นานเกิน 4 วินาที -> ซ่อนโลโก้แล้วพิมพ์ต่อ)
-  function waitForLogo(){
-    const logo = $('pd_logo');
-    if(logo.complete && logo.naturalWidth > 0) return Promise.resolve();
+  // รอรูปในเอกสาร (โลโก้ + รูปลายเซ็น) โหลดก่อนสั่งพิมพ์ — โหลดไม่ได้ / นานเกิน 4 วินาที = ซ่อนรูปนั้นแล้วพิมพ์ต่อ
+  function waitForImg(img){
+    if(!img || !img.getAttribute('src')) return Promise.resolve();
+    if(img.complete){ if(!img.naturalWidth) img.style.display = 'none'; return Promise.resolve(); }
     return new Promise(resolve => {
       let done = false;
       const finish = (ok) => {
         if(done) return;
         done = true;
-        if(!ok) logo.style.display = 'none';
+        if(!ok) img.style.display = 'none';
         resolve();
       };
-      logo.addEventListener('load', () => finish(true), { once: true });
-      logo.addEventListener('error', () => finish(false), { once: true });
-      setTimeout(() => finish(logo.complete && logo.naturalWidth > 0), 4000);
+      img.addEventListener('load', () => finish(true), { once: true });
+      img.addEventListener('error', () => finish(false), { once: true });
+      setTimeout(() => finish(img.complete && img.naturalWidth > 0), 4000);
     });
   }
+  function waitForLogo(){ return Promise.all([waitForImg($('pd_logo')), waitForImg($('pd_esign'))]); }
 
   async function triggerPrint(){
     await waitForLogo();
@@ -2086,9 +2226,12 @@
       companyId: head.idCompReq,
       companyName: head.CompName,
       requesterName: head.PsNameReq || '-',
+      requesterFull: head.FullReq || '',
+      requesterPos: head.PosReq || '',
+      requesterId: head.idPsReq,
       remark: head.ReasonReq || '',
       items: rows.map(r => ({
-        name: r.InvName, seedType: r.SeedName, qty: r.AmountReq, unit: r.UnitName,
+        name: r.InvName, seedType: r.SeedName, qty: r.AmountReq, unit: r.UnitName, note: r.NoteReq || '',
         requiredDateDisplay: formatDateThai(r.DateNeeded)
       }))
     });
@@ -2148,7 +2291,7 @@
     selectedSeeds = doc.rows.map(r => ({
       seedId: r.idInvMain, code: '', seedType: r.SeedName, name: r.InvName, unitId: r.idUnit,
       av: r.AmtStockAV, gr: r.AmtStockGR, flo: r.AmtStockFL, unit: r.UnitName,
-      qty: Number(r.AmountReq) || 0, requiredDate: r.DateNeeded || ''
+      qty: Number(r.AmountReq) || 0, requiredDate: r.DateNeeded || '', note: r.NoteReq || ''
     }));
     renderSeedTable();
     renderSeedModalBody();
@@ -2554,7 +2697,7 @@
         <td class="ctr">${formatDateThai(r.DateReq)}</td>
         <td class="ctr">${r.CompNameTarget ? `<span class="co-pill co-${esc(r.idCompTarget)}" title="${esc(r.CompNameTarget)}">${esc(shortCompName(r.CompNameTarget))}</span>` : '-'}</td>
         <td class="ctr">${needDateCell(r)}</td>
-        <td class="wrap">${esc(r.InvName) || '-'}</td>
+        <td class="wrap">${esc(r.InvName) || '-'}${r.NoteReq && String(r.NoteReq).trim() ? `<div class="row-note" title="หมายเหตุรายการ">หมายเหตุ: ${esc(r.NoteReq)}</div>` : ''}</td>
         <td class="ctr">${esc(r.SeedName) || '-'}</td>
         <td class="num">${avLink(r.idInvMain, r.InvName, r.AmtStockAV, r.UnitName)}</td>
         <td class="num">${stLink(r.idInvMain, r.InvName, r.AmtStockGR, 2)}</td>
@@ -2562,12 +2705,31 @@
         <td class="num">${fmtNum(r.AmountReq)}</td>
         <td class="ctr">${esc(r.UnitName) || '-'}</td>
         <td>${esc(r.PsNameReq) || '-'}</td>
+        <td class="c-reason">${esc(r.ReasonReq) || '-'}</td>
         <td class="ctr">${dueCell(r)}</td>
         <td>${repliedCell(r)}</td>
         <td class="num">${cancelled ? '-' : fmtNum(r.AmtDelivered || 0)}</td>
         <td class="num">${cancelled ? '-' : fmtNum(r.AmtRemain ?? r.AmountReq)}</td>
       </tr>`;
     }).join('');
+    labelTable(tbody.closest('table'));
+  }
+  // ใส่ data-l (ชื่อคอลัมน์จากหัวตาราง รวม rowspan / colspan) ให้ทุกเซลล์ — มือถือแสดงแถวเป็นการ์ด
+  function labelTable(t){
+    const grid = [];
+    [...t.tHead.rows].forEach((tr, r) => {
+      let c = 0;
+      [...tr.cells].forEach(th => {
+        while(grid[r] && grid[r][c] !== undefined) c++;
+        const k = th.cloneNode(true);
+        k.querySelectorAll('br').forEach(x => x.replaceWith(/[A-Za-z0-9)]$/.test((x.previousSibling && x.previousSibling.textContent || '').slice(-1)) ? ' ' : ''));
+        const text = k.textContent.replace(/\s+/g, ' ').trim();
+        for(let i = 0; i < th.rowSpan; i++) for(let j = 0; j < th.colSpan; j++) (grid[r + i] = grid[r + i] || [])[c + j] = text;
+        c += th.colSpan;
+      });
+    });
+    const last = grid[grid.length - 1] || [];
+    t.querySelectorAll('tbody tr').forEach(tr => { let c = 0; [...tr.cells].forEach(td => { if(td.colSpan === 1 && last[c]) td.dataset.l = last[c]; c += td.colSpan; }); });
   }
 
   /* ==================================================================
@@ -2613,7 +2775,7 @@
   function replyMessage(doc, edited){
     const h = doc.head;
     const lines = doc.rows.map((r, i) =>
-      `${i + 1}. ${r.InvName || '-'} — ${fmtNum(r.AmountReq)} ${r.UnitName || ''} (ต้องการ ${formatDateThai(r.DateNeeded)})`);
+      `${i + 1}. ${r.InvName || '-'} — ${fmtNum(r.AmountReq)} ${r.UnitName || ''} (ต้องการ ${formatDateThai(r.DateNeeded)})${r.NoteReq && String(r.NoteReq).trim() ? `\n    หมายเหตุ: ${String(r.NoteReq).trim()}` : ''}`);
     return [
       edited ? `✏️ แก้ไขคำร้องขอเมล็ดพันธุ์เร่งด่วน ${h.DocReq} (ข้อมูลล่าสุด)` : `📌 คำร้องขอเมล็ดพันธุ์เร่งด่วน ${h.DocReq}`,
       `จาก: ${h.CompName || '-'}`,
@@ -2841,6 +3003,11 @@
       if(qtyInput){
         const row = selectedSeeds.find(r => r.seedId === Number(qtyInput.dataset.seedQty));
         if(row) row.qty = parseNum(qtyInput.value);
+      }
+      const noteInput = e.target.closest('[data-seed-note]');
+      if(noteInput){
+        const row = selectedSeeds.find(r => r.seedId === Number(noteInput.dataset.seedNote));
+        if(row) row.note = noteInput.value;
       }
     });
     $('seedTableBody').addEventListener('change', (e) => {

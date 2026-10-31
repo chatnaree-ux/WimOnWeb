@@ -109,11 +109,13 @@
 
   // ---------- เมนู On process (WIMWebMenu.stWip) ----------
   // ผู้ใช้ทั่วไป: ซ่อนเมนู (ไม่ใช่ล็อก 🔒) + ซ่อนกลุ่มที่ไม่เหลือเมนู / กลุ่มระบบ: เห็นได้ มีป้าย WIP กำกับ
+  // data-menu เป็นรหัสเดียว หรือหลายรหัสคั่นด้วย , (ลิงก์ที่เปิดได้เมื่อมีสิทธิ์อย่างใดอย่างหนึ่ง เช่น คู่มือที่มี 2 ฝั่ง)
+  const menuCodes = (el) => (el.getAttribute('data-menu') || '').split(',').map(x => x.trim()).filter(Boolean);
   function applyWipMenus(root, wipCodes, unrestricted) {
     const wip = new Set(wipCodes || []);
     if (!wip.size) return;
     root.querySelectorAll('[data-menu]').forEach(el => {
-      if (!wip.has(el.getAttribute('data-menu'))) return;
+      if (!menuCodes(el).every(c => wip.has(c))) return;
       if (unrestricted) {
         el.classList.add('menu-wip');
         el.setAttribute('title', 'On process — กำลังพัฒนา ผู้ใช้ทั่วไปยังไม่เห็นเมนูนี้');
@@ -141,7 +143,7 @@
 
       const allowed = new Set(data.allowedMenuCodes);
       document.querySelectorAll('[data-menu]').forEach(el => {
-        if (allowed.has(el.getAttribute('data-menu'))) return;
+        if (menuCodes(el).some(c => allowed.has(c))) return;
         el.classList.add('menu-locked');
         el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
         el.addEventListener('click', (e) => e.preventDefault());
@@ -151,6 +153,28 @@
     } catch (err) {
       console.error('เช็คสิทธิ์การใช้งานไม่สำเร็จ:', err);
     }
+  }
+
+  // ---------- ตัวเลขงานรออนุมัติบนเมนู (server จำไว้ 30 วินาที) — หน้างานรออนุมัติส่งตัวเลขล่าสุดมาเองผ่าน setApprovalBadge ----------
+  // เมนูแสดงเฉพาะคนที่เกี่ยวข้อง (eligible จาก server) / หน้างานรออนุมัติเรียกโดยไม่ส่ง eligible = เกี่ยวข้องแน่นอน
+  let apvTotal = null, apvEligible = false;
+  function setApprovalBadge(n, eligible = true) {
+    apvTotal = Number(n) || 0;
+    apvEligible = !!eligible || apvTotal > 0;
+    document.querySelectorAll('#sidebar [data-apv-link]').forEach(a => { a.hidden = !apvEligible; });
+    document.querySelectorAll('#sidebar [data-apv-badge]').forEach(b => {
+      b.textContent = apvTotal > 99 ? '99+' : String(apvTotal);
+      b.hidden = !apvTotal;
+      b.title = apvTotal ? `มี ${apvTotal} รายการรอคุณดำเนินการ` : '';
+    });
+  }
+  async function loadApprovalBadge() {
+    if (apvTotal != null) return setApprovalBadge(apvTotal, apvEligible);
+    try {
+      const res = await fetch('/api/approval-inbox/count', { cache: 'no-store' });
+      const d = await res.json();
+      if (d && d.success) setApprovalBadge(d.total, d.eligible !== false);
+    } catch (err) { /* ไม่มีตัวเลขก็ใช้เมนูได้ */ }
   }
 
   // ---------- โหลด sidebar.html มาแปะใน #sidebar แล้วเริ่มทำงาน ----------
@@ -183,6 +207,7 @@
     const ready = manageUser
       ? initUser().then(user => (user ? applyMenuPermissions(user.idPs, menuCode).then(() => user) : null))
       : Promise.resolve(null);
+    ready.then(user => { if (user || !manageUser) loadApprovalBadge(); });
 
     fresh.then(async (html) => {
       try { localStorage.setItem(SIDEBAR_CACHE_KEY, html); } catch (err) { /* ไม่เป็นไร รอบหน้าโหลดจาก server */ }
@@ -192,6 +217,7 @@
       const scroll = (host.querySelector('.side-nav') || {}).scrollTop || 0;
       host.innerHTML = html;
       initActiveAndAccordion(host);
+      if (apvTotal != null) setApprovalBadge(apvTotal, apvEligible);
       const nav = host.querySelector('.side-nav');
       if (nav) nav.scrollTop = scroll;
       if (user) {
@@ -205,5 +231,5 @@
     await ready;
   }
 
-  window.WIMSidebar = { load, showAccessDeniedOverlay, applyWipMenus };
+  window.WIMSidebar = { load, showAccessDeniedOverlay, applyWipMenus, setApprovalBadge };
 })();

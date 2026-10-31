@@ -447,13 +447,20 @@
 
   /* ---------- LIST: Dashboard สถานะ ---------- */
   .dash{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:16px;}
-  /* 3 กลุ่ม: อยู่ระหว่างกระบวนการ (ไม่ใช้วันที่) | สิ้นสุดกระบวนการ / รายงาน (ใช้ช่วงวันที่) */
-  .dash-wrap{display:grid; grid-template-columns:minmax(0,6fr) minmax(0,2fr) minmax(0,1fr); gap:12px 16px; margin-bottom:16px;}
-  .dash-wrap .dash{margin-bottom:0; grid-template-columns:repeat(auto-fit, minmax(118px, 1fr));}
+  /* 2 กลุ่ม: อยู่ระหว่างกระบวนการ 6 ใบ (ไม่ใช้วันที่) | สิ้นสุดกระบวนการ / รายงาน 3 ใบ (ช่วงวันที่เดียวกัน) — สัดส่วนตามจำนวนการ์ด = การ์ดกว้างเท่ากัน
+     subgrid: หัวกลุ่มอยู่แถวเดียวกัน + การ์ดทุกกลุ่มสูงเท่ากัน (ชื่อยาวตกบรรทัดก็ไม่ทำให้กรอบสูงกว่าเพื่อน) */
+  .dash-wrap{display:grid; grid-template-columns:minmax(0,6fr) minmax(0,3fr); grid-template-rows:auto auto; gap:0 16px; margin-bottom:16px;}
+  .dash-wrap .dash-group{display:grid; grid-row:span 2; grid-template-rows:subgrid;}
+  .dash-wrap .dash{margin-bottom:0; grid-template-columns:repeat(auto-fit, minmax(96px, 1fr)); grid-auto-rows:1fr;}
+  /* การ์ดหน้านี้ 9 ใบเรียงแถวเดียว: กะทัดรัดกว่าหน้าอื่นเล็กน้อย */
+  body .dash-wrap .dash-card{padding:10px 12px;}
+  body .dash-wrap .dash-card .lbl{font-size:13.5px;}
+  body .dash-wrap .dash-card .val{font-size:28px; margin-top:auto; padding-top:2px;}   /* ตัวเลขชิดล่าง: ชื่อการ์ดตกบรรทัด ตัวเลขยังอยู่ระดับเดียวกับเพื่อน */
+  body .dash-wrap .dash-card .kc-bg{width:44px; height:44px;}
   .dash-glbl{display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; font-size:13px; font-weight:600; color:var(--concrete-200); margin:0 0 7px 2px;}
   /* ป้ายช่วงข้อมูล (ทุกช่วงวันที่ / เดือนที่เลือก): ตัวใหญ่ขึ้น พื้นจาง อ่านง่าย */
   .dash-glbl small{font-size:12px; font-weight:600; color:var(--amber-500); padding:1px 8px; border-radius:999px; background:rgba(242,169,28,.12); border:1px solid rgba(242,169,28,.35);}
-  @media (max-width:1200px){ .dash-wrap{grid-template-columns:minmax(0,2fr) minmax(0,1fr);} .dash-wrap .dash-group:first-child{grid-column:1 / -1;} }
+  @media (max-width:1200px){ .dash-wrap{grid-template-columns:minmax(0,1fr); row-gap:4px;} }
   @media (max-width:640px){ .dash-wrap{grid-template-columns:minmax(0,1fr);} }
   .dash-card{
     position:relative; display:flex; flex-direction:column; text-align:left; cursor:pointer; padding:10px 14px; border-radius:9px; font:inherit; color:inherit;
@@ -481,6 +488,7 @@
   .ap{position:relative; width:42px; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:help;}
   .ap + .ap::before{content:""; position:absolute; top:8px; right:calc(50% + 9px); width:24px; height:2px; background:rgba(255,255,255,.12);}
   .ap.done + .ap::before, .ap.done + .ap.wait::before{background:var(--ok-green);}
+  @media (max-width:360px){ .ap{width:36px;} .ap + .ap::before{width:18px;} }
   .ap i{width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,.18); background:var(--navy-950); color:var(--navy-950);}
   .ap i svg{width:10px; height:10px;}
   .ap small{font-size:10px; color:var(--steel-500); white-space:nowrap;}
@@ -753,8 +761,8 @@
   .rp .rp-signs{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px 18px; margin-top:8mm; break-inside:avoid;}
   .rp .rp-sign{text-align:center; font-size:9.5px; line-height:1.4;}
   .rp .rp-sign .t{font-weight:700; font-size:10.5px; margin:1px 0;}
-  .rp .rp-sign .sg{height:11mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:0 14px 3px;}
-  .rp .rp-sign .sg img{max-height:11mm; max-width:100%; object-fit:contain;}
+  .rp .rp-sign .sg{height:11mm; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px dotted #777; margin:0 14px 3px; box-sizing:border-box; padding-bottom:2mm;}
+  .rp .rp-sign .sg img{max-height:9mm; max-width:100%; object-fit:contain;}
   .rp .rp-sign .n{font-weight:600;}
   .rp .rp-sign .p, .rp .rp-sign .d{color:#444;}
   .rp .rp-sign .p{font-size:8.5px; line-height:1.3;}   /* ตำแหน่ง: ตัวเล็กใต้ชื่อ */
@@ -832,32 +840,13 @@
   #printArea.rp-print .rp-space-top{height:10mm;}
   #printArea.rp-print .rp-space-bottom{height:3mm;}
   /* พิมพ์: 1 แผ่น = 1 หน้า (ขอบล่าง 10 มม. เป็นท้ายกระดาษ) — สูง 286.5 มม. (เนื้อหา 269 มม. เท่าบนจอ) */
-  #printArea.rp-print .rp.rp-page{width:210mm; max-width:none; height:286.5mm; margin:0; padding:12mm 12mm 5.5mm; border-radius:0; box-shadow:none; break-after:page;}
+  #printArea.rp-print .rp.rp-page{width:210mm; max-width:none; height:283mm; margin:0; padding:12mm 12mm 2mm; border-radius:0; box-shadow:none; break-after:page;}
   #printArea.rp-print .rp.rp-page:last-child{break-after:auto;}
-  /* มือถือ: รายการเป็นการ์ด (ตาราง A4 อ่านบนจอเล็กไม่ได้) */
-  @media screen and (max-width:760px){
-    .paper-wrap .rp{padding:14px 12px; font-size:12px; min-height:0;}
-    .paper-wrap .rp .rp-items tbody.rp-fill{display:none;}
-    .paper-wrap .rp .rp-tbl > table{border-bottom:0;}
-    .paper-wrap .rp .rp-title{float:none; text-align:left; margin:0 0 8px;}
-    .paper-wrap .rp .rp-info{grid-template-columns:minmax(0,1fr);}
-    .paper-wrap .rp .rp-items colgroup, .paper-wrap .rp .rp-items thead, .paper-wrap .rp .rp-items td.no, .paper-wrap .rp .rp-items td.unit{display:none;}
-    .paper-wrap .rp .rp-items, .paper-wrap .rp .rp-items tbody, .paper-wrap .rp .rp-items tr, .paper-wrap .rp .rp-items td{display:block; width:auto;}
-    .paper-wrap .rp .rp-items tbody.pi{border:1px solid #bbb; border-radius:4px; margin-bottom:8px; padding:7px 9px;}
-    .paper-wrap .rp .rp-items td, .paper-wrap .rp .rp-items tr.sub td{border:0; padding:1px 0; font-size:11.5px;}
-    .paper-wrap .rp .rp-items .s, .paper-wrap .rp .rp-items .ref > span{font-size:11px;}
-    .paper-wrap .rp .rp-items .ref{display:flex; flex-wrap:wrap; gap:0 12px; margin:2px 0 4px;}
-    .paper-wrap .rp .rp-items td[data-l]{display:flex; justify-content:space-between; gap:10px; text-align:right;}
-    .paper-wrap .rp .rp-items td[data-l]::before{content:attr(data-l); color:#666;}
-    .paper-wrap .rp .rp-items .mno, .paper-wrap .rp .rp-items .mu{display:inline;}
-    .paper-wrap .rp .rp-items tr.sub td{margin-top:4px; padding-top:4px; border-top:1px dashed #ccc;}
-    .paper-wrap .rp .rp-foot{grid-template-columns:minmax(0,1fr);}
-    .paper-wrap .rp .rp-tot{width:100%;}
-    .paper-wrap .rp .rp-tot td{font-size:12px;}
-    .paper-wrap .rp .rp-tot tr.g td{font-size:13px;}
-    .paper-wrap .rp .rp-signs{grid-template-columns:repeat(2, minmax(0,1fr));}
-    .paper-wrap .rp .rp-void span{font-size:60px; border-width:6px;}
-  }
+  /* มือถือ: แสดงเป็นแผ่น A4 จริงแล้วย่อตามความกว้างจอ (เหมือนใบ OPQ / OPA) — ไม่ปรับโครงเอกสาร */
+  .paper-wrap .rp{max-width:none; flex-shrink:0;}
+  .rp-scale{position:relative; overflow:hidden; margin:0 auto 16px;}
+  .rp-scale > .rp{position:absolute; left:0; top:0; margin:0 !important; transform-origin:0 0;}
+  .paper-wrap .rp, .paper-wrap .rp *{-webkit-text-size-adjust:none; text-size-adjust:none;}
 
   @media print{
     body.printing{background:#fff;}
@@ -895,14 +884,12 @@
     .sum-actions{width:100%;}
     .sum-actions .btn{flex:1;}
     /* แท็บ: แถวเดียว เลื่อนซ้ายขวาได้ (เดิมขึ้นคนละบรรทัด) / ปุ่มจัดการสาเหตุเหลือแต่ไอคอน */
-    .tab-bar{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; gap:2px;}
-    .tab-bar::-webkit-scrollbar{display:none;}
+    .tab-bar{flex-wrap:wrap; gap:2px 2px; align-items:flex-end;}
     .nav-btn{white-space:nowrap; flex-shrink:0; padding-left:8px; padding-right:8px; font-size:13px;}
     .nav-btn > svg{display:none;}
-    .tab-bar .cause-btn{flex-shrink:0; margin-left:14px; padding:6px 9px;}
+    .tab-bar .cause-btn{flex-shrink:0; padding:6px 9px;}
     .tab-bar .cause-btn .cause-lbl{display:none;}
-    .tab-bar .manual-btn{flex-shrink:0; padding:6px 9px;}
-    .tab-bar .manual-btn .cause-lbl{display:none;}
+    .tab-bar .manual-btn{display:none;}   /* คู่มือเปิดจากเมนูซ้ายได้ — ไม่แย่งที่แท็บบนมือถือ */
     /* แถบปุ่มล่าง (ติดขอบจอ) ไม่บังตาราง: ซ่อนคำแนะนำ เหลือแต่ปุ่ม */
     .sum-bar .sum-hint{display:none;}
     .sum-bar{padding:10px 12px;}
@@ -919,6 +906,116 @@
     .cs-table th:nth-child(5), .cs-table td:nth-child(5){width:74px;}
   }
 
+  /* ==== มือถือ (iPhone / Samsung) ==== */
+  html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  .rc-list{display:none;}
+  @media (max-width:900px){
+    .doc-wrap .doc-table{display:none;}
+    .doc-wrap{overflow:visible; border:0; background:none; max-height:none; min-height:0;}
+    .rc-list{display:flex; flex-direction:column; gap:12px;}
+    .rc-card{border:1px solid rgba(140,180,230,.32); border-left:4px solid var(--amber-500); border-radius:12px; padding:14px 14px 12px; background:rgba(120,160,220,.07);}
+    .rc-card.cancelled{opacity:.7; border-left-color:var(--steel-500);}
+    .rc-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+    .rc-head .rc-no{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:15px; color:var(--amber-500);}
+    .rc-head .badge{margin-left:auto;}
+    .rc-head input[type=checkbox]{width:20px; height:20px; margin:0; padding:0; accent-color:var(--amber-500); min-height:0;}
+    .rc-rows{margin:8px 0 4px;}
+    .rc-row{display:flex; gap:10px; align-items:baseline; font-size:13.5px; color:var(--concrete-200); padding:2px 0;}
+    .rc-row .k{flex:0 0 92px; font-size:12.5px; color:var(--concrete-400);}
+    .rc-row .v{min-width:0; overflow-wrap:anywhere;}
+    .rc-sum{display:flex; justify-content:space-between; align-items:baseline; margin:6px 0 10px; padding-top:8px; border-top:1px dashed rgba(255,255,255,.12); font-size:13.5px; color:var(--concrete-200);}
+    .rc-sum b{font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--amber-500);}
+    .rc-acts{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+    .rc-acts .btn{display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:44px; text-align:center;}
+    .rc-acts .btn:last-child:nth-child(odd){grid-column:1 / -1;}
+    .rc-acts .btn svg{width:16px; height:16px; flex-shrink:0;}
+    .rc-dd .dd-item{padding:10px 0; border-top:1px solid rgba(255,255,255,.1);}
+    .rc-dd .dd-item:first-child{border-top:0; padding-top:0;}
+    .rc-dd .dd-nm{font-weight:700; color:#fff; font-size:14.5px;}
+    .rc-dd .dd-sub{font-size:12.5px; color:var(--concrete-400); margin:2px 0 6px; overflow-wrap:anywhere;}
+    .rc-dd .dd-row{display:flex; justify-content:space-between; gap:12px; font-size:13.5px; color:var(--concrete-200); padding:2px 0;}
+    .rc-dd .dd-row b{font-family:'JetBrains Mono',monospace; color:#fff;}
+  }
+  /* ตารางรายการสินค้า (ฟอร์ม) + ตารางใน popup เลือกรายการ: มือถือ = การ์ดต่อรายการ ช่องกรอกครึ่งแถว (ตัวอักษร 16px กัน iOS ซูมเอง) */
+  @media (max-width:900px){
+    .items-wrap{max-height:none; overflow:visible; border:0;}
+    .items-table, .ip-table{min-width:0 !important; width:100%; display:block;}
+    .items-table thead, .ip-table thead{display:none;}
+    .items-table tbody, .ip-table tbody{display:block;}
+    .items-table tbody tr, .ip-table tbody tr{display:flex; flex-wrap:wrap; gap:8px 12px; position:relative; margin:0 0 10px; padding:12px;
+      border:1px solid rgba(140,180,230,.28); border-left:4px solid var(--amber-500); border-radius:12px; background:rgba(120,160,220,.07);}
+    .items-table tbody tr td, .ip-table tbody tr td{display:block; flex:1 1 calc(50% - 12px); min-width:0; padding:0 !important; border:0 !important; background:none !important;
+      text-align:left; white-space:normal; overflow-wrap:anywhere; font-size:14px;}
+    .items-table td[data-l]::before, .ip-table td[data-l]::before{content:attr(data-l); display:block; margin-bottom:3px; font-size:11.5px; font-weight:400; color:var(--concrete-400);}
+    .items-table td.c-no, .items-table td.c-del{flex:0 0 auto;}
+    .items-table td.c-no{order:-6; align-self:center; font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500); font-size:15px;}
+    .items-table td.c-del{order:-5; margin-left:auto;}
+    .items-table td.c-no::before{content:"#"; display:inline; margin:0; font-size:inherit; color:inherit;}
+    .items-table td.c-del::before, .items-table td.wrap::before, .items-table td.c-ref::before, .items-table td.qc::before{content:none;}
+    .items-table td.wrap{order:-4; flex-basis:100%; font-size:15px; font-weight:600; color:#fff;}
+    .items-table td.c-ref{order:-3; flex-basis:100%;}
+    .items-table td.c-reason, .items-table td.qc{flex-basis:100%;}
+    .items-table .ref-grid{white-space:normal;}
+    .items-table .qc-grid{grid-template-columns:1fr 1fr; white-space:normal;}
+    /* ช่องกรอก: 16px = ขนาดต่ำสุดที่ iOS ไม่ซูมหน้าตอนแตะ → ปรับที่ที่เหลือให้ใกล้กัน: ข้อมูลในการ์ด 15px / ช่องกรอกใช้ฟอนต์เดียวกับข้อมูล ชิดซ้าย พื้นจางแทนกล่องดำ ไม่ใหญ่เด่นกว่าส่วนอื่น */
+    .items-table tbody tr td{font-size:15px;}
+    .items-table .cell-in, .items-table .cell-in.price, .items-table select.reason{width:100%; min-height:38px; height:38px; padding:2px 8px; font-size:16px; font-family:inherit; font-weight:400; text-align:left; background-color:rgba(255,255,255,.05); border:0; border-bottom:2px solid rgba(242,169,28,.6); border-radius:6px 6px 0 0; color:#fff; box-shadow:none;}
+    .items-table .cell-in:focus, .items-table select.reason:focus{border-color:var(--amber-500); background-color:rgba(255,255,255,.1);}
+    .items-table td.num{text-align:left;}
+    #itemModal{padding:8px;}
+    .modal-wide{height:calc(100dvh - 16px); max-height:none;}
+    #itemModal .modal-header{padding:10px 14px;}
+    #itemModal .modal-header h3{font-size:15px;}
+    #itemModal .modal-header .m-sub{display:none;}
+    .ip-filter{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:8px; padding:8px 14px;}
+    .ip-filter .search-shell{grid-column:1 / -1;}
+    .ip-filter .search-shell, .ip-filter select{flex:none; width:100%; max-width:none; min-height:44px; height:44px; font-size:16px;}
+    .ip-filter .switch{grid-column:1 / 2; align-self:center; font-size:13px;}
+    .ip-filter .ip-count{grid-column:2 / 3; margin-left:0; text-align:right;}
+    #itemModal .modal-foot{padding:8px 14px; gap:8px;}
+    #itemModal #ipHint{display:none;}
+    #itemModal .modal-foot .btn{flex:1;}
+    .ip-wrap{margin:10px 14px; border:0; overflow:auto;}
+    .ip-table td.ctr{position:absolute; top:12px; right:12px; flex:none !important;}
+    .ip-table td.lot-wh{flex-basis:100%; order:-1;}
+    .ip-table td.wrap{flex-basis:100%; order:-2; font-weight:600; color:#fff; padding-right:40px !important; font-size:15px;}
+    .ip-table td.wrap::before, .ip-table td.lot-wh::before, .ip-table td.ctr::before{content:none;}
+    .ip-table tbody tr.sel{border-left-color:var(--ok-green); background:rgba(242,169,28,.12);}
+    .ip-table td.ctr input[type=checkbox]{width:22px; height:22px;}
+    .ip-table td.qc{text-align:left !important; box-shadow:none !important;}
+    /* คุณภาพเมล็ดพันธุ์: ไม่มีเส้นเขียวชิดตัวหนังสือ — ใช้เส้นประคั่นด้านบน + หัวข้ออยู่บน ค่าอยู่ล่าง (ไม่ตกบรรทัดแตกต่างกัน) */
+    .items-table tbody tr td.qc, .ip-table tbody tr td.qc:nth-child(n){border-left:0 !important; box-shadow:none !important;}
+    .items-table tbody tr td.qc{padding-top:8px !important; border-top:1px dashed rgba(255,255,255,.14) !important;}
+    .items-table .qc-grid{grid-template-columns:1fr 1fr; gap:8px 14px; font-size:13px;}
+    .items-table .qc-grid > span{display:flex; flex-direction:column; gap:1px; min-width:0;}
+    .items-table .qc-grid .lbl{margin:0; font-size:11.5px; color:var(--concrete-400);}
+    .items-table .qc-grid .v{font-size:15px;}
+    .ip-table td.qc::before{text-align:left;}
+  }
+  @media (max-width:640px){
+    /* ตัวกรองวันที่: ปุ่มโหมดเต็มแถว / ช่องวันที่ 2 ช่องแบ่งกันพอดี ไม่ล้นกรอบ */
+    .period{flex-direction:column; align-items:stretch; gap:8px;}
+    .seg{width:100%;}
+    .seg button{flex:1; min-height:42px;}
+    .period-fields{width:100%;}
+    .period-fields .date-overlay-wrap{flex:1 1 0; width:auto; min-width:0;}
+    .period-fields select{flex:1 1 0; min-width:0;}
+    .flt-item select, .flt-item input[type="text"], .flt-search .search-shell, .seg{height:44px;}
+    /* แถวปุ่มเหนือรายการ: 2 ปุ่มต่อแถว เท่ากัน */
+    .list-toolbar > div:last-child{width:100%; display:grid !important; grid-template-columns:1fr 1fr; gap:8px;}
+    .list-toolbar .btn{min-height:44px; justify-content:center;}
+    .list-toolbar > div:last-child > .btn:last-child:nth-child(odd){grid-column:1 / -1;}
+    /* แท็บ: ปุ่ม ⚙ / 📖 ติดขวาเสมอ ไม่เลื่อนหลุดจอ */
+    .tab-bar .cause-btn{margin:0 0 6px auto;}
+    .tab-bar .cause-btn::before{display:none;}
+    /* แถบปุ่มหน้าเอกสาร: ปุ่มย้อนกลับเต็มแถว / ปุ่มทำรายการแบ่งเท่าๆ กัน / ขั้นตอนอยู่กลาง */
+    #docView .vw-row{display:grid; grid-template-columns:minmax(0, 1fr); gap:10px;}
+    #docView .vw-row .btn{min-height:46px; justify-content:center; text-align:center;}
+    #docView .vw-right{display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0, 1fr); gap:8px; margin-left:0; width:100%;}
+    #docView .vw-right .btn{width:100%; padding-left:6px; padding-right:6px; white-space:normal; line-height:1.2;}
+    #docView .vw-steps{display:flex; justify-content:center;}
+  }
+
   /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
      และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
   select, input, textarea{max-width:100%; min-width:0;}
@@ -927,6 +1024,10 @@
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="/css/mobile-base.css">
+<!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
+<link rel="stylesheet" href="/css/kpi-cards.css">
+<script src="/js/kpi-icons.js"></script>
 </head>
 <body>
 
@@ -1053,6 +1154,7 @@
               </thead>
               <tbody id="docListBody"></tbody>
             </table>
+            <div class="rc-list" id="docCards"></div>
             <p class="empty-msg" id="noDocMsg" hidden>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="18" height="14" rx="2"></rect><path d="M3 7l9-4 9 4"></path></svg>
               ไม่พบใบส่งคืนสินค้าตามเงื่อนไขที่เลือก
@@ -1382,7 +1484,7 @@
   let CAN_EDIT = false;
   const APV_INFO = {
     ack:     { name:'รับทราบ', btn:'รับทราบ',     cls:'btn-fill-violet',    menu:'รายการรอรับทราบ เอกสารส่งคืนสินค้า' },
-    check:   { name:'ตรวจสอบ', btn:'ตรวจสอบผ่าน', cls:'btn-fill-orange',    menu:'รายการรอตรวจสอบ เอกสารส่งคืนสินค้า' },
+    check:   { name:'ตรวจสอบ', btn:'ตรวจสอบ', cls:'btn-fill-orange',    menu:'รายการรอตรวจสอบ เอกสารส่งคืนสินค้า' },
     approve: { name:'อนุมัติ',  btn:'อนุมัติ',      cls:'btn-fill-green', menu:'รายการรออนุมัติ เอกสารส่งคืนสินค้า' }
   };
   const stepForStatus = (st) => st === 1 ? 'ack' : (st === 2 || st === 3) ? 'check' : st === 4 ? 'approve' : null;
@@ -1735,12 +1837,8 @@
         <div class="dash">${card('open', 'ทั้งหมด', 'var(--concrete-200)')}${[0, 1, 2, 3, 4].map(st).join('')}</div>
       </div>
       <div class="dash-group">
-        <div class="dash-glbl">สิ้นสุดกระบวนการ <small>${esc(periodText())}</small></div>
-        <div class="dash">${st(5)}${st(9)}</div>
-      </div>
-      <div class="dash-group">
-        <div class="dash-glbl">รายงาน <small>${esc(periodText())}</small></div>
-        <div class="dash">${card('range', 'ทุกสถานะในช่วงวันที่', 'var(--amber-500)')}</div>
+        <div class="dash-glbl">สิ้นสุดกระบวนการ / รายงาน <small>${esc(periodText())}</small></div>
+        <div class="dash">${st(5)}${st(9)}${card('range', 'ทุกสถานะ', 'var(--amber-500)')}</div>
       </div>`;
   }
   $('statusDash').addEventListener('click', (e) => {
@@ -1861,7 +1959,69 @@
         </tr>
         ${open ? `<tr class="detail-row"><td colspan="12">${detailHtml(d)}</td></tr>` : ''}`;
     }).join('');
+    $('docCards').innerHTML = rows.map(cardHtml).join('');
   }
+
+  // การ์ดรายการบนมือถือ: ข้อมูลหลักเป็นบรรทัด + ปุ่ม (รายละเอียดสินค้าอยู่ใน popup) — ใช้ data-act ชุดเดียวกับตาราง
+  const IC = (k) => svgIcon(ICON[k], 2);
+  function cardHtml(d){
+    const t = docTotals(d.items, d.type), s = STATUS[d.status], ty = typeOf(d.type);
+    const editable = d.status <= 1;
+    const row = (k, v) => `<div class="rc-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+    const share = APV ? '' : `<button type="button" class="btn btn-neutral-soft btn-sm" data-act="share" ${stepForStatus(d.status) ? '' : 'disabled'}>${IC('link')}ติดตามเอกสาร</button>`;
+    const cancel = CAN_CANCEL && !APV ? `<button type="button" class="btn btn-danger btn-sm" data-act="cancel" ${cancellable(d) ? '' : 'disabled'}>${IC('ban')}ยกเลิก</button>` : '';
+    const main = APV
+      ? `<button type="button" class="btn btn-sm ${APV_INFO[APV].cls}" data-act="open">${IC('check')}${APV_INFO[APV].name}</button>`
+      : `<button type="button" class="btn btn-neutral-soft btn-sm" data-act="open">${IC(editable ? 'edit' : 'eye')}${editable ? 'เปิด / แก้ไข' : 'เปิดดู'}</button>`;
+    return `<div class="rc-card ${d.status === 9 ? 'cancelled' : ''}" data-id="${d.id}">
+      <div class="rc-head">
+        ${APV ? `<input type="checkbox" data-act="select" ${apvCanAct(d) ? '' : 'disabled'} ${APV_SEL.has(d.id) ? 'checked' : ''}>` : ''}
+        <span class="rc-no">${esc(d.docNo)}</span>
+        <span class="badge" style="--c:${s.c}">${stLabel(d.status)}</span>
+      </div>
+      <div class="rc-rows">
+        ${row('บริษัท', `<span class="co-pill" title="${esc(d.compName)}">${esc(d.compCode || d.compName || '-')}</span>`)}
+        ${row('วันที่เอกสาร', thDate(d.docDate))}
+        ${row('Supplier', esc(d.supName || '-'))}
+        ${row('ประเภทการคืน', `<span class="type-pill" style="--c:${ty.c}"><i></i>${esc(ty.short || ty.name)}</span>`)}
+        ${row('ขั้นตอน', approvalCell(d))}
+      </div>
+      <div class="rc-sum"><span>${ty.credit ? 'ยอดลดหนี้' : 'มูลค่าคืน'}</span><b>${ty.credit ? fmtMoney(t.diff) : fmtMoney(t.cost)}</b></div>
+      <div class="rc-acts">
+        <button type="button" class="btn btn-neutral-soft btn-sm" data-act="detail">${IC('po')}รายละเอียด</button>
+        ${main}
+        <button type="button" class="btn btn-neutral-soft btn-sm" data-act="print">${IC('print')}พิมพ์</button>
+        ${share}${cancel}
+      </div>
+    </div>`;
+  }
+  // popup รายละเอียดสินค้า (มือถือ): รายการเรียงเป็นบรรทัด ไม่ใช้ตารางกว้าง
+  function openDetailDlg(d){
+    const ty = typeOf(d.type);
+    const row = (k, v) => `<div class="dd-row"><span>${k}</span><b>${v}</b></div>`;
+    confirmBox({ title: `รายละเอียด ${d.docNo}`, ok: 'ปิด', cancel: '', body: `<div class="rc-dd">${d.cancel ? `<div class="cancel-info"><b>ยกเลิกโดย</b> ${esc(d.cancel.by)} · ${thStamp(d.cancel.at)} — ${esc(d.cancel.reason)}</div>` : ''}
+      ${d.items.map((it, i) => { const c = lineCalc(it, d.type); return `<div class="dd-item">
+        <div class="dd-nm">${i + 1}. ${esc(it.name)}</div>
+        <div class="dd-sub">PO ${esc(it.po) || '-'} · รับ ${esc(it.rec) || '-'} · Lot ${esc(it.lot) || '-'} · ${esc(it.reason) || 'ไม่ระบุสาเหตุ'}</div>
+        ${row(ty.returnGoods ? 'จำนวนคืน' : 'จำนวนลดหนี้', `${fmtQty(it.qty)} ${esc(it.unit || '')}`)}
+        ${row('ต้นทุน/หน่วย', fmtMoney(it.cost))}
+        ${row('มูลค่าต้นทุน', fmtMoney(c.cost))}
+        ${ty.credit ? row('ราคาใหม่/หน่วย', fmtMoney(it.price)) + row('มูลค่าตามราคาใหม่', fmtMoney(c.buy)) + row('ยอดลดหนี้', fmtMoney(c.diff)) : ''}
+      </div>`; }).join('')}</div>` });
+  }
+  $('docCards').addEventListener('click', async (e) => {
+    const card = e.target.closest('.rc-card');
+    if(!card) return;
+    const d = DOCS.find(x => x.id === Number(card.dataset.id));
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if(!d || !act) return;
+    if(act === 'select'){ e.target.checked ? APV_SEL.add(d.id) : APV_SEL.delete(d.id); return renderApvBar(); }
+    if(act === 'open') return openDoc(d.id);
+    if(act === 'share') return openFollow(d);
+    if(act === 'cancel') return cancelDoc(d);
+    if(act === 'print') return printDocById(d.id);
+    if(act === 'detail') return openDetailDlg(d);
+  });
 
   function detailHtml(d){
     const ty = typeOf(d.type);
@@ -2163,6 +2323,7 @@
   }
   // ท้ายกระดาษทุกหน้า: ลิงก์ (ซ้าย) / พิมพ์เมื่อ + ผู้พิมพ์ (กลาง) / หน้า x / y (ขวา) — browser นับหน้าให้เอง (counter(page) / counter(pages))
   //   ใส่ในขอบกระดาษด้านล่าง: browser จะไม่พิมพ์ท้ายกระดาษของตัวเองทับ / ขอบบน = 0 จึงไม่มีหัวกระดาษของ browser
+  const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function setPrintFooter(left, center, orient = 'landscape'){
     const css = (t) => '"' + String(t).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
     let st = document.getElementById('pdPageStyle');
@@ -2250,9 +2411,12 @@
     // รอโลโก้โหลดก่อนสั่งพิมพ์ (โหลดไม่ได้ / นานเกิน 4 วินาที = ซ่อนโลโก้แล้วพิมพ์ต่อ)
     await waitForImage($('pdLogo'));
     document.body.classList.add('printing');
+    // iPhone / iPad: iOS จัดหน้าพิมพ์แบบกระดาษแนวตั้ง (~794px) ไม่สน @page แนวนอน → ตาราง 15 คอลัมน์ทับกัน
+    //   จัดตารางที่ความกว้าง A4 แนวนอน (1122px) แล้วย่อด้วย zoom เหลือ ~740px (กว้างหน้ากระดาษแนวตั้งของ iOS) ไม่ตัดขอบ / ไม่ทับกัน
+    if(IS_IOS){ const pa = $('printArea'); pa.style.width = '1122px'; pa.style.zoom = '0.66'; }
     window.print();
   });
-  window.addEventListener('afterprint', () => document.body.classList.remove('printing'));
+  window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); $('printArea').style.width = ''; $('printArea').style.zoom = ''; });
 
   /* ==================================================================
      ใบเอกสาร (ดูบนจอ / พิมพ์ A4 แนวตั้ง) — template เดียวกัน
@@ -2343,7 +2507,7 @@
       return `<div class="rp-sign">
         <div class="sg">${x && x.id ? `<img src="${ESIGN_URL(x.id)}" alt="" onerror="this.remove()">` : ''}</div>
         <div class="n">${x ? `(${esc(x.full || x.by)})` : '<span class="blank">(..........................................)</span>'}</div>
-        <div class="p">${x ? esc(x.pos || '-') : '<span class="blank">ตำแหน่ง ..................................</span>'}</div>
+        <div class="p">${x ? esc(x.pos || '-') : '<span class="blank">..........................................</span>'}</div>
         <div class="t">${sg.name}</div>
         <div class="d">${x ? 'วันที่ ' + thDate(x.at) : '<span class="blank">วันที่ ........./........./.........</span>'}</div>
       </div>`;
@@ -2403,7 +2567,7 @@
   // แบ่งหน้าแบบฟอร์ม ERP: ทุกหน้ามีหัวเอกสาร + หัวตาราง / หน้าที่ไม่ใช่หน้าสุดท้าย = "มีต่อหน้าถัดไป" / หน้าสุดท้าย = ยอดรวม + ลายเซ็นชิดล่าง
   //   วัดความสูงจริงที่ความกว้าง A4 (นอกจอ) แล้วใส่รายการทีละแถวจนเต็มพื้นที่ (269 มม. = A4 297 − ขอบบน 12 − ขอบล่าง 16)
   const MM = 96 / 25.4;
-  async function paperPages(d, items){
+  async function paperPages(d, items, availMm = 269){
     const P = paperHtml(d, items);
     if(document.fonts && document.fonts.ready) await document.fonts.ready;
     const box = document.createElement('div');
@@ -2418,7 +2582,7 @@
     const footH = rect(full.querySelector('.rp-signs')).bottom - rect(tbl).bottom;
     const contH = rect(contPage.querySelector('.rp-cont')).bottom - rect(contPage.querySelector('.rp-tbl')).bottom;
     box.remove();
-    const avail = 269 * MM - 6;
+    const avail = availMm * MM - 6;
     const sum = (a, b) => rowH.slice(a, b).reduce((x, y) => x + y, 0);
     const ranges = [];
     for(let i = 0; i < rowH.length;){
@@ -2437,10 +2601,25 @@
     return ranges.map(([a, b], k) => P.page(P.rows.slice(a, b), k === n - 1, k + 1, n, 'rp-page')).join('');
   }
   // ใบเอกสารบนจอ / พิมพ์: จอกว้าง = แผ่น A4 แบ่งหน้าตามที่จะพิมพ์ / มือถือ = แผ่นเดียวยาว (รายการเป็นการ์ด)
-  const narrowPaper = () => window.matchMedia('(max-width:760px)').matches;
-  async function renderPaper(el, d, items, paged = !narrowPaper()){
-    el.innerHTML = paged ? await paperPages(d, items) : paperHtml(d, items).all;
+  async function renderPaper(el, d, items){
+    el.innerHTML = await paperPages(d, items);
     fitPaper(el);
+    scalePaper(el);
+  }
+  // จอแคบกว่า A4 (210 มม.) = ย่อทั้งแผ่นตามความกว้าง (ใส่ตัวห่อกำหนดความสูงใหม่ เพราะ transform ไม่ดันความสูง)
+  function scalePaper(el){
+    el.querySelectorAll('.rp-scale').forEach(w => { const p = w.firstElementChild; p.style.transform = ''; w.replaceWith(p); });
+    const pages = [...el.querySelectorAll('.rp')];
+    if(!pages.length) return;
+    const full = pages[0].offsetWidth, avail = el.clientWidth;
+    if(!full || avail >= full) return;
+    const k = avail / full;
+    pages.forEach(p => {
+      const h = p.offsetHeight, w = document.createElement('div');
+      w.className = 'rp-scale'; w.style.cssText = `width:${full * k}px; height:${h * k}px;`;
+      p.replaceWith(w); w.appendChild(p);
+      p.style.transform = `scale(${k})`;
+    });
   }
   // พิมพ์ใบเอกสาร (A4 แนวตั้ง) — รอโลโก้ / ลายเซ็นโหลดก่อน (โหลดไม่ได้ = ว่างไว้)
   // ยืดแถวว่างท้ายตาราง ให้ตาราง (เส้นคอลัมน์) ยาวถึงยอดรวมด้านล่าง — กล่อง .rp-tbl ยืดเต็มพื้นที่ที่เหลือของหน้าอยู่แล้ว
@@ -2456,10 +2635,15 @@
   async function printDoc(d, items){
     const pa = $('printArea');
     pa.className = 'rp-print';
-    pa.innerHTML = await paperPages(d, items);
+    // iOS พิมพ์ได้เฉพาะราว 229 มม. ของ A4 (กันขอบบน / ท้ายกระดาษไว้) → แบ่งหน้าและทำแผ่นให้สูง 226 มม. ที่ขนาดจริง (ตัวอักษรไม่ย่อ) รายการมากก็ขึ้นหน้าถัดไป
+    const iosPrint = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const SHEET_IOS = 226;
+    pa.innerHTML = await paperPages(d, items, iosPrint ? SHEET_IOS - 14 : 269);
+    if(iosPrint) pa.querySelectorAll('.rp-page').forEach(p => { p.style.height = SHEET_IOS + 'mm'; });
     setPrintFooter(d.docNo, `พิมพ์เมื่อ ${thStamp(nowStamp())}  ·  ผู้พิมพ์ ${currentUserName()}`, 'portrait');
     await Promise.all([...pa.querySelectorAll('img')].map(waitForImage));
     document.body.classList.add('printing');
+    document.body.classList.toggle('ios-print', iosPrint);
     // ยืดตารางแต่ละหน้า: วัดตอนแสดงขนาด A4 นอกจอ (printArea ซ่อนอยู่บนจอ)
     pa.style.cssText = 'display:block; position:absolute; left:-10000px; top:0; width:210mm;';
     fitPaper(pa);
@@ -2731,9 +2915,9 @@
     $('itemsBody').innerHTML = F.items.map((it, i) => {
       const c = lineCalc(it, F.type);
       return `<tr data-i="${i}" class="${it.changed ? 'stock-changed' : ''}" ${it.changed ? `title="ยอดเปลี่ยนจาก ${qtyStr(it.changed.old)} เป็น ${qtyStr(it.changed.now)} — ตรวจสอบจำนวนคืนอีกครั้ง"` : ''}>
-        ${ed ? `<td class="ctr"><button type="button" class="icon-btn danger" data-del="${i}" title="ลบรายการนี้">${svgIcon(ICON.trash)}</button></td>` : ''}
-        <td class="ctr">${i+1}</td>
-        <td><div class="ref-grid">
+        ${ed ? `<td class="ctr c-del"><button type="button" class="icon-btn danger" data-del="${i}" title="ลบรายการนี้">${svgIcon(ICON.trash)}</button></td>` : ''}
+        <td class="ctr c-no">${i+1}</td>
+        <td class="c-ref"><div class="ref-grid">
           <div><span class="lbl">PO No.</span><span class="v">${esc(it.po) || '-'}</span></div>
           <div><span class="lbl">เลขที่เอกสารรับ</span><span class="v">${esc(it.rec) || '-'}</span></div>
           <div><span class="lbl">เลขที่ใบส่งของ</span><span class="v">${esc(it.inv) || '-'}</span></div>
@@ -2749,7 +2933,7 @@
         ${credit ? `<td class="num credit"><input type="text" class="cell-in price" data-f="price" value="${fmtMoney(it.price)}" inputmode="decimal" ${ed ? '' : 'tabindex="-1"'}></td>
           <td class="num credit" data-c="buy">${fmtMoney(c.buy)}</td>
           <td class="num credit diff ${c.diff < 0 ? 'neg' : ''}" data-c="diff">${fmtMoney(c.diff)}</td>` : ''}
-        <td>
+        <td class="c-reason">
           <select class="reason ${it.reason ? '' : 'empty'}" data-f="reason" ${ed ? '' : 'tabindex="-1"'}>
             <option value="">-- กรุณาระบุสาเหตุ --</option>
             ${(it.reason && !REASONS.includes(it.reason) ? [...REASONS, it.reason] : REASONS).map(r => `<option ${it.reason === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
@@ -2759,8 +2943,27 @@
           .map(([l, v]) => `<span><span class="lbl">${l}</span><span class="v">${fmtPct(v) || '-'}</span></span>`).join('')}</div></td>
       </tr>`;
     }).join('');
+    labelTable($('itemsTable'));
     renderSummary();
     renderEffects();
+  }
+  // ใส่ data-l (ชื่อคอลัมน์จากหัวตาราง รวม rowspan / colspan) ให้ทุกเซลล์ — มือถือแสดงแถวเป็นการ์ด ใช้ป้ายนี้เป็นชื่อช่อง
+  function labelTable(t){
+    const grid = [];
+    [...t.tHead.rows].forEach((tr, r) => {
+      let c = 0;
+      [...tr.cells].forEach(th => {
+        while(grid[r] && grid[r][c] !== undefined) c++;
+        const k = th.cloneNode(true);
+        k.querySelectorAll('span,button').forEach(x => x.remove());
+        k.querySelectorAll('br').forEach(x => x.replaceWith(/[A-Za-z0-9]$/.test((x.previousSibling && x.previousSibling.textContent || '').slice(-1)) || /^[A-Za-z0-9]/.test((x.nextSibling && x.nextSibling.textContent || '').slice(0, 1)) ? ' ' : ''));
+        const text = k.textContent.replace(/\s+/g, ' ').trim();
+        for(let i = 0; i < th.rowSpan; i++) for(let j = 0; j < th.colSpan; j++) (grid[r + i] = grid[r + i] || [])[c + j] = text;
+        c += th.colSpan;
+      });
+    });
+    const last = grid[grid.length - 1] || [];
+    t.querySelectorAll('tbody tr').forEach(tr => { let c = 0; [...tr.cells].forEach(td => { if(td.colSpan === 1 && last[c]) td.dataset.l = last[c]; c += td.colSpan; }); });
   }
 
   function bindItemsTable(){
@@ -3216,9 +3419,10 @@
     // แถวเดียว: [กลับ] จุดขั้นตอน (ไม่มีป้ายสถานะ — หัวข้อบอกขั้นอยู่แล้ว) ... ปุ่ม
     $('vwActions').innerHTML = BACK_BTN + `<div class="vw-steps">${approvalCell(d)}</div>${why ? `<span class="vw-why">${esc(why)}</span>` : ''}<div class="vw-right">${right}</div>`;
   }
-  window.matchMedia('(max-width:760px)').addEventListener('change', () => { if(V.doc) renderPaper($('vwPaper'), V.doc, V.doc.items); });
+  window.addEventListener('resize', () => { if(V.doc && $('vwPaper')) scalePaper($('vwPaper')); });
   // กลับหน้ารายการ: มาจากหน้ารายการ = ย้อนกลับ (ตัวกรองเดิม) / เปิดจากลิงก์ = รายการรอขั้นที่เอกสารอยู่ (ถ้ามีสิทธิ์) → รายการหลัก → หน้าหลัก
   function backToList(){
+    if(new URLSearchParams(location.search).get('from') === 'inbox'){ location.href = '/approvals'; return; }   // เปิดจากงานรออนุมัติ
     try {
       const ref = new URL(document.referrer);
       if(ref.origin === location.origin && /^\/supplier-return(-approve)?$/.test(ref.pathname) && history.length > 1) return history.back();
@@ -3505,10 +3709,11 @@
         <td class="num">${fmtQty(l.rcvQty)}</td>
         <td class="num onhand">${fmtQty(l.onHand)}${l.pendingQty > 0 ? `<span class="pend-hint" title="จองในเอกสารส่งคืนอื่นที่ยังไม่อนุมัติ (หักจากคงเหลือแล้ว)">รอคืน ${fmtQty(l.pendingQty)}</span>` : ''}</td><td>${esc(l.unit)}</td>
         <td class="num">${l.cost == null ? '<span style="color:#ff8a75">-</span>' : fmtMoney(l.cost)}</td>
-        <td class="qc">${fmtPct(l.gp)}</td><td class="qc">${fmtPct(l.gpPaper)}</td><td class="qc">${fmtPct(l.gpMedia)}</td><td class="qc">${fmtPct(l.aa)}</td>
+        <td class="qc">${fmtPct(l.gp) || '-'}</td><td class="qc">${fmtPct(l.gpPaper) || '-'}</td><td class="qc">${fmtPct(l.gpMedia) || '-'}</td><td class="qc">${fmtPct(l.aa) || '-'}</td>
       </tr>`;
     }).join('') : (soldOn && IP.soldState !== 'done' && IP.soldState !== 'truncated' ? ''
       : `<tr><td colspan="14"><div class="state-box">ไม่พบรายการ${soldOn || $('ipSoldWrap').hidden ? '' : ' — ลองเปิด "แสดงสินค้าที่หมดแล้ว"'}</div></td></tr>`)) + soldNoteHtml();
+    labelTable($('ipBody').closest('table'));
     const selectable = rows.filter(l => !added.has(l.key) && !lotBlocked(l));
     $('ipAll').checked = selectable.length > 0 && selectable.every(l => IP.sel.has(l.key));
     $('ipAll').disabled = !selectable.length;
@@ -3597,7 +3802,7 @@
     $('listExcelBtn').hidden = $('listPrintBtn').hidden = true;
     // ปุ่มทำหลายใบ + เลือกทั้งหมด
     $('listNewBtn').insertAdjacentHTML('afterend', `<button type="button" class="btn ${info.cls} btn-sm" id="apvBulkBtn" disabled></button>`);
-    $('fltCount').insertAdjacentHTML('beforebegin', '<label class="apv-all"><input type="checkbox" id="apvAll"> เลือกทั้งหมดที่ทำได้</label>');
+    $('fltCount').insertAdjacentHTML('beforebegin', '<label class="apv-all"><input type="checkbox" id="apvAll"> เลือกรายการทั้งหมด</label>');
     $('apvBulkBtn').addEventListener('click', () => apvRun(DOCS.filter(d => APV_SEL.has(d.id))));
     $('apvAll').addEventListener('change', (e) => {
       DOCS.filter(d => apvCanAct(d)).forEach(d => e.target.checked ? APV_SEL.add(d.id) : APV_SEL.delete(d.id));

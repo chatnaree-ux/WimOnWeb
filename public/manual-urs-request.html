@@ -191,10 +191,10 @@
     content:""; position:absolute; right:-9px; top:50%; width:8px; height:8px; z-index:1;
     border-top:2px solid var(--steel-500); border-right:2px solid var(--steel-500); transform:translateY(-50%) rotate(45deg);
   }
-  .flow-who{font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.06em; color:var(--steel-500); text-transform:uppercase; margin-bottom:6px;}
-  .flow-title{font-size:14px; font-weight:600; color:#fff; line-height:1.4; margin-bottom:8px;}
-  .flow-desc{font-size:12.5px; color:var(--concrete-400); line-height:1.55;}
-  .flow-step .badge{margin-top:8px;}
+  .flow-who{font-family:'Inter',sans-serif; font-size:14px; font-weight:700; color:var(--amber-500); margin-bottom:6px;}
+  .flow-title{font-size:17px; font-weight:700; color:#fff; line-height:1.4; margin-bottom:8px;}
+  .flow-desc{font-size:14.5px; font-weight:500; color:var(--concrete-200); line-height:1.65;}
+  .flow-step .badge{margin-top:10px; font-size:13px; font-weight:700; white-space:normal;}
   @media (max-width:1100px){
     .flow{grid-template-columns:1fr 1fr;}
     .flow-step::after{display:none;}
@@ -299,13 +299,19 @@
 
   /* dashboard จำลอง */
   .mdash{display:grid; grid-template-columns:repeat(auto-fit, minmax(96px, 1fr)); gap:8px; margin-bottom:8px;}
-  .mdash-card{position:relative; border-radius:8px; padding:7px 10px; background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.08); border-top:3px solid var(--c);}
-  .mdash-card.on{background:color-mix(in srgb, var(--c) 13%, transparent); border-color:var(--c);}
-  .mdash-card .l{font-size:11px; color:var(--concrete-400); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .mdash-card .v{font-family:'Oswald',sans-serif; font-size:19px; font-weight:600; color:var(--c); line-height:1.15;}
-  .mdash-card .v small{font-family:'Inter',sans-serif; font-size:10.5px; color:var(--concrete-400); font-weight:500; margin-left:4px;}
-  .mdash-card .s{font-size:10.5px; color:var(--concrete-400);}
-  .mdash-card.follow{grid-column:span 2; background:rgba(242,169,28,.07);}
+  /* การ์ดจำลองแบบเดียวกับการ์ดสรุปจริง (/css/kpi-cards.css): ไล่สีจาง + กรอบสีการ์ด + ชื่อหนา + ตัวเลขสีการ์ด + ไอคอนจางมุมขวาล่าง (kpi-icons.js)
+     ไม่ใช้ overflow:hidden เพราะหมุดหมายเลขยื่นออกนอกมุมการ์ด — ไอคอนจึงวางไว้ในกรอบการ์ดแทน */
+  .mdash-card{position:relative; isolation:isolate; border-radius:10px; padding:8px 11px;
+    background:linear-gradient(160deg, color-mix(in srgb, var(--c) 17%, transparent), color-mix(in srgb, var(--c) 4%, transparent));
+    border:1px solid color-mix(in srgb, var(--c) 42%, transparent);}
+  .mdash-card.on{border-color:var(--c); box-shadow:0 0 0 1px var(--c), 0 6px 18px -8px color-mix(in srgb, var(--c) 60%, transparent);
+    background:linear-gradient(160deg, color-mix(in srgb, var(--c) 30%, transparent), color-mix(in srgb, var(--c) 8%, transparent));}
+  .mdash-card .l{font-size:11.5px; font-weight:600; color:#e3e8ef; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .mdash-card .v{font-family:'Oswald',sans-serif; font-size:21px; font-weight:600; color:var(--c); line-height:1.15;}
+  .mdash-card .v small{font-family:'Inter',sans-serif; font-size:10.5px; color:#b8c3d1; font-weight:500; margin-left:4px;}
+  .mdash-card .s{font-size:10.5px; color:#b8c3d1;}
+  .mdash-card .kc-bg{right:3px; bottom:3px; width:30px; height:30px;}
+  .mdash-card.follow{grid-column:span 2;}
   .mbar{display:flex; height:6px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.06); margin-bottom:12px;}
   .mbar span{background:var(--c);}
   .mfilters{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)) auto; gap:10px; align-items:end; padding:10px 12px; border:1px solid rgba(255,255,255,.07); border-radius:7px; background:rgba(255,255,255,.02); margin-bottom:10px;}
@@ -405,6 +411,12 @@
     .topbar-mobile{display:flex;}
     .mock-grid{grid-template-columns:1fr 1fr;}
   }
+  html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  @media (max-width:640px){
+    /* ปุ่มหัวคู่มือ: เต็มแถว กว้างเท่ากัน ข้อความกลางปุ่ม */
+    .hero-actions{display:grid; grid-template-columns:1fr; gap:10px;}
+    .hero-actions .btn{width:100%; min-height:46px; justify-content:center; text-align:center; white-space:normal;}
+  }
   @media (max-width:560px){
     .toc ol{columns:1;}
     .mock-grid{grid-template-columns:1fr;}
@@ -419,6 +431,10 @@
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
+<link rel="stylesheet" href="/css/mobile-base.css">
+<!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
+<link rel="stylesheet" href="/css/kpi-cards.css">
+<script src="/js/kpi-icons.js"></script>
 </head>
 <body>
 
@@ -992,7 +1008,7 @@ https://…/urs-reply?id=123<span class="pin tr">2</span></div>
               <div class="ans"><p>ผู้ตอบกลับต้องมีบัญชีที่ login เข้า WIM ได้ หลัง login ระบบจะพากลับมาที่ลิงก์คำร้องเอง ถ้า login แล้วไปอยู่หน้า Home ให้กดลิงก์ใน LINE อีกครั้ง ถ้ายังไม่มีบัญชี ให้ติดต่อผู้ดูแลระบบ</p></div>
             </details>
             <details>
-              <summary>ขึ้นข้อความ "ไม่มีสิทธิ์เข้าถึงหน้านี้" หรือเมนูมีรูปกุญแจ 🔒</summary>
+              <summary>ขึ้นข้อความ "ไม่มีสิทธิ์เข้าถึงหน้านี้" หรือเมนูมีรูปกุญแจ</summary>
               <div class="ans"><p>บัญชียังไม่ได้รับสิทธิ์เมนู "ร้องขอเมล็ดพันธุ์เร่งด่วน" หรือยังไม่ได้รับสิทธิ์บริษัทที่ต้องการ กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์ (เมนู ระบบ › กำหนดสิทธิ์การใช้งาน)</p></div>
             </details>
             <details>

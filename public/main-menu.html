@@ -198,15 +198,25 @@
     border:1px solid rgba(255,255,255,.08);
     transition:transform .18s, border-color .18s, box-shadow .18s;
   }
-  .kpi-card:hover{transform:translateY(-3px); border-color:rgba(242,169,28,.4); box-shadow:0 18px 34px -18px rgba(0,0,0,.55);}
+  .kpi-card:hover{border-color:rgba(242,169,28,.3);}
+  /* Live Status: การ์ดยกขึ้นเมื่อชี้ + สีตามกลุ่มเมนู (ชุดเดียวกับการ์ดเมนูด้านล่าง) */
+  body .kpi-card{transition:transform .18s ease, border-color .18s, box-shadow .18s;}
+  body .kpi-card:hover{transform:translateY(-2px); box-shadow:0 14px 30px -16px color-mix(in srgb, var(--c) 70%, transparent);}
   .kpi-top{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+  /* ไอคอนแบบแอป: กล่องสีเต็มไล่เฉด + ไอคอนขาว (แบบเดียวกับการ์ดเมนู) */
   .kpi-icon{
-    width:34px; height:34px; border-radius:8px; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center;
-    background:rgba(242,169,28,.08); border:1px solid rgba(242,169,28,.25); color:var(--amber-500);
+    --c:#f2a91c; width:40px; height:40px; border-radius:11px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; color:#fff;
+    background:linear-gradient(145deg, color-mix(in srgb, var(--c) 100%, #fff 18%), color-mix(in srgb, var(--c) 100%, #000 38%));
+    border:1px solid color-mix(in srgb, var(--c) 100%, #fff 25%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 6px 14px -6px color-mix(in srgb, var(--c) 80%, transparent);
+    transition:transform .2s ease;
   }
-  .kpi-icon svg{width:18px; height:18px; stroke-width:1.8;}
-  .kpi-label{font-size:13.5px; font-weight:600; color:var(--concrete-200);}
+  .kpi-card .kpi-icon{--c:inherit;}
+  .kpi-card:hover .kpi-icon{transform:scale(1.06) rotate(-4deg);}
+  .kpi-icon svg{width:20px; height:20px; stroke-width:2.1; filter:drop-shadow(0 1px 1px rgba(0,0,0,.25));}
+  .kpi-label{font-size:14px; font-weight:700; color:#fff;}
+  @media (prefers-reduced-motion:reduce){ body .kpi-card, .kpi-icon{transition:none;} body .kpi-card:hover{transform:none;} .kpi-card:hover .kpi-icon{transform:none;} }
   .live-dot{
     width:7px; height:7px; border-radius:50%; background:var(--ok-green);
     box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; margin-left:auto;
@@ -220,13 +230,40 @@
   .kpi-sub{font-size:12.8px; color:var(--concrete-400); display:flex; flex-wrap:wrap; gap:4px 14px;}
   .kpi-sub b{color:var(--concrete-200); font-weight:600; font-variant-numeric:tabular-nums;}
   .kpi-sub .warn b{color:#ff8a75;}
+  /* ยอดแยกรายบริษัท: กดแล้วเปิดหน้าโดยเลือกบริษัทนั้นไว้ให้ */
+  .comp-list{
+    display:flex; flex-direction:column; gap:2px;
+    margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,.07);
+  }
+  .comp-list-label{font-size:11.5px; color:var(--steel-500); margin-bottom:4px;}
+  .comp-row{
+    display:flex; align-items:center; gap:10px; padding:7px 8px; margin:0 -8px; border-radius:7px;
+    text-decoration:none; color:var(--concrete-200); font-size:12.8px;
+    transition:background .15s;
+  }
+  .comp-row:hover{background:rgba(255,255,255,.05);}
+  .comp-row .ctext{flex:1; min-width:0;}
+  .comp-row .cname{display:block; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .comp-row .cnum{display:block; color:var(--concrete-400); font-size:12.3px; margin-top:1px; font-variant-numeric:tabular-nums;}
+  .comp-row .cnum b{color:#fff; font-weight:600;}
+  .comp-row .arrow{color:var(--steel-500); transition:transform .15s, color .15s;}
+  .comp-row:hover .arrow{transform:translateX(3px); color:var(--c, var(--amber-500));}
+  .comp-none{font-size:12.8px; color:var(--steel-500); padding:4px 0;}
+  .comp-tag{
+    display:inline-flex; align-self:flex-start; align-items:center; gap:6px; margin-bottom:4px;
+    padding:3px 10px; border-radius:999px; font-size:12px; color:var(--concrete-400);
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+  }
+  .comp-tag::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--c, var(--amber-500));}
+
   .kpi-cta{
-    margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,.07);
-    font-size:12.8px; font-weight:600; color:var(--amber-500);
+    margin-top:auto; padding-top:12px; border-top:1px solid rgba(255,255,255,.07);
+    font-size:12.8px; font-weight:600; color:var(--c, var(--amber-500)); text-decoration:none;
     display:flex; align-items:center; justify-content:space-between;
   }
   .kpi-cta .arrow{transition:transform .18s;}
-  .kpi-card:hover .kpi-cta .arrow{transform:translateX(4px);}
+  .kpi-cta:hover .arrow{transform:translateX(4px);}
+  .comp-list + .kpi-cta{margin-top:10px;}
 
   .skeleton{
     border-radius:var(--radius); min-height:178px;
@@ -243,34 +280,65 @@
     color:var(--concrete-200); text-decoration:none; font-size:13px;
     transition:border-color .15s, background .15s;
   }
-  .recent-chip:hover{border-color:rgba(242,169,28,.45); background:rgba(242,169,28,.06);}
-  .recent-chip svg{width:16px; height:16px; color:var(--amber-500); stroke-width:1.8;}
+  .recent-chip{--c:#f2a91c; border-color:color-mix(in srgb, var(--c) 35%, transparent); background:color-mix(in srgb, var(--c) 7%, transparent);}
+  .recent-chip:hover{border-color:var(--c); background:color-mix(in srgb, var(--c) 16%, transparent); color:#fff;}
+  .recent-chip svg{width:16px; height:16px; color:var(--c); stroke-width:1.8;}
 
-  /* เมนูของฉัน */
-  .group-label{font-size:12.5px; font-weight:600; color:var(--concrete-400); margin:20px 0 10px;}
+  /* เมนูของฉัน — สีประจำกลุ่มเมนูหลัก (--c, ใส่จาก groupColor ใน script) แบบเดียวกับการ์ดสรุป:
+     พื้นไล่สีอ่อน + กรอบสี + ไอคอนในกล่องสี / ชี้ = ยกขึ้น + เรืองสี + ลูกศรเลื่อน */
+  .group-label{--c:#f2a91c; display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700; color:#fff; margin:28px 0 12px;}
   .group-label:first-child{margin-top:0;}
-  .menu-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px;}
+  .group-label::before{content:""; width:4px; height:18px; border-radius:3px; background:var(--c); box-shadow:0 0 12px color-mix(in srgb, var(--c) 60%, transparent); flex-shrink:0;}
+  .group-label .sub{font-weight:500; color:var(--concrete-400);}
+  .group-label .sub::before{content:"›"; margin-right:8px; color:var(--steel-500);}
+  .group-label .n{margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:600; color:var(--c);
+    padding:2px 9px; border-radius:999px; background:color-mix(in srgb, var(--c) 12%, transparent); border:1px solid color-mix(in srgb, var(--c) 35%, transparent);}
+  .group-label::after{content:""; order:2; flex:1; height:1px; background:linear-gradient(90deg, color-mix(in srgb, var(--c) 35%, transparent), transparent);}
+  .group-label .n{order:3; margin-left:0;}
+  .menu-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:14px;}
   .menu-card{
-    display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:var(--radius);
-    background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.07);
-    text-decoration:none; color:inherit; transition:border-color .15s, background .15s;
+    --c:#f2a91c; position:relative; overflow:hidden; isolation:isolate;
+    display:flex; align-items:center; gap:14px; padding:16px 16px 16px 18px; border-radius:14px; min-height:92px;
+    background:linear-gradient(150deg, color-mix(in srgb, var(--c) 13%, transparent), color-mix(in srgb, var(--c) 3%, transparent) 60%), rgba(255,255,255,.015);
+    border:1px solid color-mix(in srgb, var(--c) 28%, transparent);
+    text-decoration:none; color:inherit;
+    transition:transform .18s ease, border-color .18s, box-shadow .18s, background .18s;
   }
-  .menu-card:hover{border-color:rgba(242,169,28,.4); background:rgba(255,255,255,.05);}
+  /* แสงมุมขวาบน (ตกแต่ง) */
+  .menu-card::after{content:""; position:absolute; right:-40px; top:-40px; width:120px; height:120px; border-radius:50%; z-index:-1;
+    background:radial-gradient(circle, color-mix(in srgb, var(--c) 22%, transparent), transparent 70%); opacity:.6; transition:opacity .18s, transform .3s;}
+  .menu-card:hover, .menu-card:focus-visible{
+    transform:translateY(-3px); border-color:color-mix(in srgb, var(--c) 75%, transparent); outline:none;
+    box-shadow:0 12px 28px -14px color-mix(in srgb, var(--c) 70%, transparent), 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent);
+    background:linear-gradient(150deg, color-mix(in srgb, var(--c) 20%, transparent), color-mix(in srgb, var(--c) 5%, transparent) 60%), rgba(255,255,255,.02);
+  }
+  .menu-card:hover::after{opacity:1; transform:scale(1.25);}
+  .menu-card:active{transform:translateY(-1px);}
   .menu-card .icon-shell{
-    width:40px; height:40px; border-radius:9px; flex-shrink:0;
+    width:46px; height:46px; border-radius:12px; flex-shrink:0;
     display:flex; align-items:center; justify-content:center;
-    background:rgba(242,169,28,.06); border:1px solid rgba(242,169,28,.25);
+    /* ไอคอนแบบแอป: กล่องสีเต็มไล่เฉด (สว่างบนซ้าย → เข้มล่างขวา) + ไอคอนขาว + เงาสีของกลุ่ม */
+    background:linear-gradient(145deg, color-mix(in srgb, var(--c) 100%, #fff 18%), color-mix(in srgb, var(--c) 100%, #000 38%));
+    border:1px solid color-mix(in srgb, var(--c) 100%, #fff 25%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 6px 14px -6px color-mix(in srgb, var(--c) 80%, transparent);
+    transition:transform .2s ease, box-shadow .2s;
   }
-  .menu-card svg{width:20px; height:20px; color:var(--amber-500); stroke-width:1.8;}
+  .menu-card:hover .icon-shell{transform:scale(1.07) rotate(-4deg); box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 10px 20px -6px color-mix(in srgb, var(--c) 90%, transparent);}
+  .menu-card svg{width:22px; height:22px; color:#fff; stroke-width:2.1; filter:drop-shadow(0 1px 1px rgba(0,0,0,.25));}
   .menu-card .text{min-width:0; flex:1;}
-  .menu-card .title{font-size:14px; font-weight:600; color:#fff;}
+  .menu-card .title{font-size:14.5px; font-weight:700; color:#fff; line-height:1.35;}
   /* เมนู On process (เห็นเฉพาะกลุ่มระบบ) */
   .wip-tag{display:inline-block; margin-left:8px; padding:0 6px; border-radius:4px; vertical-align:2px;
     font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.05em;
     color:#c4b5fd; background:rgba(167,139,250,.14); border:1px dashed rgba(167,139,250,.5);}
-  .menu-card .desc{font-size:12.3px; color:var(--concrete-400); margin-top:2px; line-height:1.45;}
-  .menu-card .arrow{color:var(--steel-500); transition:transform .15s, color .15s;}
-  .menu-card:hover .arrow{transform:translateX(3px); color:var(--amber-500);}
+  /* คำอธิบาย: 2 บรรทัด (การ์ดสูงเท่ากัน) — ข้อความเต็มอยู่ใน title ของการ์ด */
+  .menu-card .desc{font-size:12.5px; color:#b8c3d1; margin-top:4px; line-height:1.5;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .menu-card .arrow{width:30px; height:30px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:15px;
+    color:var(--c); background:color-mix(in srgb, var(--c) 10%, transparent); border:1px solid color-mix(in srgb, var(--c) 30%, transparent);
+    transition:transform .18s, background .18s, color .18s;}
+  .menu-card:hover .arrow{transform:translateX(3px); background:var(--c); color:#0c1420;}
+  @media (prefers-reduced-motion:reduce){ .menu-card, .menu-card .icon-shell, .menu-card .arrow, .menu-card::after{transition:none;} .menu-card:hover{transform:none;} .menu-card:hover .icon-shell{transform:none;} }
 
   .empty-state{
     text-align:center; padding:50px 20px; border-radius:var(--radius);
@@ -330,11 +398,24 @@
     .topbar-mobile{display:flex;}
   }
   @media (max-width:600px){
+    .menu-grid{grid-template-columns:minmax(0, 1fr); gap:10px;}
+    .menu-card{min-height:0; padding:14px 14px 14px 16px;}
+    .group-label{font-size:13.5px; flex-wrap:wrap; row-gap:4px;}
+    .group-label::after{display:none;}
+    .group-label .n{margin-left:auto;}
     .search-btn{min-width:0; width:100%;}
     .search-btn kbd{display:none;}
     .palette-foot{display:none;}
+    /* ผลค้นหาเมนู: ชื่อเมนูเต็มบรรทัด / กลุ่มเมนูอยู่บรรทัดใต้ (เดิมกลุ่มยาวดันชื่อเมนูจนอ่านไม่ออก) */
+    .palette-item{flex-wrap:wrap; gap:2px 12px;}
+    .palette-item > span:not(.grp){flex:1 1 0; min-width:0; overflow-wrap:anywhere;}
+    .palette-item .grp{margin-left:30px; flex:1 1 100%; white-space:normal;}
   }
 </style>
+<link rel="stylesheet" href="/css/mobile-base.css">
+<!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
+<link rel="stylesheet" href="/css/kpi-cards.css">
+<script src="/js/kpi-icons.js"></script>
 </head>
 <body>
 
@@ -519,7 +600,7 @@
   function lockSidebar() {
     if (!allowedCodes) return;
     document.querySelectorAll('#sidebar [data-menu]').forEach(el => {
-      if (allowedCodes.has(el.getAttribute('data-menu')) || el.classList.contains('menu-locked')) return;
+      if ((el.getAttribute('data-menu') || '').split(',').some(c => allowedCodes.has(c.trim())) || el.classList.contains('menu-locked')) return;
       el.classList.add('menu-locked');
       el.setAttribute('title', 'ไม่มีสิทธิ์เข้าถึงเมนูนี้ ติดต่อผู้ดูแลระบบ');
       el.addEventListener('click', (e) => e.preventDefault());
@@ -538,7 +619,7 @@
       setAllowed(data.unrestricted ? null : data.allowedMenuCodes, data.menuOrder, data.wipMenuCodes);
       applyWip(data);
 
-      const cards = buildKpiCards(data.data || {});
+      const cards = buildKpiCards(data.data || {}, data.companies);
       document.getElementById('kpiSection').hidden = cards.length === 0;
       grid.innerHTML = cards.join('');
       document.getElementById('updatedAt').textContent =
@@ -552,44 +633,84 @@
     }
   }
 
-  function kpiCard({ href, icon, label, value, unit, subs, cta, live }) {
+  function kpiCard({ href, icon, label, value, unit, subs, cta, live, comps, compTag, group }) {
     return `
-      <a class="kpi-card" href="${href}" data-go="${href}">
+      <div class="kpi-card" style="--c:${groupColor(group || 'งานรออนุมัติ')}">
         <div class="kpi-top">
           <div class="kpi-icon">${svg(icon)}</div>
           <div class="kpi-label">${label}</div>
           ${live ? '<span class="live-dot" title="มีงานกำลังดำเนินการ"></span>' : ''}
         </div>
+        ${compTag ? `<span class="comp-tag" title="${esc(compTag)}">${esc(shortComp(compTag))}</span>` : ''}
         <div class="kpi-value ${value ? '' : 'zero'}">${nf(value)}<small>${unit}</small></div>
         <div class="kpi-sub">${subs.join('')}</div>
-        <div class="kpi-cta"><span>${cta}</span><span class="arrow">→</span></div>
-      </a>`;
+        ${comps || ''}
+        <a class="kpi-cta" href="${href}" data-go="${href}"><span>${cta}</span><span class="arrow">→</span></a>
+      </div>`;
   }
 
-  function buildKpiCards(d) {
+  // ชื่อบริษัทแบบสั้น (ตัด "บริษัท" / "จำกัด") ให้พอดีการ์ด — ชื่อเต็มอยู่ใน title
+  const shortComp = (name) => String(name || '').replace(/^บริษัท\s*/, '').replace(/\s*จำกัด.*$/, '').trim() || '-';
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
+  // ยอดแยกรายบริษัท — แต่ละแถวลิงก์ไปหน้านั้นพร้อมเลือกบริษัทไว้ (?comp=)
+  // numText(c) = ข้อความตัวเลขของบริษัทนั้น (ต่างกันระหว่างเคลือบ / ลดความชื้น)
+  function compList(href, byComp, numText) {
+    if (!Array.isArray(byComp)) return '';   // server.js รุ่นเก่ายังไม่ส่งยอดแยกบริษัท -> ไม่แสดงส่วนนี้ (ไม่ขึ้นว่าไม่มีงานค้างผิดๆ)
+    if (byComp.length === 0) return '<div class="comp-list"><div class="comp-none">ไม่มีงานค้างในบริษัทที่คุณมีสิทธิ์</div></div>';
+    return `
+      <div class="comp-list">
+        <div class="comp-list-label">แยกตามบริษัท</div>
+        ${byComp.map(c => `
+          <a class="comp-row" href="${href}?comp=${encodeURIComponent(c.id)}" data-go="${href}" title="${esc(c.name)}">
+            <span class="ctext">
+              <span class="cname">${esc(shortComp(c.name))}</span>
+              <span class="cnum">${numText(c)}</span>
+            </span>
+            <span class="arrow">→</span>
+          </a>`).join('')}
+      </div>`;
+  }
+
+  function buildKpiCards(d, companies) {
     const cards = [];
+    // companies = บริษัทที่มีสิทธิ์ (null = ทุกบริษัท) / มีสิทธิ์บริษัทเดียว -> ไม่ต้องแยก แค่บอกชื่อบริษัท
+    const single = Array.isArray(companies) && companies.length === 1 ? companies[0] : null;
+
+    // แยกรายบริษัทเฉพาะเมื่องานค้างมาจาก 2 บริษัทขึ้นไป / มาจากบริษัทเดียว -> ป้ายชื่อบริษัท + ลิงก์เปิดบริษัทนั้น
+    function compView(href, byComp, numText) {
+      const rows = Array.isArray(byComp) ? byComp : null;
+      const only = single || (rows && rows.length === 1 ? rows[0] : null);
+      if (only) return { href: `${href}?comp=${encodeURIComponent(only.id)}`, compTag: only.name, allLabel: '', comps: '' };
+      if (!rows || rows.length === 0) return { href, compTag: null, allLabel: '', comps: '' };
+      return { href, compTag: null, allLabel: ' <span>(รวมทุกบริษัท)</span>', comps: compList(href, rows, numText) };
+    }
+
     if (d.coating) {
+      const v = compView('/coating', d.coating.byComp,
+        c => `กำลังเคลือบ <b>${nf(c.inprogress)}</b> · รอคิว <b>${nf(c.waiting)}</b>`);
       cards.push(kpiCard({
-        href: '/coating', icon: 'seed', label: 'เคลือบเมล็ด',
+        href: v.href, icon: 'seed', label: 'เคลือบเมล็ด', compTag: v.compTag, group: 'การจัดการเมล็ดพันธุ์',
         value: d.coating.inprogress, unit: 'รายการกำลังเคลือบ', live: d.coating.inprogress > 0,
-        subs: [`<span>รอคิว <b>${nf(d.coating.waiting)}</b> รายการ</span>`],
+        subs: [`<span>รอคิว <b>${nf(d.coating.waiting)}</b> รายการ${v.allLabel}</span>`],
+        comps: v.comps,
         cta: 'ไปลงเวลาเคลือบเมล็ด'
       }));
     }
     if (d.moisture) {
+      const v = compView('/moisture', d.moisture.byComp,
+        c => `กำลังทำ <b>${nf(c.inprogress)}</b> · รอคิว <b>${nf(c.waiting)}</b>`);
       cards.push(kpiCard({
-        href: '/moisture', icon: 'drop', label: 'ลดความชื้น',
+        href: v.href, icon: 'drop', label: 'ลดความชื้น', compTag: v.compTag, group: 'การจัดการเมล็ดพันธุ์',
         value: d.moisture.inprogress, unit: 'รายการกำลังลดความชื้น', live: d.moisture.inprogress > 0,
-        subs: [
-          `<span>ห้องใช้งาน <b>${nf(d.moisture.roomsBusy)}/${nf(d.moisture.roomsTotal)}</b></span>`,
-          `<span>รอคิว <b>${nf(d.moisture.waiting)}</b> รายการ</span>`
-        ],
+        subs: [`<span>รอคิว <b>${nf(d.moisture.waiting)}</b> รายการ${v.allLabel}</span>`],
+        comps: v.comps,
         cta: 'ไปลงเวลาลดความชื้น'
       }));
     }
     if (d.urs) {
-      cards.push(kpiCard({
-        href: '/urs-request', icon: 'bolt', label: 'ร้องขอเมล็ดพันธุ์เร่งด่วน',
+      cards.unshift(kpiCard({
+        href: '/urs-request', icon: 'bolt', label: 'ร้องขอเมล็ดพันธุ์เร่งด่วน', group: 'คำร้องขอ',
         value: d.urs.awaitingReply, unit: 'รายการรอตอบกลับ', live: false,
         subs: [
           `<span class="${d.urs.notReady ? 'warn' : ''}">ไม่พร้อมส่ง <b>${nf(d.urs.notReady)}</b></span>`,
@@ -598,12 +719,52 @@
         cta: 'ไปที่รายการคำร้อง'
       }));
     }
+    // ตรวจนับสต๊อก: ก่อนร้องขอเมล็ด (unshift ทีหลัง = อยู่หน้าสุดในกลุ่มนี้) — รอตรวจสอบผลต่าง = งานของผู้มีสิทธิ์ตรวจสอบ (สีส้ม)
+    if (d.stockCount) {
+      const s = d.stockCount;
+      const v = compView('/stock-count', s.byComp,
+        c => `กำลังนับ <b>${nf(c.counting)}</b> · รอตรวจสอบ <b>${nf(c.review)}</b>`);
+      cards.unshift(kpiCard({
+        href: v.href, icon: 'box', label: 'ตรวจนับสต๊อก', compTag: v.compTag, group: 'คลังวัสดุและสินค้า',
+        value: s.counting, unit: 'เอกสารกำลังนับ', live: s.counting > 0,
+        subs: [
+          `<span class="${s.review && s.canReview ? 'warn' : ''}">รอตรวจสอบผลต่าง <b>${nf(s.review)}</b> ฉบับ${v.allLabel}</span>`,
+          `<span>ร่าง <b>${nf(s.draft)}</b> ฉบับ</span>`
+        ],
+        comps: v.comps,
+        cta: 'ไปที่เอกสารตรวจนับ'
+      }));
+    }
+    // งานรออนุมัติของฉัน (ทุกเรื่อง) — การ์ดแรก / server รุ่นเก่าไม่มี approvals → ใช้การ์ด Over PO เดิม
+    if (d.approvals) {
+      const c = d.approvals.counts || {};
+      const part = [['rq', 'ใบขอปรับยอดสต๊อก'], ['rts', 'ส่งคืนสินค้า Supplier'], ['ops', 'ขอรับซื้อเมล็ด Over PO']].filter(([k]) => c[k]);
+      cards.unshift(kpiCard({
+        href: '/approvals', icon: 'shield', label: 'งานรออนุมัติของฉัน',
+        value: d.approvals.total, unit: 'รายการรอคุณดำเนินการ', live: true,
+        subs: part.map(([k, n]) => `<span>${n} <b>${nf(c[k])}</b></span>`),
+        cta: 'ไปที่งานรออนุมัติ'
+      }));
+    } else if (d.opsApv) {
+      cards.unshift(kpiCard({   // การ์ดแรก: เกี่ยวกับผู้บริหาร / ผู้อนุมัติมากที่สุด
+        href: '/over-po-sale-apv', icon: 'shield', label: 'รอการพิจารณาอนุมัติขอซื้อ (Over PO)',
+        value: d.opsApv.pending, unit: 'รายการรอท่านพิจารณา', live: true,
+        subs: [`<span>มูลค่ารวม <b>${Number(d.opsApv.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b> บาท</span>`],
+        cta: 'ไปพิจารณารายการ'
+      }));
+    }
     return cards;
   }
 
+  // สีประจำกลุ่มเมนูหลัก (คำแรกของ group ก่อน " · ") — กลุ่มใหม่ที่ไม่มีในนี้ใช้สีอำพัน
+  const GROUP_COLOR = {
+    'งานรออนุมัติ': '#f2a91c', 'คลังวัสดุและสินค้า': '#4ea7e0', 'การจัดการเมล็ดพันธุ์': '#3ecf8e', 'คำร้องขอ': '#a78bfa',
+    'รายงาน': '#2dd4bf', 'ระบบ': '#94a3b8', 'คู่มือการใช้งาน': '#f472b6'
+  };
+  const groupColor = (g) => GROUP_COLOR[String(g || '').split(' · ')[0]] || '#f2a91c';
   function menuCard(m) {
     return `
-      <a class="menu-card" href="${m.href}" data-go="${m.href}">
+      <a class="menu-card" href="${m.href}" data-go="${m.href}" style="--c:${groupColor(m.group)}" title="${String(m.desc || '').replace(/"/g, '&quot;')}">
         <div class="icon-shell">${svg(m.icon)}</div>
         <div class="text">
           <div class="title">${m.title}${wipCodes.has(m.code) ? '<span class="wip-tag">WIP</span>' : ''}</div>
@@ -631,9 +792,10 @@
       if (!g) groups.push(g = { name: m.group, items: [] });
       g.items.push(m);
     });
-    area.innerHTML = groups.map(g => `
-      <div class="group-label">${g.name}</div>
-      <div class="menu-grid">${g.items.map(menuCard).join('')}</div>`).join('');
+    // หัวกลุ่ม: กลุ่มหลัก (ตัวหนา) › กลุ่มย่อย + จำนวนเมนู
+    area.innerHTML = groups.map(g => { const [main, ...sub] = g.name.split(' · '); return `
+      <div class="group-label" style="--c:${groupColor(g.name)}"><span>${main}</span>${sub.length ? `<span class="sub">${sub.join(' · ')}</span>` : ''}<span class="n">${g.items.length} เมนู</span></div>
+      <div class="menu-grid">${g.items.map(menuCard).join('')}</div>`; }).join('');
   }
 
   // ---------- ใช้ล่าสุด (เก็บในเครื่องนี้เท่านั้น) ----------
@@ -650,7 +812,7 @@
     const items = readRecent().map(h => myMenus.find(m => m.href === h)).filter(Boolean);
     document.getElementById('recentSection').hidden = items.length === 0;
     document.getElementById('recentRow').innerHTML = items.map(m =>
-      `<a class="recent-chip" href="${m.href}" data-go="${m.href}">${svg(m.icon)}${m.title}</a>`).join('');
+      `<a class="recent-chip" href="${m.href}" data-go="${m.href}" style="--c:${groupColor(m.group)}">${svg(m.icon)}${m.title}</a>`).join('');
   }
   document.addEventListener('click', (e) => {
     const a = e.target.closest('[data-go]');

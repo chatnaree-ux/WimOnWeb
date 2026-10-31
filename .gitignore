@@ -8,3 +8,6 @@ sessions/
 
 # สคริปต์ SQL ใช้ในเครื่องเท่านั้น — ไม่ขึ้น git
 sql/
+
+# อีเมลทดสอบ (MAIL_DRY_RUN) — ไม่ขึ้น git
+mail-outbox/

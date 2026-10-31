@@ -254,7 +254,11 @@
   }
   .tool-btn svg{width:14px; height:14px; flex-shrink:0;}
   .tool-btn:hover:not(:disabled){border-color:var(--amber-500); background:rgba(242,169,28,.08); color:var(--amber-500);}
-  .tool-btn:disabled{opacity:.35; cursor:not-allowed;}
+  .tool-btn:disabled{opacity:.45; cursor:not-allowed;}
+  #printBtn{color:#9cc9ff; background:rgba(78,163,255,.14); border-color:rgba(78,163,255,.6);}
+  #exportBtn{color:#7ee7ac; background:rgba(62,207,142,.14); border-color:rgba(62,207,142,.6);}
+  #printBtn:hover:not(:disabled){color:#c8e1ff; background:rgba(78,163,255,.26); border-color:#4ea3ff;}
+  #exportBtn:hover:not(:disabled){color:#b4f5d2; background:rgba(62,207,142,.26); border-color:#3ecf8e;}
 
   .table-scroll{overflow-x:auto;}
   .sc-table{width:100%; border-collapse:collapse; font-size:12.8px;}
@@ -325,12 +329,14 @@
   .item-modal-row .choose-btn:hover{background:var(--amber-500); color:var(--navy-950);}
 
   /* ---------- print ---------- */
+  #printArea{display:none;}
   .sc-print-head{display:none;}
   @media print{
     @page{ size: A4 landscape; margin: 12mm; }
-    body *{visibility:hidden;}
-    #resultPanel, #resultPanel *{visibility:visible;}
-    #resultPanel{position:absolute; top:0; left:0; width:100%; border:none; background:#fff !important;}
+    html, body{background:#fff !important; min-height:0 !important;}
+    body.printing > *:not(#printArea){display:none !important;}
+    #printArea{display:block !important; color:#000; background:#fff;}
+    #printArea .result-panel{border:none !important; background:#fff !important; box-shadow:none !important; border-radius:0 !important;}
     .result-head{display:none;}
     .sc-print-head{display:block; padding:12px 8px 16px; color:#000; font-family:'Inter',sans-serif;}
     .sc-print-head .company{font-family:'Oswald',sans-serif; font-size:18px; font-weight:700; margin-bottom:4px;}
@@ -363,6 +369,29 @@
     .topbar-mobile{display:flex;}
   }
 
+  html, body{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
+  /* มือถือ: แถว Stock Card เป็นการ์ด — เข้า / ออก / คงเหลือ เรียง 3 ช่อง */
+  @media screen and (max-width:700px){
+    .result-head{flex-direction:column; align-items:stretch; padding:14px 16px;}
+    .result-head > div:last-child{display:grid !important; grid-template-columns:1fr 1fr; gap:8px !important; width:100%;}
+    .result-head .count{grid-column:1 / -1;}
+    .tool-btn{justify-content:center; min-height:46px; font-size:13px; padding:0 10px;}
+    .sc-table tbody td{text-align:left;}
+    .table-scroll{overflow:visible;}
+    .sc-table, .sc-table tbody{display:block; width:100%;}
+    .sc-table thead{display:none;}
+    .sc-table tbody tr{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px 8px; margin-bottom:10px; padding:12px;
+      border:1px solid rgba(140,180,230,.28); border-left:4px solid var(--amber-500); border-radius:12px; background:rgba(120,160,220,.07);}
+    .sc-table tbody tr:hover{background:rgba(120,160,220,.07);}
+    .sc-table tbody td{display:block; padding:0; border:0; white-space:normal; min-width:0; overflow-wrap:anywhere;}
+    .sc-table tbody td.c-date{grid-column:1 / -1; font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500); font-size:13.5px;}
+    .sc-table tbody td.detail{grid-column:1 / -1; min-width:0; color:#fff; font-size:14px;}
+    .sc-table tbody td.num{text-align:center; padding:8px 4px; border-radius:8px; background:rgba(255,255,255,.05); font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700;}
+    .sc-table tbody td.num::before{display:block; content:attr(data-l); font-family:inherit; font-size:11px; font-weight:400; color:var(--concrete-400); margin-bottom:2px;}
+    .sc-table tbody td.c-wh, .sc-table tbody td.c-lot, .sc-table tbody td.c-unit, .sc-table tbody td.c-user{grid-column:1 / -1; display:flex; gap:10px; font-size:12.5px; color:var(--concrete-200);}
+    .sc-table tbody td.c-wh::before, .sc-table tbody td.c-lot::before, .sc-table tbody td.c-unit::before, .sc-table tbody td.c-user::before{content:attr(data-l); flex:0 0 auto; text-align:left; color:var(--concrete-400);}
+  }
+
   /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
      และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
   select, input, textarea{max-width:100%; min-width:0;}
@@ -370,6 +399,8 @@
 <!-- ดัก 401 (session server หมด/หาย): โหลดข้อมูล -> login ใหม่กลับหน้าเดิม / บันทึก -> กล่องให้ login ใหม่โดยข้อมูลไม่หาย -->
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
+<script src="/js/report-print.js?v=20261030n"></script>
+<link rel="stylesheet" href="/css/mobile-base.css">
 </head>
 <body>
 
@@ -854,15 +885,15 @@
         ? `<a href="/stockcard?companyId=${encodeURIComponent(companyId)}&lotNo=${encodeURIComponent(r.lotNo)}" target="_blank">${r.lotNo}</a>`
         : '';
       html += `<tr>
-        <td>${r.date}</td>
+        <td class="c-date">${r.date}</td>
         <td class="detail">${r.detail}</td>
-        <td>${r.warehouse}</td>
-        <td class="lot-link">${lotLink}</td>
-        <td class="num in-qty">${fmtNum(r.inQty)}</td>
-        <td class="num out-qty">${fmtNum(r.outQty)}</td>
-        <td class="num balance">${fmtNum(r.balance)}</td>
-        <td>${r.unit}</td>
-        <td>${r.user}</td>
+        <td class="c-wh" data-l="คลัง">${r.warehouse}</td>
+        <td class="lot-link c-lot" data-l="Lot No.">${lotLink}</td>
+        <td class="num in-qty" data-l="เข้า">${fmtNum(r.inQty)}</td>
+        <td class="num out-qty" data-l="ออก">${fmtNum(r.outQty)}</td>
+        <td class="num balance" data-l="คงเหลือ">${fmtNum(r.balance)}</td>
+        <td class="c-unit" data-l="หน่วย">${r.unit}</td>
+        <td class="c-user" data-l="ผู้ทำรายการ">${r.user}</td>
       </tr>`;
     });
 
@@ -873,7 +904,35 @@
     exportBtn.disabled = false;
   }
 
-  printBtn.addEventListener('click', () => window.print());
+  // พิมพ์: เอกสารทางการ (A4 แนวนอน) สร้างด้วย WIMReport
+  printBtn.addEventListener('click', () => {
+    const rows = lastProcessedRows || [];
+    if (!rows.length) return;
+    const R = WIMReport, e = R.esc;
+    const sum = (k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+    const last = rows[rows.length - 1];
+    const comp = companySelect.options[companySelect.selectedIndex];
+    const unit = last.unit || '';
+    R.print({
+      orient: 'landscape',
+      title: 'Stock Card', titleEn: 'By Item',
+      company: { id: companySelect.value, name: comp ? comp.text : '' },
+      info: [
+        ['สินค้า', e(confirmItemName.textContent)], ['จำนวนรายการ', rows.length + ' รายการ'],
+        ['ช่วงเวลา', e(confirmRange.textContent)], ['รวมรับเข้า / จ่ายออก', fmtNum(sum('inQty')) + ' / ' + fmtNum(sum('outQty')) + ' ' + e(unit)]
+      ],
+      body: R.table({
+        cols: [3.5, 13, 22, 10, 11, 7.5, 7.5, 8.5, 7, 10],
+        head: ['#', 'วันที่', 'รายละเอียด', 'คลัง', 'Lot No.', 'รับเข้า', 'จ่ายออก', 'คงเหลือ', 'หน่วย', 'ผู้ทำรายการ'],
+        align: ['c', 'l', 'l', 'l', 'l', 'r', 'r', 'r', 'c', 'l'],
+        rows: rows.map((r, i) => [i + 1, { h: e(r.date), cls: 'nw' }, e(r.detail), e(r.warehouse), e(r.lotNo),
+          { h: r.inQty ? fmtNum(r.inQty) : '', cls: 'in' }, { h: r.outQty ? fmtNum(r.outQty) : '', cls: 'out' },
+          fmtNum(r.balance), e(r.unit), e(r.user)]),
+        foot: [[{ h: 'รวม', span: 5, cls: 'r' }, { h: fmtNum(sum('inQty')), cls: 'in' }, { h: fmtNum(sum('outQty')), cls: 'out' }, { h: fmtNum(last.balance) }, { h: e(unit), cls: 'c' }, '']]
+      }) + '<p class="rpt-note">คงเหลือ = ยอดสะสมจากรายการรับเข้า − จ่ายออกตามลำดับวันที่ ของสินค้านี้ในช่วงเวลาที่เลือก</p>'
+    });
+  });
+  window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); const pa = document.getElementById('printArea'); if (pa) pa.innerHTML = ''; });
 
   exportBtn.addEventListener('click', () => {
     if (!lastProcessedRows.length) return;

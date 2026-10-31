@@ -287,6 +287,21 @@ const CENTRAL_AUTH_URL = 'https://auth.advanceseeds.com';
 const APP_CODE = 'wimweb-app';
 const APP_SECRET = '0dd959d32d613a4485fb9b0d6b4f23ced7a6d3499e6178d1';
 
+// เรียกระบบกลางจากหลังบ้าน: เครือข่ายสะดุด ("fetch failed" เช่น socket ค้าง / รีเซ็ต) ลองซ้ำ 3 ครั้ง + timeout 15 วินาที กันค้าง
+// และ log สาเหตุจริง (err.cause.code เช่น ENOTFOUND / ECONNRESET / ETIMEDOUT / CERT_*) ไว้ดูในคอนโซลของ server
+async function centralFetch(url, init, tries = 3) {
+  let lastErr;
+  for (let i = 1; i <= tries; i++) {
+    try { return await fetch(url, { ...init, signal: AbortSignal.timeout(15000) }); }
+    catch (e) {
+      lastErr = e;
+      console.error(`❌ เรียกระบบกลางไม่สำเร็จ (ครั้งที่ ${i}/${tries}) ${url}:`, e.message, e.cause ? (e.cause.code || e.cause.message) : '');
+      if (i < tries) await new Promise((r) => setTimeout(r, 400 * i));
+    }
+  }
+  throw lastErr;
+}
+
 // 1. Endpoint พาผู้ใช้ไปหน้า Login กลาง (SSO)
 // returnTo ต้องเป็น path ภายในเว็บนี้เท่านั้น (ขึ้นต้น / แต่ไม่ใช่ // หรือ /\) กัน open redirect
 const safeReturnTo = (v) => {
@@ -323,9 +338,11 @@ app.get('/auth/sso/callback', async (req, res) => {
   if (!ticket) {
     return res.redirect('/?error=no_ticket');
   }
+  // log (ปิดค่า ticket) ไว้เทียบเคสเปิดจากลิงก์ LINE กับ login ปกติ
+  console.log('SSO callback:', req.originalUrl.replace(/ticket=[^&]+/g, 'ticket=***'), '| ticket len', String(ticket).length, '| host', req.get('host'), '| UA', String(req.get('user-agent') || '').slice(0, 90));
 
   try {
-    const response = await fetch(`${CENTRAL_AUTH_URL}/sso/exchange`, {
+    const response = await centralFetch(`${CENTRAL_AUTH_URL}/sso/exchange`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticket, app: APP_CODE, app_secret: APP_SECRET })
@@ -360,8 +377,9 @@ app.get('/auth/sso/callback', async (req, res) => {
     delete req.session.returnTo;
     res.redirect(returnTo || '/main-menu');
   } catch (err) {
-    console.error('❌ SSO Exchange Error เต็มๆ:', err);
-    res.redirect(`/?error=${encodeURIComponent(err.message)}`);
+    console.error('❌ SSO Exchange Error เต็มๆ:', err, '| cause:', err && err.cause);
+    const why = err && err.cause && (err.cause.code || err.cause.message);
+    res.redirect(`/?error=${encodeURIComponent(err.message + (why ? ' (' + why + ')' : ''))}`);
   }
 });
 
@@ -472,8 +490,10 @@ function compFilter(access, request, column) {
   if (access.allComps) return '';
   const ids = [...access.comps].map(Number).filter(Number.isInteger);
   if (ids.length === 0) return 'AND 1 = 0';
-  ids.forEach((id, i) => request.input(`accComp${i}`, sql.Int, id));
-  return `AND ${column} IN (${ids.map((_, i) => `@accComp${i}`).join(', ')})`;
+  // เรียกซ้ำใน request เดียวกันได้ (เช่น บริษัท + คลัง) — ชื่อ parameter ต้องไม่ซ้ำ ไม่งั้น mssql ขึ้น EDUPEPARAM (ผู้ใช้ที่จำกัดบริษัทโหลดไม่ได้)
+  const n = request.__compFilterN = (request.__compFilterN || 0) + 1;
+  ids.forEach((id, i) => request.input(`accComp${n}_${i}`, sql.Int, id));
+  return `AND ${column} IN (${ids.map((_, i) => `@accComp${n}_${i}`).join(', ')})`;
 }
 
 // ต้อง login: เก็บ idPs (จาก session) ไว้ที่ req.idPs ให้ handler ใช้ต่อ
@@ -1882,6 +1902,31 @@ app.get('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
   }
 });
 
+// ---------- บันทึกประวัติการเปลี่ยนสิทธิ์ (WIMWebPermLog) — ใคร/เมื่อไร/ย้ายจากกลุ่มไหน/เมนู-บริษัทที่เพิ่ม-เอาออก ----------
+// conn = pool หรือ transaction (ส่ง transaction มาเพื่อให้ log บันทึกพร้อมกับการแก้สิทธิ์)
+async function writePermLog(conn, req, { actionType, idGroup = null, idGroupOld = null, idPsTarget = null, added = null, removed = null }) {
+  await new sql.Request(conn)
+    .input('actionType', sql.NVarChar(30), actionType)
+    .input('idGroup', sql.Int, idGroup)
+    .input('idGroupOld', sql.Int, idGroupOld)
+    .input('idPsTarget', sql.Int, idPsTarget)
+    .input('added', sql.NVarChar(sql.MAX), added && added.length ? added.join(',') : null)
+    .input('removed', sql.NVarChar(sql.MAX), removed && removed.length ? removed.join(',') : null)
+    .input('idPsAction', sql.Int, req.idPs || null)
+    .input('ip', sql.VarChar(45), (req.ip || '').slice(0, 45) || null)
+    .query(`INSERT INTO WIMWebPermLog (ActionType, idGroup, idGroupOld, idPsTarget, Added, Removed, idPsAction, IpAddress)
+            VALUES (@actionType, @idGroup, @idGroupOld, @idPsTarget, @added, @removed, @idPsAction, @ip)`);
+}
+
+// เทียบชุด id เดิมกับชุดใหม่ → { added, removed } (เรียงตามเลข)
+function diffIds(oldIds, newIds) {
+  const o = new Set(oldIds.map(Number)), n = new Set(newIds.map(Number));
+  return {
+    added: [...n].filter(x => !o.has(x)).sort((a, b) => a - b),
+    removed: [...o].filter(x => !n.has(x)).sort((a, b) => a - b)
+  };
+}
+
 app.post('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
   const { groupName } = req.body;
   if (!groupName || !groupName.trim()) {
@@ -1892,7 +1937,10 @@ app.post('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
     const result = await pool.request()
       .input('groupName', sql.NVarChar, groupName.trim())
       .query(`INSERT INTO WIMWebUserGroup (GroupName) OUTPUT INSERTED.idGroup VALUES (@groupName)`);
-    res.json({ success: true, idGroup: result.recordset[0].idGroup });
+    const newIdGroup = result.recordset[0].idGroup;
+    try { await writePermLog(pool, req, { actionType: 'GROUP_CREATE', idGroup: newIdGroup }); }
+    catch (e) { console.error('Perm log (GROUP_CREATE) error:', e); }
+    res.json({ success: true, idGroup: newIdGroup });
   } catch (err) {
     console.error('Usergroups create error:', err);
     res.status(500).json({ success: false, message: 'สร้างกลุ่มไม่สำเร็จ', detail: err.message });
@@ -1921,7 +1969,7 @@ app.get('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req,
   }
 });
 
-app.get('/api/usergroups/available-users', requireMenu([MENU_ADMIN, 'urs_request', 'supplier_return']), async (req, res) => {
+app.get('/api/usergroups/available-users', requireMenu([MENU_ADMIN, 'urs_request', 'supplier_return', 'over_po_sale', 'over_po_sale_mailto', 'over_po_sale_buy', 'stock_count']), async (req, res) => {
   const keyword = (req.query.keyword || '').trim();
   try {
     const pool = await poolPromise;
@@ -1929,7 +1977,7 @@ app.get('/api/usergroups/available-users', requireMenu([MENU_ADMIN, 'urs_request
     const result = await pool.request()
       .input('keyword', sql.NVarChar, `%${keyword}%`)
       .query(
-        `SELECT ${topClause} v.idPs, v.PsName, v.PositionName, v.CompName, v.CompCode
+        `SELECT ${topClause} v.idPs, v.PsName, v.PsFullName, v.PositionName, v.idComp, v.CompName, v.CompCode
          FROM devsk.vPersonxSelect v
          WHERE v.idstWork <> 4
            AND (v.PsName LIKE @keyword)
@@ -1947,20 +1995,39 @@ app.post('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req
   const { idPs } = req.body;
   if (!idGroup || !idPs) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน' });
 
+  let transaction;
   try {
     const pool = await poolPromise;
-    await pool.request()
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    // กลุ่มเดิมของผู้ใช้ (ไว้บันทึกว่าย้ายมาจากกลุ่มไหน)
+    const oldRs = await new sql.Request(transaction)
+      .input('idPs', sql.Int, idPs)
+      .query('SELECT TOP 1 idGroup FROM WIMWebUserGroupMember WHERE idPs = @idPs AND stDel IS NULL ORDER BY idMember DESC');
+    const idGroupOld = oldRs.recordset.length ? oldRs.recordset[0].idGroup : null;
+
+    await new sql.Request(transaction)
       .input('idPs', sql.Int, idPs)
       .query('DELETE FROM WIMWebUserGroupMember WHERE idPs = @idPs');
 
-    await pool.request()
+    await new sql.Request(transaction)
       .input('idPs', sql.Int, idPs)
       .input('idGroup', sql.Int, idGroup)
       .query('INSERT INTO WIMWebUserGroupMember (idPs, idGroup) VALUES (@idPs, @idGroup)');
 
+    if (idGroupOld !== idGroup) {
+      await writePermLog(transaction, req, {
+        actionType: idGroupOld ? 'MEMBER_MOVE' : 'MEMBER_ADD',
+        idGroup, idGroupOld, idPsTarget: parseInt(idPs, 10)
+      });
+    }
+
+    await transaction.commit();
     clearAccessCache();
     res.json({ success: true });
   } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
     console.error('Add member error:', err);
     res.status(500).json({ success: false, message: 'เพิ่มสมาชิกไม่สำเร็จ', detail: err.message });
   }
@@ -1971,15 +2038,23 @@ app.delete('/api/usergroups/:idGroup/members/:idPs', requireMenu(MENU_ADMIN), as
   const idPs = parseInt(req.params.idPs, 10);
   if (!idGroup || !idPs) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน' });
 
+  let transaction;
   try {
     const pool = await poolPromise;
-    await pool.request()
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const del = await new sql.Request(transaction)
       .input('idPs', sql.Int, idPs)
       .input('idGroup', sql.Int, idGroup)
       .query('DELETE FROM WIMWebUserGroupMember WHERE idPs = @idPs AND idGroup = @idGroup');
+    if (del.rowsAffected[0] > 0) {
+      await writePermLog(transaction, req, { actionType: 'MEMBER_REMOVE', idGroup, idPsTarget: idPs });
+    }
+    await transaction.commit();
     clearAccessCache();
     res.json({ success: true });
   } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
     console.error('Remove member error:', err);
     res.status(500).json({ success: false, message: 'ลบสมาชิกไม่สำเร็จ', detail: err.message });
   }
@@ -2014,6 +2089,11 @@ app.post('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async 
     transaction = new sql.Transaction(pool);
     await transaction.begin();
 
+    const oldMenus = (await new sql.Request(transaction)
+      .input('idGroup', sql.Int, idGroup)
+      .query('SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL'))
+      .recordset.map(r => r.idMenu);
+
     await new sql.Request(transaction)
       .input('idGroup', sql.Int, idGroup)
       .query('DELETE FROM WIMWebMenuPermission WHERE idGroup = @idGroup');
@@ -2029,6 +2109,16 @@ app.post('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async 
          SELECT @idGroup, idMenu, 1${idPsCreate ? ', @idPsCreate' : ''}
          FROM WIMWebMenu WHERE idMenu = @idMenu AND ISNULL(stWip, 0) = 0`
       );
+    }
+
+    // เทียบกับที่บันทึกจริง (เมนู On process ถูกข้ามไป) — บันทึก log เฉพาะเมื่อมีการเปลี่ยน
+    const newMenus = (await new sql.Request(transaction)
+      .input('idGroup', sql.Int, idGroup)
+      .query('SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1'))
+      .recordset.map(r => r.idMenu);
+    const menuDiff = diffIds(oldMenus, newMenus);
+    if (menuDiff.added.length || menuDiff.removed.length) {
+      await writePermLog(transaction, req, { actionType: 'MENU_SET', idGroup, ...menuDiff });
     }
 
     await transaction.commit();
@@ -2441,7 +2531,8 @@ function parseUrsRequestBody(body, idCompReq) {
     idInvMain: parseInt(it.idInvMain, 10),
     amountReq: Number(it.amountReq),
     idUnit: it.idUnit === null || it.idUnit === undefined ? null : parseInt(it.idUnit, 10),
-    dateNeeded: it.dateNeeded
+    dateNeeded: it.dateNeeded,
+    noteReq: erpText(it.noteReq).slice(0, 500) || null   // หมายเหตุรายการ (ไม่บังคับ) — คอลัมน์ ERP เป็น varchar (TIS-620): แปลงอักขระนอกไทย/อังกฤษก่อน
   }));
   for (const [i, r] of rows.entries()) {
     if (!r.idInvMain) return { error: `รายการที่ ${i + 1}: เมล็ดพันธุ์ไม่ถูกต้อง` };
@@ -2510,9 +2601,10 @@ app.post('/api/urs/requests', requireMenu('urs_request', { companyParam: 'idComp
         .input('amountReq', sql.Decimal(18, 6), r.amountReq)
         .input('idUnit', sql.Int, r.idUnit)
         .input('dateNeeded', sql.VarChar, r.dateNeeded)
+        .input('noteReq', sql.NVarChar, r.noteReq)
         .query(
-          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded)
-           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23))`
+          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded, NoteReq)
+           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23), @noteReq)`
         );
     }
 
@@ -2621,22 +2713,23 @@ app.put('/api/urs/requests/:idUrs', requireMenu('urs_request'), requireUrsDocCom
         .input('idInvMain', sql.Int, r.idInvMain)
         .input('amountReq', sql.Decimal(18, 6), r.amountReq)
         .input('idUnit', sql.Int, r.idUnit)
-        .input('dateNeeded', sql.VarChar, r.dateNeeded);
+        .input('dateNeeded', sql.VarChar, r.dateNeeded)
+        .input('noteReq', sql.NVarChar, r.noteReq);
       if (old) {
         await request.input('idUrsDt', sql.Int, old.idUrsDt).query(
           `UPDATE GR_Group.devsk.SeedUrgentReqDt
-           SET AmountReq = @amountReq, idUnit = @idUnit, DateNeeded = CONVERT(date, @dateNeeded, 23)
+           SET AmountReq = @amountReq, idUnit = @idUnit, DateNeeded = CONVERT(date, @dateNeeded, 23), NoteReq = @noteReq
            WHERE idUrsDt = @idUrsDt`
         );
       } else if (sent) {
         await request.input('stSent', sql.VarChar(1), URS_ST_SENT).input('idPs', sql.Int, idPs).query(
-          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded, stReq, idPsSendReq, DateSentReq)
-           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23), @stSent, @idPs, GETDATE())`
+          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded, NoteReq, stReq, idPsSendReq, DateSentReq)
+           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23), @noteReq, @stSent, @idPs, GETDATE())`
         );
       } else {
         await request.query(
-          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded)
-           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23))`
+          `INSERT INTO GR_Group.devsk.SeedUrgentReqDt (idUrs, idInvMain, AmountReq, idUnit, DateNeeded, NoteReq)
+           VALUES (@idUrs, @idInvMain, @amountReq, @idUnit, CONVERT(date, @dateNeeded, 23), @noteReq)`
         );
       }
     }
@@ -2723,7 +2816,7 @@ app.get('/api/urs/requests', requireMenu('urs_request', { companyParam: 'idComp'
       .input('stDone', sql.VarChar(1), URS_ST_DONE)
       .query(
         `WITH Req AS (
-           SELECT dt.idUrsDt, dt.idUrs, dt.idInvMain, dt.AmountReq, dt.idUnit, dt.DateNeeded,
+           SELECT dt.idUrsDt, dt.idUrs, dt.idInvMain, dt.AmountReq, dt.idUnit, dt.DateNeeded, dt.NoteReq,
                   CASE WHEN mt.idPsCancel IS NOT NULL THEN @stCancel ELSE dt.stReq END AS stReq,
                   dt.DateSentReq, dt.DateSent, dt.NotSentNote, dt.idPsReplied, dt.DateReplied,
                   ISNULL(dt.idPsDel, mt.idPsCancel) AS idPsDel, ISNULL(dt.DateDel, mt.DateCancel) AS DateDel,
@@ -2764,11 +2857,11 @@ app.get('/api/urs/requests', requireMenu('urs_request', { companyParam: 'idComp'
          SELECT r.idUrsDt, r.idUrs, r.idCompReq, r.idCompTarget, ct.CompName AS CompNameTarget, r.DocReq, r.ReasonReq, r.stReq,
                 CONVERT(char(10), r.DateReq, 23) AS DateReq,
                 CONVERT(char(10), r.DateNeeded, 23) AS DateNeeded,
-                r.idInvMain, i.InvName, sp.SeedName, r.AmountReq, r.idUnit, u.UnitName, r.idPsReq,
+                r.idInvMain, i.InvName, sp.SeedName, r.AmountReq, r.NoteReq, r.idUnit, u.UnitName, r.idPsReq,
                 CASE WHEN r.stReq IN (@stCancel, @stDone) THEN NULL ELSE ISNULL(sav.AmtStockAV, 0) END AS AmtStockAV,
                 CASE WHEN r.stReq IN (@stCancel, @stDone) THEN NULL ELSE ISNULL(sgf.AmtStockGR, 0) END AS AmtStockGR,
                 CASE WHEN r.stReq IN (@stCancel, @stDone) THEN NULL ELSE ISNULL(sgf.AmtStockFL, 0) END AS AmtStockFL,
-                ps.PsName AS PsNameReq, c.CompName,
+                ps.PsName AS PsNameReq, ps.PsFullName AS FullReq, ps.PositionName AS PosReq, c.CompName,
                 CONVERT(varchar(16), r.DateSentReq, 120) AS DateSentReq,
                 CONVERT(char(10), r.DateSent, 23) AS DateSent, r.NotSentNote,
                 CONVERT(varchar(16), r.DateReplied, 120) AS DateReplied, pr.PsName AS PsNameReplied,
@@ -2781,7 +2874,7 @@ app.get('/api/urs/requests', requireMenu('urs_request', { companyParam: 'idComp'
          LEFT JOIN Stock_GRxFL sgf ON r.idInvMain = sgf.idInvMain
          LEFT JOIN PchInvAndProject.dbo.dCompany c WITH (NOLOCK) ON r.idCompReq = c.idComp
          LEFT JOIN PchInvAndProject.dbo.dCompany ct WITH (NOLOCK) ON r.idCompTarget = ct.idComp
-         OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = r.idPsReq) ps
+         OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName, v.PositionName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = r.idPsReq) ps
          OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = r.idPsReplied) pr
          OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = r.idPsDel) pd
          ORDER BY CONVERT(date, r.DateReq), r.idUrs, r.idUrsDt`
@@ -2949,7 +3042,7 @@ async function buildUrsMessage(transaction, idUrs, origin, edited) {
     .input('idUrs', sql.Int, idUrs)
     .input('stCancel', sql.VarChar(1), URS_ST_CANCEL)
     .query(
-      `SELECT i.InvName, dt.AmountReq, u.UnitName, CONVERT(char(10), dt.DateNeeded, 23) AS DateNeeded
+      `SELECT i.InvName, dt.AmountReq, dt.NoteReq, u.UnitName, CONVERT(char(10), dt.DateNeeded, 23) AS DateNeeded
        FROM GR_Group.devsk.SeedUrgentReqDt dt
        LEFT JOIN devsk.dInventoryMain i ON dt.idInvMain = i.idInvMain
        LEFT JOIN devsk.dInvUnit u ON dt.idUnit = u.idUnit
@@ -2958,7 +3051,7 @@ async function buildUrsMessage(transaction, idUrs, origin, edited) {
     );
   const h = head.recordset[0] || {};
   const lines = items.recordset.map((r, i) =>
-    `${i + 1}. ${r.InvName || '-'} — ${ursFmtNum(r.AmountReq)} ${r.UnitName || ''} (ต้องการ ${ursFmtDateThai(r.DateNeeded)})`);
+    `${i + 1}. ${r.InvName || '-'} — ${ursFmtNum(r.AmountReq)} ${r.UnitName || ''} (ต้องการ ${ursFmtDateThai(r.DateNeeded)})${r.NoteReq && String(r.NoteReq).trim() ? `\n    หมายเหตุ: ${String(r.NoteReq).trim()}` : ''}`);
   return [
     edited ? `✏️ แก้ไขคำร้องขอเมล็ดพันธุ์เร่งด่วน ${h.DocReq} (ข้อมูลล่าสุด)` : `📌 คำร้องขอเมล็ดพันธุ์เร่งด่วน ${h.DocReq}`,
     `จาก: ${h.CompName || '-'}`,
@@ -3060,7 +3153,7 @@ app.get('/api/urs/reply/:idUrs', async (req, res) => {
       .input('idUrs', sql.Int, idUrs)
       .input('stCancel', sql.VarChar(1), URS_ST_CANCEL)
       .query(
-        `SELECT dt.idUrsDt, dt.idInvMain, i.InvName, sp.SeedName, dt.AmountReq, u.UnitName,
+        `SELECT dt.idUrsDt, dt.idInvMain, i.InvName, sp.SeedName, dt.AmountReq, dt.NoteReq, u.UnitName,
                 CONVERT(char(10), dt.DateNeeded, 23) AS DateNeeded, dt.stReq,
                 CONVERT(varchar(16), dt.DateSentReq, 120) AS DateSentReq,
                 CONVERT(char(10), dt.DateSent, 23) AS DateSent, dt.NotSentNote,
@@ -3225,6 +3318,11 @@ app.post('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN)
     transaction = new sql.Transaction(pool);
     await transaction.begin();
 
+    const oldComps = (await new sql.Request(transaction)
+      .input('idGroup', sql.Int, idGroup)
+      .query('SELECT idComp FROM WIMWebGroupCompPer WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL'))
+      .recordset.map(r => r.idComp);
+
     await new sql.Request(transaction)
       .input('idGroup', sql.Int, idGroup)
       .query('DELETE FROM WIMWebGroupCompPer WHERE idGroup = @idGroup');
@@ -3238,6 +3336,11 @@ app.post('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN)
         `INSERT INTO WIMWebGroupCompPer (idGroup, idComp, stAllow${idPsCreate ? ', idPsCreate' : ''})
          VALUES (@idGroup, @idComp, 1${idPsCreate ? ', @idPsCreate' : ''})`
       );
+    }
+
+    const compDiff = diffIds(oldComps, compIds);
+    if (compDiff.added.length || compDiff.removed.length) {
+      await writePermLog(transaction, req, { actionType: 'COMP_SET', idGroup, ...compDiff });
     }
 
     await transaction.commit();
@@ -4677,6 +4780,3691 @@ app.post('/api/supplier-return/doc/:id/send-back', requireMenu([MENU_RTS_ACK, ME
   }
 });
 
+// รวมยอดทุกบริษัท + แยกรายบริษัท (byComp เก็บเฉพาะบริษัทที่มีงานค้าง) ให้หน้า Home บอกได้ว่ายอดมาจากบริษัทไหน
+// บริษัทที่ไม่นับในหน้า Home (5 = บริษัท ทดสอบ จำกัด — ข้อมูลทดสอบ ไม่ใช่งานจริง)
+const HOME_EXCLUDE_COMP_IDS = [5];
+
+function summarizeByComp(rows, fields) {
+  const total = Object.fromEntries(fields.map(k => [k, 0]));
+  rows.forEach(r => fields.forEach(k => { total[k] += r[k] || 0; }));
+  const byComp = rows
+    .filter(r => fields.some(k => r[k] > 0))
+    .map(r => ({ id: r.id, name: r.name, ...Object.fromEntries(fields.map(k => [k, r[k] || 0])) }));
+  return { ...total, byComp };
+}
+
+// ==================================================================
+// ---------- ร้องขอขายเมล็ดพันธุ์ (Over PO) — OPS ----------
+// ==================================================================
+// ฝั่งร้องขอ (ผู้ขาย เช่น FLO / GR) อ้างอิง PO ตั้งต้นที่บริษัทผู้ซื้อ (เช่น AV) เปิดให้ แล้วเสนอขายยอดที่ผลิตเกิน PO
+// เฟส 1: บันทึก / แก้ไข (ก่อนส่ง) / ยกเลิก / เอกสาร A4 / ส่งอีเมลแจ้งฝ่ายจัดซื้อผู้ซื้อ (ผู้รับกำหนดใน SeedReqSaleMailTo)
+// เฟส 2: ฝ่ายจัดซื้อผู้ซื้อกำหนดจำนวน/ราคา → ใบขออนุมัติ OPA → อนุมัติ 4 ขั้น (SeedReqSaleApv) → สร้าง PO (X..) + ใบสั่งขายอัตโนมัติ
+// ตาราง + เมนู: sql/over-po-sale-setup.sql, sql/over-po-sale-phase2-20261019.sql, sql/over-po-sale-dropcols-20261020.sql
+const MENU_OPS = 'over_po_sale';
+const MENU_OPS_MAILTO = 'over_po_sale_mailto';     // สิทธิ์กำหนดผู้รับอีเมล (สิทธิ์ย่อย ไม่มีหน้าแยก)
+const OPS_COMPANY_IDS = [2, 3, 4];
+// idComp -> idSup ของบริษัทนั้นในฐานะผู้ขาย (PO ที่ผู้ซื้อเปิดให้ผู้ร้องขอ = PKPOBuyMt.idSup นี้)
+const OPS_COMP_SUPPLIER = { 2: 361, 3: 504, 4: 932 };
+const OPS_MAIL_STEP_CHECK = 'check';
+const OPS_EPS = 1e-6;
+const OPS_MAX_CC = 20;
+// เรื่อง: ทุกเอกสารเป็นเรื่องเดียวกัน → ไม่ให้กรอก ระบบใส่ให้ (ยังเก็บใน Subject เผื่อใช้เรื่องอื่นในอนาคต)
+const OPS_DEFAULT_SUBJECT = 'แจ้งร้องขอขายเมล็ดพันธุ์ที่เกินใบสั่งซื้อ (Over PO)';
+
+// หน้าเดียวกันหลายโหมด: /over-po-sale (ผู้ร้องขอ) / -doc (ใบร้องขอ OPQ) / -buy (ฝ่ายจัดซื้อ: รายการ + ?id= จัดการคำร้อง) / -opa (ใบขออนุมัติ + ปุ่มอนุมัติ)
+['/over-po-sale-doc', '/over-po-sale-buy', '/over-po-sale-buy.html', '/over-po-sale-opa', '/over-po-sale-apv'].forEach(p =>
+  app.get(p, (req, res) => res.sendFile(path.join(__dirname, 'public', 'over-po-sale.html'))));
+
+// ---- เฟส 2: ฝ่ายจัดซื้อผู้ซื้อพิจารณา + ขออนุมัติ 4 ขั้น (แบบ PO) + สร้าง PO / ใบสั่งขายอัตโนมัติ — sql/over-po-sale-phase2-20261019.sql
+const MENU_OPS_BUY = 'over_po_sale_buy';
+// ขั้นอนุมัติ: ลำดับแสดงผล / ชื่อ (ผู้อนุมัติ 1-2 แสดงว่า "ผู้อนุมัติ" — ลำดับ 1/2 เป็นเรื่องหลังบ้าน) / คอลัมน์ผู้อนุมัติใน PkPOBuyMt (ใช้ทั้งดึงค่าเริ่มต้นจาก PO ที่อ้างอิง และตอนสร้าง PO)
+const OPS_APV_STEPS = [
+  { code: 'accept', name: 'ผู้รับทราบ', poPs: 'idPsAccept', poDate: 'DateAcceptD', poSys: 'SysAccept' },
+  { code: 'check', name: 'ผู้ตรวจสอบ', poPs: 'idPsCheck', poDate: 'DateCheckD', poSys: 'SysCheck' },
+  { code: 'approve1', name: 'ผู้อนุมัติ', poPs: 'idPsApprove1', poDate: 'DateApprove1D', poSys: 'SysApprove' },
+  { code: 'approve2', name: 'ผู้อนุมัติ', poPs: 'idPsApprove2', poDate: 'DateApprove2D', poSys: 'SysApprove2' }
+];
+// อนุมัติ 1 กับ 2 ต้องเป็นคนละคน — PO เดิมได้คนเดียวกัน (ระบบอนุมัติ PO ใส่ซ้ำ) → ค่าเริ่มต้น อนุมัติ 1 = ชัชวาล / อนุมัติ 2 = อนวัช
+const OPS_APV_FIX = { approve1: 9, approve2: 7 };
+const OPS_PO_TYPE = 8;          // PkPOBuyMt.TypeTs ของ PO ซื้อส่วนเกินใบสั่งซื้อ (7 มีเอกสาร E ใช้อยู่)
+const OPS_PO_PREFIX = 'OS';     // DocCode OS{yy}/{mm}/{0000} — OS = Overstock Seeds (ฝ่ายจัดซื้อกำหนด; เดิมใช้ X)
+const OPS_PO_SYS = 3;           // Sys* ของการอนุมัติ = 3 (อนุมัติผ่านใบขออนุมัติ OPA ในระบบนี้ / 1 = โปรแกรม, 2 = เว็บอนุมัติ)
+// OPS_PO_TEST_ROLLBACK=1 (.env): อนุมัติครบแล้วสร้าง PO + ใบสั่งขายจริงใน transaction แล้ว rollback ทั้งหมด (ทดสอบโดยไม่ทิ้งข้อมูล)
+const opsPoTestRollback = () => process.env.OPS_PO_TEST_ROLLBACK === '1';
+
+// ---------- อีเมล (nodemailer) ----------
+// ตั้งค่าใน .env: SMTP_HOST / SMTP_PORT / SMTP_SECURE (true = 465) / SMTP_USER / SMTP_PASS / MAIL_FROM
+//   MAIL_DRY_RUN=1 = ไม่ส่งจริง เขียนไฟล์ .eml ลงโฟลเดอร์ mail-outbox/ แทน (ใช้ทดสอบบนเครื่อง dev)
+//   APP_BASE_URL = ต้นทางของลิงก์ในอีเมล เช่น https://wim.example.com (ไม่ตั้ง = ใช้ของหน้าเว็บที่กดส่ง)
+//   MAIL_REDIRECT_TO = ช่วงทดสอบ: ส่งอีเมลทุกฉบับไปที่อีเมลนี้แทนผู้รับจริง (หัวเรื่อง + แถบบนสุดของอีเมลบอกผู้รับจริง)
+//                      log ยังเก็บผู้รับจริง / เปิดใช้งานจริง = ลบบรรทัดนี้ออกจาก .env แล้ว restart
+let opsTransport = null;
+const opsMailDryRun = () => process.env.MAIL_DRY_RUN === '1';
+const opsMailRedirect = () => (process.env.MAIL_REDIRECT_TO || '').trim();
+const opsMailReady = () => opsMailDryRun() || !!(process.env.SMTP_HOST && process.env.MAIL_FROM);
+function opsMailer() {
+  if (opsTransport) return opsTransport;
+  const nodemailer = require('nodemailer');
+  opsTransport = opsMailDryRun()
+    ? nodemailer.createTransport({ streamTransport: true, buffer: true, newline: 'windows' })
+    : nodemailer.createTransport({
+        pool: true, maxConnections: 3, maxMessages: 100,
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT, 10) || 587,
+        secure: process.env.SMTP_SECURE === 'true',
+        // family 4: ไม่ลอง IPv6 ก่อน (บน server ที่ IPv6 ออกไม่ได้ จะรอ timeout หลายวินาทีทุกครั้งที่ต่อ Gmail) / timeout สั้นลง ส่งไม่ได้จะรู้เร็ว
+        family: 4, connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 30000,
+        auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined
+      });
+  return opsTransport;
+}
+// ส่ง 1 ฉบับ -> { ok: Set(อีเมลที่ server รับ), error } (dry run = เขียน .eml แล้วถือว่าส่งสำเร็จทุกคน)
+// MAIL_REDIRECT_TO: ส่งไปอีเมลทดสอบแทน — ถ้าส่งถึงอีเมลทดสอบได้ ถือว่าผู้รับจริงทุกคน "ส่งแล้ว" (log เก็บผู้รับจริง)
+// HTML อีเมล → ข้อความธรรมดา (ลิงก์ต่อท้ายชื่อปุ่ม / ลิงก์เป็น "ชื่อ: URL")
+function opsHtmlToText(html) {
+  const dec = (t) => t.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+  let t = String(html || '')
+    .replace(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (m, href, label) => {
+      const text = label.replace(/<[^>]+>/g, '').trim();
+      return !text || text === href ? href : `${text}: ${href}`;
+    })
+    .replace(/<\/(p|div|tr|h[1-6]|li|table)>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<\/t[dh]>/gi, '  ')
+    .replace(/<[^>]+>/g, '');
+  return dec(t).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+async function opsSendMailOnce({ to, cc, subject, html }) {
+  const from = process.env.MAIL_FROM || 'WIM <no-reply@localhost>';
+  const redirect = opsMailRedirect();
+  const real = [...to, ...cc];
+  if (redirect) {
+    const list = (arr) => opsEsc(arr.join(', ') || '-');
+    html = `<div style="font-family:Tahoma,Arial,sans-serif;font-size:13px;background:#fff4d6;border:1px solid #f2a91c;border-radius:6px;padding:10px 14px;margin-bottom:16px;color:#5a4300">
+      <b>🧪 อีเมลทดสอบ (MAIL_REDIRECT_TO)</b> — ใช้งานจริงจะส่งถึง<br>To: ${list(to)}${cc.length ? `<br>Cc: ${list(cc)}` : ''}</div>` + html;
+    subject = `[ทดสอบ → ${to.join(', ')}${cc.length ? ` +cc ${cc.length}` : ''}] ${subject}`;
+    to = [redirect];
+    cc = [];
+  }
+  try {
+    // ส่งทั้ง HTML + ข้อความธรรมดา (multipart/alternative) และ Reply-To (ถ้าตั้ง MAIL_REPLY_TO) — ช่วยให้ตัวกรองสแปมไว้ใจมากขึ้น
+    const info = await opsMailer().sendMail({ from, to, cc, subject, html, text: opsHtmlToText(html), ...(process.env.MAIL_REPLY_TO ? { replyTo: process.env.MAIL_REPLY_TO } : {}) });
+    if (opsMailDryRun()) {
+      const dir = path.join(__dirname, 'mail-outbox');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, `${Date.now()}-${subject.replace(/[^A-Za-z0-9]+/g, '_').slice(0, 40)}.eml`), info.message);
+      return { ok: new Set(real.map(e => e.toLowerCase())), error: null };
+    }
+    if (redirect) {
+      const delivered = (info.accepted || []).some(e => String(e).toLowerCase() === redirect.toLowerCase());
+      return { ok: new Set(delivered ? real.map(e => e.toLowerCase()) : []), error: delivered ? null : `ส่งถึงอีเมลทดสอบ ${redirect} ไม่สำเร็จ` };
+    }
+    return { ok: new Set((info.accepted || []).map(e => String(e).toLowerCase())), error: (info.rejected || []).length ? 'ผู้รับบางรายถูกปฏิเสธ' : null };
+  } catch (err) {
+    console.error('OPS mail error:', err);
+    return { ok: new Set(), error: err.message };
+  }
+}
+
+// ส่งพร้อมลองใหม่อัตโนมัติ (ล้มเหลวชั่วคราว เช่น Gmail ช้า / เครือข่ายหลุด): ครั้งที่ 1 ทันที / 2 หลัง 8 วินาที / 3 หลัง 40 วินาที — ลองซ้ำเฉพาะผู้รับที่ยังไม่สำเร็จ
+// ใช้เบื้องหลังเท่านั้น (opsBackground) — ห้ามให้ผู้ใช้รอ
+const OPS_MAIL_RETRY_MS = [0, 8000, 40000];
+async function opsSendMail({ to, cc, subject, html }) {
+  const all = [...to, ...cc].map(e => e.toLowerCase());
+  const done = new Set();
+  let error = null;
+  for (let i = 0; i < OPS_MAIL_RETRY_MS.length; i++) {
+    if (OPS_MAIL_RETRY_MS[i]) await new Promise(r => setTimeout(r, OPS_MAIL_RETRY_MS[i]));
+    const pendTo = to.filter(e => !done.has(e.toLowerCase())), pendCc = cc.filter(e => !done.has(e.toLowerCase()));
+    if (!pendTo.length && !pendCc.length) break;
+    const r = await opsSendMailOnce({ to: pendTo.length ? pendTo : pendCc, cc: pendTo.length ? pendCc : [], subject, html });
+    r.ok.forEach(e => done.add(e));
+    error = r.error;
+    if (all.every(e => done.has(e))) break;
+    console.error(`OPS mail attempt ${i + 1}/${OPS_MAIL_RETRY_MS.length} incomplete: ${r.error}`);
+  }
+  const complete = all.every(e => done.has(e));
+  return { ok: done, error: complete ? null : (error || 'ส่งไม่สำเร็จ') };
+}
+
+// ตรวจการเชื่อมต่อ SMTP เป็นระยะ (เบื้องหลัง) — ถ้าตอนนี้ต่อ Gmail ไม่ได้ จะไม่รับบันทึกคำร้อง (ผู้ใช้รู้ทันที แทนที่จะบันทึกแล้วอีเมลไม่ไป)
+const opsMailHealth = { ok: true, error: null, at: 0 };
+async function opsMailCheck() {
+  if (opsMailDryRun() || !opsMailReady()) return;
+  try { await opsMailer().verify(); opsMailHealth.ok = true; opsMailHealth.error = null; }
+  catch (e) { opsMailHealth.ok = false; opsMailHealth.error = e.message; console.error('OPS mail health check failed:', e.message); }
+  opsMailHealth.at = Date.now();
+}
+if (!opsMailDryRun() && opsMailReady()) { setTimeout(opsMailCheck, 3000); setInterval(opsMailCheck, 60000).unref(); }
+const OPS_MAIL_DOWN_MSG = 'ระบบอีเมลติดต่อเซิร์ฟเวอร์ส่งอีเมล (Gmail) ไม่ได้ในขณะนี้ — ยังไม่ได้บันทึก กรุณาลองใหม่อีกครั้งในอีกสักครู่';
+
+// ---------- สถานะเอกสาร (ดูจากวันที่ของแต่ละขั้น ไม่มีคอลัมน์สถานะ) ----------
+// D = ร่าง (ยังไม่ส่ง) / S = ส่งคำร้องแล้ว รอฝ่ายจัดซื้อ / H = ฝ่ายจัดซื้อส่งขออนุมัติแล้ว รออนุมัติ (4 ขั้น)
+// B = ผู้อนุมัติส่งกลับแก้ไข (รอฝ่ายจัดซื้อแก้แล้วส่งใหม่) / A = อนุมัติรับซื้อ (สร้าง PO แล้ว) / R = ไม่รับซื้อ / C = ยกเลิก
+// ApvBack มาจาก OPS_ROUND_SQL (ผลของรอบขออนุมัติปัจจุบัน) — query ที่ใช้ opsStatus ต้อง join ไว้
+function opsStatus(m) {
+  if (m.DateCancel) return 'C';
+  if (m.DateReject) return 'R';
+  if (m.DateApv) return 'A';
+  if (m.ApvBack) return 'B';
+  if (m.DateBuy) return 'H';
+  if (m.DateSent) return 'S';
+  return 'D';
+}
+// สรุปผลรอบขออนุมัติปัจจุบัน (ต่อท้าย FROM ... m) → ar.ApvDone / ar.ApvBack / ar.ApvActed / ar.ApvCount
+const OPS_ROUND_SQL = (m = 'm') => `OUTER APPLY (
+      SELECT SUM(CASE WHEN a.Result = 'A' THEN 1 ELSE 0 END) AS ApvDone, MAX(CASE WHEN a.Result = 'B' THEN 1 ELSE 0 END) AS ApvBack,
+             SUM(CASE WHEN a.Result IS NOT NULL THEN 1 ELSE 0 END) AS ApvActed, COUNT(a.idApv) AS ApvCount
+      FROM devsk.SeedReqSaleApv a WHERE a.idOps = ${m}.idOps AND a.ApvRound = ${m}.ApvRound) ar`;
+
+// ---------- ออกเลขที่เอกสาร: OPQ{YY}{MM}/{0001} (แบบเดียวกับ URQ ของคำร้องเร่งด่วน) ----------
+// YY = พ.ศ. 2 หลักท้าย / รันแยกบริษัทผู้ร้องขอ เริ่ม 0001 ใหม่ทุกปี / ต้องเรียกใน transaction เดียวกับ INSERT
+async function getNextOpsDocCode(transaction, idCompReq, date) {
+  const yy = String(date.getFullYear() + 543).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const r = await new sql.Request(transaction)
+    .input('idComp', sql.Int, idCompReq)
+    .input('pat', sql.VarChar, `OPQ${yy}__/%`)
+    .query(`SELECT MAX(TRY_CAST(RIGHT(DocCode, 4) AS INT)) AS last
+            FROM devsk.SeedReqSaleMt WITH (UPDLOCK, HOLDLOCK)
+            WHERE idCompReq = @idComp AND DocCode LIKE @pat`);
+  return `OPQ${yy}${mm}/${String((r.recordset[0].last || 0) + 1).padStart(4, '0')}`;
+}
+
+// ---------- บรรทัด PO ตั้งต้น + ยอดขายแล้ว (ผู้ขาย) + ยอดรับแล้ว (ผู้ซื้อ) — ใช้ทั้ง popup เลือก PO และตอนบันทึก ----------
+// PO ที่บริษัทผู้ซื้อ (idCompTarget) เปิดให้บริษัทผู้ร้องขอ (idSup) / ไม่รวมที่ยกเลิก / เฉพาะเมล็ด (กลุ่ม 1, 42)
+// ยอดขาย = ใบขายของบริษัทผู้ขาย (idCompSeller) ที่อ้างบรรทัด PO (SmSaleDtAll.idPODt) ไม่ยกเลิก — ใช้คำนวณยอดเสนอขาย
+//   sellerComplete = บรรทัดใบสั่งขายที่อ้าง PO ติด "ขายครบ" (SmSaleOrderDt.stAllSale = 1) หรือยอดขาย >= PO
+//   (ผู้ขายตัดขายแล้ว แต่ผู้ซื้ออาจยังไม่รับเข้า — เช่น S69/09/0019 — ฝั่งขายถือว่าครบแล้ว)
+// ยอดรับ = ใบรับฝั่งผู้ซื้อที่ไม่ยกเลิก — แสดงประกอบ / ทั้งสองยอดแปลงเป็นหน่วย PO (กรัม <-> กก.) แปลงไม่ได้ = ไม่นับ + unitError
+// idPODts = เฉพาะบรรทัดที่ระบุ (ตอนบันทึก) / runner = transaction หรือ pool
+async function fetchOpsPoLines(runner, { idCompTarget, idSup, idCompSeller, idPODts = null, excludeIdOps = null }) {
+  const req = (runner instanceof sql.Transaction ? new sql.Request(runner) : runner.request())
+    .input('idComp', sql.Int, idCompTarget).input('idSup', sql.Int, idSup).input('seller', sql.Int, idCompSeller)
+    .input('exOps', sql.Int, excludeIdOps || 0);
+  const ids = idPODts ? idPODts.filter(Number.isInteger) : null;
+  if (ids && !ids.length) return [];
+  const r = await req.query(`
+    SELECT bdt.idPODt INTO #pl
+    FROM devsk.PKPOBuyMt bmt
+    JOIN devsk.PKPOBuyDt bdt ON bdt.idPOTs = bmt.idPOTs
+    JOIN devsk.dInventoryMain i ON i.idInvMain = bdt.idInvMain
+    WHERE bmt.idComp = @idComp AND bmt.idSup = @idSup
+      AND bmt.idPsCancel IS NULL AND bmt.stDel IS NULL
+      AND i.idInvGroup IN (${SEED_INV_GROUPS.join(',')})
+      ${ids ? `AND bdt.idPODt IN (${ids.join(',')})` : ''};
+
+    SELECT bmt.idPOTs, bmt.DocCode AS POCode, CONVERT(varchar(10), bmt.DateBuyD, 23) AS DatePO,
+           CASE WHEN bmt.idPsComplete IS NULL THEN 0 ELSE 1 END AS Completed, CONVERT(varchar(10), bmt.DateComplete, 23) AS DateComplete,
+           bdt.idPODt, bdt.idInvMain, ci.InvName, ${CROP_ID_SQL} AS idSeed, sd.SeedName, bdt.Amount, bdt.idUnitNew AS idUnit, u.UnitName
+    FROM #pl pl
+    JOIN devsk.PKPOBuyDt bdt ON bdt.idPODt = pl.idPODt
+    JOIN devsk.PKPOBuyMt bmt ON bmt.idPOTs = bdt.idPOTs
+    JOIN devsk.dInventoryMain ci ON ci.idInvMain = bdt.idInvMain
+    ${CROP_JOIN_SQL}
+    LEFT JOIN dbo.dSeed sd ON sd.idSeed = ${CROP_ID_SQL}
+    LEFT JOIN devsk.dInvUnit u ON u.idUnit = bdt.idUnitNew
+    ORDER BY bmt.DateBuyD DESC, bmt.DocCode, bdt.idPODt;
+
+    SELECT dt.idPODt, dt.AmountRec, dt.idUnitNew AS idUnit
+    FROM devsk.PKPoRecDt dt
+    JOIN devsk.PKPoRecMt mt ON mt.idPkPORec = dt.idPkPORec AND mt.idPsCancel IS NULL
+    WHERE dt.idPODt IN (SELECT idPODt FROM #pl);
+
+    SELECT p.idPODt, m.DocCode
+    FROM devsk.SeedReqSalePORef p
+    JOIN devsk.SeedReqSaleMt m ON m.idOps = p.idOps
+    WHERE p.idPODt IN (SELECT idPODt FROM #pl) AND m.DateCancel IS NULL AND m.DateReject IS NULL AND m.idOps <> @exOps;
+
+    SELECT dt.idPODt, dt.Amount, dt.idUnit
+    FROM dbo.SmSaleDtAll dt
+    JOIN dbo.SmSaleMt m ON m.idSale = dt.idSale
+    WHERE dt.idPODt IN (SELECT idPODt FROM #pl) AND m.idPsCancel IS NULL AND m.idComp = @seller;
+
+    SELECT d.idPODt, MAX(CASE WHEN d.stAllSale = 1 THEN 1 ELSE 0 END) AS AllSale
+    FROM dbo.SmSaleOrderDt d
+    JOIN dbo.SmSaleOrderMt o ON o.idSaleOrder = d.idSaleOrder
+    WHERE d.idPODt IN (SELECT idPODt FROM #pl) AND o.idPsCancel IS NULL AND d.idPsCancel IS NULL AND o.idComp = @seller
+    GROUP BY d.idPODt;
+
+    DROP TABLE #pl;`);
+  const rec = new Map();
+  r.recordsets[1].forEach(x => {
+    const cur = rec.get(x.idPODt) || { qty: 0, unitError: false, rows: [] };
+    cur.rows.push(x);
+    rec.set(x.idPODt, cur);
+  });
+  const used = new Map();
+  r.recordsets[2].forEach(x => used.set(x.idPODt, [...(used.get(x.idPODt) || []), x.DocCode]));
+  const sold = new Map();
+  r.recordsets[3].forEach(x => sold.set(x.idPODt, [...(sold.get(x.idPODt) || []), x]));
+  const allSale = new Map(r.recordsets[4].map(x => [x.idPODt, !!x.AllSale]));
+  return r.recordsets[0].map(l => {
+    const rc = rec.get(l.idPODt) || { rows: [] };
+    let qty = 0, unitError = false;
+    rc.rows.forEach(x => {
+      const v = convertUnit(Number(x.AmountRec) || 0, x.idUnit, l.idUnit);
+      if (v === null) unitError = true; else qty += v;
+    });
+    let soldQty = 0;
+    (sold.get(l.idPODt) || []).forEach(x => {
+      const v = convertUnit(Number(x.Amount) || 0, x.idUnit, l.idUnit);
+      if (v === null) unitError = true; else soldQty += v;
+    });
+    const amount = Number(l.Amount) || 0;
+    return {
+      idPOTs: l.idPOTs, poCode: l.POCode, datePO: l.DatePO, completed: !!l.Completed, dateComplete: l.DateComplete,
+      idPODt: l.idPODt, idInvMain: l.idInvMain, invName: l.InvName, idSeed: l.idSeed, seedName: l.SeedName,
+      amountPO: round6(amount), amountRec: round6(qty), amountSold: round6(soldQty), idUnit: l.idUnit, unitName: l.UnitName,
+      fullyReceived: amount > 0 && qty >= amount - OPS_EPS,
+      sellerComplete: allSale.get(l.idPODt) === true || (amount > 0 && soldQty >= amount - OPS_EPS),
+      unitError, usedIn: used.get(l.idPODt) || []
+    };
+  });
+}
+
+// ---------- ตรวจข้อมูลเอกสาร + คำนวณยอดจาก PO ล่าสุด (ใช้ทั้งสร้างและแก้ไข) ----------
+// คืน { error } หรือ { head, items } — items[].pos แปลงเป็นหน่วยของรายการแล้ว (หน่วยรายการ = หน่วยของ PO บรรทัดแรกที่เลือก)
+async function parseOpsBody(runner, body, { excludeIdOps = null } = {}) {
+  const idCompReq = parseInt(body.idCompReq, 10);
+  const idCompTarget = parseInt(body.idCompTarget, 10);
+  const idPsReq = parseInt(body.idPsReq, 10);
+  const subject = String(body.subject || '').trim() || OPS_DEFAULT_SUBJECT;
+  const causeNote = String(body.causeNote || '').trim();
+  const note = String(body.note || '').trim();
+  if (!OPS_COMPANY_IDS.includes(idCompReq)) return { error: 'กรุณาเลือกบริษัทที่ร้องขอ' };
+  if (!OPS_COMPANY_IDS.includes(idCompTarget) || idCompTarget === idCompReq) return { error: 'กรุณาเลือกบริษัทที่ส่งคำร้องถึง (ต้องไม่ใช่บริษัทเดียวกับผู้ร้องขอ)' };
+  if (!idPsReq) return { error: 'กรุณาเลือกผู้ร้องขอ' };
+  if (!subject) return { error: 'กรุณาระบุเรื่อง' };
+  if (subject.length > 300) return { error: 'เรื่องยาวเกิน 300 ตัวอักษร' };
+  if (!causeNote) return { error: 'กรุณาระบุสาเหตุ/รายละเอียดการผลิตเกิน PO' };
+  if (note.length > 1000) return { error: 'หมายเหตุยาวเกิน 1,000 ตัวอักษร' };
+  const items = Array.isArray(body.items) ? body.items : [];
+  if (!items.length) return { error: 'กรุณาเลือก PO ที่อ้างอิงอย่างน้อย 1 รายการ' };
+
+  const rows = items.map(it => ({
+    idInvMain: parseInt(it.idInvMain, 10),
+    amountProduce: Number(it.amountProduce),
+    amountOffer: Number(it.amountOffer),
+    note: String(it.note || '').trim(),
+    poIds: [...new Set((Array.isArray(it.poLines) ? it.poLines : []).map(v => parseInt(v, 10)).filter(Boolean))]
+  }));
+  const allIds = rows.flatMap(r => r.poIds);
+  if (new Set(allIds).size !== allIds.length) return { error: 'มีบรรทัด PO ซ้ำกันในหลายรายการ' };
+  if (new Set(rows.map(r => r.idInvMain)).size !== rows.length) return { error: 'มีเมล็ดพันธุ์ซ้ำกันในเอกสาร' };
+
+  const lines = await fetchOpsPoLines(runner, { idCompTarget, idSup: OPS_COMP_SUPPLIER[idCompReq], idCompSeller: idCompReq, idPODts: allIds, excludeIdOps });
+  const byId = new Map(lines.map(l => [l.idPODt, l]));
+  const out = [];
+  for (const [i, r] of rows.entries()) {
+    const no = `รายการที่ ${i + 1}`;
+    if (!r.idInvMain) return { error: `${no}: เมล็ดพันธุ์ไม่ถูกต้อง` };
+    if (!r.poIds.length) return { error: `${no}: กรุณาเลือก PO ที่อ้างอิง` };
+    if (r.note.length > 500) return { error: `${no}: หมายเหตุยาวเกิน 500 ตัวอักษร` };
+    const pos = r.poIds.map(id => byId.get(id));
+    if (pos.some(p => !p)) return { error: `${no}: พบ PO ที่ไม่ใช่ของบริษัทผู้ซื้อ/ผู้ร้องขอนี้ หรือถูกยกเลิกแล้ว — กรุณาเลือก PO ใหม่` };
+    if (pos.some(p => p.idInvMain !== r.idInvMain)) return { error: `${no}: PO ที่อ้างอิงต้องเป็นเมล็ดพันธุ์เดียวกัน` };
+    pos.sort((a, b) => a.idPODt - b.idPODt);
+    const unit = pos[0].idUnit;
+    const conv = [];
+    for (const p of pos) {
+      const po = convertUnit(p.amountPO, p.idUnit, unit), rec = convertUnit(p.amountRec, p.idUnit, unit), sold = convertUnit(p.amountSold, p.idUnit, unit);
+      if (po === null || rec === null || sold === null) return { error: `${no}: หน่วยของ PO ${p.poCode} (${p.unitName || '-'}) แปลงเป็น ${pos[0].unitName || '-'} ไม่ได้ — แยกเป็นเอกสารคนละใบ` };
+      conv.push({ ...p, amountPO: round6(po), amountRec: round6(rec), amountSold: round6(sold) });
+    }
+    const amountPO = round6(conv.reduce((s, p) => s + p.amountPO, 0));
+    const amountRec = round6(conv.reduce((s, p) => s + p.amountRec, 0));
+    const amountSold = round6(conv.reduce((s, p) => s + p.amountSold, 0));   // ขายแล้วตามใบขายฝั่งผู้ขาย
+    if (!(r.amountProduce > 0)) return { error: `${no}: ยอดผลิตได้ทั้งหมดต้องมากกว่า 0` };
+    if (r.amountProduce <= amountPO + OPS_EPS) return { error: `${no}: ยอดผลิตได้ (${r.amountProduce}) ไม่เกินยอด PO (${amountPO}) — ไม่ใช่กรณีผลิตเกิน PO` };
+    if (!(r.amountOffer > 0)) return { error: `${no}: ยอดเสนอขายเพิ่มต้องมากกว่า 0` };
+    // เสนอขายได้ไม่เกิน ผลิตได้ − ขายแล้ว (ใบขายฝั่งผู้ขาย — รวมที่ผู้ซื้อยังไม่รับเข้า)
+    const maxOffer = round6(r.amountProduce - amountSold);
+    if (maxOffer <= OPS_EPS) return { error: `${no}: ยอดผลิตได้ (${r.amountProduce}) ไม่เกินยอดที่ขายไปแล้ว (${amountSold}) — ไม่มียอดคงเหลือให้เสนอขาย` };
+    if (r.amountOffer > maxOffer + OPS_EPS) return { error: `${no}: ยอดเสนอขายเพิ่มเกินยอดคงเหลือหลังหักที่ขายแล้ว (สูงสุด ${maxOffer})` };
+    out.push({ idInvMain: r.idInvMain, idUnit: unit, amountPO, amountRec, amountSold, amountProduce: round6(r.amountProduce), amountOffer: round6(r.amountOffer), note: r.note, pos: conv });
+  }
+
+  // ผู้รับอีเมล: ผู้รับคำร้อง (to) 1 คน ต้องอยู่ในรายชื่อฝ่ายจัดซื้อของบริษัทผู้ซื้อ / สำเนา (cc) ใครก็ได้ ไม่มีก็ได้ — ทุกคนต้องมีอีเมล
+  const mailTo = parseInt(body.mailTo, 10);
+  const ccIds = [...new Set((Array.isArray(body.mailCc) ? body.mailCc : []).map(v => parseInt(v, 10)).filter(Boolean))].filter(id => id !== mailTo);
+  if (!mailTo) return { error: 'กรุณาเลือกผู้รับคำร้อง (ฝ่ายจัดซื้อ)' };
+  if (ccIds.length > OPS_MAX_CC) return { error: `สำเนาถึง (CC) ได้ไม่เกิน ${OPS_MAX_CC} คน` };
+  const to = (await opsRecipients(runner, idCompTarget)).find(x => x.idPs === mailTo);
+  if (!to) return { error: 'ผู้รับคำร้องต้องอยู่ในรายชื่อฝ่ายจัดซื้อของบริษัทที่ส่งถึง — กรุณาเลือกใหม่' };
+  if (!opsValidEmail(to.email)) return { error: `ผู้รับคำร้อง ${to.name} ไม่มีอีเมลในระบบ` };
+  const cc = await opsPeople(runner, ccIds);
+  const noMail = ccIds.filter(id => !cc.some(p => p.idPs === id && opsValidEmail(p.email)));
+  if (noMail.length) return { error: `สำเนาถึง (CC) มีผู้ที่ไม่พบ/ไม่มีอีเมลในระบบ: ${noMail.map(id => (cc.find(p => p.idPs === id) || {}).name || `#${id}`).join(', ')}` };
+
+  return { head: { idCompReq, idCompTarget, idPsReq, subject, causeNote, note, mailTo: to, mailCc: cc }, items: out };
+}
+
+// ข้อมูลพนักงาน + อีเมล (dbo.dPerson) ตามรายการ idPs — ใช้กับผู้รับสำเนา (cc)
+async function opsPeople(runner, ids) {
+  const list = (ids || []).filter(Number.isInteger);
+  if (!list.length) return [];
+  const req = runner instanceof sql.Transaction ? new sql.Request(runner) : runner.request();
+  const r = await req.query(`
+    SELECT p.idPs, v.PsName, v.PsFullName, v.PositionName, v.CompName, NULLIF(LTRIM(RTRIM(p.Email)), '') AS Email
+    FROM dbo.dPerson p
+    OUTER APPLY (SELECT TOP 1 x.PsName, x.PsFullName, x.PositionName, x.CompName FROM devsk.vPersonxSelect x WHERE x.idPs = p.idPs) v
+    WHERE p.idPs IN (${list.join(',')})`);
+  return r.recordset.map(x => ({ idPs: x.idPs, name: x.PsName || `#${x.idPs}`, full: (x.PsFullName || '').trim(), position: x.PositionName || '', compName: x.CompName || '', email: x.Email }));
+}
+
+// ผู้รับอีเมลของเอกสาร (แทนที่ของเดิมทั้งหมด — ใช้ทั้งสร้างและแก้ไข)
+async function saveOpsRecipients(transaction, idOps, head, idPsTs) {
+  await new sql.Request(transaction).input('id', sql.Int, idOps).query('DELETE FROM devsk.SeedReqSaleMailRecv WHERE idOps = @id');
+  const rows = [{ type: 'to', idPs: head.mailTo.idPs }, ...head.mailCc.map(p => ({ type: 'cc', idPs: p.idPs }))];
+  for (const x of rows) {
+    await new sql.Request(transaction)
+      .input('id', sql.Int, idOps).input('type', sql.VarChar(3), x.type).input('ps', sql.Int, x.idPs).input('ts', sql.Int, idPsTs)
+      .query('INSERT INTO devsk.SeedReqSaleMailRecv (idOps, RecvType, idPs, idPsTs, DateTs) VALUES (@id, @type, @ps, @ts, GETDATE())');
+  }
+}
+
+async function insertOpsItems(transaction, idOps, items) {
+  for (const it of items) {
+    const d = await new sql.Request(transaction)
+      .input('idOps', sql.Int, idOps).input('inv', sql.Int, it.idInvMain).input('unit', sql.Int, it.idUnit)
+      .input('po', sql.Decimal(18, 6), it.amountPO).input('rec', sql.Decimal(18, 6), it.amountRec).input('sold', sql.Decimal(18, 6), it.amountSold)
+      .input('pd', sql.Decimal(18, 6), it.amountProduce).input('of', sql.Decimal(18, 6), it.amountOffer)
+      .input('note', sql.NVarChar(500), it.note || null)
+      .query(`INSERT INTO devsk.SeedReqSaleDt (idOps, idInvMain, idUnit, AmountPO, AmountRec, AmountSold, AmountProduce, AmountOffer, NoteDt)
+              VALUES (@idOps, @inv, @unit, @po, @rec, @sold, @pd, @of, @note);
+              SELECT CAST(SCOPE_IDENTITY() AS int) AS id;`);
+    const idOpsDt = d.recordset[0].id;
+    for (const p of it.pos) {
+      await new sql.Request(transaction)
+        .input('idOps', sql.Int, idOps).input('dt', sql.Int, idOpsDt).input('pots', sql.Int, p.idPOTs).input('podt', sql.Int, p.idPODt)
+        .input('code', sql.NVarChar(30), p.poCode).input('date', sql.VarChar(10), p.datePO)
+        .input('po', sql.Decimal(18, 6), p.amountPO).input('rec', sql.Decimal(18, 6), p.amountRec).input('sold', sql.Decimal(18, 6), p.amountSold)
+        .query(`INSERT INTO devsk.SeedReqSalePORef (idOps, idOpsDt, idPOTs, idPODt, POCode, DatePO, AmountPO, AmountRec, AmountSold)
+                VALUES (@idOps, @dt, @pots, @podt, @code, CONVERT(date, @date, 23), @po, @rec, @sold)`);
+    }
+  }
+}
+
+// ล็อกหัวเอกสารใน transaction แล้วคืนแถว (ใช้ก่อนแก้ไข / ยกเลิก / ส่ง)
+async function lockOpsDoc(transaction, idOps) {
+  const r = await new sql.Request(transaction).input('id', sql.Int, idOps).query(`
+    SELECT m.idOps, m.DocCode, m.idCompReq, m.idCompTarget, m.DateSent, m.DateApv, m.DateReject, m.DateCancel,
+           m.DateBuy, m.BuyDocCode, m.ApvRound, m.idPsBuy, ar.ApvDone, ar.ApvBack, ar.ApvActed, ar.ApvCount,
+           CONVERT(varchar(23), ISNULL(m.DateEdit, m.DateTs), 121) AS Stamp
+    FROM devsk.SeedReqSaleMt m WITH (UPDLOCK, ROWLOCK)
+    ${OPS_ROUND_SQL()}
+    WHERE m.idOps = @id`);
+  return r.recordset[0] || null;
+}
+
+// ---------- บริษัท (2, 3, 4) + allowed = มีสิทธิ์บริษัทนั้น ----------
+app.get('/api/ops/companies', requireMenu([MENU_OPS, MENU_OPS_BUY]), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().query(`
+      SELECT idComp AS id, CompName AS name FROM PchInvAndProject.dbo.dCompany
+      WHERE stDel IS NULL AND idComp IN (${OPS_COMPANY_IDS.join(',')}) ORDER BY CompName`);
+    res.json({
+      success: true,
+      data: r.recordset.map(c => ({ ...c, allowed: hasComp(req.access, c.id) })),
+      mailReady: opsMailReady(), mailDryRun: opsMailDryRun(), mailRedirect: opsMailRedirect() || null,
+      canMailTo: hasMenu(req.access, MENU_OPS_MAILTO), canReq: hasMenu(req.access, MENU_OPS), canBuy: hasMenu(req.access, MENU_OPS_BUY),
+      poTestRollback: opsPoTestRollback()
+    });
+  } catch (err) {
+    console.error('OPS companies error:', err);
+    res.status(500).json({ success: false, message: 'โหลดข้อมูลบริษัทไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- popup เลือก PO ตั้งต้น ----------
+// ค่าเริ่มต้น = เฉพาะ PO ที่สิ้นสุดแล้ว (idPsComplete) หรือบรรทัดที่รับครบแล้ว / all=1 = รวม PO ที่ยังรับไม่ครบ
+app.get('/api/ops/po-lines', requireMenu(MENU_OPS, { companyParam: 'idCompReq' }), async (req, res) => {
+  const idCompReq = parseInt(req.query.idCompReq, 10);
+  const idCompTarget = parseInt(req.query.idCompTarget, 10);
+  const excludeIdOps = parseInt(req.query.idOps, 10) || null;
+  if (!OPS_COMPANY_IDS.includes(idCompReq) || !OPS_COMPANY_IDS.includes(idCompTarget) || idCompReq === idCompTarget) {
+    return res.status(400).json({ success: false, message: 'กรุณาเลือกบริษัทที่ร้องขอและบริษัทที่ส่งคำร้องถึง' });
+  }
+  try {
+    const pool = await poolPromise;
+    const lines = await fetchOpsPoLines(pool, { idCompTarget, idSup: OPS_COMP_SUPPLIER[idCompReq], idCompSeller: idCompReq, excludeIdOps });
+    // แสดงเฉพาะ PO ที่ผู้ขายขายครบแล้ว / ผู้ซื้อรับครบแล้ว / สิ้นสุดแล้ว (PO ที่ยังขายได้ตามปกติ ไม่ต้องใช้เมนูนี้)
+    const data = req.query.all === '1' ? lines : lines.filter(l => l.sellerComplete || l.completed || l.fullyReceived);
+    res.json({ success: true, data, hiddenOpen: lines.length - data.length });
+  } catch (err) {
+    console.error('OPS PO lines error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการ PO ไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- รายการเอกสาร: side = req (ของบริษัทผู้ร้องขอ) / buy (ที่ส่งถึงบริษัทผู้ซื้อ — เฉพาะที่ส่งแล้ว) ----------
+// range = { from, to } ('YYYY-MM-DD' ตามวันที่ร้องขอ): กรองเฉพาะเอกสารที่สิ้นสุดแล้ว (อนุมัติ / ไม่รับซื้อ / ยกเลิก)
+// เอกสารระหว่างดำเนินการแสดงทุกฉบับเสมอ ไม่ว่าวันที่ใด — ไม่ส่ง range = ทั้งหมด
+async function opsListDocs(idComp, side, range = {}) {
+  const pool = await poolPromise;
+  const okDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !isNaN(new Date(v));
+  const from = okDate(range.from) ? range.from : null, to = okDate(range.to) ? range.to : null;
+  const closed = 'm.DateCancel IS NOT NULL OR m.DateReject IS NOT NULL OR m.DateApv IS NOT NULL';
+  const where = (side === 'buy' ? 'm.idCompTarget = @idComp AND m.DateSent IS NOT NULL' : 'm.idCompReq = @idComp')
+    + (from || to ? ` AND (NOT (${closed}) OR (${from ? 'm.DateDoc >= @from' : '1 = 1'} AND ${to ? 'm.DateDoc < DATEADD(day, 1, @to)' : '1 = 1'}))` : '');
+  const r = await pool.request().input('idComp', sql.Int, idComp).input('from', sql.Date, from).input('to', sql.Date, to).query(`
+    SELECT m.idOps, m.DocCode, CONVERT(varchar(10), m.DateDoc, 23) AS DateDoc, m.idCompReq, m.idCompTarget, ct.CompName AS CompNameTarget, cr.CompName AS CompNameReq,
+           m.idPsReq, pr.PsName AS PsNameReq, m.Subject, m.CauseNote,
+           m.DateSent, m.DateApv, m.DateReject, m.DateCancel, m.DateBuy, m.RejectNote, m.RejectStep, m.CancelNote,
+           m.BuyDocCode, m.ApvRound, ar.ApvDone, ar.ApvBack, ar.ApvActed, ar.ApvCount, po.DocCode AS POCodeAuto,
+           CONVERT(varchar(16), m.DateSent, 120) AS TxSent, CONVERT(varchar(16), m.DateCancel, 120) AS TxCancel, pc.PsName AS PsCancel,
+           CONVERT(varchar(16), m.DateBuy, 120) AS TxBuy, pb.PsName AS PsBuy, CONVERT(varchar(16), m.DateReject, 120) AS TxReject, prj.PsName AS PsReject,
+           ml.LastMail, ml.MailFail
+    FROM devsk.SeedReqSaleMt m
+    LEFT JOIN PchInvAndProject.dbo.dCompany ct ON ct.idComp = m.idCompTarget
+    LEFT JOIN PchInvAndProject.dbo.dCompany cr ON cr.idComp = m.idCompReq
+    LEFT JOIN devsk.PkPOBuyMt po ON po.idPOTs = m.idPOTsAuto
+    ${OPS_ROUND_SQL()}
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsReq) pr
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsCancel) pc
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsBuy) pb
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsReject) prj
+    OUTER APPLY (SELECT MAX(l.DateSend) AS LastSend FROM devsk.SeedReqSaleMailLog l WHERE l.idOps = m.idOps) lm
+    OUTER APPLY (SELECT CONVERT(varchar(16), lm.LastSend, 120) AS LastMail,
+                        SUM(CASE WHEN l.stSend = 0 THEN 1 ELSE 0 END) AS MailFail
+                 FROM devsk.SeedReqSaleMailLog l WHERE l.idOps = m.idOps AND l.DateSend = lm.LastSend) ml
+    WHERE ${where}
+    ORDER BY m.DateDoc DESC, m.idOps DESC;
+
+    SELECT d.idOps, d.idOpsDt, i.InvName, d.AmountPO, d.AmountRec, d.AmountSold, d.AmountProduce, d.AmountOffer, d.AmountBuy, d.Price, u.UnitName,
+           STUFF((SELECT ', ' + p.POCode FROM devsk.SeedReqSalePORef p WHERE p.idOpsDt = d.idOpsDt ORDER BY p.DatePO, p.POCode FOR XML PATH('')), 1, 2, '') AS POCodes
+    FROM devsk.SeedReqSaleDt d
+    JOIN devsk.SeedReqSaleMt m ON m.idOps = d.idOps
+    LEFT JOIN devsk.dInventoryMain i ON i.idInvMain = d.idInvMain
+    LEFT JOIN devsk.dInvUnit u ON u.idUnit = d.idUnit
+    WHERE ${where}
+    ORDER BY d.idOps, d.idOpsDt;`);
+  const items = new Map();
+  r.recordsets[1].forEach(x => items.set(x.idOps, [...(items.get(x.idOps) || []), {
+    invName: x.InvName, amountPO: Number(x.AmountPO), amountRec: Number(x.AmountRec), amountSold: x.AmountSold == null ? null : Number(x.AmountSold),
+    amountProduce: Number(x.AmountProduce), amountOffer: Number(x.AmountOffer),
+    amountBuy: x.AmountBuy == null ? null : Number(x.AmountBuy), price: x.Price == null ? null : Number(x.Price),
+    unit: x.UnitName, poCodes: x.POCodes || ''
+  }]));
+  return r.recordsets[0].map(m => ({
+    id: m.idOps, docNo: m.DocCode, docDate: m.DateDoc, req: m.idCompReq, reqName: m.CompNameReq, target: m.idCompTarget, targetName: m.CompNameTarget,
+    requester: m.PsNameReq || '-', subject: m.Subject || '', cause: m.CauseNote || '', status: opsStatus(m),
+    sentAt: m.TxSent, lastMail: m.LastMail, mailFail: (m.MailFail || 0) > 0,
+    cancel: m.TxCancel ? { by: m.PsCancel || '-', at: m.TxCancel, reason: m.CancelNote || '' } : null,
+    rejectNote: m.RejectNote || '', reject: m.TxReject ? { by: m.PsReject || '-', at: m.TxReject, step: m.RejectStep || '' } : null,
+    buyDocNo: m.BuyDocCode || null, buy: m.TxBuy ? { by: m.PsBuy || '-', at: m.TxBuy } : null,
+    apvDone: m.ApvDone || 0, apvCount: m.ApvCount || 0, apvActed: m.ApvActed || 0, poCode: m.POCodeAuto || null,
+    items: items.get(m.idOps) || []
+  }));
+}
+
+app.get('/api/ops/docs', requireMenu(MENU_OPS, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = parseInt(req.query.idComp, 10);
+  if (!OPS_COMPANY_IDS.includes(idComp)) return res.status(400).json({ success: false, message: 'กรุณาเลือกบริษัท' });
+  try {
+    res.json({ success: true, data: await opsListDocs(idComp, 'req', { from: req.query.dateFrom, to: req.query.dateTo }) });
+  } catch (err) {
+    console.error('OPS list error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการเอกสารไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// รายการคำร้องที่ส่งถึงบริษัทผู้ซื้อ (หน้าพิจารณาคำร้องขอขาย — ฝ่ายจัดซื้อ)
+app.get('/api/ops/buy/docs', requireMenu(MENU_OPS_BUY, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = parseInt(req.query.idComp, 10);
+  if (!OPS_COMPANY_IDS.includes(idComp)) return res.status(400).json({ success: false, message: 'กรุณาเลือกบริษัท' });
+  try {
+    res.json({ success: true, data: await opsListDocs(idComp, 'buy', { from: req.query.dateFrom, to: req.query.dateTo }) });
+  } catch (err) {
+    console.error('OPS buy list error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการเอกสารไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- เปิดเอกสารใบเดียว (ฟอร์มแก้ไข + หน้าเอกสาร A4) ----------
+// ดูได้ถ้ามีสิทธิ์เมนู + บริษัทผู้ร้องขอหรือผู้ซื้อ หรือเป็นผู้รับอีเมล (to / cc) ของเอกสารนั้น (แค่ login)
+// runner = transaction (อ่านข้อมูลที่เพิ่งบันทึกใน transaction เดียวกัน ก่อนส่งอีเมล) / ไม่ระบุ = pool
+async function loadOpsDoc(idOps, runner = null) {
+  const req = runner ? new sql.Request(runner) : (await poolPromise).request();
+  const r = await req.input('id', sql.Int, idOps).query(`
+    SELECT m.*, CONVERT(varchar(10), m.DateDoc, 23) AS DocDate, CONVERT(varchar(23), ISNULL(m.DateEdit, m.DateTs), 121) AS Stamp,
+           c.CompName, c.CompNameEng, c.Address AS CompAddress, c.PostCode AS CompPostCode, c.Tel AS CompTel, c.Fax AS CompFax,
+           LTRIM(RTRIM(pvc.ProvinceName)) AS CompProvince, ct.CompName AS CompNameTarget,
+           pr.PsName AS PsNameReq, pr.PsFullName AS FullReq, pr.PositionName AS PosReq,
+           CONVERT(varchar(16), m.DateTs, 120) AS TxTs, pt.PsName AS PsTs, CONVERT(varchar(16), m.DateEdit, 120) AS TxEdit, pe.PsName AS PsEdit,
+           CONVERT(varchar(16), m.DateSent, 120) AS TxSent, ps.PsName AS PsSent,
+           CONVERT(varchar(16), m.DateCancel, 120) AS TxCancel, pc.PsName AS PsCancel,
+           -- อนุมัติครบ (ผู้กดคนสุดท้าย) / ไม่รับซื้อ — ผลรายขั้นอยู่ใน SeedReqSaleApv
+           CONVERT(varchar(16), m.DateApv, 120) AS TxApv, pav.PsName AS PsApv, CONVERT(varchar(16), m.DateReject, 120) AS TxReject, prj.PsName AS PsReject,
+           -- ฝ่ายจัดซื้อ (ใบขออนุมัติรับซื้อ OPA) + ผลรอบขออนุมัติปัจจุบัน + PO ที่สร้างอัตโนมัติ
+           CONVERT(varchar(10), m.BuyDateDoc, 23) AS BuyDocDate, CONVERT(varchar(16), m.DateBuy, 120) AS TxBuy, CONVERT(varchar(10), m.BuyDateGet, 23) AS BuyGetDate,
+           pb.PsName AS PsBuy, pb.PsFullName AS FullBuy, pb.PositionName AS PosBuy,
+           ar.ApvDone, ar.ApvBack, ar.ApvActed, ar.ApvCount, po.DocCode AS POCodeAuto, sod.DocCode AS SaleOrderCode,
+           cb.CompNameEng AS TgtNameEng, cb.Address AS TgtAddress, cb.PostCode AS TgtPostCode, cb.Tel AS TgtTel, cb.Fax AS TgtFax, LTRIM(RTRIM(pvt.ProvinceName)) AS TgtProvince
+    FROM devsk.SeedReqSaleMt m
+    LEFT JOIN devsk.PkPOBuyMt po ON po.idPOTs = m.idPOTsAuto
+    OUTER APPLY (SELECT TOP 1 o.DocCode FROM dbo.SmSaleOrderMt o WHERE o.idPOTs = m.idPOTsAuto AND m.idPOTsAuto IS NOT NULL AND o.idPsCancel IS NULL ORDER BY o.idSaleOrder DESC) sod
+    LEFT JOIN PchInvAndProject.dbo.dCompany cb ON cb.idComp = m.idCompTarget
+    LEFT JOIN PchInvAndProject.dbo.dProvinceFix pvt ON pvt.idProvince = cb.idProvince
+    ${OPS_ROUND_SQL()}
+    OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName, v.PositionName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsBuy) pb
+    LEFT JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = m.idCompReq
+    LEFT JOIN PchInvAndProject.dbo.dProvinceFix pvc ON pvc.idProvince = c.idProvince
+    LEFT JOIN PchInvAndProject.dbo.dCompany ct ON ct.idComp = m.idCompTarget
+    OUTER APPLY (SELECT TOP 1 v.PsName, v.PsFullName, v.PositionName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsReq) pr
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsTs) pt
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsEdit) pe
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsSent) ps
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsCancel) pc
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsApv) pav
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsReject) prj
+    WHERE m.idOps = @id;
+
+    SELECT d.idOpsDt, d.idInvMain, ci.InvName, ci.idInvGroup, sd.SeedName, d.idUnit, u.UnitName, d.AmountPO, d.AmountRec, d.AmountSold, d.AmountProduce, d.AmountOffer, d.AmountBuy, d.Price, d.NoteDt
+    FROM devsk.SeedReqSaleDt d
+    JOIN devsk.dInventoryMain ci ON ci.idInvMain = d.idInvMain
+    ${CROP_JOIN_SQL}
+    LEFT JOIN dbo.dSeed sd ON sd.idSeed = ${CROP_ID_SQL}
+    LEFT JOIN devsk.dInvUnit u ON u.idUnit = d.idUnit
+    WHERE d.idOps = @id ORDER BY d.idOpsDt;
+
+    SELECT p.idOpsDt, p.idPOTs, p.idPODt, p.POCode, CONVERT(varchar(10), p.DatePO, 23) AS DatePO, p.AmountPO, p.AmountRec, p.AmountSold
+    FROM devsk.SeedReqSalePORef p WHERE p.idOps = @id ORDER BY p.DatePO, p.POCode, p.idPODt;
+
+    SELECT l.Step, l.RecvType, l.Email, l.stSend, l.ErrMsg, CONVERT(varchar(16), l.DateSend, 120) AS TxSend, v.PsName
+    FROM devsk.SeedReqSaleMailLog l
+    OUTER APPLY (SELECT TOP 1 x.PsName FROM devsk.vPersonxSelect x WHERE x.idPs = l.idPs) v
+    WHERE l.idOps = @id ORDER BY l.DateSend DESC, l.idMailLog;
+
+    SELECT r.RecvType, r.idPs, v.PsName, v.PsFullName, v.PositionName, v.CompName, NULLIF(LTRIM(RTRIM(p.Email)), '') AS Email
+    FROM devsk.SeedReqSaleMailRecv r
+    LEFT JOIN dbo.dPerson p ON p.idPs = r.idPs
+    OUTER APPLY (SELECT TOP 1 x.PsName, x.PsFullName, x.PositionName, x.CompName FROM devsk.vPersonxSelect x WHERE x.idPs = r.idPs) v
+    WHERE r.idOps = @id ORDER BY r.idRecv;
+
+    SELECT a.idApv, a.ApvRound, a.StepCode, a.idPsAssign, a.Result, a.Note, a.idPsAct, CONVERT(varchar(16), a.DateAct, 120) AS TxAct,
+           CONVERT(varchar(16), a.DateTs, 120) AS TxTs, v.PsName, v.PsFullName, v.PositionName, NULLIF(LTRIM(RTRIM(p.Email)), '') AS Email, va.PsName AS PsAct
+    FROM devsk.SeedReqSaleApv a
+    LEFT JOIN dbo.dPerson p ON p.idPs = a.idPsAssign
+    OUTER APPLY (SELECT TOP 1 x.PsName, x.PsFullName, x.PositionName FROM devsk.vPersonxSelect x WHERE x.idPs = a.idPsAssign) v
+    OUTER APPLY (SELECT TOP 1 x.PsName FROM devsk.vPersonxSelect x WHERE x.idPs = a.idPsAct) va
+    WHERE a.idOps = @id ORDER BY a.ApvRound, a.idApv;`);
+  const m = r.recordsets[0][0];
+  if (!m) return null;
+  const pos = r.recordsets[2];
+  return {
+    id: m.idOps, docNo: m.DocCode, docDate: m.DocDate, stamp: m.Stamp, status: opsStatus(m),
+    compReq: m.idCompReq, compReqName: m.CompName, compTarget: m.idCompTarget, compTargetName: m.CompNameTarget,
+    compInfo: { nameEn: m.CompNameEng || '', address: m.CompAddress || '', province: m.CompProvince || '', postCode: m.CompPostCode || '', tel: m.CompTel || '', fax: m.CompFax || '' },
+    requester: { id: m.idPsReq, name: m.PsNameReq || '-', full: (m.FullReq || '').trim(), pos: m.PosReq || '' },
+    subject: m.Subject || '', causeNote: m.CauseNote || '', note: m.Note || '',
+    created: { by: m.PsTs || '-', at: m.TxTs }, edited: m.TxEdit ? { by: m.PsEdit || '-', at: m.TxEdit } : null,
+    sent: m.TxSent ? { by: m.PsSent || '-', at: m.TxSent } : null,
+    cancel: m.TxCancel ? { by: m.PsCancel || '-', at: m.TxCancel, reason: m.CancelNote || '' } : null,
+    reject: m.DateReject ? { note: m.RejectNote || '', step: m.RejectStep || '', by: m.PsReject || '-', at: m.TxReject } : null,
+    buyerSteps: {
+      approve: m.TxApv ? { by: m.PsApv || '-', at: m.TxApv } : null
+    },
+    items: r.recordsets[1].map(d => ({
+      idInvMain: d.idInvMain, invName: d.InvName, seedName: d.SeedName, idUnit: d.idUnit, unit: d.UnitName,
+      amountPO: Number(d.AmountPO), amountRec: Number(d.AmountRec), amountSold: d.AmountSold == null ? null : Number(d.AmountSold),
+      amountProduce: Number(d.AmountProduce), amountOffer: Number(d.AmountOffer),
+      price: d.Price == null ? null : Number(d.Price), note: d.NoteDt || '',
+      idOpsDt: d.idOpsDt, idInvGroup: d.idInvGroup, amountBuy: d.AmountBuy == null ? null : Number(d.AmountBuy),
+      pos: pos.filter(p => p.idOpsDt === d.idOpsDt).map(p => ({
+        idPOTs: p.idPOTs, idPODt: p.idPODt, poCode: p.POCode, datePO: p.DatePO, amountPO: Number(p.AmountPO), amountRec: Number(p.AmountRec),
+        amountSold: p.AmountSold == null ? null : Number(p.AmountSold)
+      }))
+    })),
+    mails: r.recordsets[3].map(l => ({ step: l.Step, type: l.RecvType, email: l.Email, name: l.PsName || '', ok: !!l.stSend, error: l.ErrMsg || '', at: l.TxSend })),
+    recipients: (() => {
+      const ps = r.recordsets[4].map(x => ({ type: x.RecvType, idPs: x.idPs, name: x.PsName || `#${x.idPs}`, full: (x.PsFullName || '').trim(), position: x.PositionName || '', compName: x.CompName || '', email: x.Email }));
+      return { to: ps.find(x => x.type === 'to') || null, cc: ps.filter(x => x.type === 'cc') };
+    })(),
+    // ---- ฝ่ายจัดซื้อ / ขออนุมัติ (เฟส 2) ----
+    tgtInfo: { nameEn: m.TgtNameEng || '', address: m.TgtAddress || '', province: m.TgtProvince || '', postCode: m.TgtPostCode || '', tel: m.TgtTel || '', fax: m.TgtFax || '' },
+    buy: m.BuyDocCode || m.TxBuy ? {
+      docNo: m.BuyDocCode || null, docDate: m.BuyDocDate, at: m.TxBuy, dateGet: m.BuyGetDate, note: m.BuyNote || '',
+      by: m.idPsBuy ? { id: m.idPsBuy, name: m.PsBuy || '-', full: (m.FullBuy || '').trim(), pos: m.PosBuy || '' } : null
+    } : null,
+    apvRound: m.ApvRound || 0,
+    apvSummary: { done: m.ApvDone || 0, count: m.ApvCount || 0, acted: m.ApvActed || 0 },
+    approvals: r.recordsets[5].map(a => ({
+      id: a.idApv, round: a.ApvRound, step: a.StepCode, idPs: a.idPsAssign, name: a.PsName || `#${a.idPsAssign}`, full: (a.PsFullName || '').trim(),
+      position: a.PositionName || '', email: a.Email, result: a.Result || null, note: a.Note || '', at: a.TxAct, actBy: a.idPsAct ? (a.PsAct || '-') : null, sentAt: a.TxTs
+    })),
+    poAuto: m.idPOTsAuto ? { id: m.idPOTsAuto, docNo: m.POCodeAuto || null, saleOrder: m.SaleOrderCode || null } : null
+  };
+}
+
+// ผู้รับ to / cc ของเอกสาร เปิดดูได้แม้ไม่มีสิทธิ์เมนู (ดูอย่างเดียว) / canEdit = มีสิทธิ์เมนู + บริษัทผู้ร้องขอ
+app.get('/api/ops/doc/:id', requireLogin, async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
+  try {
+    const access = await getUserAccess(req.idPs);
+    const doc = await loadOpsDoc(idOps);
+    if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบเอกสาร' });
+    const member = hasMenu(access, MENU_OPS) && (hasComp(access, doc.compReq) || hasComp(access, doc.compTarget));
+    const buyer = hasMenu(access, MENU_OPS_BUY) && hasComp(access, doc.compTarget);
+    const recipient = [doc.recipients.to, ...doc.recipients.cc].some(x => x && x.idPs === req.idPs);
+    const approver = doc.approvals.some(a => a.idPs === req.idPs);
+    if (!member && !buyer && !recipient && !approver) return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์เปิดเอกสารนี้' });
+    const canEdit = hasMenu(access, MENU_OPS) && hasComp(access, doc.compReq);
+    // ฝ่ายจัดซื้อ: กรอกจำนวนรับซื้อ/ราคา/ผู้อนุมัติ แล้วส่งขออนุมัติ — ได้ตอนรอฝ่ายจัดซื้อ / ส่งกลับแก้ไข / ส่งขออนุมัติแล้วแต่ยังไม่มีใครกด
+    const buyOpen = doc.status === 'S' || doc.status === 'B' || (doc.status === 'H' && !doc.apvSummary.acted);
+    const myApv = doc.status === 'H' ? doc.approvals.filter(a => a.round === doc.apvRound && a.idPs === req.idPs && !a.result).map(a => a.step) : [];
+    // ราคา / จำนวนรับซื้อ / ผู้อนุมัติ เป็นข้อมูลภายในฝ่ายซื้อ — ฝั่งผู้ร้องขอ (และ CC) ไม่เห็น
+    const internal = buyer || approver;
+    const data = { ...doc, mails: member || buyer ? doc.mails : [], canEdit, viewOnly: !canEdit, canBuy: buyer && buyOpen, isBuyer: buyer, myApv, internal };
+    if (!internal) {
+      // ราคา: ผู้ร้องขอเห็นเมื่ออนุมัติแล้ว (ราคาอยู่ใน PO ที่ส่งถึงผู้ขายอยู่แล้ว)
+      if (doc.status !== 'A') data.items = doc.items.map(it => ({ ...it, price: null }));
+      data.approvals = [];
+      data.buy = doc.buy ? { docNo: doc.buy.docNo, at: doc.buy.at } : null;
+    }
+    if (buyer && buyOpen) data.apvDefaults = await opsApvDefaults(idOps, doc);
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('OPS doc error:', err);
+    res.status(500).json({ success: false, message: 'โหลดเอกสารไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- บันทึกเอกสารใหม่ (ร่าง — ยังไม่ส่งอีเมล) ----------
+// ---------- บันทึกและส่งคำร้อง: บันทึก + ส่งอีเมลใน transaction เดียว — ส่งถึงผู้รับคำร้องไม่สำเร็จ = ไม่บันทึกอะไรเลย ----------
+app.post('/api/ops/docs', requireMenu(MENU_OPS, { companyParam: 'idCompReq' }), async (req, res) => {
+  if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — บันทึกและส่งคำร้องไม่ได้ ติดต่อผู้ดูแลระบบ' });
+  if (!opsMailHealth.ok) return res.status(503).json({ success: false, message: OPS_MAIL_DOWN_MSG });
+  let transaction;
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const parsed = await parseOpsBody(transaction, req.body);
+    if (parsed.error) { await transaction.rollback(); return res.status(400).json({ success: false, message: parsed.error }); }
+    const { head, items } = parsed;
+    const now = (await new sql.Request(transaction).query('SELECT GETDATE() AS now')).recordset[0].now;
+    const docCode = await getNextOpsDocCode(transaction, head.idCompReq, now);
+    const mt = await new sql.Request(transaction)
+      .input('doc', sql.VarChar(12), docCode).input('now', sql.DateTime, now)
+      .input('req', sql.Int, head.idCompReq).input('tgt', sql.Int, head.idCompTarget).input('ps', sql.Int, head.idPsReq)
+      .input('subj', sql.NVarChar(300), head.subject).input('cause', sql.NVarChar(sql.MAX), head.causeNote)
+      .input('note', sql.NVarChar(1000), head.note || null).input('ts', sql.Int, req.idPs)
+      .query(`INSERT INTO devsk.SeedReqSaleMt (DocCode, DateDoc, idCompReq, idCompTarget, idPsReq, Subject, CauseNote, Note, idPsTs, DateTs)
+              VALUES (@doc, @now, @req, @tgt, @ps, @subj, @cause, @note, @ts, @now);
+              SELECT CAST(SCOPE_IDENTITY() AS int) AS id;`);
+    const idOps = mt.recordset[0].id;
+    await insertOpsItems(transaction, idOps, items);
+    await saveOpsRecipients(transaction, idOps, head, req.idPs);
+    const plan = await opsMailPlan(transaction, idOps);
+    if (!plan.ok) { await transaction.rollback(); return res.status(400).json({ success: false, message: `${plan.message} — ระบบยังไม่ได้บันทึกเอกสาร` }); }
+    await opsMarkSent(transaction, idOps, req.idPs);
+    await transaction.commit();
+    res.json({ success: true, id: idOps, docNo: docCode, mailPending: true, results: opsPendingResults(plan) });
+    opsBackground('send', () => deliverOpsMails(idOps, 'send', req));
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('OPS save error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกเอกสารไม่สำเร็จ — ระบบไม่ได้บันทึกข้อมูลใดๆ', detail: err.message });
+  }
+});
+
+// ---------- แก้ไข: ได้จนกว่าฝั่งผู้ซื้อจะเริ่มดำเนินการ (ตรวจสอบ) — บันทึกแล้วส่งอีเมล "(แก้ไขเอกสาร)" ถึงผู้รับคำร้อง + CC ----------
+// ส่งอีเมลไม่สำเร็จ = ไม่บันทึกการแก้ไข / เปลี่ยนบริษัทผู้ร้องขอไม่ได้ / มีคนแก้ไปก่อน = ไม่บันทึก
+app.put('/api/ops/docs/:id', requireMenu(MENU_OPS), async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
+  if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — ติดต่อผู้ดูแลระบบ' });
+  if (!opsMailHealth.ok) return res.status(503).json({ success: false, message: OPS_MAIL_DOWN_MSG });
+  let transaction;
+  const fail = async (code, message, extra = {}) => { await transaction.rollback(); return res.status(code).json({ success: false, message, ...extra }); };
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const cur = await lockOpsDoc(transaction, idOps);
+    if (!cur) return fail(404, 'ไม่พบเอกสาร');
+    if (!hasComp(req.access, cur.idCompReq)) return fail(403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    const st = opsStatus(cur);
+    if (!['D', 'S'].includes(st)) return fail(409, 'ฝั่งผู้ซื้อเริ่มดำเนินการแล้ว หรือเอกสารถูกยกเลิก — แก้ไขไม่ได้');
+    if (req.body.stamp && req.body.stamp !== cur.Stamp) return fail(409, 'มีผู้อื่นแก้ไขเอกสารนี้ไปก่อนแล้ว — กรุณาเปิดเอกสารใหม่อีกครั้ง');
+    const parsed = await parseOpsBody(transaction, { ...req.body, idCompReq: cur.idCompReq }, { excludeIdOps: idOps });
+    if (parsed.error) return fail(400, parsed.error);
+    const { head, items } = parsed;
+    await new sql.Request(transaction)
+      .input('id', sql.Int, idOps).input('tgt', sql.Int, head.idCompTarget).input('ps', sql.Int, head.idPsReq)
+      .input('subj', sql.NVarChar(300), head.subject).input('cause', sql.NVarChar(sql.MAX), head.causeNote)
+      .input('note', sql.NVarChar(1000), head.note || null).input('ed', sql.Int, req.idPs)
+      .query(`UPDATE devsk.SeedReqSaleMt SET idCompTarget = @tgt, idPsReq = @ps, Subject = @subj, CauseNote = @cause, Note = @note,
+                     idPsEdit = @ed, DateEdit = GETDATE()
+              WHERE idOps = @id;
+              DELETE FROM devsk.SeedReqSalePORef WHERE idOps = @id;
+              DELETE FROM devsk.SeedReqSaleDt WHERE idOps = @id;`);
+    await insertOpsItems(transaction, idOps, items);
+    await saveOpsRecipients(transaction, idOps, head, req.idPs);
+    const kind = st === 'S' ? 'edit' : 'send';
+    const plan = await opsMailPlan(transaction, idOps);
+    if (!plan.ok) return fail(400, `${plan.message} — ระบบยังไม่ได้บันทึกการแก้ไข`);
+    await opsMarkSent(transaction, idOps, req.idPs);
+    await transaction.commit();
+    res.json({ success: true, id: idOps, docNo: cur.DocCode, mailPending: true, results: opsPendingResults(plan) });
+    opsBackground('send-' + kind, () => deliverOpsMails(idOps, kind, req));
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('OPS edit error:', err);
+    res.status(500).json({ success: false, message: 'แก้ไขเอกสารไม่สำเร็จ — ระบบไม่ได้เปลี่ยนแปลงข้อมูล', detail: err.message });
+  }
+});
+
+// ---------- ยกเลิก (ร่าง หรือส่งแล้วแต่ฝั่งผู้ซื้อยังไม่ดำเนินการ) — ต้องระบุเหตุผล ----------
+app.post('/api/ops/docs/:id/cancel', requireMenu(MENU_OPS), async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  const note = String(req.body.note || '').trim();
+  if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
+  if (note.length <= 5 || /^[-0\s]+$/.test(note)) return res.status(400).json({ success: false, message: 'กรุณาระบุเหตุผลการยกเลิก (มากกว่า 5 ตัวอักษร)' });
+  if (note.length > 500) return res.status(400).json({ success: false, message: 'เหตุผลยาวเกิน 500 ตัวอักษร' });
+  let transaction;
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const cur = await lockOpsDoc(transaction, idOps);
+    const stop = async (code, message) => { await transaction.rollback(); return res.status(code).json({ success: false, message }); };
+    if (!cur) return stop(404, 'ไม่พบเอกสาร');
+    if (!hasComp(req.access, cur.idCompReq)) return stop(403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    if (!['D', 'S'].includes(opsStatus(cur))) return stop(409, 'ฝั่งผู้ซื้อดำเนินการกับเอกสารนี้แล้ว หรือถูกยกเลิกไปแล้ว — ยกเลิกไม่ได้');
+    await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, req.idPs).input('note', sql.NVarChar(500), note)
+      .query('UPDATE devsk.SeedReqSaleMt SET idPsCancel = @ps, DateCancel = GETDATE(), CancelNote = @note WHERE idOps = @id');
+    await transaction.commit();
+    res.json({ success: true });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('OPS cancel error:', err);
+    res.status(500).json({ success: false, message: 'ยกเลิกเอกสารไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ผู้รับอีเมล (ตามบริษัทผู้ซื้อ) ----------
+// รายชื่อฝ่ายจัดซื้อที่เลือกเป็น "ผู้รับคำร้อง" ได้ / isDefault = ผู้รับค่าเริ่มต้นของบริษัท (ไม่ได้ตั้ง = คนแรกตามชื่อ) — เรียงคนค่าเริ่มต้นก่อน
+async function opsRecipients(runner, idComp, step = OPS_MAIL_STEP_CHECK) {
+  const req = runner instanceof sql.Transaction ? new sql.Request(runner) : runner.request();
+  const r = await req.input('idComp', sql.Int, idComp).input('step', sql.VarChar(10), step).query(`
+    SELECT t.idMailTo, t.idPs, t.stDefault, v.PsName, v.PsFullName, v.PositionName, NULLIF(LTRIM(RTRIM(p.Email)), '') AS Email
+    FROM devsk.SeedReqSaleMailTo t
+    LEFT JOIN dbo.dPerson p ON p.idPs = t.idPs
+    OUTER APPLY (SELECT TOP 1 x.PsName, x.PsFullName, x.PositionName FROM devsk.vPersonxSelect x WHERE x.idPs = t.idPs) v
+    WHERE t.idComp = @idComp AND t.Step = @step AND t.stDel IS NULL
+    ORDER BY CASE WHEN t.stDefault = 1 THEN 0 ELSE 1 END, v.PsName`);
+  const list = r.recordset.map(x => ({ id: x.idMailTo, idPs: x.idPs, name: x.PsName || `#${x.idPs}`, full: (x.PsFullName || '').trim(), position: x.PositionName || '', email: x.Email, isDefault: !!x.stDefault }));
+  if (list.length && !list.some(x => x.isDefault)) list[0].isDefault = true;
+  return list;
+}
+const opsValidEmail = (e) => typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+
+app.get('/api/ops/mailto', requireMenu(MENU_OPS), async (req, res) => {
+  const idComp = parseInt(req.query.idComp, 10);
+  if (!OPS_COMPANY_IDS.includes(idComp)) return res.status(400).json({ success: false, message: 'กรุณาเลือกบริษัท' });
+  try {
+    const pool = await poolPromise;
+    res.json({ success: true, data: await opsRecipients(pool, idComp), canEdit: hasMenu(req.access, MENU_OPS_MAILTO) });
+  } catch (err) {
+    console.error('OPS mailto error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายชื่อผู้รับอีเมลไม่สำเร็จ', detail: err.message });
+  }
+});
+
+app.post('/api/ops/mailto', requireMenu(MENU_OPS_MAILTO), async (req, res) => {
+  const idComp = parseInt(req.body.idComp, 10);
+  const idPs = parseInt(req.body.idPs, 10);
+  if (!OPS_COMPANY_IDS.includes(idComp) || !idPs) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน' });
+  try {
+    const pool = await poolPromise;
+    await pool.request().input('idComp', sql.Int, idComp).input('idPs', sql.Int, idPs).input('step', sql.VarChar(10), OPS_MAIL_STEP_CHECK)
+      .input('ts', sql.Int, req.idPs)
+      .query(`IF NOT EXISTS (SELECT 1 FROM devsk.SeedReqSaleMailTo WHERE idComp = @idComp AND Step = @step AND idPs = @idPs AND stDel IS NULL)
+                INSERT INTO devsk.SeedReqSaleMailTo (idComp, Step, idPs, idPsTs, DateTs) VALUES (@idComp, @step, @idPs, @ts, GETDATE())`);
+    res.json({ success: true, data: await opsRecipients(pool, idComp) });
+  } catch (err) {
+    console.error('OPS mailto add error:', err);
+    res.status(500).json({ success: false, message: 'เพิ่มผู้รับอีเมลไม่สำเร็จ', detail: err.message });
+  }
+});
+
+app.delete('/api/ops/mailto/:id', requireMenu(MENU_OPS_MAILTO), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ถูกต้อง' });
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('id', sql.Int, id)
+      .query('UPDATE devsk.SeedReqSaleMailTo SET stDel = 1 OUTPUT inserted.idComp WHERE idMailTo = @id AND stDel IS NULL');
+    const idComp = r.recordset[0] && r.recordset[0].idComp;
+    res.json({ success: true, data: idComp ? await opsRecipients(pool, idComp) : [] });
+  } catch (err) {
+    console.error('OPS mailto delete error:', err);
+    res.status(500).json({ success: false, message: 'ลบผู้รับอีเมลไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ตั้งผู้รับคำร้องค่าเริ่มต้นของบริษัท (1 คนต่อบริษัท)
+app.post('/api/ops/mailto/:id/default', requireMenu(MENU_OPS_MAILTO), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ถูกต้อง' });
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('id', sql.Int, id).query(`
+      DECLARE @c int, @s varchar(10);
+      SELECT @c = idComp, @s = Step FROM devsk.SeedReqSaleMailTo WHERE idMailTo = @id AND stDel IS NULL;
+      UPDATE devsk.SeedReqSaleMailTo SET stDefault = CASE WHEN idMailTo = @id THEN 1 ELSE NULL END WHERE idComp = @c AND Step = @s;
+      SELECT @c AS idComp;`);
+    const idComp = r.recordset[0] && r.recordset[0].idComp;
+    res.json({ success: true, data: idComp ? await opsRecipients(pool, idComp) : [] });
+  } catch (err) {
+    console.error('OPS mailto default error:', err);
+    res.status(500).json({ success: false, message: 'ตั้งผู้รับค่าเริ่มต้นไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ข้อมูลพนักงาน + อีเมล (ใช้ตอนเพิ่มผู้รับสำเนา CC ในฟอร์ม)
+app.get('/api/ops/people', requireMenu([MENU_OPS, MENU_OPS_BUY]), async (req, res) => {
+  const ids = String(req.query.ids || '').split(',').map(v => parseInt(v, 10)).filter(Boolean).slice(0, 50);
+  try {
+    const pool = await poolPromise;
+    res.json({ success: true, data: await opsPeople(pool, ids) });
+  } catch (err) {
+    console.error('OPS people error:', err);
+    res.status(500).json({ success: false, message: 'โหลดข้อมูลพนักงานไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- เนื้อหาอีเมลแจ้งคำร้อง (HTML — inline style เพราะโปรแกรมอ่านเมลไม่รองรับ <style>) ----------
+const opsEsc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// ทศนิยม 2 ตำแหน่ง / ค่าที่เบามาก (ไม่ใช่ 0 แต่ 2 ตำแหน่งได้ 0.00) แสดง 3–6 ตำแหน่ง — ตรงกับ fmtQty() ในหน้าเว็บ
+const opsFmtQty = (v) => {
+  if (v == null) return '-';
+  const n = Number(v);
+  const tiny = n !== 0 && Math.abs(n) < 0.005;
+  return n.toLocaleString('en-US', tiny ? { minimumFractionDigits: 3, maximumFractionDigits: 6 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+// kind: send = ส่งคำร้อง / edit = แก้ไขหลังส่ง / resend = ส่งซ้ำ
+// role: to = ผู้รับคำร้อง (ปุ่มเข้าไปดำเนินการ) / cc = สำเนาแจ้งเพื่อทราบ (ปุ่มดูเอกสารอย่างเดียว)
+function buildOpsMail(doc, link, kind, role, to, cc) {
+  const th = 'style="border:1px solid #bbb;padding:6px 8px;background:#f2f2f2;font-weight:700;text-align:center"';
+  const td = (v, num) => `<td style="border:1px solid #bbb;padding:6px 8px;${num ? 'text-align:right;white-space:nowrap' : ''}">${v}</td>`;
+  const kv = (k, v) => `<tr><td style="padding:2px 12px 2px 0;color:#555;vertical-align:top;white-space:nowrap">${k}</td><td>${v}</td></tr>`;
+  // ชื่อทางการ (คำนำหน้า ชื่อ นามสกุล ไม่มีชื่อเล่น) — แบบเดียวกับผู้ร้องขอ
+  const formal = (p) => p.full || String(p.name || '').replace(/\s*\([^)]*\)\s*$/, '');
+  const person = (p) => `${opsEsc(formal(p))}${p.position ? ` (${opsEsc(p.position)})` : ''}`;
+  const rows = doc.items.map((it, i) => `<tr>${td(i + 1)}${td(`<b>${opsEsc(it.invName)}</b><br><span style="color:#555;font-size:12px">PO ที่อ้างอิง: ${opsEsc(it.pos.map(p => p.poCode).join(', '))}</span>`)}
+    ${td(opsFmtQty(it.amountPO), 1)}${td(opsFmtQty(it.amountSold), 1)}${td(opsFmtQty(it.amountRec), 1)}${td(opsFmtQty(it.amountProduce), 1)}
+    ${td(`<b style="color:#c0392b">${opsFmtQty(it.amountProduce - it.amountPO)}</b>`, 1)}${td(`<b>${opsFmtQty(it.amountOffer)}</b>`, 1)}${td(opsEsc(it.unit || '-'))}</tr>`).join('');
+  const isCc = role === 'cc';
+  const tag = (isCc ? '(แจ้งเพื่อทราบ) ' : '') + (kind === 'edit' ? '(แก้ไขเอกสาร) ' : kind === 'resend' ? '(ส่งซ้ำ) ' : '');
+  const subject = `[WIM] ${tag}ร้องขอขายเมล็ดพันธุ์ (Over PO) ${doc.docNo} — ${doc.compReqName}`;
+  const action = kind === 'edit' ? 'แก้ไขคำร้อง' : 'ส่งคำร้อง';
+  const intro = isCc
+    ? `<p>เรียน ผู้เกี่ยวข้อง</p><p><b>แจ้งเพื่อทราบ:</b> ${opsEsc(doc.compReqName)} ${action}ขอขายเมล็ดพันธุ์ที่ผลิตเกินใบสั่งซื้อ (Over PO) ถึงฝ่ายจัดซื้อ ${opsEsc(doc.compTargetName)}${kind === 'edit' ? ' รายละเอียดล่าสุดดังนี้' : ''}</p>`
+    : `<p>เรียน ${opsEsc(opsDear(to))} ฝ่ายจัดซื้อ ${opsEsc(doc.compTargetName)}</p>` + (kind === 'edit'
+      ? `<p>${opsEsc(doc.compReqName)} <b>แก้ไข</b>คำร้องขอขายเมล็ดพันธุ์ที่ผลิตเกินใบสั่งซื้อ (Over PO) — กรุณาใช้รายละเอียดล่าสุดด้านล่างแทนฉบับก่อนหน้า</p>`
+      : `<p>${opsEsc(doc.compReqName)} ส่งคำร้องขอขายเมล็ดพันธุ์ที่ผลิตเกินใบสั่งซื้อ (Over PO) เพื่อโปรดพิจารณาและดำเนินการ</p>`);
+  const btn = isCc ? `ดูเอกสาร ${doc.docNo}` : `เปิดเอกสารเพื่อดำเนินการ ${doc.docNo}`;
+  const html = `<div style="font-family:Tahoma,Arial,sans-serif;font-size:14px;color:#222;line-height:1.6">
+    ${intro}
+    <table style="border-collapse:collapse;margin:8px 0 14px">
+      ${kv('เลขที่เอกสาร', `<b>${opsEsc(doc.docNo)}</b>`)}
+      ${kv('วันที่', opsEsc(ursFmtDateThai(doc.docDate)))}
+      ${kv('เรื่อง', opsEsc(doc.subject))}
+      ${kv('ผู้ร้องขอ', `${opsEsc(doc.requester.full || doc.requester.name)}${doc.requester.pos ? ` (${opsEsc(doc.requester.pos)})` : ''}`)}
+      ${kv('ส่งคำร้องถึง', person(to))}
+      ${cc.length ? kv('สำเนาถึง', cc.map(person).join('<br>')) : ''}
+    </table>
+    <table style="border-collapse:collapse;font-size:13px">
+      <tr><th ${th}>#</th><th ${th}>เมล็ดพันธุ์ / PO ที่อ้างอิง</th><th ${th}>จำนวน PO</th><th ${th}>ขายแล้ว (ผู้ขาย)</th><th ${th}>รับเข้าแล้ว (ผู้ซื้อ)</th><th ${th}>ผลิตได้ทั้งหมด</th><th ${th}>จำนวนเกิน PO</th><th ${th}>เสนอขายเพิ่ม</th><th ${th}>หน่วย</th></tr>
+      ${rows}
+    </table>
+    <p style="margin-top:14px"><b>สาเหตุการผลิตเกิน PO</b><br>${opsEsc(doc.causeNote).replace(/\n/g, '<br>')}</p>
+    ${doc.note ? `<p><b>หมายเหตุ</b><br>${opsEsc(doc.note).replace(/\n/g, '<br>')}</p>` : ''}
+    <p style="margin:22px 0"><a href="${opsEsc(link)}" style="background:${isCc ? '#4ea7e0' : '#f2a91c'};color:#111;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:700">${opsEsc(btn)}</a></p>
+    <p style="color:#888;font-size:12px">อีเมลนี้ส่งอัตโนมัติจากระบบ WIM${isCc ? ' — สำเนาแจ้งเพื่อทราบ เปิดดูเอกสารได้อย่างเดียว' : ''} (ต้องเข้าสู่ระบบก่อนเปิดเอกสาร)<br>${opsEsc(link)}</p>
+  </div>`;
+  return { subject, html };
+}
+
+// ส่งอีเมลของเอกสาร (ภายใน transaction ของการบันทึก/แก้ไข/ส่งซ้ำ): ผู้รับคำร้อง 1 ฉบับ + สำเนา (CC ทุกคน) อีก 1 ฉบับ
+// ส่งถึงผู้รับคำร้องไม่สำเร็จ = { ok: false } ให้ผู้เรียก rollback ทั้งหมด / สำเร็จ = เขียน log + ตั้ง DateSent (ครั้งแรก)
+// เอกสารเก่าที่ยังไม่มีผู้รับรายเอกสาร → ใช้ผู้รับค่าเริ่มต้นของบริษัทผู้ซื้อ
+// วางแผนผู้รับ (เรียกก่อนบันทึก): ต้องมีผู้รับคำร้อง (TO) ที่มีอีเมลถูกต้อง ไม่มี = ไม่บันทึก
+async function opsMailPlan(runner, idOps) {
+  const doc = await loadOpsDoc(idOps, runner);
+  let { to } = doc.recipients;
+  const cc = doc.recipients.cc.filter(x => opsValidEmail(x.email));
+  if (!to) to = (await opsRecipients(runner, doc.compTarget)).find(x => opsValidEmail(x.email)) || null;
+  if (!to || !opsValidEmail(to.email)) return { ok: false, message: 'ไม่พบผู้รับคำร้องที่มีอีเมล' };
+  return { ok: true, doc, to, cc };
+}
+// รายชื่อผู้รับที่ส่งให้หน้าจอแสดง (สถานะ "กำลังส่ง")
+const opsPendingResults = (plan) => [{ type: 'to', email: plan.to.email, pending: true }, ...plan.cc.map(x => ({ type: 'cc', email: x.email, pending: true }))];
+// ตั้งสถานะ "ส่งคำร้องแล้ว" ตอนบันทึก (ไม่รอผลส่งอีเมล)
+async function opsMarkSent(transaction, idOps, idPs) {
+  await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, idPs)
+    .query('UPDATE devsk.SeedReqSaleMt SET idPsSent = @ps, DateSent = GETDATE() WHERE idOps = @id AND DateSent IS NULL');
+}
+// ส่งอีเมลคำร้อง: เรียกหลัง commit ผ่าน opsBackground เท่านั้น — TO และ CC ส่งพร้อมกัน (มีลองใหม่อัตโนมัติใน opsSendMail) แล้วเก็บ log ผลลัพธ์
+async function deliverOpsMails(idOps, kind, req) {
+  const pool = await poolPromise;
+  const plan = await opsMailPlan(pool, idOps);
+  if (!plan.ok) { console.error('OPS mail plan failed:', idOps, plan.message); return plan; }
+  const { doc, to, cc } = plan;
+  const base = (process.env.APP_BASE_URL || '').replace(/\/+$/, '') || ursReplyOrigin(req);
+  const link = `${base}/over-po-sale-doc?id=${idOps}`;          // CC: ดูเอกสารอย่างเดียว
+  const buyLink = `${base}/over-po-sale-buy?id=${idOps}`;      // ผู้รับคำร้อง: หน้าจัดการคำร้องของฝ่ายจัดซื้อ
+  const jobs = [{ type: 'to', list: [to], mail: buildOpsMail(doc, buyLink, kind, 'to', to, cc) }];
+  if (cc.length) jobs.push({ type: 'cc', list: cc, mail: buildOpsMail(doc, link, kind, 'cc', to, cc) });
+  const logs = (await Promise.all(jobs.map(async j => {
+    const r = await opsSendMail({ to: j.list.map(x => x.email), cc: [], subject: j.mail.subject, html: j.mail.html });
+    return j.list.map(x => { const ok = r.ok.has(x.email.toLowerCase()); return { type: j.type, idPs: x.idPs, email: x.email, ok, err: ok ? null : (r.error || 'ส่งไม่สำเร็จ') }; });
+  }))).flat();
+  for (const l of logs) {
+    await pool.request()
+      .input('id', sql.Int, idOps).input('step', sql.VarChar(20), kind).input('type', sql.VarChar(3), l.type)
+      .input('ps', sql.Int, l.idPs).input('mail', sql.NVarChar(255), l.email).input('ok', sql.Bit, l.ok)
+      .input('err', sql.NVarChar(1000), l.err ? String(l.err).slice(0, 1000) : null).input('by', sql.Int, req.idPs)
+      .query(`INSERT INTO devsk.SeedReqSaleMailLog (idOps, Step, RecvType, idPs, Email, stSend, ErrMsg, idPsSend, DateSend)
+              VALUES (@id, @step, @type, @ps, @mail, @ok, @err, @by, GETDATE())`);
+  }
+  return { ok: logs.every(l => l.ok), results: logs.map(({ type, email, ok }) => ({ type, email, ok })) };
+}
+
+// ---------- ส่งอีเมลซ้ำ (เอกสารที่ส่งแล้ว ฝั่งผู้ซื้อยังไม่ดำเนินการ) / ส่งเอกสารร่างเดิม (ก่อนมีปุ่มบันทึกและส่ง) ----------
+app.post('/api/ops/docs/:id/send', requireMenu(MENU_OPS), async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
+  if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — ติดต่อผู้ดูแลระบบ' });
+  if (!opsMailHealth.ok) return res.status(503).json({ success: false, message: OPS_MAIL_DOWN_MSG });
+  let transaction;
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const cur = await lockOpsDoc(transaction, idOps);
+    const stop = async (code, message, extra = {}) => { await transaction.rollback(); return res.status(code).json({ success: false, message, ...extra }); };
+    if (!cur) return stop(404, 'ไม่พบเอกสาร');
+    if (!hasComp(req.access, cur.idCompReq)) return stop(403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    const st = opsStatus(cur);
+    if (!['D', 'S'].includes(st)) return stop(409, 'เอกสารถูกยกเลิก หรือฝั่งผู้ซื้อดำเนินการแล้ว — ส่งไม่ได้');
+    const kind = st === 'S' ? 'resend' : 'send';
+    const plan = await opsMailPlan(transaction, idOps);
+    if (!plan.ok) return stop(400, plan.message);
+    await opsMarkSent(transaction, idOps, req.idPs);
+    await transaction.commit();
+    res.json({ success: true, mailPending: true, results: opsPendingResults(plan) });
+    opsBackground('send-' + kind, () => deliverOpsMails(idOps, kind, req));
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('OPS send error:', err);
+    res.status(500).json({ success: false, message: 'ส่งอีเมลไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ==================================================================
+// ---------- ร้องขอขายเมล็ดพันธุ์ (Over PO) เฟส 2: ฝ่ายจัดซื้อพิจารณา + ขออนุมัติ 4 ขั้น + สร้าง PO อัตโนมัติ ----------
+// ==================================================================
+// 1. ฝ่ายจัดซื้อ (สิทธิ์ over_po_sale_buy + บริษัทผู้ซื้อ) กรอกจำนวนรับซื้อจริง / ราคา/หน่วย / วันที่รับของ / ผู้อนุมัติ 4 ขั้น
+//    → ออกเลขใบขออนุมัติ OPA + ส่งอีเมลถึงผู้อนุมัติทั้ง 4 พร้อมกัน (ส่งไม่สำเร็จ = ไม่บันทึก) / หรือตัดสินไม่รับซื้อเอง (แจ้งผู้ร้องขอ)
+// 2. ผู้อนุมัติกดลำดับไหนก่อนก็ได้: ผ่าน / ส่งกลับแก้ไข (กลับไปฝ่ายจัดซื้อ แก้แล้วส่งใหม่ = รอบใหม่) / ไม่รับซื้อ (จบ)
+// 3. ผ่านครบ 4 ขั้น → สร้าง PO (TypeTs 8 / X..) อนุมัติแล้ว + ใบสั่งขายฝั่งผู้ขาย (sp_InsertPOxSlOrder) ใน transaction เดียว
+//    → อีเมลแจ้งผู้ร้องขอพร้อมเลข PO
+const opsFormal = (p) => (p && (p.full || String(p.name || '').replace(/\s*\([^)]*\)\s*$/, ''))) || '-';
+// คำขึ้นต้นอีเมล: "เรียน คุณชื่อ นามสกุล" — ตัดคำนำหน้าชื่อ (นาย / นาง / นางสาว / ดร. ...) แล้วใช้ "คุณ" แทน
+const OPS_TITLE_RE = /^(นางสาว|น\.ส\.|นาง|นาย|ด\.ช\.|ด\.ญ\.|ดร\.|ว่าที่\s*ร\.?\s*ต\.?(\s*หญิง)?)\s*/;
+const opsDear = (p) => { const n = opsFormal(p).replace(OPS_TITLE_RE, '').trim(); return n && n !== '-' ? `คุณ${n}` : 'ผู้เกี่ยวข้อง'; };
+const opsStepName = (code) =>(OPS_APV_STEPS.find(s => s.code === code) || {}).name || code;
+const opsStepAct = (code) => opsStepName(code).replace(/^ผู้/, '');   // ผู้อนุมัติ 1 → อนุมัติ 1
+const opsBase = (req) => (process.env.APP_BASE_URL || '').replace(/\/+$/, '') || ursReplyOrigin(req);
+const opsRound2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const opsFmtMoney = (v) => v == null ? '-' : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const opsFmtPrice = (v) => v == null ? '-' : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+// ผู้อนุมัติค่าเริ่มต้น: รอบก่อนหน้า (ส่งใหม่หลังแก้ไข) / ไม่มี = คนที่พบบ่อยสุดในแต่ละขั้นของ PO ที่อ้างอิง
+// อนุมัติ 1 = อนุมัติ 2 (PO เดิมใส่ซ้ำ) → OPS_APV_FIX
+async function opsApvDefaults(idOps, doc) {
+  const pool = await poolPromise;
+  let ids = {};
+  const prev = doc.apvRound ? doc.approvals.filter(a => a.round === doc.apvRound) : [];
+  if (prev.length) prev.forEach(a => { ids[a.step] = a.idPs; });
+  else {
+    const r = await pool.request().input('id', sql.Int, idOps).query(`
+      SELECT b.idPsAccept, b.idPsCheck, b.idPsApprove1, b.idPsApprove2
+      FROM devsk.PkPOBuyMt b WHERE b.idPOTs IN (SELECT DISTINCT idPOTs FROM devsk.SeedReqSalePORef WHERE idOps = @id)`);
+    for (const st of OPS_APV_STEPS) {
+      const cnt = new Map();
+      r.recordset.forEach(x => { const v = x[st.poPs]; if (v) cnt.set(v, (cnt.get(v) || 0) + 1); });
+      const top = [...cnt.entries()].sort((a, b) => b[1] - a[1])[0];
+      ids[st.code] = top ? top[0] : null;
+    }
+    if (ids.approve1 && ids.approve1 === ids.approve2) Object.assign(ids, OPS_APV_FIX);
+  }
+  const people = await opsPeople(pool, Object.values(ids).filter(Boolean));
+  const out = {};
+  OPS_APV_STEPS.forEach(st => { out[st.code] = (ids[st.code] && people.find(p => p.idPs === ids[st.code])) || null; });
+  return out;
+}
+
+// เลขใบขออนุมัติรับซื้อ OPA{YY}{MM}/{0001} — รันแยกบริษัทผู้ซื้อ เริ่มใหม่ทุกปี
+async function getNextOpaDocCode(transaction, idCompTarget, date) {
+  const yy = String(date.getFullYear() + 543).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const r = await new sql.Request(transaction)
+    .input('idComp', sql.Int, idCompTarget)
+    .input('pat', sql.VarChar, `OPA${yy}__/%`)
+    .query(`SELECT MAX(TRY_CAST(RIGHT(BuyDocCode, 4) AS INT)) AS last
+            FROM devsk.SeedReqSaleMt WITH (UPDLOCK, HOLDLOCK)
+            WHERE idCompTarget = @idComp AND BuyDocCode LIKE @pat`);
+  return `OPA${yy}${mm}/${String((r.recordset[0].last || 0) + 1).padStart(4, '0')}`;
+}
+
+// ---------- อีเมลฝั่งผู้ซื้อ ----------
+// ตารางรายการ: จำนวนเสนอขาย / รับซื้อ / ราคา / จำนวนเงิน (ข้อมูลภายในฝ่ายซื้อ — ส่งผู้ร้องขอเฉพาะตอนอนุมัติแล้ว)
+function opsBuyItemsTable(doc) {
+  const th = 'style="border:1px solid #bbb;padding:6px 8px;background:#f2f2f2;font-weight:700;text-align:center"';
+  const td = (v, num) => `<td style="border:1px solid #bbb;padding:6px 8px;${num ? 'text-align:right;white-space:nowrap' : ''}">${v}</td>`;
+  let total = 0;
+  const rows = doc.items.map((it, i) => {
+    const amt = it.amountBuy != null && it.price != null ? opsRound2(it.amountBuy * it.price) : null;
+    total += amt || 0;
+    return `<tr>${td(i + 1)}${td(`<b>${opsEsc(it.invName)}</b><br><span style="color:#555;font-size:12px">PO ที่อ้างอิง: ${opsEsc(it.pos.map(p => p.poCode).join(', '))}</span>`)}
+      ${td(opsFmtQty(it.amountOffer), 1)}${td(`<b>${opsFmtQty(it.amountBuy)}</b>`, 1)}${td(opsEsc(it.unit || '-'))}${td(opsFmtPrice(it.price), 1)}${td(opsFmtMoney(amt), 1)}</tr>`;
+  }).join('');
+  return `<table style="border-collapse:collapse;font-size:13px">
+      <tr><th ${th}>#</th><th ${th}>เมล็ดพันธุ์ / PO ที่อ้างอิง</th><th ${th}>เสนอขาย</th><th ${th}>รับซื้อ</th><th ${th}>หน่วย</th><th ${th}>ราคา/หน่วย (บาท)</th><th ${th}>จำนวนเงิน (บาท)</th></tr>
+      ${rows}
+      <tr><td colspan="6" style="border:1px solid #bbb;padding:6px 8px;text-align:right;font-weight:700">รวมเป็นเงิน</td>${td(`<b>${opsFmtMoney(total)}</b>`, 1)}</tr>
+    </table>`;
+}
+const opsMailWrap = (body, link, btn, color, foot) => `<div style="font-family:Tahoma,Arial,sans-serif;font-size:14px;color:#222;line-height:1.6">
+    ${body}
+    ${link ? `<p style="margin:22px 0"><a href="${opsEsc(link)}" style="background:${color};color:#111;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:700">${opsEsc(btn)}</a></p>` : ''}
+    <p style="color:#888;font-size:12px">อีเมลนี้ส่งอัตโนมัติจากระบบ WIM${foot ? ` — ${foot}` : ''} (ต้องเข้าสู่ระบบก่อนเปิดเอกสาร)${link ? `<br>${opsEsc(link)}` : ''}</p>
+    <p style="color:#888;font-size:12px">หากอีเมลนี้อยู่ในกล่องขยะ (Junk / Spam) กรุณากด "ไม่ใช่ขยะ" (Not junk) และเพิ่มผู้ส่งเป็นผู้ติดต่อ เพื่อให้อีเมลจากระบบ WIM เข้ากล่องจดหมายหลักในครั้งถัดไป</p>
+  </div>`;
+const opsKv = (rows) => `<table style="border-collapse:collapse;margin:8px 0 14px">${rows.filter(Boolean).map(([k, v]) =>
+  `<tr><td style="padding:2px 12px 2px 0;color:#555;vertical-align:top;white-space:nowrap">${k}</td><td>${v}</td></tr>`).join('')}</table>`;
+
+// ขออนุมัติ (ถึงผู้อนุมัติ 1 คน — ระบุขั้นของคนนั้น) kind: request / edit / resubmit / remind
+function buildOpsApvMail(doc, link, person, steps, kind) {
+  const tag = { edit: '(แก้ไขเอกสาร) ', resubmit: '(ส่งขออนุมัติใหม่) ', remind: '(เตือน) ' }[kind] || '';
+  const subject = `[WIM] ${tag}ขออนุมัติรับซื้อเมล็ดพันธุ์ส่วนเกิน PO ${doc.buy.docNo} — ${doc.compReqName}`;
+  const lead = {
+    edit: 'ฝ่ายจัดซื้อ<b>แก้ไข</b>ใบขออนุมัติ — กรุณาใช้รายละเอียดล่าสุดด้านล่างแทนฉบับก่อนหน้า',
+    resubmit: 'ฝ่ายจัดซื้อแก้ไขตามที่ส่งกลับแล้ว และส่งขออนุมัติใหม่ (ผลการพิจารณารอบก่อนถูกล้าง ต้องพิจารณาใหม่ทุกท่าน)',
+    remind: 'ใบขออนุมัติด้านล่าง<b>ยังรอการพิจารณาของท่าน</b>'
+  }[kind] || 'ฝ่ายจัดซื้อขออนุมัติรับซื้อเมล็ดพันธุ์ที่ผลิตเกินใบสั่งซื้อ (Over PO) ตามคำร้องของผู้ขาย';
+  const body = `<p>เรียน ${opsEsc(opsDear(person))}</p>
+    <p>${lead} — ท่านเป็น<b>${opsEsc(steps.map(opsStepName).join(' / '))}</b> ของเอกสารนี้ (ผู้อนุมัติแต่ละท่านพิจารณาได้ทันที ไม่ต้องรอท่านอื่น)</p>
+    ${opsKv([
+      ['ใบขออนุมัติเลขที่', `<b>${opsEsc(doc.buy.docNo)}</b>`],
+      ['อ้างอิงใบร้องขอ', `${opsEsc(doc.docNo)} — ${opsEsc(doc.compReqName)}`],
+      ['ผู้ขออนุมัติ', `${opsEsc(opsFormal(doc.buy.by))}${doc.buy.by && doc.buy.by.pos ? ` (${opsEsc(doc.buy.by.pos)})` : ''}`],
+      ['วันที่ต้องการรับของ', opsEsc(ursFmtDateThai(doc.buy.dateGet))]
+    ])}
+    ${opsBuyItemsTable(doc)}
+    <p style="margin-top:14px"><b>สาเหตุการผลิตเกิน PO (จากผู้ขาย)</b><br>${opsEsc(doc.causeNote).replace(/\n/g, '<br>')}</p>
+    ${doc.buy.note ? `<p><b>หมายเหตุฝ่ายจัดซื้อ</b><br>${opsEsc(doc.buy.note).replace(/\n/g, '<br>')}</p>` : ''}`;
+  const listLink = link.replace(/\/over-po-sale-opa\?.*$/, '/over-po-sale-apv');
+  return { subject, html: opsMailWrap(body + `<p style="font-size:13px;color:#555">ดูรายการที่รอการพิจารณาของท่านทั้งหมด (พิจารณาหลายรายการพร้อมกันได้): <a href="${opsEsc(listLink)}">${opsEsc(listLink)}</a></p>`,
+    link, `เปิดใบขออนุมัติ ${doc.buy.docNo} เพื่อพิจารณา`, '#f2a91c') };
+}
+
+// ผลการพิจารณา kind: approved (ครบ + PO) / rejected (ผู้อนุมัติไม่รับซื้อ) / buy-reject (ฝ่ายจัดซื้อไม่รับซื้อ) / back (ส่งกลับแก้ไข → ฝ่ายจัดซื้อ)
+function buildOpsResultMail(doc, link, kind, dear, info = {}) {
+  const head = `[WIM] ร้องขอขายเมล็ดพันธุ์ (Over PO) ${doc.docNo}`;
+  const subject = {
+    approved: `${head} — อนุมัติรับซื้อแล้ว PO ${info.poCode || ''}`,
+    rejected: `${head} — ไม่รับซื้อ`, 'buy-reject': `${head} — ไม่รับซื้อ`,
+    back: `[WIM] ส่งกลับแก้ไข ใบขออนุมัติ ${doc.buy && doc.buy.docNo} (${doc.docNo})`
+  }[kind];
+  const who = info.by ? `${opsEsc(info.by)}${info.step ? ` (${opsEsc(opsStepName(info.step))})` : ''}` : '';
+  let body = `<p>เรียน ${opsEsc(dear)}</p>`;
+  if (kind === 'approved') {
+    body += `<p>${opsEsc(doc.compTargetName)} <b style="color:#1e8449">อนุมัติรับซื้อ</b>เมล็ดพันธุ์ส่วนเกินใบสั่งซื้อตามคำร้อง ${opsEsc(doc.docNo)} แล้ว และออกใบสั่งซื้อ (PO) ให้ดังนี้</p>
+      ${opsKv([
+        ['เลขที่ PO', `<b>${opsEsc(info.poCode || '-')}</b>`],
+        info.soCode ? ['ใบสั่งขาย (ผู้ขาย)', opsEsc(info.soCode)] : null,
+        ['ใบขออนุมัติ', opsEsc(doc.buy.docNo)],
+        ['วันที่ต้องการรับของ', opsEsc(ursFmtDateThai(doc.buy.dateGet))]
+      ])}
+      ${opsBuyItemsTable(doc)}`;
+  } else if (kind === 'back') {
+    body += `<p>ใบขออนุมัติ <b>${opsEsc(doc.buy.docNo)}</b> (คำร้อง ${opsEsc(doc.docNo)} — ${opsEsc(doc.compReqName)}) ถูก<b style="color:#b9770e">ส่งกลับแก้ไข</b> โดย ${who}</p>
+      <p><b>เหตุผล:</b> ${opsEsc(info.note || '-').replace(/\n/g, '<br>')}</p>
+      <p>กรุณาแก้ไขแล้วกด "บันทึกพร้อมส่งขออนุมัติ" อีกครั้ง (ผู้อนุมัติทุกท่านจะต้องพิจารณาใหม่)</p>`;
+  } else {
+    body += `<p>${opsEsc(doc.compTargetName)} <b style="color:#c0392b">ไม่รับซื้อ</b>เมล็ดพันธุ์ส่วนเกินใบสั่งซื้อตามคำร้อง <b>${opsEsc(doc.docNo)}</b></p>
+      ${opsKv([['พิจารณาโดย', who], ['เหตุผล', opsEsc(info.note || '-').replace(/\n/g, '<br>')]])}`;
+  }
+  const btn = kind === 'back' ? `เปิดเพื่อแก้ไข ${doc.buy.docNo}` : `ดูเอกสาร ${doc.docNo}`;
+  return { subject, html: opsMailWrap(body, link, btn, kind === 'back' ? '#f2a91c' : '#4ea7e0') };
+}
+
+// งานส่งอีเมลหลังบันทึกแล้ว — ไม่ให้ผู้ใช้รอ SMTP (Gmail ฉบับละหลายวินาที) / error เก็บ log ไม่ทำให้ server ล้ม
+const opsBackground = (label, fn) => setImmediate(() => Promise.resolve().then(fn).catch(err => console.error(`OPS ${label} mail error:`, err)));
+
+// ส่ง 1 ฉบับ + เก็บ log (นอก transaction — ใช้หลังบันทึกผลแล้ว ส่งไม่สำเร็จไม่ย้อนผล)
+async function opsNotify(runner, idOps, step, req, toList, ccList, mail) {
+  const to = toList.filter(p => p && opsValidEmail(p.email));
+  const seen = new Set(to.map(p => p.idPs));
+  const cc = [];
+  ccList.forEach(p => { if (p && opsValidEmail(p.email) && !seen.has(p.idPs)) { seen.add(p.idPs); cc.push(p); } });
+  if (!to.length && !cc.length) return { ok: false, logs: [] };
+  const r = await opsSendMail({ to: (to.length ? to : cc).map(p => p.email), cc: to.length ? cc.map(p => p.email) : [], subject: mail.subject, html: mail.html });
+  const logs = [...to.map(p => ({ type: 'to', p })), ...cc.map(p => ({ type: 'cc', p }))].map(x => ({ ...x, ok: r.ok.has(x.p.email.toLowerCase()) }));
+  const rq = () => runner instanceof sql.Transaction ? new sql.Request(runner) : runner.request();
+  for (const l of logs) {
+    await rq().input('id', sql.Int, idOps).input('step', sql.VarChar(20), step).input('type', sql.VarChar(3), l.type)
+      .input('ps', sql.Int, l.p.idPs).input('mail', sql.NVarChar(255), l.p.email).input('ok', sql.Bit, l.ok)
+      .input('err', sql.NVarChar(1000), l.ok ? null : String(r.error || 'ส่งไม่สำเร็จ').slice(0, 1000)).input('by', sql.Int, req.idPs)
+      .query(`INSERT INTO devsk.SeedReqSaleMailLog (idOps, Step, RecvType, idPs, Email, stSend, ErrMsg, idPsSend, DateSend)
+              VALUES (@id, @step, @type, @ps, @mail, @ok, @err, @by, GETDATE())`);
+  }
+  return { ok: logs.every(l => l.ok), error: r.error, logs: logs.map(l => ({ type: l.type, email: l.p.email, name: l.p.name, ok: l.ok })) };
+}
+
+// ส่งอีเมลขออนุมัติถึงผู้อนุมัติ (1 ฉบับต่อคน รวมทุกขั้นของคนนั้น / ส่งพร้อมกัน) — onlyPending = เฉพาะขั้นที่ยังไม่ได้กด (เตือน)
+// runner = pool (หลังบันทึกแล้ว)
+async function opsSendApvMails(transaction, idOps, kind, req, onlyPending = false) {
+  const doc = await loadOpsDoc(idOps, transaction);
+  const link = `${opsBase(req)}/over-po-sale-opa?id=${idOps}`;
+  const rows = doc.approvals.filter(a => a.round === doc.apvRound && (!onlyPending || !a.result));
+  const byPs = new Map();
+  rows.forEach(a => byPs.set(a.idPs, { person: { idPs: a.idPs, name: a.name, full: a.full, position: a.position, email: a.email }, steps: [...((byPs.get(a.idPs) || {}).steps || []), a.step] }));
+  const results = (await Promise.all([...byPs.values()].map(async ({ person, steps }) => {
+    if (!opsValidEmail(person.email)) return [{ type: 'to', email: '-', name: person.name, ok: false }];
+    const r = await opsNotify(transaction, idOps, `apv-${kind}`, req, [person], [], buildOpsApvMail(doc, link, person, steps, kind));
+    return r.logs.length ? r.logs : [{ type: 'to', email: person.email, name: person.name, ok: false }];
+  }))).flat();
+  return { ok: results.length > 0 && results.every(r => r.ok), results, doc };
+}
+
+// ---------- สร้าง PO + ใบสั่งขายฝั่งผู้ขาย (ภายใน transaction ของการอนุมัติขั้นสุดท้าย) ----------
+// หัว PO: คัดลอก ที่อยู่ / เครดิต / ประเภทบิล / สถานะเร่งด่วน / ออกบิลอัตโนมัติ จาก PO ที่อ้างอิงล่าสุด
+// รายการ: จำนวนรับซื้อจริง (> 0) × ราคา / คุณภาพ + ฤดูผลิต จากบรรทัด PO อ้างอิงล่าสุดของรายการนั้น / idDtRef = idOpsDt
+// เลขที่ OS{yy}/{mm}/{0000}: รันแบบโปรแกรม PO เดิม (TypeTs + เดือน/ปีของ create_date + บริษัท)
+async function opsCreatePO(transaction, idOps, now) {
+  const rq = () => new sql.Request(transaction);
+  const r = await rq().input('id', sql.Int, idOps).query(`
+    SELECT m.idOps, m.DocCode, m.BuyDocCode, m.idCompReq, m.idCompTarget, m.idPsBuy, m.BuyDateGet, m.BuyNote, m.ApvRound, cr.CompName AS CompNameReq,
+           (SELECT TOP 1 b.idPOTs FROM devsk.SeedReqSalePORef p JOIN devsk.PkPOBuyMt b ON b.idPOTs = p.idPOTs WHERE p.idOps = m.idOps ORDER BY b.idPOTs DESC) AS idRefPO,
+           STUFF((SELECT DISTINCT ', ' + p.POCode FROM devsk.SeedReqSalePORef p WHERE p.idOps = m.idOps FOR XML PATH('')), 1, 2, '') AS POCodes
+    FROM devsk.SeedReqSaleMt m
+    LEFT JOIN PchInvAndProject.dbo.dCompany cr ON cr.idComp = m.idCompReq
+    WHERE m.idOps = @id;
+
+    SELECT d.idOpsDt, d.idInvMain, d.idUnit, d.AmountBuy, d.Price
+    FROM devsk.SeedReqSaleDt d WHERE d.idOps = @id AND d.AmountBuy > 0 ORDER BY d.idOpsDt;
+
+    SELECT a.StepCode, a.idPsAct, a.DateAct
+    FROM devsk.SeedReqSaleApv a JOIN devsk.SeedReqSaleMt m ON m.idOps = a.idOps AND m.ApvRound = a.ApvRound
+    WHERE a.idOps = @id AND a.Result = 'A';`);
+  const h = r.recordsets[0][0];
+  const lines = r.recordsets[1].map(d => ({ ...d, amount: Number(d.AmountBuy), price: Number(d.Price) }));
+  const apv = new Map(r.recordsets[2].map(a => [a.StepCode, a]));
+  if (!h || !h.idRefPO) throw new Error('ไม่พบ PO ที่อ้างอิง — สร้าง PO ไม่ได้');
+  if (!lines.length) throw new Error('ไม่มีรายการที่รับซื้อ — สร้าง PO ไม่ได้');
+  if (OPS_APV_STEPS.some(s => !apv.get(s.code))) throw new Error('ผลอนุมัติไม่ครบ 4 ท่าน — สร้าง PO ไม่ได้');
+  lines.forEach(l => { l.total = opsRound2(l.amount * l.price); });
+  const total = opsRound2(lines.reduce((s, l) => s + l.total, 0));
+
+  const last = (await rq().input('type', sql.Int, OPS_PO_TYPE).input('comp', sql.Int, h.idCompTarget).input('now', sql.DateTime, now).query(`
+    SELECT MAX(DocCode) AS last FROM devsk.PkPOBuyMt WITH (UPDLOCK, HOLDLOCK)
+    WHERE stGenDoc IS NOT NULL AND TypeTs = @type AND YEAR(create_date) = YEAR(@now) AND MONTH(create_date) = MONTH(@now) AND idComp = @comp`)).recordset[0].last;
+  const run = last ? (parseInt(String(last).substring(OPS_PO_PREFIX.length + 6, OPS_PO_PREFIX.length + 10), 10) || 0) + 1 : 1;
+  const docCode = `${OPS_PO_PREFIX}${String(now.getFullYear() + 543).slice(-2)}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(run).padStart(4, '0')}`;
+  const note = `ซื้อเมล็ดพันธุ์ส่วนเกินใบสั่งซื้อ (Over PO) ตามใบขออนุมัติ ${h.BuyDocCode} / ใบร้องขอ ${h.DocCode} ของ ${h.CompNameReq || ''}\r\nอ้างอิง PO: ${h.POCodes || '-'}`
+    + (h.BuyNote ? `\r\n${h.BuyNote}` : '');
+
+  const mreq = rq()
+    .input('type', sql.Int, OPS_PO_TYPE).input('doc', sql.VarChar(20), docCode).input('now', sql.DateTime, now)
+    .input('day', sql.Date, now).input('get', sql.DateTime, h.BuyDateGet).input('ps', sql.Int, h.idPsBuy)
+    .input('sup', sql.Int, OPS_COMP_SUPPLIER[h.idCompReq]).input('comp', sql.Int, h.idCompTarget).input('note', sql.NVarChar(sql.MAX), note)
+    .input('total', sql.Decimal(18, 2), total).input('qt', sql.VarChar(20), h.DocCode).input('idMt', sql.Int, idOps)
+    .input('ref', sql.Int, h.idRefPO).input('sys', sql.Int, OPS_PO_SYS);
+  OPS_APV_STEPS.forEach(s => { const a = apv.get(s.code); mreq.input(`p_${s.code}`, sql.Int, a.idPsAct).input(`d_${s.code}`, sql.DateTime, a.DateAct); });
+  const mt = await mreq.query(`
+    INSERT INTO devsk.PkPOBuyMt (TypeTs, DocCode, DateTsD, idPsTs, idSup, idPsBuy, DateBuyD, DateGetD, idCredit, Address,
+      Note, TotalPrice, DiscountPerc, Discount, TotalNet, idComp, QtCode, SystemGroup, stPOGetMoney, AmountGetMoneyBalance,
+      idProject, stRight, VAT, idWhd, TAXPerc, TAX, stCredit, DateCredit, stTypeBill, idPsMoney, Money_balance, idPayCard,
+      stUrgent, stAutoBillBuy, TbName, idMt, stGenDoc, stReturn, DateReturnD, create_id, create_date, stPO,
+      ${OPS_APV_STEPS.map(s => `${s.poPs}, ${s.poDate}, ${s.poSys}`).join(', ')})
+    SELECT @type, @doc, @now, @ps, @sup, @ps, @day, @get, b.idCredit, b.Address,
+      @note, @total, 0, 0, @total, @comp, @qt, 'MAIN', NULL, @total,
+      0, b.stRight, 0, NULL, 0, 0, b.stCredit, NULL, b.stTypeBill, NULL, NULL, NULL,
+      b.stUrgent, b.stAutoBillBuy, 'SeedReqSaleMt', @idMt, 1, NULL, NULL, @ps, @now, 0,
+      ${OPS_APV_STEPS.map(s => `@p_${s.code}, @d_${s.code}, @sys`).join(', ')}
+    FROM devsk.PkPOBuyMt b WHERE b.idPOTs = @ref;
+    SELECT CAST(SCOPE_IDENTITY() AS int) AS id;`);
+  const idPOTs = mt.recordset[0].id;
+  for (const l of lines) {
+    await rq().input('po', sql.Int, idPOTs).input('inv', sql.Int, l.idInvMain).input('amt', sql.Decimal(18, 6), l.amount)
+      .input('price', sql.Decimal(18, 4), l.price).input('total', sql.Decimal(18, 2), l.total).input('unit', sql.Int, l.idUnit).input('dt', sql.Int, l.idOpsDt)
+      .query(`INSERT INTO devsk.PkPOBuyDt (idPOTs, idProduct, idInvMain, Amount, Price, TotalPrice, NoteDt, idPRDt, idUnitNew, dNET, dDiscount,
+                HumidPercent, ImpurePercent, PurePercent, GrowPercent, idDtRef, idSeasonPd)
+              SELECT @po, @inv, @inv, @amt, @price, @total, '', NULL, @unit, @price, 0,
+                q.HumidPercent, q.ImpurePercent, q.PurePercent, q.GrowPercent, @dt, q.idSeasonPd
+              FROM (SELECT 1 AS one) z
+              OUTER APPLY (SELECT TOP 1 b.HumidPercent, b.ImpurePercent, b.PurePercent, b.GrowPercent, b.idSeasonPd
+                           FROM devsk.SeedReqSalePORef p JOIN devsk.PkPOBuyDt b ON b.idPODt = p.idPODt
+                           WHERE p.idOpsDt = @dt ORDER BY p.idPOTs DESC, p.idPODt DESC) q`);
+  }
+  // ใบสั่งขายฝั่งผู้ขาย (ODP..) — SP เดียวกับตอน PO ในเครืออนุมัติครบ
+  await rq().input('po', sql.Int, idPOTs).input('ps', sql.Int, h.idPsBuy)
+    .query('EXEC devsk.sp_InsertPOxSlOrder @typeCmd = 1, @idPOTs = @po, @idPsTs = @ps');
+  // trigger tg_CalAmountOrd (คำนวณ AmountPiece / idUnitSale) ทำได้ทีละแถว — SP insert หลายแถวพร้อมกัน แถวอื่นได้ NULL
+  // → แตะทีละแถว (UPDATE Amount = Amount) ให้ trigger คำนวณครบทุกบรรทัด
+  await rq().input('po', sql.Int, idPOTs).query(`
+    DECLARE @dt int;
+    DECLARE c CURSOR LOCAL FAST_FORWARD FOR
+      SELECT d.idSaleOrderDt FROM dbo.SmSaleOrderDt d JOIN dbo.SmSaleOrderMt m ON m.idSaleOrder = d.idSaleOrder WHERE m.idPOTs = @po;
+    OPEN c; FETCH NEXT FROM c INTO @dt;
+    WHILE @@FETCH_STATUS = 0 BEGIN
+      UPDATE dbo.SmSaleOrderDt SET Amount = Amount WHERE idSaleOrderDt = @dt;
+      FETCH NEXT FROM c INTO @dt;
+    END
+    CLOSE c; DEALLOCATE c;`);
+  const so = (await rq().input('po', sql.Int, idPOTs)
+    .query('SELECT TOP 1 DocCode FROM dbo.SmSaleOrderMt WHERE idPOTs = @po AND idPsCancel IS NULL ORDER BY idSaleOrder DESC')).recordset[0];
+  return { idPOTs, docCode, soCode: so ? so.DocCode : null, total };
+}
+
+// ---------- ฝ่ายจัดซื้อ: บันทึกพร้อมส่งขออนุมัติ ----------
+// body: { items: [{ idOpsDt, amountBuy, price }], dateGet: 'YYYY-MM-DD', note, approvers: { accept, check, approve1, approve2 } }
+// สถานะ S = ส่งครั้งแรก (รอบ 1) / B = ส่งใหม่หลังแก้ไข (รอบใหม่) / H ที่ยังไม่มีใครกด = แก้ไข (แทนรอบเดิม)
+// บันทึกเสร็จแล้วจึงส่งอีเมลถึงผู้อนุมัติทั้ง 4 (เบื้องหลัง)
+app.post('/api/ops/buy/:id/submit', requireMenu(MENU_OPS_BUY), async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
+  if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — ติดต่อผู้ดูแลระบบ' });
+  if (!opsMailHealth.ok) return res.status(503).json({ success: false, message: OPS_MAIL_DOWN_MSG });
+  let transaction;
+  const fail = async (code, message, extra = {}) => { await transaction.rollback(); return res.status(code).json({ success: false, message, ...extra }); };
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const cur = await lockOpsDoc(transaction, idOps);
+    if (!cur) return fail(404, 'ไม่พบเอกสาร');
+    if (!hasComp(req.access, cur.idCompTarget)) return fail(403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    const st = opsStatus(cur);
+    if (!(st === 'S' || st === 'B' || (st === 'H' && !cur.ApvActed))) return fail(409, st === 'H' ? 'มีผู้อนุมัติพิจารณาไปแล้ว — แก้ไขไม่ได้' : 'สถานะเอกสารเปลี่ยนไปแล้ว — กรุณาเปิดเอกสารใหม่');
+
+    // รายการ: ครบทุกบรรทัด / รับซื้อ 0 ถึงจำนวนเสนอขาย / มีรับซื้อ = ต้องมีราคา
+    const dts = (await new sql.Request(transaction).input('id', sql.Int, idOps)
+      .query('SELECT d.idOpsDt, d.AmountOffer, i.InvName FROM devsk.SeedReqSaleDt d LEFT JOIN devsk.dInventoryMain i ON i.idInvMain = d.idInvMain WHERE d.idOps = @id')).recordset;
+    const body = new Map((Array.isArray(req.body.items) ? req.body.items : []).map(x => [parseInt(x.idOpsDt, 10), x]));
+    const rows = [];
+    for (const d of dts) {
+      const x = body.get(d.idOpsDt);
+      if (!x) return fail(400, `${d.InvName}: ไม่พบข้อมูลรายการ — กรุณาเปิดเอกสารใหม่`);
+      const amt = Number(x.amountBuy), price = x.price === '' || x.price == null ? null : Number(x.price);
+      if (!(amt >= 0)) return fail(400, `${d.InvName}: จำนวนรับซื้อไม่ถูกต้อง`);
+      if (amt > Number(d.AmountOffer) + OPS_EPS) return fail(400, `${d.InvName}: จำนวนรับซื้อเกินจำนวนที่เสนอขาย (${opsFmtQty(d.AmountOffer)})`);
+      if (amt > 0 && !(price > 0)) return fail(400, `${d.InvName}: กรุณาระบุราคารับซื้อ/หน่วย`);
+      rows.push({ idOpsDt: d.idOpsDt, amt: round6(amt), price: amt > 0 ? Math.round(price * 10000) / 10000 : null });
+    }
+    if (!rows.some(r => r.amt > 0)) return fail(400, 'ต้องมีรายการที่รับซื้ออย่างน้อย 1 รายการ (ถ้าไม่รับซื้อทั้งหมด ใช้ปุ่ม "ไม่รับซื้อ")');
+    const dateGet = String(req.body.dateGet || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateGet) || isNaN(new Date(dateGet))) return fail(400, 'กรุณาระบุวันที่ต้องการรับของ');
+    const note = String(req.body.note || '').trim();
+    if (note.length > 1000) return fail(400, 'หมายเหตุยาวเกิน 1,000 ตัวอักษร');
+
+    // ผู้อนุมัติ 4 ขั้น: ครบ / มีอีเมล / อนุมัติ 1 ≠ อนุมัติ 2
+    const ap = {};
+    for (const s of OPS_APV_STEPS) {
+      ap[s.code] = parseInt((req.body.approvers || {})[s.code], 10);
+      if (!ap[s.code]) return fail(400, `กรุณาเลือก${s.name}`);
+    }
+    if (new Set(Object.values(ap)).size !== OPS_APV_STEPS.length) return fail(400, 'ผู้รับทราบ ผู้ตรวจสอบ และผู้อนุมัติ ทั้ง 4 ท่านต้องเป็นคนละคน');
+    const people = await opsPeople(transaction, [...new Set(Object.values(ap))]);
+    for (const s of OPS_APV_STEPS) {
+      const p = people.find(x => x.idPs === ap[s.code]);
+      if (!p) return fail(400, `${s.name}: ไม่พบพนักงานในระบบ`);
+      if (!opsValidEmail(p.email)) return fail(400, `${s.name} (${p.name}) ไม่มีอีเมลในระบบ`);
+    }
+
+    const now = (await new sql.Request(transaction).query('SELECT GETDATE() AS now')).recordset[0].now;
+    for (const r of rows) {
+      await new sql.Request(transaction).input('dt', sql.Int, r.idOpsDt).input('amt', sql.Decimal(18, 6), r.amt).input('price', sql.Decimal(18, 4), r.price)
+        .query('UPDATE devsk.SeedReqSaleDt SET AmountBuy = @amt, Price = @price WHERE idOpsDt = @dt');
+    }
+    const buyDoc = cur.BuyDocCode || await getNextOpaDocCode(transaction, cur.idCompTarget, now);
+    const kind = st === 'S' ? 'request' : st === 'B' ? 'resubmit' : 'edit';
+    const round = st === 'H' ? cur.ApvRound : (cur.ApvRound || 0) + 1;
+    await new sql.Request(transaction)
+      .input('id', sql.Int, idOps).input('doc', sql.VarChar(12), buyDoc).input('now', sql.DateTime, now).input('ps', sql.Int, req.idPs)
+      .input('get', sql.Date, dateGet).input('note', sql.NVarChar(1000), note || null).input('round', sql.Int, round)
+      .query(`UPDATE devsk.SeedReqSaleMt SET BuyDocCode = @doc, BuyDateDoc = ISNULL(BuyDateDoc, @now), idPsBuy = @ps, DateBuy = @now,
+                     BuyDateGet = @get, BuyNote = @note, ApvRound = @round
+              WHERE idOps = @id;
+              DELETE FROM devsk.SeedReqSaleApv WHERE idOps = @id AND ApvRound = @round;`);
+    for (const s of OPS_APV_STEPS) {
+      await new sql.Request(transaction).input('id', sql.Int, idOps).input('round', sql.Int, round).input('step', sql.VarChar(10), s.code)
+        .input('ps', sql.Int, ap[s.code]).input('ts', sql.Int, req.idPs).input('now', sql.DateTime, now)
+        .query(`INSERT INTO devsk.SeedReqSaleApv (idOps, ApvRound, StepCode, idPsAssign, idPsTs, DateTs, DateMail)
+                VALUES (@id, @round, @step, @ps, @ts, @now, @now)`);
+    }
+    await transaction.commit();
+    // บันทึกแล้วค่อยส่งอีเมล (ไม่ให้ transaction ค้างระหว่างรอ SMTP) — ส่งไม่สำเร็จดูได้ใน log / กด "ส่ง E-mail เตือน" ซ้ำได้
+    res.json({ success: true, buyDocNo: buyDoc, kind, dryRun: opsMailDryRun(), mailTo: OPS_APV_STEPS.map(st => ({ step: st.code, name: (people.find(p => p.idPs === ap[st.code]) || {}).name })) });
+    opsBackground('apv-request', () => opsSendApvMails(pool, idOps, kind, req));
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('OPS buy submit error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกไม่สำเร็จ — ระบบไม่ได้บันทึกข้อมูลใดๆ', detail: err.message });
+  }
+});
+
+// ---------- ฝ่ายจัดซื้อ: ส่งอีเมลเตือนผู้อนุมัติที่ยังไม่ได้พิจารณา ----------
+app.post('/api/ops/buy/:id/remind', requireMenu(MENU_OPS_BUY), async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
+  if (!opsMailReady()) return res.status(503).json({ success: false, message: 'ยังไม่ได้ตั้งค่าการส่งอีเมล (SMTP) ที่ server — ติดต่อผู้ดูแลระบบ' });
+  if (!opsMailHealth.ok) return res.status(503).json({ success: false, message: OPS_MAIL_DOWN_MSG });
+  try {
+    const pool = await poolPromise;
+    const doc = await loadOpsDoc(idOps);
+    if (!doc) return res.status(404).json({ success: false, message: 'ไม่พบเอกสาร' });
+    if (!hasComp(req.access, doc.compTarget)) return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้' });
+    if (doc.status !== 'H') return res.status(409).json({ success: false, message: 'เอกสารไม่ได้อยู่ระหว่างรออนุมัติ' });
+    const seen = new Set();
+    const pend = doc.approvals.filter(a => a.round === doc.apvRound && !a.result && a.email && !seen.has(a.idPs) && seen.add(a.idPs));
+    res.json({ success: true, mailPending: true, results: pend.map(a => ({ type: 'to', email: a.email, pending: true })) });
+    opsBackground('apv-remind', () => opsSendApvMails(pool, idOps, 'remind', req, true));
+  } catch (err) {
+    console.error('OPS buy remind error:', err);
+    res.status(500).json({ success: false, message: 'ส่งอีเมลเตือนไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ผู้ร้องขอ + CC + ฝ่ายจัดซื้อ (ใช้แจ้งผลถึงฝั่งผู้ขาย) ----------
+async function opsSellerAudience(runner, doc) {
+  const req = await opsPeople(runner, [doc.requester.id]);
+  const extra = await opsPeople(runner, [doc.buy && doc.buy.by && doc.buy.by.id, doc.recipients.to && doc.recipients.to.idPs].filter(Boolean));
+  return { to: req, cc: [...doc.recipients.cc, ...extra] };
+}
+
+// ---------- ฝ่ายจัดซื้อ: ไม่รับซื้อ (ตัดสินเอง ไม่ผ่านผู้อนุมัติ) — ต้องระบุเหตุผล / แจ้งผู้ร้องขอ + CC ตอนส่งคำร้อง ----------
+app.post('/api/ops/buy/:id/reject', requireMenu(MENU_OPS_BUY), async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  const note = String(req.body.note || '').trim();
+  if (!idOps) return res.status(400).json({ success: false, message: 'เลขที่เอกสารไม่ถูกต้อง' });
+  if (note.length <= 5 || /^[-0\s]+$/.test(note)) return res.status(400).json({ success: false, message: 'กรุณาระบุเหตุผลที่ไม่รับซื้อ (มากกว่า 5 ตัวอักษร)' });
+  if (note.length > 500) return res.status(400).json({ success: false, message: 'เหตุผลยาวเกิน 500 ตัวอักษร' });
+  let transaction;
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const cur = await lockOpsDoc(transaction, idOps);
+    const stop = async (code, message) => { await transaction.rollback(); return res.status(code).json({ success: false, message }); };
+    if (!cur) return stop(404, 'ไม่พบเอกสาร');
+    if (!hasComp(req.access, cur.idCompTarget)) return stop(403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    const st = opsStatus(cur);
+    if (!(st === 'S' || st === 'B' || (st === 'H' && !cur.ApvActed))) return stop(409, 'มีผู้อนุมัติพิจารณาไปแล้ว หรือสถานะเอกสารเปลี่ยนไป — ไม่รับซื้อจากฝ่ายจัดซื้อไม่ได้');
+    await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, req.idPs).input('note', sql.NVarChar(500), note)
+      .query(`UPDATE devsk.SeedReqSaleMt SET idPsReject = @ps, DateReject = GETDATE(), RejectNote = @note, RejectStep = 'buy' WHERE idOps = @id`);
+    await transaction.commit();
+    // แจ้งผล (หลังบันทึก / เบื้องหลัง — ส่งไม่สำเร็จไม่ย้อนผล)
+    res.json({ success: true });
+    opsBackground('buy-reject', async () => {
+      const doc = await loadOpsDoc(idOps);
+      // ผู้รับ: ผู้ร้องขอ + ผู้รับสำเนา (CC) ที่ผู้ร้องขอใส่ไว้ตอนส่งคำร้องเท่านั้น (ไม่ส่งผู้อนุมัติ)
+      const requester = await opsPeople(pool, [doc.requester.id]);
+      const me = (await opsPeople(pool, [req.idPs]))[0];
+      const m = buildOpsResultMail(doc, `${opsBase(req)}/over-po-sale-doc?id=${idOps}`, 'buy-reject',
+        opsDear(doc.requester), { by: `${opsFormal(me)} ฝ่ายจัดซื้อ ${doc.compTargetName}`, note });
+      await opsNotify(pool, idOps, 'buy-reject', req, requester, doc.recipients.cc, m);
+    });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('OPS buy reject error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกไม่รับซื้อไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- รายการที่รอการพิจารณาของผู้ใช้ (หน้า /over-po-sale-apv) — เฉพาะเอกสารรออนุมัติ ที่มีขั้นของคนนี้ยังไม่กด ----------
+async function opsApvPendingData(idPs) {
+  const pool = await poolPromise;
+  const r = await pool.request().input('ps', sql.Int, idPs).query(`
+    SELECT m.idOps INTO #mine
+    FROM devsk.SeedReqSaleMt m
+    ${OPS_ROUND_SQL()}
+    WHERE m.DateBuy IS NOT NULL AND m.DateCancel IS NULL AND m.DateReject IS NULL AND m.DateApv IS NULL AND ISNULL(ar.ApvBack, 0) = 0
+      AND EXISTS (SELECT 1 FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL);
+
+    SELECT m.idOps, m.DocCode, m.BuyDocCode, CONVERT(varchar(16), m.DateBuy, 120) AS TxBuy, m.idCompReq, cr.CompName AS CompNameReq, pb.PsName AS PsBuy, ar.ApvDone, ar.ApvCount,
+           STUFF((SELECT ',' + a.StepCode FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL
+                  ORDER BY CASE a.StepCode WHEN 'accept' THEN 1 WHEN 'check' THEN 2 WHEN 'approve1' THEN 3 ELSE 4 END FOR XML PATH('')), 1, 1, '') AS MySteps
+    FROM devsk.SeedReqSaleMt m
+    JOIN #mine x ON x.idOps = m.idOps
+    LEFT JOIN PchInvAndProject.dbo.dCompany cr ON cr.idComp = m.idCompReq
+    OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WHERE v.idPs = m.idPsBuy) pb
+    ${OPS_ROUND_SQL()}
+    ORDER BY m.DateBuy, m.idOps;
+
+    SELECT d.idOps, i.InvName, d.AmountBuy, d.Price, u.UnitName
+    FROM devsk.SeedReqSaleDt d
+    JOIN #mine x ON x.idOps = d.idOps
+    LEFT JOIN devsk.dInventoryMain i ON i.idInvMain = d.idInvMain
+    LEFT JOIN devsk.dInvUnit u ON u.idUnit = d.idUnit
+    WHERE d.AmountBuy > 0
+    ORDER BY d.idOps, d.idOpsDt;
+
+    DROP TABLE #mine;`);
+  const items = new Map();
+  r.recordsets[1].forEach(x => {
+    const amt = opsRound2(Number(x.AmountBuy) * Number(x.Price || 0));
+    items.set(x.idOps, [...(items.get(x.idOps) || []), { invName: x.InvName, amountBuy: Number(x.AmountBuy), price: x.Price == null ? null : Number(x.Price), unit: x.UnitName, amt }]);
+  });
+  return r.recordsets[0].map(m => {
+    const its = items.get(m.idOps) || [];
+    return { id: m.idOps, docNo: m.DocCode, buyDocNo: m.BuyDocCode, buyAt: m.TxBuy, req: m.idCompReq, reqName: m.CompNameReq, buyBy: m.PsBuy || '-',
+      done: m.ApvDone || 0, count: m.ApvCount || OPS_APV_STEPS.length, steps: String(m.MySteps || '').split(',').filter(Boolean),
+      items: its, total: opsRound2(its.reduce((s, it) => s + it.amt, 0)) };
+  });
+}
+app.get('/api/ops/apv/pending', requireLogin, async (req, res) => {
+  try {
+    res.json({ success: true, data: await opsApvPendingData(req.idPs) });
+  } catch (err) {
+    console.error('OPS apv pending error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการรอพิจารณาไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ผู้อนุมัติ: ผ่าน (A) / ส่งกลับแก้ไข (B) / ไม่รับซื้อ (R) — กดได้เฉพาะขั้นของตัวเองในรอบปัจจุบัน ----------
+// body.step = ขั้นที่กด (ปุ่มแยกตามขั้น) — ไม่ระบุ = ทุกขั้นที่รอคนนี้ (เอกสารเก่าที่คนเดียวมีหลายขั้น) / ผ่านครบ 4 ขั้น → สร้าง PO + ใบสั่งขาย
+app.post('/api/ops/apv/:id', requireLogin, async (req, res) => {
+  const idOps = parseInt(req.params.id, 10);
+  const result = String(req.body.result || '');
+  const note = String(req.body.note || '').trim();
+  const step = req.body.step ? String(req.body.step) : null;
+  if (!idOps || !['A', 'B', 'R'].includes(result) || (step && !OPS_APV_STEPS.some(s => s.code === step))) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ถูกต้อง' });
+  if (result !== 'A' && (note.length <= 5 || /^[-0\s]+$/.test(note))) return res.status(400).json({ success: false, message: 'กรุณาระบุเหตุผล (มากกว่า 5 ตัวอักษร)' });
+  if (note.length > 500) return res.status(400).json({ success: false, message: 'เหตุผลยาวเกิน 500 ตัวอักษร' });
+  let transaction;
+  try {
+    const pool = await poolPromise;
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const cur = await lockOpsDoc(transaction, idOps);
+    const stop = async (code, message) => { await transaction.rollback(); return res.status(code).json({ success: false, message }); };
+    if (!cur) return stop(404, 'ไม่พบเอกสาร');
+    { const st0 = opsStatus(cur); if (st0 !== 'H') return stop(409, ({ R: 'คำร้องนี้ถูกตัดสินไม่รับซื้อไปแล้ว (ฝ่ายจัดซื้อหรือผู้อนุมัติท่านอื่นตัดสินไปก่อน) จึงพิจารณาไม่ได้', A: 'ใบขออนุมัตินี้อนุมัติครบทุกท่านแล้ว', B: 'ใบขออนุมัตินี้ถูกส่งกลับแก้ไข — รอฝ่ายจัดซื้อแก้ไขและส่งขออนุมัติใหม่', C: 'ผู้ขายยกเลิกคำร้องนี้แล้ว' })[st0] || 'เอกสารไม่ได้อยู่ระหว่างรออนุมัติแล้ว — กรุณาเปิดเอกสารใหม่'); }
+    const mine = (await new sql.Request(transaction).input('id', sql.Int, idOps).input('round', sql.Int, cur.ApvRound).input('ps', sql.Int, req.idPs).input('step', sql.VarChar(10), step)
+      .query('SELECT idApv, StepCode FROM devsk.SeedReqSaleApv WHERE idOps = @id AND ApvRound = @round AND idPsAssign = @ps AND Result IS NULL AND (@step IS NULL OR StepCode = @step)')).recordset;
+    if (!mine.length) return stop(409, 'ไม่มีรายการที่รอการพิจารณาของคุณในเอกสารนี้ (อาจพิจารณาไปแล้ว หรือฝ่ายจัดซื้อเปลี่ยนผู้อนุมัติ)');
+    const now = (await new sql.Request(transaction).query('SELECT GETDATE() AS now')).recordset[0].now;
+    await new sql.Request(transaction).input('id', sql.Int, idOps).input('round', sql.Int, cur.ApvRound).input('ps', sql.Int, req.idPs)
+      .input('res', sql.Char(1), result).input('note', sql.NVarChar(500), note || null).input('now', sql.DateTime, now).input('step', sql.VarChar(10), step)
+      .query(`UPDATE devsk.SeedReqSaleApv SET Result = @res, Note = @note, idPsAct = @ps, DateAct = @now
+              WHERE idOps = @id AND ApvRound = @round AND idPsAssign = @ps AND Result IS NULL AND (@step IS NULL OR StepCode = @step)`);
+    const steps = mine.map(x => x.StepCode);
+    let final = null;
+    if (result === 'R') {
+      await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, req.idPs).input('note', sql.NVarChar(500), note)
+        .input('step', sql.VarChar(10), steps[0]).input('now', sql.DateTime, now)
+        .query('UPDATE devsk.SeedReqSaleMt SET idPsReject = @ps, DateReject = @now, RejectNote = @note, RejectStep = @step WHERE idOps = @id');
+    } else if (result === 'A') {
+      const c = (await new sql.Request(transaction).input('id', sql.Int, idOps).input('round', sql.Int, cur.ApvRound)
+        .query(`SELECT COUNT(*) AS n, SUM(CASE WHEN Result = 'A' THEN 1 ELSE 0 END) AS ok FROM devsk.SeedReqSaleApv WHERE idOps = @id AND ApvRound = @round`)).recordset[0];
+      if (c.n === OPS_APV_STEPS.length && c.ok === c.n) {
+        final = await opsCreatePO(transaction, idOps, now);
+        await new sql.Request(transaction).input('id', sql.Int, idOps).input('ps', sql.Int, req.idPs).input('now', sql.DateTime, now).input('po', sql.Int, final.idPOTs)
+          .query('UPDATE devsk.SeedReqSaleMt SET idPsApv = @ps, DateApv = @now, idPOTsAuto = @po WHERE idOps = @id');
+      }
+    }
+    if (final && opsPoTestRollback()) {
+      // ดูข้อมูลที่จะถูกบันทึก (PO + ใบสั่งขาย) ก่อน rollback
+      const snap = await new sql.Request(transaction).input('po', sql.Int, final.idPOTs).query(`
+        SELECT * FROM devsk.PkPOBuyMt WHERE idPOTs = @po;
+        SELECT * FROM devsk.PkPOBuyDt WHERE idPOTs = @po;
+        SELECT * FROM dbo.SmSaleOrderMt WHERE idPOTs = @po;
+        SELECT d.* FROM dbo.SmSaleOrderDt d JOIN dbo.SmSaleOrderMt m ON m.idSaleOrder = d.idSaleOrder WHERE m.idPOTs = @po;`);
+      await transaction.rollback();
+      return res.json({ success: true, testRollback: true, steps, po: final,
+        preview: { poMt: snap.recordsets[0], poDt: snap.recordsets[1], soMt: snap.recordsets[2], soDt: snap.recordsets[3] } });
+    }
+    await transaction.commit();
+
+    // แจ้งผล (หลังบันทึก / เบื้องหลัง)
+    res.json({ success: true, steps, po: final });
+    opsBackground('apv-result', async () => {
+      const doc = await loadOpsDoc(idOps);
+      const me = (await opsPeople(pool, [req.idPs]))[0];
+      const by = opsFormal(me);
+      if (result === 'B' && doc.buy && doc.buy.by) {
+        const buyer = await opsPeople(pool, [doc.buy.by.id]);
+        await opsNotify(pool, idOps, 'apv-back', req, buyer, [],
+          buildOpsResultMail(doc, `${opsBase(req)}/over-po-sale-buy?id=${idOps}`, 'back', opsDear(doc.buy.by), { by, step: steps[0], note }));
+      } else if (result === 'R' || final) {
+        const aud = await opsSellerAudience(pool, doc);
+        await opsNotify(pool, idOps, result === 'R' ? 'rejected' : 'approved', req, aud.to, aud.cc,
+          buildOpsResultMail(doc, `${opsBase(req)}/over-po-sale-doc?id=${idOps}`, result === 'R' ? 'rejected' : 'approved', opsDear(doc.requester),
+            { by, step: steps[0], note, poCode: final && final.docCode, soCode: final && final.soCode }));
+      }
+    });
+  } catch (err) {
+    if (transaction) { try { await transaction.rollback(); } catch (e) {} }
+    console.error('OPS apv error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกผลการพิจารณาไม่สำเร็จ — ระบบไม่ได้บันทึกข้อมูลใดๆ', detail: err.message });
+  }
+});
+
+// ==================================================================
+// ---------- ตรวจนับสต๊อก (Stock Count: SC) + อนุมัติปรับยอดสต๊อก (RQ) — sql/stock-count-setup.sql ----------
+// ==================================================================
+// สร้างเอกสาร SC (DRAFT) → เริ่มตรวจนับ / พิมพ์ใบนับ = snapshot ยอด ERP ลง dInvCountDt (COUNT)
+// → บันทึกยอดนับ (dInvCountEntry) → ปิดการนับ (REVIEW) → ผู้ตรวจสอบผลต่างเลือกรายการปรับ
+// → ส่งขออนุมัติ = สร้าง RQ 1 ใบใน dInvReqCountMt/Dt (SrcType = 'SC') → APPROVE / ไม่มีรายการต้องปรับ → DONE
+// → หน้าอนุมัติ (RQ ทุกใบ ทั้งจาก ERP desktop และ SC) รับทราบ / ตรวจสอบ / อนุมัติ กดก่อนหลังได้
+// - หน่วย = dInventoryMain.idUnit / ยอด ERP = dInvLotRefWh.Amount (ไม่ใช้ dInvLotRefWh.idUnit)
+// - ขั้นที่ทำให้ครบ 3 ขั้น = ปรับสต๊อกจริงใน transaction เดียวกัน (adjPost — ชุดเดียวกับ WIM Desktop) / SC_POSTING_READY = false ปิดไว้ได้
+const MENU_SC = 'stock_count';
+const MENU_SC_REVIEW = 'stock_count_review';
+const MENU_SC_CANCEL = 'stock_count_cancel';
+const MENU_SC_SETUP = 'stock_count_setup';
+const MENU_ADJ_CHECK = 'stock_adjust_check';
+const MENU_ADJ_ACK = 'stock_adjust_ack';
+const MENU_ADJ_APPROVE = 'stock_adjust_approve';
+const MENU_ADJ = [MENU_ADJ_ACK, MENU_ADJ_CHECK, MENU_ADJ_APPROVE];
+// รายการขอปรับยอดสต๊อก (เจ้าหน้าที่): ติดตาม / ส่งต่อ / พิมพ์ RQ ทุกใบ (ทั้งจาก WIM Desktop และการตรวจนับ) — ดูอย่างเดียว
+const MENU_ADJ_TRACK = 'stock_adjust_track';
+// รายงานการปรับยอดสต๊อก (รายงาน › รายงานสต๊อก): เอกสารปรับสต๊อกจริง dInvLotCountMt / Dt ทุกใบ (WIM Desktop + เว็บ)
+const MENU_ADJ_REPORT = 'stock_adjust_report';
+// ขอกลับรายการปรับยอดสต๊อก (สิทธิ์ ไม่มีเมนู): ปุ่มในรายงาน / ใบขอปรับยอดที่ปรับแล้ว → RQ ใหม่ SrcType 'REV' → อนุมัติ 3 ขั้นตามปกติ
+const MENU_ADJ_REVERSE = 'stock_adjust_reverse';
+const MENU_SC_VIEW = [MENU_SC, MENU_SC_REVIEW, MENU_SC_SETUP, ...MENU_ADJ, MENU_ADJ_TRACK];
+const SC_POSTING_READY = true;
+const SC_EPS = 1e-6;
+const SC_MAX_ENTRY_BATCH = 2000;
+const SC_LIST_MAX = 1000;   // รายการเอกสารตรวจนับ: ดึงสูงสุดกี่ใบล่าสุด (เกิน = หน้าเว็บเตือนให้ระบุช่วงวันที่)
+const SC_EXCLUDED_WH = [5503];   // Seeds Stock QA
+const SC_EXCLUDED_WH_SQL = SC_EXCLUDED_WH.join(', ');
+// ขั้นอนุมัติ RQ → คอลัมน์เดิมของ ERP (ชื่อตามที่ ERP desktop ใช้)
+const ADJ_STEPS = {
+  ack: { menu: MENU_ADJ_ACK, name: 'รับทราบ', ps: 'idPsAccept', date: 'DateAccept', st: 'stAct', log: 'accept' },
+  check: { menu: MENU_ADJ_CHECK, name: 'ตรวจสอบ', ps: 'idPsCheck', date: 'DateCheck', st: 'stChk', log: 'check' },
+  approve: { menu: MENU_ADJ_APPROVE, name: 'อนุมัติปรับยอด', ps: 'idPsApprove', date: 'DateApprove', st: 'stApv', log: 'approve' }
+};
+
+app.get(['/stock-adjust-approve', '/stock-adjust-approve.html'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'stock-adjust-approve.html')));
+// รายการขอปรับยอดสต๊อก = หน้าเดียวกับหน้าอนุมัติ (การ์ด / popup / พิมพ์ / ส่งต่อ ชุดเดียวกัน) โหมดติดตาม ไม่มีปุ่มอนุมัติ
+app.get(['/stock-adjust-list', '/stock-adjust-list.html'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'stock-adjust-approve.html')));
+
+// ==================================================================
+// รายงานการปรับยอดสต๊อก — ข้อมูลชุดเดียว 3 มุมมอง (ตามเอกสาร / ตามรายการ / ภาพรวม)
+//   แทนรายงาน WIM Desktop 2 ตัว: "ประวัติการปรับสต๊อก" (Mt-Dt) + "รายงานสรุปข้อมูลการปรับ/ตรวจนับสต็อก" (รายการ)
+//   จำนวนอย่างเดียว (ยังไม่แสดงมูลค่า) / หน่วย = หน่วยสินค้า (dInventoryMain.idUnit) / คลัง = ตำแหน่งของ idRefLot
+// ==================================================================
+const ADJ_RPT_MAX = 20000;   // รายการสูงสุดต่อครั้ง (ทั้งปีที่มากสุดในระบบ ≈ 15,000)
+const adjRptIsDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+// ตัวกรองร่วม (ข้อมูล + แนวโน้ม): บริษัท / ประเภท Inventory / คลังหลัก / สินค้า-Lot / ตัวดำเนินการ
+function adjRptFilter(req, request) {
+  let w = '';
+  const idComp = scInt(req.query.idComp);
+  if (idComp) { request.input('idComp', sql.Int, idComp); w += ' AND m.idComp = @idComp'; }
+  else w += ' ' + compFilter(req.access, request, 'm.idComp');
+  const idGroup = scInt(req.query.idGroup);
+  if (idGroup) { request.input('idGroup', sql.Int, idGroup); w += ' AND i.idInvgroup = @idGroup'; }
+  const idWh0 = scInt(req.query.idWh0);
+  if (idWh0) { request.input('idWh0', sql.Int, idWh0); w += ' AND wl.idParent0 = @idWh0'; }
+  const q = String(req.query.q || '').trim().slice(0, 100);
+  if (q) { request.input('q', sql.NVarChar(110), '%' + q.replace(/[[\]%_]/g, '[$&]') + '%'); w += ' AND (i.InvName LIKE @q OR i.InvCode LIKE @q OR d.lotNo LIKE @q)'; }
+  if (['+', '-', '='].includes(req.query.op)) { request.input('op', sql.VarChar(2), req.query.op); w += ' AND d.Operate = @op'; }
+  return w;
+}
+const ADJ_RPT_FROM = `
+  FROM devsk.dInvLotCountMt m WITH (NOLOCK)
+  JOIN devsk.dInvLotCountDt d WITH (NOLOCK) ON d.idUpdate = m.idUpdate
+  LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+  LEFT JOIN devsk.dInvLotRefWh r WITH (NOLOCK) ON r.idRefLot = d.idRefLot
+  LEFT JOIN dbo.ssWarehouse wl WITH (NOLOCK) ON wl.idWh = r.idWh`;
+
+app.get(['/stock-adjust-report', '/stock-adjust-report.html'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'stock-adjust-report.html')));
+
+app.get('/api/stock-adjust-report/meta', requireMenu(MENU_ADJ_REPORT), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const request = pool.request();
+    const compSql = compFilter(req.access, request, 'c.idComp');
+    const whSql = compFilter(req.access, request, 'w.idComp');
+    const r = await request.query(
+      `SELECT c.idComp, LTRIM(RTRIM(c.CompCode)) AS CompCode, c.CompName FROM PchInvAndProject.dbo.dCompany c WITH (NOLOCK)
+       WHERE c.stDel IS NULL AND c.CompName IS NOT NULL ${compSql} ORDER BY c.CompCode, c.CompName;
+       SELECT idInvGroup, InvGroupName FROM devsk.dInvGroup WITH (NOLOCK) WHERE stDel IS NULL ORDER BY InvGroupName;
+       SELECT w.idWh, w.WareHouseName, w.idComp FROM dbo.ssWarehouse w WITH (NOLOCK)
+       WHERE w.stDel = 0 AND ISNULL(w.idParrent, 0) = 0 ${whSql} ORDER BY w.idComp, w.WareHouseName;`);
+    res.json({ success: true,
+      companies: r.recordsets[0].map(c => ({ id: c.idComp, code: c.CompCode || c.CompName, name: c.CompName })),
+      groups: r.recordsets[1].map(g => ({ id: g.idInvGroup, name: g.InvGroupName })),
+      warehouses: r.recordsets[2].map(w => ({ id: w.idWh, name: w.WareHouseName, idComp: w.idComp })),
+      max: ADJ_RPT_MAX, canReverse: hasMenu(req.access, MENU_ADJ_REVERSE) });
+  } catch (err) {
+    console.error('ADJ report meta error:', err);
+    res.status(500).json({ success: false, message: 'โหลดข้อมูลตั้งต้นไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ข้อมูล: from / to (วันที่ปรับ) — ระบุเลขที่รายการ (doc) = ค้นทุกช่วงวันที่ / คืนหัวเอกสาร (docs) + รายการ (lines อ้าง idUpdate)
+app.get('/api/stock-adjust-report/data', requireMenu(MENU_ADJ_REPORT, { companyParam: 'idComp' }), async (req, res) => {
+  try {
+    const doc = String(req.query.doc || '').trim().slice(0, 15);
+    if (!scInt(req.query.idComp)) return scFail(res, 400, 'กรุณาเลือกบริษัท');
+    if (!doc && !(adjRptIsDate(req.query.from) && adjRptIsDate(req.query.to))) return scFail(res, 400, 'กรุณาระบุช่วงวันที่ปรับ');
+    const pool = await poolPromise;
+    const request = pool.request();
+    let where = 'WHERE 1 = 1' + adjRptFilter(req, request);
+    if (doc) { request.input('doc', sql.VarChar(20), '%' + doc.replace(/[[\]%_]/g, '[$&]') + '%');
+      where += ' AND (m.DocCode LIKE @doc OR EXISTS (SELECT 1 FROM devsk.dInvReqCountMt rqx WITH (NOLOCK) WHERE rqx.idRqUpdate = m.idRqUpdate AND rqx.DocCode LIKE @doc))'; }
+    else { request.input('dFrom', sql.Date, req.query.from).input('dTo', sql.Date, req.query.to); where += ' AND m.DateTs >= @dFrom AND m.DateTs < DATEADD(day, 1, @dTo)'; }
+    const r = await request.query(
+      `SELECT TOP ${ADJ_RPT_MAX + 1}
+         m.idUpdate, m.DocCode, m.DateTs, m.idComp, m.Note, m.idRqUpdate,
+         d.idUpdateDt, d.lotNo, d.AmountBefore, d.Operate, d.AmountOperate, d.AmountAfter, d.Note AS NoteDt,
+         i.InvCode, i.InvName, i.idInvgroup, u.UnitName, wl.short_lock AS WhShort, wl.idParent0, w0.WareHouseName AS MainWh, cc.CauseName
+       ${ADJ_RPT_FROM}
+       LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = i.idUnit
+       LEFT JOIN dbo.ssWarehouse w0 WITH (NOLOCK) ON w0.idWh = wl.idParent0
+       LEFT JOIN devsk.dInvReqCountDt rd WITH (NOLOCK) ON rd.idRqUpdateDt = d.idRqUpdateDt
+       LEFT JOIN devsk.dInvCountDt cd WITH (NOLOCK) ON cd.idCountDt = rd.idCountDt
+       LEFT JOIN devsk.dInvCountCause cc WITH (NOLOCK) ON cc.idCountCause = cd.idCountCause
+       ${where}
+       ORDER BY m.DateTs, m.idUpdate, d.idUpdateDt`);
+    const rows = r.recordset.slice(0, ADJ_RPT_MAX);
+    // หัวเอกสาร: ดึงแยกครั้งเดียวต่อใบ (ผู้ออกคำสั่ง / ผู้ปฏิบัติงาน / ใบขอปรับ / ที่มา / ผู้อนุมัติ)
+    const ids = [...new Set(rows.map(x => x.idUpdate))];
+    // id มาจากฐานข้อมูล (เลขจำนวนเต็ม) → IN (...) ทีละ 1,000 (ฐานข้อมูลนี้ไม่มี STRING_SPLIT)
+    let heads = [];
+    for (let k = 0; k < ids.length; k += 1000) {
+      const part = ids.slice(k, k + 1000).map(n => parseInt(n, 10)).filter(Number.isInteger).join(',');
+      const hr = await pool.request().query(
+        `SELECT m.idUpdate, LTRIM(RTRIM(co.CompCode)) AS CompCode, co.CompName, pc.PsName AS CmdName, pa.PsName AS ActName,
+                rq.DocCode AS RqCode, rq.SrcType, sc.DocCode AS ScCode, rq.idCount, pp.PsName AS ApvName, rq.DateApprove,
+                rq.idUpdateRev, rv.DocCode AS RevDocCode
+         FROM devsk.dInvLotCountMt m WITH (NOLOCK)
+         LEFT JOIN PchInvAndProject.dbo.dCompany co WITH (NOLOCK) ON co.idComp = m.idComp
+         LEFT JOIN devsk.vPersonxSelect pc ON pc.idPs = m.idPsCommand
+         LEFT JOIN devsk.vPersonxSelect pa ON pa.idPs = m.idPsAction
+         LEFT JOIN devsk.dInvReqCountMt rq WITH (NOLOCK) ON rq.idRqUpdate = m.idRqUpdate
+         LEFT JOIN devsk.dInvCountMt sc WITH (NOLOCK) ON sc.idCount = rq.idCount
+         LEFT JOIN devsk.vPersonxSelect pp ON pp.idPs = rq.idPsApprove
+         LEFT JOIN devsk.dInvLotCountMt rv WITH (NOLOCK) ON rv.idUpdate = rq.idUpdateRev
+         WHERE m.idUpdate IN (${part})`);
+      heads = heads.concat(hr.recordset);
+    }
+    // รายการที่ถูกกลับรายการแล้ว / รอกลับรายการ (ใบกลับรายการที่ไม่ยกเลิก)
+    const lineIds = rows.map(x => x.idUpdateDt), revMap = new Map();
+    for (let k = 0; k < lineIds.length; k += 1000) {
+      const part = lineIds.slice(k, k + 1000).map(n => parseInt(n, 10)).filter(Number.isInteger).join(',');
+      if (!part) continue;
+      const rr = await pool.request().query(
+        `SELECT xd.idUpdateDtRev, x.idRqUpdate, x.DocCode, (SELECT TOP 1 p.DocCode FROM devsk.dInvLotCountMt p WITH (NOLOCK) WHERE p.idRqUpdate = x.idRqUpdate) AS PostCode
+         FROM devsk.dInvReqCountDt xd WITH (NOLOCK) JOIN devsk.dInvReqCountMt x WITH (NOLOCK) ON x.idRqUpdate = xd.idRqUpdate
+         WHERE x.idPsCancel IS NULL AND xd.idUpdateDtRev IN (${part})`);
+      rr.recordset.forEach(x => revMap.set(x.idUpdateDtRev, { idRq: x.idRqUpdate, rqCode: x.DocCode, postCode: x.PostCode || null }));
+    }
+    const hmap = new Map(heads.map(h => [h.idUpdate, h]));
+    const num = (v) => (v == null ? null : Number(v));
+    const docs = [], seen = new Set();
+    for (const x of rows) {
+      if (seen.has(x.idUpdate)) continue;
+      seen.add(x.idUpdate);
+      const h = hmap.get(x.idUpdate) || {};
+      docs.push({ id: x.idUpdate, docCode: x.DocCode, date: x.DateTs, idComp: x.idComp, compCode: h.CompCode || '', compName: h.CompName || '',
+        note: x.Note || '', cmd: h.CmdName || '', act: h.ActName || '', idRq: x.idRqUpdate, rqCode: h.RqCode || '',
+        src: h.SrcType === 'SC' ? 'SC' : h.SrcType === 'REV' ? 'REV' : 'PC', scCode: h.ScCode || '', apv: h.ApvName || '',
+        revOf: h.idUpdateRev ? { id: h.idUpdateRev, docCode: h.RevDocCode || '' } : null });
+    }
+    res.json({ success: true, more: r.recordset.length > ADJ_RPT_MAX, max: ADJ_RPT_MAX, docs,
+      lines: rows.map(x => ({ id: x.idUpdateDt, doc: x.idUpdate, lotNo: x.lotNo, invCode: x.InvCode, invName: x.InvName, idGroup: x.idInvgroup,
+        unit: x.UnitName, wh: x.WhShort, idWh0: x.idParent0, mainWh: x.MainWh, before: num(x.AmountBefore), op: String(x.Operate || '').trim(),
+        amount: num(x.AmountOperate), after: num(x.AmountAfter), note: x.NoteDt || '', cause: x.CauseName || '', rev: revMap.get(x.idUpdateDt) || null })) });
+  } catch (err) {
+    console.error('ADJ report data error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายงานไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// แนวโน้ม 12 เดือน (ถึงเดือนของ to) — ตัวกรองเดียวกับข้อมูล (ยกเว้นช่วงวันที่ / เลขที่รายการ)
+app.get('/api/stock-adjust-report/trend', requireMenu(MENU_ADJ_REPORT, { companyParam: 'idComp' }), async (req, res) => {
+  try {
+    if (!scInt(req.query.idComp)) return scFail(res, 400, 'กรุณาเลือกบริษัท');
+    const to = adjRptIsDate(req.query.to) ? new Date(req.query.to + 'T00:00:00') : new Date();
+    const start = new Date(to.getFullYear(), to.getMonth() - 11, 1), end = new Date(to.getFullYear(), to.getMonth() + 1, 1);
+    const iso = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-01`;
+    const pool = await poolPromise;
+    const request = pool.request().input('tStart', sql.Date, iso(start)).input('tEnd', sql.Date, iso(end));
+    const where = 'WHERE m.DateTs >= @tStart AND m.DateTs < @tEnd' + adjRptFilter(req, request);
+    const r = await request.query(
+      `SELECT YEAR(m.DateTs) AS y, MONTH(m.DateTs) AS mo, COUNT(DISTINCT m.idUpdate) AS docs,
+              SUM(CASE WHEN d.Operate = '+' THEN 1 ELSE 0 END) AS nPlus, SUM(CASE WHEN d.Operate = '-' THEN 1 ELSE 0 END) AS nMinus,
+              SUM(CASE WHEN d.Operate = '=' THEN 1 ELSE 0 END) AS nSet
+       ${ADJ_RPT_FROM} ${where}
+       GROUP BY YEAR(m.DateTs), MONTH(m.DateTs)`);
+    const map = new Map(r.recordset.map(x => [x.y * 100 + x.mo, x]));
+    const months = [];
+    for (let k = 0; k < 12; k++) {
+      const dt = new Date(start.getFullYear(), start.getMonth() + k, 1), x = map.get(dt.getFullYear() * 100 + dt.getMonth() + 1) || {};
+      months.push({ y: dt.getFullYear(), m: dt.getMonth() + 1, docs: x.docs || 0, plus: x.nPlus || 0, minus: x.nMinus || 0, set: x.nSet || 0 });
+    }
+    res.json({ success: true, months });
+  } catch (err) {
+    console.error('ADJ report trend error:', err);
+    res.status(500).json({ success: false, message: 'โหลดแนวโน้มไม่สำเร็จ', detail: err.message });
+  }
+});
+
+const scInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
+// ข้อความที่เขียนลงคอลัมน์ varchar ของ ERP (code page 874): เก็บได้แค่ ASCII + ไทย → ตัวอื่นแปลงเป็นตัวใกล้เคียง / ช่องว่าง (ไม่ให้กลายเป็น "?")
+const erpText = (s) => String(s == null ? '' : s)
+  .replace(/[\u00B7\u2022\u2013\u2014\u2212]/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\u2026/g, '...')
+  .replace(/[^\x09\x0A\x0D\x20-\x7E\u0E01-\u0E3A\u0E3F-\u0E5B]/g, ' ').replace(/ {2,}/g, ' ').trim();
+const scNum = (v) => { if (v === null || v === undefined || v === '') return null; const n = Number(String(v).replace(/,/g, '')); return Number.isFinite(n) ? n : null; };
+const scRound = (n) => Math.round((Number(n) + Number.EPSILON) * 1e6) / 1e6;
+const scFail = (res, status, message) => res.status(status).json({ success: false, message });
+const scText = (v, max) => { const s = String(v == null ? '' : v).trim(); return s ? s.slice(0, max) : null; };
+
+// ---------- เลขเอกสาร SC{yy พ.ศ.}{mm}/{0000} รันแยกบริษัท เริ่มใหม่ทุกปี (เรียกใน transaction เดียวกับ INSERT) ----------
+async function getNextScDocCode(transaction, idComp, date) {
+  const yy = String(date.getFullYear() + 543).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const r = await new sql.Request(transaction)
+    .input('idComp', sql.Int, idComp)
+    .input('pat', sql.VarChar, `SC${yy}__/%`)
+    .query(`SELECT MAX(TRY_CAST(RIGHT(DocCode, 4) AS INT)) AS last
+            FROM devsk.dInvCountMt WITH (UPDLOCK, HOLDLOCK)
+            WHERE idComp = @idComp AND DocCode LIKE @pat`);
+  return `SC${yy}${mm}/${String((r.recordset[0].last || 0) + 1).padStart(4, '0')}`;
+}
+
+// ---------- เลข RQ: ชุดเดียวกับ ERP desktop (RunTsNumber) ----------
+// MAX(DocCode) ของบริษัทในปี ค.ศ. ปัจจุบัน (YEAR(DateTs)) → ตัด 7 ตัวแรก ("RQyymm/") +1 เป็น 5 หลัก / prefix = RQ + yymm พ.ศ. ของวันนี้
+// ล็อกตอนอ่าน กันเว็บออกเลขชนกันเอง / ชนกับ desktop → scFixRqDup เปลี่ยนเลขของใบเว็บหลัง commit
+async function getNextRqDocCode(runner, idComp, date) {
+  const r = await new sql.Request(runner)
+    .input('idComp', sql.Int, idComp)
+    .input('y', sql.Int, date.getFullYear())
+    .query(`SELECT MAX(DocCode) AS mx FROM devsk.dInvReqCountMt WITH (UPDLOCK, HOLDLOCK)
+            WHERE idComp = @idComp AND YEAR(DateTs) = @y`);
+  const mx = r.recordset[0].mx;
+  const last = mx ? parseInt(String(mx).substring(7), 10) || 0 : 0;
+  const yymm = String(date.getFullYear() + 543).slice(-2) + String(date.getMonth() + 1).padStart(2, '0');
+  return `RQ${yymm}/${String(last + 1).padStart(5, '0')}`;
+}
+async function scFixRqDup(idRqUpdate) {
+  for (let i = 0; i < 3; i++) {
+    const pool = await poolPromise;
+    const d = await pool.request().input('id', sql.Int, idRqUpdate).query(
+      `SELECT m.idComp, m.DocCode,
+              (SELECT COUNT(*) FROM devsk.dInvReqCountMt x WITH (NOLOCK) WHERE x.idComp = m.idComp AND x.DocCode = m.DocCode AND x.idRqUpdate <> m.idRqUpdate) AS dup
+       FROM devsk.dInvReqCountMt m WITH (NOLOCK) WHERE m.idRqUpdate = @id`);
+    const row = d.recordset[0];
+    if (!row || !row.dup) return row ? row.DocCode : null;
+    const t = new sql.Transaction(pool);
+    await t.begin();
+    try {
+      const code = await getNextRqDocCode(t, row.idComp, new Date());
+      await new sql.Request(t).input('id', sql.Int, idRqUpdate).input('code', sql.VarChar, code)
+        .query(`UPDATE devsk.dInvReqCountMt SET DocCode = @code WHERE idRqUpdate = @id`);
+      await t.commit();
+      console.warn(`SC: RQ ${row.DocCode} ซ้ำกับ ERP desktop → เปลี่ยนเป็น ${code} (idRqUpdate ${idRqUpdate})`);
+    } catch (e) { try { await t.rollback(); } catch (x) {} throw e; }
+  }
+  return null;
+}
+
+async function scLog(runner, idCount, act, detail, idPs) {
+  await new sql.Request(runner)
+    .input('id', sql.Int, idCount).input('act', sql.VarChar, act)
+    .input('detail', sql.NVarChar, detail ? String(detail).slice(0, 500) : null).input('ps', sql.Int, idPs)
+    .query(`INSERT INTO devsk.dInvCountLog (idCount, ActCode, Detail, idPsTs, DateTs) VALUES (@id, @act, @detail, @ps, GETDATE())`);
+}
+async function rqLog(runner, idRqUpdate, step, note, idPs) {
+  await new sql.Request(runner)
+    .input('id', sql.Int, idRqUpdate).input('step', sql.VarChar, step)
+    .input('note', sql.NVarChar, note ? String(note).slice(0, 500) : null).input('ps', sql.Int, idPs)
+    .query(`INSERT INTO devsk.dInvReqCountLog (idRqUpdate, StepCode, Note, idPsTs, DateTs) VALUES (@id, @step, @note, @ps, GETDATE())`);
+}
+
+// หัวเอกสาร + ล็อกแถว (ใช้ก่อนแก้ไขทุกครั้ง) / เช็คสิทธิ์บริษัท
+async function scLockDoc(transaction, idCount, access) {
+  const r = await new sql.Request(transaction).input('id', sql.Int, idCount).query(
+    `SELECT * FROM devsk.dInvCountMt WITH (UPDLOCK, ROWLOCK) WHERE idCount = @id`);
+  const doc = r.recordset[0];
+  if (!doc) { const e = new Error('ไม่พบเอกสารตรวจนับ'); e.status = 404; throw e; }
+  if (access && !hasComp(access, doc.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+  return doc;
+}
+function scNeed(doc, statuses, msg) {
+  if (!statuses.includes(doc.StatusCode)) { const e = new Error(msg || 'สถานะเอกสารเปลี่ยนไปแล้ว กรุณาโหลดหน้าใหม่'); e.status = 409; throw e; }
+}
+// ทำงานใน transaction เดียว: fn(t) / error ที่มี status → ส่งข้อความนั้นกลับ
+async function scTx(res, label, fn) {
+  let t = null;
+  try {
+    const pool = await poolPromise;
+    t = new sql.Transaction(pool);
+    await t.begin();
+    const out = await fn(t);
+    await t.commit();
+    return out;
+  } catch (err) {
+    if (t) { try { await t.rollback(); } catch (e) {} }
+    if (err.status) { scFail(res, err.status, err.message); return undefined; }
+    console.error(`SC ${label} error:`, err);
+    res.status(500).json({ success: false, message: `${label}ไม่สำเร็จ — ระบบไม่ได้บันทึกข้อมูลใดๆ`, detail: err.message });
+    return undefined;
+  }
+}
+
+// ยอดนับของรายการ = รวม entry ที่ไม่ยกเลิกของรอบนับล่าสุด (R = แทนที่ค่าก่อนหน้า / A = บวกเพิ่ม เรียงตามเวลา)
+async function scRecalcLines(transaction, idCount, ids = null) {
+  const req = new sql.Request(transaction).input('id', sql.Int, idCount);
+  const idFilter = ids && ids.length ? `AND d.idCountDt IN (${ids.map(Number).filter(Number.isFinite).join(',')})` : '';
+  await req.query(
+    `;WITH e AS (
+       SELECT e.idCountDt, e.Qty, e.EntryMode, e.idEntry, e.idPsTs, e.DateTs,
+              MAX(CASE WHEN e.EntryMode = 'R' THEN e.idEntry END) OVER (PARTITION BY e.idCountDt) AS lastR
+       FROM devsk.dInvCountEntry e
+       JOIN devsk.dInvCountDt d ON d.idCountDt = e.idCountDt AND e.RecountNo = d.RecountNo
+       WHERE d.idCount = @id ${idFilter} AND e.stVoid IS NULL
+     ), s AS (
+       SELECT idCountDt, SUM(CASE WHEN lastR IS NULL OR idEntry >= lastR THEN Qty ELSE 0 END) AS Qty, MAX(idEntry) AS lastId
+       FROM e GROUP BY idCountDt
+     )
+     UPDATE d SET AmountCount = s.Qty,
+                  idPsCount = (SELECT idPsTs FROM devsk.dInvCountEntry WHERE idEntry = s.lastId),
+                  DateCountLn = (SELECT DateTs FROM devsk.dInvCountEntry WHERE idEntry = s.lastId)
+     FROM devsk.dInvCountDt d LEFT JOIN s ON s.idCountDt = d.idCountDt
+     WHERE d.idCount = @id ${idFilter};`);
+}
+
+// ---------- ข้อมูลตั้งต้น: ประเภท / สาเหตุ / บริษัท / สิทธิ์ ----------
+app.get('/api/stock-count/meta', requireMenu(MENU_SC_VIEW), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const request = pool.request();
+    const compSql = compFilter(req.access, request, 'c.idComp');
+    const r = await request.query(
+      `SELECT idCountType, TypeCode, TypeName, TypeNameEn, SortOrder, CASE WHEN stDel IS NULL THEN 0 ELSE 1 END AS inactive
+       FROM devsk.dInvCountType WITH (NOLOCK) ORDER BY SortOrder, idCountType;
+       SELECT idCountCause, CauseName, SortOrder, CASE WHEN stDel IS NULL THEN 0 ELSE 1 END AS inactive
+       FROM devsk.dInvCountCause WITH (NOLOCK) ORDER BY SortOrder, idCountCause;
+       SELECT c.idComp, LTRIM(RTRIM(c.CompCode)) AS CompCode, c.CompName
+       FROM PchInvAndProject.dbo.dCompany c WITH (NOLOCK)
+       WHERE c.stDel IS NULL AND c.CompName IS NOT NULL ${compSql}
+       ORDER BY c.CompCode, c.CompName;`);
+    const a = req.access;
+    res.json({
+      success: true,
+      types: r.recordsets[0].map(t => ({ id: t.idCountType, code: t.TypeCode, name: t.TypeName, nameEn: t.TypeNameEn, sort: t.SortOrder, inactive: !!t.inactive })),
+      causes: r.recordsets[1].map(c => ({ id: c.idCountCause, name: c.CauseName, sort: c.SortOrder, inactive: !!c.inactive })),
+      companies: r.recordsets[2].map(c => ({ id: c.idComp, code: c.CompCode || c.CompName, name: c.CompName })),
+      can: {
+        edit: hasMenu(a, MENU_SC), review: hasMenu(a, MENU_SC_REVIEW), cancel: hasMenu(a, MENU_SC_CANCEL), setup: hasMenu(a, MENU_SC_SETUP),
+        ack: hasMenu(a, MENU_ADJ_ACK), check: hasMenu(a, MENU_ADJ_CHECK), approve: hasMenu(a, MENU_ADJ_APPROVE)
+      },
+      postingReady: SC_POSTING_READY,
+      me: req.idPs
+    });
+  } catch (err) {
+    console.error('SC meta error:', err);
+    res.status(500).json({ success: false, message: 'โหลดข้อมูลตั้งต้นไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ตั้งค่า "ประเภทการตรวจนับ" / "สาเหตุผลต่าง" (สิทธิ์ stock_count_setup): เพิ่ม / แก้ชื่อ / ลำดับ / ปิดการใช้งาน (stDel — ไม่ลบจริง เพราะเอกสารเก่าอ้างอิงอยู่)
+//   body: { id?, code (ประเภทเท่านั้น — ตั้งตอนเพิ่ม แก้ภายหลังไม่ได้), name, nameEn?, sort?, inactive? }
+function scSetupHandler(kind) {
+  const T = kind === 'type'
+    ? { tbl: 'devsk.dInvCountType', id: 'idCountType', name: 'TypeName', label: 'ประเภทการตรวจนับ' }
+    : { tbl: 'devsk.dInvCountCause', id: 'idCountCause', name: 'CauseName', label: 'สาเหตุ' };
+  return async (req, res) => {
+    try {
+      const b = req.body || {};
+      const id = scInt(b.id), name = String(b.name || '').trim().slice(0, 100);
+      const sort = b.sort === '' || b.sort == null ? null : scInt(b.sort);
+      if (!name) return scFail(res, 400, 'กรุณาระบุชื่อ' + T.label);
+      const pool = await poolPromise;
+      const dup = pool.request().input('n', sql.NVarChar(200), name).input('id', sql.Int, id || 0);
+      const d = await dup.query(`SELECT TOP 1 1 AS x FROM ${T.tbl} WITH (NOLOCK) WHERE ${T.name} = @n AND ${T.id} <> @id`);
+      if (d.recordset.length) return scFail(res, 409, 'มี' + T.label + 'ชื่อนี้อยู่แล้ว');
+      const rq = pool.request().input('name', sql.NVarChar(200), name).input('sort', sql.Int, sort).input('ps', sql.Int, req.idPs).input('del', sql.Bit, b.inactive ? 1 : null);
+      if (kind === 'type') {
+        const nameEn = String(b.nameEn || '').trim().slice(0, 100) || null;
+        rq.input('en', sql.NVarChar(100), nameEn);
+        if (id) { await rq.input('id', sql.Int, id).query('UPDATE devsk.dInvCountType SET TypeName = @name, TypeNameEn = @en, SortOrder = ISNULL(@sort, SortOrder), stDel = @del, idPsTs = @ps, DateTs = GETDATE() WHERE idCountType = @id'); }
+        else {
+          const code = String(b.code || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 10);
+          if (!code) return scFail(res, 400, 'กรุณาระบุรหัสประเภท (ตัวอักษรอังกฤษ / ตัวเลข ไม่เกิน 10 ตัว)');
+          const c = await pool.request().input('c', sql.VarChar(10), code).query('SELECT TOP 1 1 AS x FROM devsk.dInvCountType WITH (NOLOCK) WHERE TypeCode = @c');
+          if (c.recordset.length) return scFail(res, 409, 'มีรหัสประเภทนี้อยู่แล้ว');
+          await rq.input('code', sql.VarChar(10), code).query('INSERT INTO devsk.dInvCountType (TypeCode, TypeName, TypeNameEn, SortOrder, stDel, idPsTs, DateTs) VALUES (@code, @name, @en, ISNULL(@sort, (SELECT ISNULL(MAX(SortOrder), 0) + 1 FROM devsk.dInvCountType)), @del, @ps, GETDATE())');
+        }
+      } else if (id) {
+        await rq.input('id', sql.Int, id).query('UPDATE devsk.dInvCountCause SET CauseName = @name, SortOrder = ISNULL(@sort, SortOrder), stDel = @del, idPsTs = @ps, DateTs = GETDATE() WHERE idCountCause = @id');
+      } else {
+        await rq.query('INSERT INTO devsk.dInvCountCause (CauseName, SortOrder, stDel, idPsTs, DateTs) VALUES (@name, ISNULL(@sort, (SELECT ISNULL(MAX(SortOrder), 0) + 1 FROM devsk.dInvCountCause)), @del, @ps, GETDATE())');
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error('SC setup error:', err);
+      res.status(500).json({ success: false, message: 'บันทึกไม่สำเร็จ', detail: err.message });
+    }
+  };
+}
+app.post('/api/stock-count/setup/type', requireMenu(MENU_SC_SETUP), scSetupHandler('type'));
+app.post('/api/stock-count/setup/cause', requireMenu(MENU_SC_SETUP), scSetupHandler('cause'));
+
+// เลื่อนลำดับ (ส่ง id ทั้งรายการตามลำดับใหม่) / เปิด-ปิดใช้งาน — บันทึกทันทีจากหน้าตั้งค่า
+const SC_SETUP_TBL = { type: { tbl: 'devsk.dInvCountType', id: 'idCountType' }, cause: { tbl: 'devsk.dInvCountCause', id: 'idCountCause' } };
+app.post('/api/stock-count/setup/:kind/order', requireMenu(MENU_SC_SETUP), async (req, res) => {
+  const T = SC_SETUP_TBL[req.params.kind];
+  if (!T) return scFail(res, 404, 'ไม่พบรายการ');
+  try {
+    const ids = (Array.isArray(req.body && req.body.ids) ? req.body.ids : []).map(scInt).filter(Number.isInteger);
+    if (!ids.length || new Set(ids).size !== ids.length) return scFail(res, 400, 'ข้อมูลลำดับไม่ถูกต้อง');
+    const pool = await poolPromise, tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        await new sql.Request(tx).input('id', sql.Int, ids[i]).input('o', sql.Int, i + 1).input('ps', sql.Int, req.idPs)
+          .query(`UPDATE ${T.tbl} SET SortOrder = @o, idPsTs = @ps, DateTs = GETDATE() WHERE ${T.id} = @id`);
+      }
+      await tx.commit();
+    } catch (e) { try { await tx.rollback(); } catch (e2) {} throw e; }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('SC setup order error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกลำดับไม่สำเร็จ', detail: err.message });
+  }
+});
+app.post('/api/stock-count/setup/:kind/active', requireMenu(MENU_SC_SETUP), async (req, res) => {
+  const T = SC_SETUP_TBL[req.params.kind];
+  if (!T) return scFail(res, 404, 'ไม่พบรายการ');
+  try {
+    const id = scInt(req.body && req.body.id);
+    if (!id) return scFail(res, 400, 'ไม่พบรายการ');
+    const pool = await poolPromise;
+    await pool.request().input('id', sql.Int, id).input('del', sql.Bit, req.body.inactive ? 1 : null).input('ps', sql.Int, req.idPs)
+      .query(`UPDATE ${T.tbl} SET stDel = @del, idPsTs = @ps, DateTs = GETDATE() WHERE ${T.id} = @id`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('SC setup active error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- คลัง: คลังหลัก (idParrent = 0) + โหนดย่อยที่มีตำแหน่งอยู่ข้างใต้ (เลือกเป็นขอบเขตได้) ----------
+// nLot = จำนวนรายการ (Lot × ตำแหน่ง) ที่มียอด ≠ 0 ใต้โหนดนั้น
+// ระดับการตรวจนับ (อายุนับจากวันที่ตรวจนับล่าสุดของ Lot ในตำแหน่ง — 1 Lot ต่อตำแหน่ง = idRefLot)
+//   < 90 วัน = 1 / 90–180 = 2 / 181–365 = 3 / ≥ 366 = 4 / ยังไม่เคยนับ = 0
+//   นับ = อยู่ในเอกสารตรวจนับบนเว็บที่ปิดการนับแล้ว (REVIEW ขึ้นไป ไม่รวมยกเลิก) มียอดนับ และไม่ได้ตั้งเป็นไม่นำมาคิด
+const SC_LAST_COUNT_SQL = `SELECT d.idRefLot, MAX(m.DateCount) AS LastDt
+  FROM devsk.dInvCountDt d WITH (NOLOCK) JOIN devsk.dInvCountMt m WITH (NOLOCK) ON m.idCount = d.idCount
+  WHERE m.StatusCode IN ('REVIEW', 'APPROVE', 'DONE', 'POSTED') AND d.SrcType <> 'U' AND d.stExclude = 0
+    AND d.AmountCount IS NOT NULL AND d.idRefLot IS NOT NULL
+  GROUP BY d.idRefLot`;
+const scLevelSql = (dt) => `CASE WHEN ${dt} IS NULL THEN 0 WHEN DATEDIFF(day, ${dt}, CAST(GETDATE() AS date)) < 90 THEN 1
+  WHEN DATEDIFF(day, ${dt}, CAST(GETDATE() AS date)) <= 180 THEN 2 WHEN DATEDIFF(day, ${dt}, CAST(GETDATE() AS date)) <= 365 THEN 3 ELSE 4 END`;
+// จำนวน Lot แต่ละระดับ (คอลัมน์ n0..n4) + วันที่นับล่าสุด / นานสุด
+const SC_LEVEL_AGG = `COUNT(*) AS nLot,
+  SUM(CASE WHEN lv.L = 0 THEN 1 ELSE 0 END) AS n0, SUM(CASE WHEN lv.L = 1 THEN 1 ELSE 0 END) AS n1,
+  SUM(CASE WHEN lv.L = 2 THEN 1 ELSE 0 END) AS n2, SUM(CASE WHEN lv.L = 3 THEN 1 ELSE 0 END) AS n3,
+  SUM(CASE WHEN lv.L = 4 THEN 1 ELSE 0 END) AS n4, MAX(lc.LastDt) AS LastDt, MIN(lc.LastDt) AS OldDt`;
+// ระดับของคลัง / ตำแหน่ง = Lot ที่นานสุด (มี Lot ที่ยังไม่เคยนับ = ยังไม่เคยนับ)
+const scLevelOf = (x) => !x.nLot ? null : x.n0 ? 0 : x.n4 ? 4 : x.n3 ? 3 : x.n2 ? 2 : 1;
+const scLevelObj = (x) => ({ level: scLevelOf(x), n: [x.n0 || 0, x.n1 || 0, x.n2 || 0, x.n3 || 0, x.n4 || 0], lastDt: x.LastDt || null, oldDt: x.OldDt || null });
+
+app.get('/api/stock-count/warehouses', requireMenu(MENU_SC, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = scInt(req.query.idComp);
+  if (!idComp) return scFail(res, 400, 'กรุณาเลือกบริษัท');
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('idComp', sql.Int, idComp).query(
+      `;WITH t AS (
+         SELECT w.idWh, w.idParrent, w.idParent0, CAST(w.WareHouseName AS nvarchar(400)) AS path, 0 AS lvl, w.idWh AS anc
+         FROM dbo.ssWarehouse w WITH (NOLOCK)
+         WHERE w.idComp = @idComp AND w.stDel = 0 AND ISNULL(w.idParrent, 0) = 0
+         UNION ALL
+         SELECT c.idWh, c.idParrent, t.idParent0, CAST(t.path + N' › ' + c.WareHouseName AS nvarchar(400)), t.lvl + 1, c.idWh
+         FROM dbo.ssWarehouse c WITH (NOLOCK)
+         JOIN t ON c.idParrent = t.idWh
+         WHERE c.stDel = 0 AND t.lvl < 8
+       )
+       SELECT t.idWh, t.idParrent, t.idParent0, t.path, t.lvl,
+              (SELECT COUNT(*) FROM dbo.ssWarehouse k WITH (NOLOCK) WHERE k.idParrent = t.idWh AND k.stDel = 0) AS nChild
+       INTO #t FROM t OPTION (MAXRECURSION 10);
+
+       ;WITH up AS (
+         SELECT x.idWh AS leaf, x.idWh AS node, x.idParrent FROM #t x
+         UNION ALL
+         SELECT up.leaf, p.idWh, p.idParrent FROM up JOIN #t p ON p.idWh = up.idParrent
+       ), lc AS (${SC_LAST_COUNT_SQL}
+       ), cnt AS (
+         SELECT r.idWh, ${SC_LEVEL_AGG}
+         FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+         LEFT JOIN lc ON lc.idRefLot = r.idRefLot
+         CROSS APPLY (SELECT ${scLevelSql('lc.LastDt')} AS L) lv
+         WHERE r.Amount <> 0 AND r.idWh IN (SELECT idWh FROM #t)
+         GROUP BY r.idWh
+       )
+       SELECT t.idWh, t.idParent0, t.path, t.lvl, t.nChild, ISNULL(SUM(c.nLot), 0) AS nLot,
+              SUM(c.n0) AS n0, SUM(c.n1) AS n1, SUM(c.n2) AS n2, SUM(c.n3) AS n3, SUM(c.n4) AS n4, MAX(c.LastDt) AS LastDt, MIN(c.OldDt) AS OldDt
+       FROM #t t
+       LEFT JOIN up ON up.node = t.idWh
+       LEFT JOIN cnt c ON c.idWh = up.leaf
+       WHERE (t.lvl = 0 OR t.nChild > 0) AND ISNULL(t.idParent0, t.idWh) NOT IN (${SC_EXCLUDED_WH_SQL}) AND t.idWh NOT IN (${SC_EXCLUDED_WH_SQL})
+       GROUP BY t.idWh, t.idParent0, t.path, t.lvl, t.nChild
+       ORDER BY t.path
+       OPTION (MAXRECURSION 10);`);
+    res.json({ success: true, data: r.recordset.map(x => ({ id: x.idWh, parent0: x.idParent0, path: x.path, lvl: x.lvl, nLot: x.nLot, ...scLevelObj(x) })) });
+  } catch (err) {
+    console.error('SC warehouses error:', err);
+    res.status(500).json({ success: false, message: 'โหลดข้อมูลคลังไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ตำแหน่งทั้งหมดใต้โหนด (รวมตัวเอง) → #scope(idWh)
+const SC_SCOPE_SQL = `
+  ;WITH s AS (
+     SELECT w.idWh FROM dbo.ssWarehouse w WITH (NOLOCK) WHERE w.idWh = @scope
+     UNION ALL
+     SELECT c.idWh FROM dbo.ssWarehouse c WITH (NOLOCK) JOIN s ON c.idParrent = s.idWh WHERE c.stDel = 0
+  )
+  SELECT idWh INTO #scope FROM s OPTION (MAXRECURSION 10);`;
+
+// ---------- รายการเอกสาร (ตามบริษัท + ช่วงวันที่ตรวจนับ) พร้อมตัวเลขสรุป ----------
+const SC_HEAD_SELECT = `
+  m.idCount, m.DocCode, m.DateDoc, m.idComp, LTRIM(RTRIM(co.CompCode)) AS CompCode, co.CompName,
+  m.idParent0, ISNULL(NULLIF(LTRIM(RTRIM(w0.short_lock)), ''), w0.WareHouseName) AS WhName,
+  m.idWhScope, ISNULL(ws.full_lock, ws.WareHouseName) AS ScopePath,
+  m.DateCount, m.CountRound, m.idCountType, ty.TypeName, m.CountMode, m.SheetType, m.stBlind,
+  m.idPsCounter, pc.PsName AS CounterName, pc.PsFullName AS CounterFull, pc.PositionName AS CounterPos,
+  m.idPsReviewer, pr.PsName AS ReviewerName, pr.PsFullName AS ReviewerFull, pr.PositionName AS ReviewerPos,
+  m.TolerancePct, m.Note, m.StatusCode, m.DateStart, m.DateClose, m.UncountedRule, m.DateSubmit, m.ApvRound,
+  m.idRqUpdate, rq.DocCode AS RqCode, m.DatePosted, m.SendBackNote, m.DateSendBack, psb.PsName AS SendBackName,
+  m.CancelNote, m.DateCancel, pcc.PsName AS CancelName, m.idPsTs, pts.PsName AS CreatorName, m.DateTs,
+  rq.idPsAccept, rq.DateAccept, rq.idPsCheck, rq.DateCheck, rq.idPsApprove, rq.DateApprove,
+  rqa.PsName AS RqAcceptName, rqk.PsName AS RqCheckName, rqp.PsName AS RqApproveName`;
+const SC_HEAD_JOIN = `
+  LEFT JOIN PchInvAndProject.dbo.dCompany co WITH (NOLOCK) ON co.idComp = m.idComp
+  LEFT JOIN dbo.ssWarehouse w0 WITH (NOLOCK) ON w0.idWh = m.idParent0
+  LEFT JOIN dbo.ssWarehouse ws WITH (NOLOCK) ON ws.idWh = m.idWhScope
+  LEFT JOIN devsk.dInvCountType ty WITH (NOLOCK) ON ty.idCountType = m.idCountType
+  LEFT JOIN devsk.vPersonxSelect pc ON pc.idPs = m.idPsCounter
+  LEFT JOIN devsk.vPersonxSelect pr ON pr.idPs = m.idPsReviewer
+  LEFT JOIN devsk.vPersonxSelect psb ON psb.idPs = m.idPsSendBack
+  LEFT JOIN devsk.vPersonxSelect pcc ON pcc.idPs = m.idPsCancel
+  LEFT JOIN devsk.vPersonxSelect pts ON pts.idPs = m.idPsTs
+  LEFT JOIN devsk.dInvReqCountMt rq WITH (NOLOCK) ON rq.idRqUpdate = m.idRqUpdate
+  LEFT JOIN devsk.vPersonxSelect rqa ON rqa.idPs = rq.idPsAccept
+  LEFT JOIN devsk.vPersonxSelect rqk ON rqk.idPs = rq.idPsCheck
+  LEFT JOIN devsk.vPersonxSelect rqp ON rqp.idPs = rq.idPsApprove`;
+// สถิติต่อเอกสาร: ทั้งหมด / นับแล้ว / ตรงกัน / ขาด / เกิน / ไม่นำมาคิด / รายการไม่พบในระบบที่ยังไม่จัดการ / มูลค่าผลต่าง
+const SC_STATS_APPLY = `
+  OUTER APPLY (
+    SELECT COUNT(*) AS nAll,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL THEN 1 ELSE 0 END) AS nCounted,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NULL THEN 1 ELSE 0 END) AS nNotCounted,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND ABS(d.AmountCount - ISNULL(d.AmountErp, 0)) < 0.000001 THEN 1 ELSE 0 END) AS nMatch,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND d.AmountCount - ISNULL(d.AmountErp, 0) <= -0.000001 THEN 1 ELSE 0 END) AS nShort,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND d.AmountCount - ISNULL(d.AmountErp, 0) >= 0.000001 THEN 1 ELSE 0 END) AS nOver,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 1 THEN 1 ELSE 0 END) AS nExclude,
+           SUM(CASE WHEN d.SrcType = 'U' AND ISNULL(d.MapStatus, 'P') = 'P' THEN 1 ELSE 0 END) AS nUmPending,
+           SUM(CASE WHEN d.SrcType = 'U' THEN 1 ELSE 0 END) AS nUm,
+           SUM(CASE WHEN d.stAdjust = 1 THEN 1 ELSE 0 END) AS nAdjust,
+           SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL THEN (d.AmountCount - ISNULL(d.AmountErp, 0)) * ISNULL(d.CostPerUnit, 0) ELSE 0 END) AS DiffValue
+    FROM devsk.dInvCountDt d WITH (NOLOCK) WHERE d.idCount = m.idCount) st`;
+function scMapHead(x) {
+  const n = (v) => (v == null ? 0 : Number(v));
+  return {
+    id: x.idCount, docCode: x.DocCode, dateDoc: x.DateDoc, idComp: x.idComp, compCode: x.CompCode, compName: x.CompName,
+    idParent0: x.idParent0, whName: x.WhName, idWhScope: x.idWhScope, scopePath: x.ScopePath,
+    dateCount: x.DateCount, round: x.CountRound, idCountType: x.idCountType, typeName: x.TypeName,
+    mode: x.CountMode, sheetType: x.SheetType, blind: !!x.stBlind,
+    counter: { id: x.idPsCounter, name: x.CounterName, full: (x.CounterFull || '').trim(), position: x.CounterPos || '' },
+    reviewer: { id: x.idPsReviewer, name: x.ReviewerName, full: (x.ReviewerFull || '').trim(), position: x.ReviewerPos || '' },
+    tolerance: x.TolerancePct == null ? null : Number(x.TolerancePct), note: x.Note, status: x.StatusCode,
+    dateStart: x.DateStart, dateClose: x.DateClose, uncountedRule: x.UncountedRule, dateSubmit: x.DateSubmit, apvRound: x.ApvRound,
+    idRq: x.idRqUpdate, rqCode: x.RqCode, datePosted: x.DatePosted,
+    sendBack: x.DateSendBack ? { note: x.SendBackNote, at: x.DateSendBack, by: x.SendBackName } : null,
+    cancel: x.DateCancel ? { note: x.CancelNote, at: x.DateCancel, by: x.CancelName } : null,
+    creator: { id: x.idPsTs, name: x.CreatorName }, dateTs: x.DateTs,
+    // ขั้นที่กดแล้ว = { by, at } (ข้อความส่งต่อแบบรวมแสดงชื่อ + วันที่แทนลิงก์)
+    rqSteps: x.idRqUpdate ? { ack: x.idPsAccept ? { by: x.RqAcceptName, at: x.DateAccept } : null, check: x.idPsCheck ? { by: x.RqCheckName, at: x.DateCheck } : null,
+      approve: x.idPsApprove ? { by: x.RqApproveName, at: x.DateApprove } : null } : null,
+    stats: x.nAll === undefined ? undefined : {
+      all: n(x.nAll), counted: n(x.nCounted), notCounted: n(x.nNotCounted), match: n(x.nMatch), short: n(x.nShort), over: n(x.nOver),
+      exclude: n(x.nExclude), um: n(x.nUm), umPending: n(x.nUmPending), adjust: n(x.nAdjust), diffValue: Number(x.DiffValue || 0)
+    }
+  };
+}
+
+app.get('/api/stock-count/list', requireMenu(MENU_SC_VIEW, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = scInt(req.query.idComp);
+  try {
+    const pool = await poolPromise;
+    const request = pool.request();
+    let where = 'WHERE 1 = 1';
+    if (idComp) { request.input('idComp', sql.Int, idComp); where += ' AND m.idComp = @idComp'; }
+    else where += ' ' + compFilter(req.access, request, 'm.idComp');
+    // open=1 (แท็บงานของฉัน): เอกสารที่ยังต้องทำต่อทั้งหมด ไม่ขึ้นกับช่วงวันที่
+    if (req.query.open === '1') where += " AND m.StatusCode IN ('DRAFT', 'COUNT', 'REVIEW')";
+    else {
+      if (req.query.from) { request.input('from', sql.Date, req.query.from); where += ' AND m.DateCount >= @from'; }
+      if (req.query.to) { request.input('to', sql.Date, req.query.to); where += ' AND m.DateCount <= @to'; }
+    }
+    const r = await request.query(
+      `SELECT TOP ${SC_LIST_MAX + 1} ${SC_HEAD_SELECT}, st.*
+       FROM devsk.dInvCountMt m WITH (NOLOCK) ${SC_HEAD_JOIN} ${SC_STATS_APPLY}
+       ${where}
+       ORDER BY m.DateCount DESC, m.idCount DESC`);
+    // ดึงเกิน 1 ใบ = รู้ว่ามีมากกว่าที่แสดง → หน้าเว็บบอกให้ระบุช่วงวันที่ (ไม่ตัดเงียบ)
+    res.json({ success: true, data: r.recordset.slice(0, SC_LIST_MAX).map(x => scHideErp(scMapHead(x), req.access)), more: r.recordset.length > SC_LIST_MAX, max: SC_LIST_MAX });
+  } catch (err) {
+    console.error('SC list error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการเอกสารไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// Blind count / ใบนับเปล่า ระหว่างนับ: ไม่ส่งยอด ERP (และจำนวนตรง/ขาด/เกิน) ให้ผู้ที่ไม่มีสิทธิ์ตรวจสอบผลต่าง — ซ่อนที่ต้นทาง ไม่ใช่แค่บนหน้าจอ
+function scHideErp(doc, access) {
+  if (!doc || doc.status !== 'COUNT' || !(doc.blind || doc.sheetType === 'B') || hasMenu(access, MENU_SC_REVIEW)) return doc;
+  doc.erpHidden = true;
+  if (doc.stats) { doc.stats.match = null; doc.stats.short = null; doc.stats.over = null; }
+  (doc.lines || []).forEach(l => { l.erp = null; l.erpNow = null; l.cost = null; });
+  return doc;
+}
+
+// ---------- เอกสารใบเดียว: หัว + รายการ + ประวัติ ----------
+async function scLoadDoc(idCount, access) {
+  const pool = await poolPromise;
+  const r = await pool.request().input('id', sql.Int, idCount).query(
+    `SELECT ${SC_HEAD_SELECT}, st.*
+     FROM devsk.dInvCountMt m WITH (NOLOCK) ${SC_HEAD_JOIN} ${SC_STATS_APPLY}
+     WHERE m.idCount = @id;
+
+     SELECT d.idCountDt, d.SeqNo, d.SrcType, d.idRefLot, d.idLot, d.idInvMain, i.InvCode, i.InvName, d.LotNo,
+            d.idWh, ISNULL(NULLIF(LTRIM(RTRIM(w.WareHouseName)), ''), w.short_lock) AS LocName, w.full_lock AS LocPath,
+            d.idUnit, u.UnitName, d.AmountErp, d.AmountCount, d.AmountErpNow, d.CostPerUnit, d.DateExp, d.QualityCode,
+            d.idCountCause, d.NoteDt, d.ActionCode, d.stAdjust, d.stExclude, d.RecountNo,
+            d.InputText, d.ItemText, d.LocText, d.UnitText, d.MapStatus, d.idCountDtMap, d.MapNote,
+            d.idPsCount, pc.PsName AS CountName, d.DateCountLn,
+            (SELECT COUNT(*) FROM devsk.dInvCountEntry e WITH (NOLOCK) WHERE e.idCountDt = d.idCountDt AND e.stVoid IS NULL AND e.RecountNo = d.RecountNo) AS nEntry,
+            (SELECT MAX(m2.DateCount) FROM devsk.dInvCountDt d2 WITH (NOLOCK) JOIN devsk.dInvCountMt m2 WITH (NOLOCK) ON m2.idCount = d2.idCount
+             WHERE d2.idRefLot = d.idRefLot AND m2.idCount <> d.idCount AND m2.StatusCode IN ('REVIEW', 'APPROVE', 'DONE', 'POSTED')
+               AND d2.SrcType <> 'U' AND d2.stExclude = 0 AND d2.AmountCount IS NOT NULL
+               AND m2.DateCount <= (SELECT x.DateCount FROM devsk.dInvCountMt x WHERE x.idCount = d.idCount)) AS PrevCount
+     FROM devsk.dInvCountDt d WITH (NOLOCK)
+     LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+     LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = d.idWh
+     LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = d.idUnit
+     LEFT JOIN devsk.vPersonxSelect pc ON pc.idPs = d.idPsCount
+     WHERE d.idCount = @id
+     ORDER BY d.SeqNo;
+
+     SELECT l.ActCode, l.Detail, l.DateTs, p.PsName
+     FROM devsk.dInvCountLog l WITH (NOLOCK) LEFT JOIN devsk.vPersonxSelect p ON p.idPs = l.idPsTs
+     WHERE l.idCount = @id ORDER BY l.idLog;`);
+  const head = r.recordsets[0][0];
+  if (!head) return null;
+  if (access && !hasComp(access, head.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+  const num = (v) => (v == null ? null : Number(v));
+  return {
+    ...scMapHead(head),
+    lines: r.recordsets[1].map(d => ({
+      id: d.idCountDt, seq: d.SeqNo, src: d.SrcType, idRefLot: d.idRefLot, idLot: d.idLot, idInvMain: d.idInvMain,
+      invCode: d.InvCode, invName: d.InvName, lotNo: d.LotNo, idWh: d.idWh, loc: d.LocName, locPath: d.LocPath,
+      idUnit: d.idUnit, unit: d.UnitName, erp: num(d.AmountErp), count: num(d.AmountCount), erpNow: num(d.AmountErpNow),
+      cost: num(d.CostPerUnit), exp: d.DateExp, quality: d.QualityCode, idCause: d.idCountCause, note: d.NoteDt,
+      action: d.ActionCode, adjust: !!d.stAdjust, exclude: !!d.stExclude, recount: d.RecountNo,
+      inputText: d.InputText, itemText: d.ItemText, locText: d.LocText, unitText: d.UnitText,
+      mapStatus: d.MapStatus, mapTo: d.idCountDtMap, mapNote: d.MapNote,
+      countBy: d.CountName, countAt: d.DateCountLn, nEntry: d.nEntry, prevCount: d.PrevCount
+    })),
+    log: r.recordsets[2].map(l => ({ act: l.ActCode, detail: l.Detail, at: l.DateTs, by: l.PsName }))
+  };
+}
+
+app.get('/api/stock-count/doc/:id', requireMenu(MENU_SC_VIEW), async (req, res) => {
+  try {
+    const doc = await scLoadDoc(scInt(req.params.id), req.access);
+    if (!doc) return scFail(res, 404, 'ไม่พบเอกสารตรวจนับ');
+    res.json({ success: true, data: scHideErp(doc, req.access) });
+  } catch (err) {
+    if (err.status) return scFail(res, err.status, err.message);
+    console.error('SC doc error:', err);
+    res.status(500).json({ success: false, message: 'โหลดเอกสารไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ภาพรวม (แท็บภาพรวม): ตัวเลขสรุป 30 วัน + ความครอบคลุมการนับรายคลังหลัก ----------
+// kpi: เอกสารที่ปิดการนับใน 30 วัน (ไม่นับยกเลิก) — รายการที่นับ / ตรงกัน / ขาด / เกิน / ความแม่นยำ (จำนวนรายการ ยังไม่แสดงมูลค่า)
+//      + เอกสารที่ยังไม่ปิด: ร่าง / กำลังนับ / รอตรวจสอบ / รออนุมัติ
+// coverage: คลังหลักของบริษัทที่มีสต๊อก หรือเคยนับ — นับล่าสุดเมื่อไร (เฉพาะเอกสารบนเว็บ ไม่รวมประวัติจาก WIM Desktop)
+app.get('/api/stock-count/overview', requireMenu(MENU_SC_VIEW, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = scInt(req.query.idComp);
+  if (!idComp) return scFail(res, 400, 'กรุณาเลือกบริษัท');
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('idComp', sql.Int, idComp).query(
+      `SELECT COUNT(DISTINCT m.idCount) AS nDoc,
+              SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL THEN 1 ELSE 0 END) AS nCounted,
+              SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND ABS(d.AmountCount - ISNULL(d.AmountErp, 0)) < 0.000001 THEN 1 ELSE 0 END) AS nMatch,
+              SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND d.AmountCount - ISNULL(d.AmountErp, 0) <= -0.000001 THEN 1 ELSE 0 END) AS nShort,
+              SUM(CASE WHEN d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND d.AmountCount - ISNULL(d.AmountErp, 0) >= 0.000001 THEN 1 ELSE 0 END) AS nOver,
+              SUM(CASE WHEN d.SrcType = 'U' THEN 1 ELSE 0 END) AS nUm
+       FROM devsk.dInvCountMt m WITH (NOLOCK)
+       LEFT JOIN devsk.dInvCountDt d WITH (NOLOCK) ON d.idCount = m.idCount
+       WHERE m.idComp = @idComp AND m.StatusCode IN ('REVIEW', 'APPROVE', 'POSTED', 'DONE') AND m.DateClose >= DATEADD(day, -30, GETDATE());
+
+       SELECT SUM(CASE WHEN StatusCode = 'DRAFT' THEN 1 ELSE 0 END) AS nDraft,
+              SUM(CASE WHEN StatusCode = 'COUNT' THEN 1 ELSE 0 END) AS nCounting,
+              SUM(CASE WHEN StatusCode = 'REVIEW' THEN 1 ELSE 0 END) AS nReview,
+              SUM(CASE WHEN StatusCode = 'APPROVE' THEN 1 ELSE 0 END) AS nApprove
+       FROM devsk.dInvCountMt WITH (NOLOCK)
+       WHERE idComp = @idComp AND StatusCode IN ('DRAFT', 'COUNT', 'REVIEW', 'APPROVE');
+
+       ;WITH lc AS (${SC_LAST_COUNT_SQL}
+       ), lots AS (
+         SELECT w.idParent0, ${SC_LEVEL_AGG}
+         FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+         JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh
+         LEFT JOIN lc ON lc.idRefLot = r.idRefLot
+         CROSS APPLY (SELECT ${scLevelSql('lc.LastDt')} AS L) lv
+         WHERE w.idComp = @idComp AND r.Amount <> 0
+         GROUP BY w.idParent0
+       ), cnt AS (
+         SELECT m.idParent0, MAX(m.DateCount) AS LastCount, COUNT(*) AS nDoc,
+                SUM(CASE WHEN m.DateCount >= DATEADD(day, -90, GETDATE()) THEN 1 ELSE 0 END) AS nDoc90
+         FROM devsk.dInvCountMt m WITH (NOLOCK)
+         WHERE m.idComp = @idComp AND m.StatusCode NOT IN ('CANCEL', 'DRAFT')
+         GROUP BY m.idParent0
+       )
+       SELECT w.idWh, ISNULL(NULLIF(LTRIM(RTRIM(w.short_lock)), ''), w.WareHouseName) AS WhName, ISNULL(l.nLot, 0) AS nLot,
+              l.n0, l.n1, l.n2, l.n3, l.n4, l.LastDt, l.OldDt,
+              c.LastCount, ISNULL(c.nDoc, 0) AS nDoc, ISNULL(c.nDoc90, 0) AS nDoc90,
+              (SELECT TOP 1 x.DocCode FROM devsk.dInvCountMt x WITH (NOLOCK)
+               WHERE x.idComp = @idComp AND x.idParent0 = w.idWh AND x.StatusCode NOT IN ('CANCEL', 'DRAFT')
+               ORDER BY x.DateCount DESC, x.idCount DESC) AS LastDoc
+       FROM dbo.ssWarehouse w WITH (NOLOCK)
+       LEFT JOIN lots l ON l.idParent0 = w.idWh
+       LEFT JOIN cnt c ON c.idParent0 = w.idWh
+       WHERE w.idComp = @idComp AND w.stDel = 0 AND ISNULL(w.idParrent, 0) = 0 AND (l.nLot > 0 OR c.nDoc > 0)
+         AND w.idWh NOT IN (${SC_EXCLUDED_WH_SQL})
+       ORDER BY CASE WHEN c.LastCount IS NULL THEN 0 ELSE 1 END, c.LastCount, l.nLot DESC;
+
+       -- สาเหตุผลต่าง (รายการที่ขาด / เกิน ของเอกสารที่ปิดการนับใน 30 วัน) — ยังไม่ระบุ = ยังไม่ได้ตรวจสอบผลต่าง
+       SELECT ISNULL(c.CauseName, N'ยังไม่ระบุสาเหตุ') AS CauseName, CASE WHEN c.CauseName IS NULL THEN 1 ELSE 0 END AS noCause,
+              SUM(CASE WHEN d.AmountCount - ISNULL(d.AmountErp, 0) < 0 THEN 1 ELSE 0 END) AS nShort,
+              SUM(CASE WHEN d.AmountCount - ISNULL(d.AmountErp, 0) > 0 THEN 1 ELSE 0 END) AS nOver
+       FROM devsk.dInvCountMt m WITH (NOLOCK)
+       JOIN devsk.dInvCountDt d WITH (NOLOCK) ON d.idCount = m.idCount
+       LEFT JOIN devsk.dInvCountCause c WITH (NOLOCK) ON c.idCountCause = d.idCountCause
+       WHERE m.idComp = @idComp AND m.StatusCode IN ('REVIEW', 'APPROVE', 'POSTED', 'DONE') AND m.DateClose >= DATEADD(day, -30, GETDATE())
+         AND d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND ABS(d.AmountCount - ISNULL(d.AmountErp, 0)) >= 0.000001
+       GROUP BY c.CauseName
+       ORDER BY CASE WHEN c.CauseName IS NULL THEN 1 ELSE 0 END, COUNT(*) DESC;
+
+       -- สินค้าที่ขาดบ่อย 10 อันดับ (90 วัน): จำนวนครั้งที่ขาด / จำนวนเอกสาร / ยอดที่ขาดรวม (หน่วยหลักของสินค้า)
+       SELECT TOP 10 i.InvCode, i.InvName, u.UnitName, COUNT(*) AS nShort, COUNT(DISTINCT m.idCount) AS nDoc,
+              SUM(ISNULL(d.AmountErp, 0) - d.AmountCount) AS QtyShort
+       FROM devsk.dInvCountMt m WITH (NOLOCK)
+       JOIN devsk.dInvCountDt d WITH (NOLOCK) ON d.idCount = m.idCount
+       JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+       LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = i.idUnit
+       WHERE m.idComp = @idComp AND m.StatusCode IN ('REVIEW', 'APPROVE', 'POSTED', 'DONE') AND m.DateClose >= DATEADD(day, -90, GETDATE())
+         AND d.SrcType <> 'U' AND d.stExclude = 0 AND d.AmountCount IS NOT NULL AND d.AmountCount - ISNULL(d.AmountErp, 0) <= -0.000001
+       GROUP BY i.InvCode, i.InvName, u.UnitName
+       ORDER BY COUNT(*) DESC, SUM(ISNULL(d.AmountErp, 0) - d.AmountCount) DESC;`);
+    const k = r.recordsets[0][0] || {};
+    res.json({
+      success: true,
+      kpi: {
+        docs30: k.nDoc || 0, counted30: k.nCounted || 0, match30: k.nMatch || 0,
+        accuracy30: k.nCounted ? Number(k.nMatch) / Number(k.nCounted) * 100 : null,
+        short30: k.nShort || 0, over30: k.nOver || 0, um30: k.nUm || 0,
+        open: { draft: r.recordsets[1][0].nDraft || 0, counting: r.recordsets[1][0].nCounting || 0, review: r.recordsets[1][0].nReview || 0, approve: r.recordsets[1][0].nApprove || 0 }
+      },
+      causes: r.recordsets[3].map(x => ({ name: x.CauseName, noCause: !!x.noCause, short: x.nShort || 0, over: x.nOver || 0 })),
+      topShort: r.recordsets[4].map(x => ({ invCode: x.InvCode, invName: x.InvName, unit: x.UnitName, times: x.nShort, docs: x.nDoc, qty: Number(x.QtyShort || 0) })),
+      coverage: r.recordsets[2].map(x => ({
+        idWh: x.idWh, whName: x.WhName, nLot: x.nLot, lastCount: x.LastCount, lastDoc: x.LastDoc, ...scLevelObj(x),
+        days: x.LastCount ? Math.floor((Date.now() - new Date(x.LastCount).getTime()) / 864e5) : null, nDoc: x.nDoc, nDoc90: x.nDoc90
+      }))
+    });
+  } catch (err) {
+    console.error('SC overview error:', err);
+    res.status(500).json({ success: false, message: 'โหลดภาพรวมไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- เตือนสร้างซ้ำ: เอกสารที่ยังไม่ปิด (ร่าง / กำลังนับ / รอตรวจสอบ) ที่พื้นที่ทับกับพื้นที่ที่เลือก ----------
+// ทับกัน = โหนดเดียวกัน / โหนดของเอกสารอยู่เหนือพื้นที่ที่เลือก (คลังหลักครอบโซน) / อยู่ใต้พื้นที่ที่เลือก — เตือนเท่านั้น สร้างต่อได้ (ตั้งใจนับซ้ำ)
+app.get('/api/stock-count/overlap', requireMenu(MENU_SC, { companyParam: 'idComp' }), async (req, res) => {
+  const idComp = scInt(req.query.idComp), scope = scInt(req.query.idWhScope);
+  if (!idComp || !scope) return res.json({ success: true, data: [] });
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('idComp', sql.Int, idComp).input('scope', sql.Int, scope).input('ex', sql.Int, scInt(req.query.exceptId) || 0).query(
+      `;WITH up AS (
+         SELECT w.idWh, w.idParrent, 0 AS lvl FROM dbo.ssWarehouse w WITH (NOLOCK) WHERE w.idWh = @scope
+         UNION ALL
+         SELECT p.idWh, p.idParrent, up.lvl + 1 FROM dbo.ssWarehouse p WITH (NOLOCK) JOIN up ON p.idWh = up.idParrent WHERE up.lvl < 10
+       ), down AS (
+         SELECT w.idWh, 0 AS lvl FROM dbo.ssWarehouse w WITH (NOLOCK) WHERE w.idWh = @scope
+         UNION ALL
+         SELECT c.idWh, down.lvl + 1 FROM dbo.ssWarehouse c WITH (NOLOCK) JOIN down ON c.idParrent = down.idWh WHERE c.stDel = 0 AND down.lvl < 10
+       )
+       SELECT m.idCount, m.DocCode, m.StatusCode, m.DateCount, m.CountRound, ISNULL(ws.full_lock, ws.WareHouseName) AS ScopePath
+       FROM devsk.dInvCountMt m WITH (NOLOCK)
+       LEFT JOIN dbo.ssWarehouse ws WITH (NOLOCK) ON ws.idWh = m.idWhScope
+       WHERE m.idComp = @idComp AND m.idCount <> @ex AND m.StatusCode IN ('DRAFT', 'COUNT', 'REVIEW')
+         AND (m.idWhScope IN (SELECT idWh FROM up) OR m.idWhScope IN (SELECT idWh FROM down))
+       ORDER BY m.DateCount DESC
+       OPTION (MAXRECURSION 20);`);
+    res.json({ success: true, data: r.recordset.map(x => ({ id: x.idCount, docCode: x.DocCode, status: x.StatusCode, dateCount: x.DateCount, round: x.CountRound, scopePath: x.ScopePath })) });
+  } catch (err) {
+    console.error('SC overlap error:', err);
+    res.status(500).json({ success: false, message: 'ตรวจเอกสารซ้ำไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- ครั้งที่นับถัดไป (คลังหลัก + วันที่ตรวจนับเดียวกัน ไม่นับที่ยกเลิก) ----------
+app.get('/api/stock-count/next-round', requireMenu(MENU_SC, { companyParam: 'idComp' }), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request()
+      .input('idComp', sql.Int, scInt(req.query.idComp)).input('wh', sql.Int, scInt(req.query.idParent0))
+      .input('d', sql.Date, req.query.date || null).input('ex', sql.Int, scInt(req.query.exceptId) || 0)
+      .query(`SELECT ISNULL(MAX(CountRound), 0) + 1 AS n FROM devsk.dInvCountMt WITH (NOLOCK)
+              WHERE idComp = @idComp AND idParent0 = @wh AND DateCount = @d AND StatusCode <> 'CANCEL' AND idCount <> @ex`);
+    res.json({ success: true, round: r.recordset[0].n });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'คำนวณครั้งที่นับไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- สร้าง / แก้ไขหัวเอกสาร (แก้ได้เฉพาะ DRAFT) ----------
+async function scParseHead(runner, b, access) {
+  const h = {
+    idComp: scInt(b.idComp), idWhScope: scInt(b.idWhScope), dateCount: String(b.dateCount || '').slice(0, 10),
+    round: scInt(b.round), idCountType: scInt(b.idCountType), counter: scInt(b.idPsCounter), reviewer: scInt(b.idPsReviewer),
+    tolerance: scNum(b.tolerance), blind: !!b.blind, note: scText(b.note, 1000)
+  };
+  const errs = [];
+  if (!h.idComp) errs.push('บริษัท');
+  if (!h.idWhScope) errs.push('คลัง / พื้นที่ที่ตรวจนับ');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(h.dateCount)) errs.push('วันที่ตรวจนับ');
+  if (!h.round || h.round < 1) errs.push('ครั้งที่นับ');
+  if (!h.idCountType) errs.push('ประเภทการตรวจนับ');
+  if (!h.counter) errs.push('ผู้ตรวจนับ');
+  if (!h.reviewer) errs.push('ผู้ตรวจสอบ');
+  if (errs.length) { const e = new Error('กรุณาระบุ: ' + errs.join(', ')); e.status = 400; throw e; }
+  if (h.tolerance != null && (h.tolerance < 0 || h.tolerance > 100)) { const e = new Error('ค่ายอมรับผลต่างต้องอยู่ระหว่าง 0–100%'); e.status = 400; throw e; }
+  if (!hasComp(access, h.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+  const w = await new sql.Request(runner).input('wh', sql.Int, h.idWhScope).query(
+    `SELECT idWh, idComp, idParent0, stDel FROM dbo.ssWarehouse WITH (NOLOCK) WHERE idWh = @wh`);
+  const wh = w.recordset[0];
+  if (!wh || wh.stDel || wh.idComp !== h.idComp) { const e = new Error('คลังที่เลือกไม่ใช่ของบริษัทนี้ หรือถูกปิดใช้งานแล้ว'); e.status = 400; throw e; }
+  h.idParent0 = wh.idParent0 || wh.idWh;
+  if (SC_EXCLUDED_WH.includes(h.idParent0) || SC_EXCLUDED_WH.includes(wh.idWh)) { const e = new Error('คลังนี้ไม่อยู่ในขอบเขตการตรวจนับ'); e.status = 400; throw e; }
+  return h;
+}
+const scBindHead = (rq, h) => rq
+  .input('idComp', sql.Int, h.idComp).input('p0', sql.Int, h.idParent0).input('scope', sql.Int, h.idWhScope)
+  .input('dc', sql.Date, h.dateCount).input('round', sql.Int, h.round).input('type', sql.Int, h.idCountType)
+  .input('blind', sql.Bit, h.blind ? 1 : 0).input('counter', sql.Int, h.counter).input('reviewer', sql.Int, h.reviewer)
+  .input('tol', sql.Decimal(9, 4), h.tolerance).input('note', sql.NVarChar, h.note);
+
+app.post('/api/stock-count', requireMenu(MENU_SC, { companyParam: 'idComp' }), async (req, res) => {
+  const out = await scTx(res, 'บันทึกเอกสาร', async (t) => {
+    const h = await scParseHead(t, req.body || {}, req.access);
+    const now = new Date();
+    const code = await getNextScDocCode(t, h.idComp, now);
+    const r = await scBindHead(new sql.Request(t), h).input('code', sql.VarChar, code).input('ps', sql.Int, req.idPs).query(
+      `INSERT INTO devsk.dInvCountMt (DocCode, DateDoc, idComp, idParent0, idWhScope, DateCount, CountRound, idCountType, stBlind,
+                                      idPsCounter, idPsReviewer, TolerancePct, Note, StatusCode, idPsTs, DateTs)
+       OUTPUT INSERTED.idCount
+       VALUES (@code, GETDATE(), @idComp, @p0, @scope, @dc, @round, @type, @blind, @counter, @reviewer, @tol, @note, 'DRAFT', @ps, GETDATE())`);
+    const id = r.recordset[0].idCount;
+    await scLog(t, id, 'create', `สร้างเอกสาร ${code}`, req.idPs);
+    return { id, docCode: code };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+app.put('/api/stock-count/doc/:id', requireMenu(MENU_SC, { companyParam: 'idComp' }), async (req, res) => {
+  const id = scInt(req.params.id);
+  const out = await scTx(res, 'แก้ไขเอกสาร', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['DRAFT'], 'แก้ไขหัวเอกสารได้เฉพาะก่อนเริ่มตรวจนับ');
+    const h = await scParseHead(t, req.body || {}, req.access);
+    if (h.idComp !== doc.idComp) { const e = new Error('เปลี่ยนบริษัทของเอกสารไม่ได้'); e.status = 400; throw e; }
+    await scBindHead(new sql.Request(t), h).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvCountMt SET idParent0 = @p0, idWhScope = @scope, DateCount = @dc, CountRound = @round, idCountType = @type,
+              stBlind = @blind, idPsCounter = @counter, idPsReviewer = @reviewer, TolerancePct = @tol, Note = @note,
+              idPsEdit = @ps, DateEdit = GETDATE()
+       WHERE idCount = @id`);
+    await scLog(t, id, 'edit', 'แก้ไขหัวเอกสาร', req.idPs);
+    return { id };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- เริ่มตรวจนับ / พิมพ์ใบนับ = snapshot ยอด ERP ทุก Lot × ตำแหน่งในขอบเขต ที่ยอด ≠ 0 ----------
+app.post('/api/stock-count/doc/:id/start', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const mode = req.body && req.body.mode === 'L' ? 'L' : req.body && req.body.mode === 'O' ? 'O' : null;
+  const sheet = mode === 'O' ? (req.body.sheetType === 'B' ? 'B' : 'P') : null;
+  if (!mode) return scFail(res, 400, 'กรุณาเลือกวิธีนับ');
+  const out = await scTx(res, 'เริ่มตรวจนับ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['DRAFT'], 'เอกสารนี้เริ่มตรวจนับไปแล้ว');
+    const r = await new sql.Request(t).input('id', sql.Int, id).input('scope', sql.Int, doc.idWhScope).query(
+      `${SC_SCOPE_SQL}
+       INSERT INTO devsk.dInvCountDt (idCount, SeqNo, SrcType, idRefLot, idLot, idInvMain, LotNo, idWh, idUnit, AmountErp, CostPerUnit, DateExp)
+       SELECT @id, ROW_NUMBER() OVER (ORDER BY ISNULL(w.full_lock, w.WareHouseName), i.InvName, lm.LotNo, r.idRefLot),
+              'S', r.idRefLot, r.idLot, lm.idInvMain, lm.LotNo, r.idWh, i.idUnit, r.Amount, lm.CostPerUnit, lm.DateExp
+       FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+       JOIN #scope s ON s.idWh = r.idWh
+       JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = r.idLot AND lm.stDel IS NULL
+       JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = lm.idInvMain
+       LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh
+       WHERE r.Amount <> 0;
+       SELECT @@ROWCOUNT AS n;`);
+    const n = r.recordset[0].n;
+    await new sql.Request(t).input('id', sql.Int, id).input('mode', sql.Char, mode).input('sheet', sql.Char, sheet).input('ps', sql.Int, req.idPs)
+      .query(`UPDATE devsk.dInvCountMt SET CountMode = @mode, SheetType = @sheet, StatusCode = 'COUNT', idPsStart = @ps, DateStart = GETDATE()
+              WHERE idCount = @id`);
+    await scLog(t, id, 'start', `เริ่มตรวจนับแบบ ${mode === 'L' ? 'Live Count' : `Offline Count Sheet (${sheet === 'B' ? 'ใบนับเปล่า' : 'ใบนับแบบมีรายการ'})`} · snapshot ยอด ERP ${n.toLocaleString('en-US')} รายการ`, req.idPs);
+    return { lines: n };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- บันทึกยอดนับ (หลายรายการต่อครั้ง: ใบนับ / Live) ----------
+// entries: [{ idCountDt, qty, mode: 'R'|'A', method: 'S'|'K'|'B' }] / qty = null + mode R = ล้างยอดนับ (void entry ของรอบนี้)
+app.post('/api/stock-count/doc/:id/entries', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const list = Array.isArray(req.body && req.body.entries) ? req.body.entries : [];
+  if (!list.length) return scFail(res, 400, 'ไม่มีรายการให้บันทึก');
+  if (list.length > SC_MAX_ENTRY_BATCH) return scFail(res, 400, `บันทึกได้ครั้งละไม่เกิน ${SC_MAX_ENTRY_BATCH} รายการ`);
+  const out = await scTx(res, 'บันทึกยอดนับ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT'], 'บันทึกยอดนับได้เฉพาะระหว่างตรวจนับ');
+    const ids = [];
+    for (const e of list) {
+      const dt = scInt(e.idCountDt);
+      const mode = e.mode === 'A' ? 'A' : 'R';
+      const method = ['S', 'K', 'B'].includes(e.method) ? e.method : 'K';
+      const qty = scNum(e.qty);
+      if (!dt) continue;
+      if (qty != null && (qty < 0 || qty > 1e12)) { const er = new Error('ยอดนับต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป'); er.status = 400; throw er; }
+      const rq = new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, dt).input('ps', sql.Int, req.idPs);
+      if (qty == null) {
+        if (mode === 'A') continue;
+        await rq.query(`UPDATE e SET stVoid = 1, idPsVoid = @ps, DateVoid = GETDATE()
+                        FROM devsk.dInvCountEntry e JOIN devsk.dInvCountDt d ON d.idCountDt = e.idCountDt AND d.RecountNo = e.RecountNo
+                        WHERE d.idCount = @id AND d.idCountDt = @dt AND e.stVoid IS NULL`);
+      } else {
+        const r = await rq.input('qty', sql.Decimal(18, 6), scRound(qty)).input('mode', sql.Char, mode).input('method', sql.Char, method).query(
+          `INSERT INTO devsk.dInvCountEntry (idCount, idCountDt, Qty, EntryMode, Method, RecountNo, idPsTs, DateTs)
+           SELECT @id, d.idCountDt, @qty, @mode, @method, d.RecountNo, @ps, GETDATE()
+           FROM devsk.dInvCountDt d WHERE d.idCount = @id AND d.idCountDt = @dt AND d.stExclude = 0;
+           SELECT @@ROWCOUNT AS n;`);
+        if (!r.recordset[0].n) { const er = new Error('ไม่พบรายการในเอกสารนี้ (อาจถูกตั้งเป็นไม่นำมาคิด)'); er.status = 400; throw er; }
+      }
+      ids.push(dt);
+    }
+    if (ids.length) await scRecalcLines(t, id, ids);
+    return { saved: ids.length };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- แก้รายละเอียดรายการ (วันหมดอายุ / คุณภาพ / สาเหตุ / หมายเหตุ / ส่งปรับยอด) ----------
+// ระหว่างนับ (COUNT) แก้ได้: วันหมดอายุ คุณภาพ หมายเหตุ / ตรวจสอบผลต่าง (REVIEW + สิทธิ์ review) แก้ได้ทั้งหมด
+app.put('/api/stock-count/doc/:id/lines', requireMenu([MENU_SC, MENU_SC_REVIEW]), async (req, res) => {
+  const id = scInt(req.params.id);
+  const list = Array.isArray(req.body && req.body.lines) ? req.body.lines : [];
+  if (!list.length) return scFail(res, 400, 'ไม่มีรายการให้บันทึก');
+  const out = await scTx(res, 'บันทึกรายละเอียด', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT', 'REVIEW'], 'แก้ไขรายละเอียดได้เฉพาะระหว่างตรวจนับ / ตรวจสอบผลต่าง');
+    const review = doc.StatusCode === 'REVIEW';
+    if (review && !hasMenu(req.access, MENU_SC_REVIEW)) { const e = new Error('ไม่มีสิทธิ์ตรวจสอบผลต่าง'); e.status = 403; throw e; }
+    if (!review && !hasMenu(req.access, MENU_SC)) { const e = new Error('ไม่มีสิทธิ์บันทึกการตรวจนับ'); e.status = 403; throw e; }
+    const QUAL = ['NORMAL', 'QC', 'HOLD', 'REJECT'];
+    for (const l of list) {
+      const dt = scInt(l.id);
+      if (!dt) continue;
+      const sets = [];
+      const rq = new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, dt);
+      if ('exp' in l) { sets.push('DateExp = @exp'); rq.input('exp', sql.Date, l.exp ? String(l.exp).slice(0, 10) : null); }
+      if ('quality' in l && QUAL.includes(l.quality)) { sets.push('QualityCode = @q'); rq.input('q', sql.VarChar, l.quality); }
+      if ('note' in l) { sets.push('NoteDt = @note'); rq.input('note', sql.NVarChar, scText(l.note, 500)); }
+      if (review && 'idCause' in l) { sets.push('idCountCause = @cause'); rq.input('cause', sql.Int, scInt(l.idCause)); }
+      if (review && 'adjust' in l) {
+        // ส่งปรับยอดได้เฉพาะรายการที่มีผลต่าง / ไม่ส่ง = ไม่ต้องดำเนินการ
+        sets.push(`stAdjust = CASE WHEN @adj = 1 AND SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NOT NULL
+                                    AND ABS(AmountCount - ISNULL(AmountErp, 0)) >= 0.000001 THEN 1 ELSE 0 END`);
+        sets.push(`ActionCode = CASE WHEN @adj = 1 AND SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NOT NULL
+                                      AND ABS(AmountCount - ISNULL(AmountErp, 0)) >= 0.000001 THEN 'PENDING' ELSE 'NONE' END`);
+        rq.input('adj', sql.Bit, l.adjust ? 1 : 0);
+      }
+      if (!sets.length) continue;
+      await rq.query(`UPDATE devsk.dInvCountDt SET ${sets.join(', ')} WHERE idCount = @id AND idCountDt = @dt`);
+    }
+    return { saved: list.length };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- ค้นหา Lot / รหัสสินค้า (Live Count + ใบนับเปล่า) ----------
+// inDoc = รายการในเอกสาร / outScope = Lot ของคลังหลักเดียวกันที่ยังไม่อยู่ในเอกสาร (เพิ่มเป็นรายการ A ได้) / near = Lot ใกล้เคียง (พิมพ์ผิด)
+app.get('/api/stock-count/doc/:id/find', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.json({ success: true, inDoc: [], outScope: [], near: [] });
+  try {
+    const pool = await poolPromise;
+    const d = await pool.request().input('id', sql.Int, id).query(`SELECT idComp, idParent0, StatusCode, stBlind, SheetType FROM devsk.dInvCountMt WITH (NOLOCK) WHERE idCount = @id`);
+    const doc = d.recordset[0];
+    if (!doc) return scFail(res, 404, 'ไม่พบเอกสารตรวจนับ');
+    if (!hasComp(req.access, doc.idComp)) return scFail(res, 403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    const r = await pool.request().input('id', sql.Int, id).input('q', sql.VarChar, q).input('like', sql.VarChar, `%${q}%`)
+      .input('p0', sql.Int, doc.idParent0).query(
+      `SELECT TOP 30 d.idCountDt FROM devsk.dInvCountDt d WITH (NOLOCK)
+       LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+       WHERE d.idCount = @id AND d.SrcType <> 'U' AND (d.LotNo = @q OR i.InvCode = @q)
+       ORDER BY d.SeqNo;
+
+       SELECT TOP 30 r.idRefLot, r.idLot, lm.LotNo, i.idInvMain, i.InvCode, i.InvName, r.idWh, w.WareHouseName AS LocName, w.full_lock AS LocPath,
+              r.Amount, u.UnitName
+       FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+       JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh AND w.idParent0 = @p0
+       JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = r.idLot AND lm.stDel IS NULL
+       JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = lm.idInvMain
+       LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = i.idUnit
+       WHERE (lm.LotNo = @q OR i.InvCode = @q)
+         AND NOT EXISTS (SELECT 1 FROM devsk.dInvCountDt x WHERE x.idCount = @id AND x.idRefLot = r.idRefLot)
+       ORDER BY CASE WHEN r.Amount <> 0 THEN 0 ELSE 1 END, w.full_lock;
+
+       SELECT TOP 8 d.idCountDt FROM devsk.dInvCountDt d WITH (NOLOCK)
+       LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+       WHERE d.idCount = @id AND d.SrcType <> 'U' AND d.LotNo <> @q AND (d.LotNo LIKE @like OR i.InvName LIKE @like OR i.InvCode LIKE @like)
+       ORDER BY d.SeqNo;`);
+    res.json({
+      success: true,
+      inDoc: r.recordsets[0].map(x => x.idCountDt),
+      outScope: r.recordsets[1].map(x => ({
+        idRefLot: x.idRefLot, lotNo: x.LotNo, invCode: x.InvCode, invName: x.InvName, loc: x.LocName, locPath: x.LocPath,
+        erp: (doc.stBlind || doc.SheetType === 'B') && !hasMenu(req.access, MENU_SC_REVIEW) ? null : Number(x.Amount), unit: x.UnitName
+      })),
+      near: r.recordsets[2].map(x => x.idCountDt)
+    });
+  } catch (err) {
+    console.error('SC find error:', err);
+    res.status(500).json({ success: false, message: 'ค้นหาไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- เพิ่มรายการระหว่างนับ: Lot นอกขอบเขต (A) / ของที่ไม่พบในระบบ (U) ----------
+app.post('/api/stock-count/doc/:id/add-line', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const b = req.body || {};
+  const out = await scTx(res, 'เพิ่มรายการ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT'], 'เพิ่มรายการได้เฉพาะระหว่างตรวจนับ');
+    const seq = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT ISNULL(MAX(SeqNo), 0) + 1 AS n FROM devsk.dInvCountDt WHERE idCount = @id`)).recordset[0].n;
+    let idDt, detail;
+    if (b.idRefLot) {
+      const r = await new sql.Request(t).input('id', sql.Int, id).input('ref', sql.Int, scInt(b.idRefLot)).input('seq', sql.Int, seq).input('p0', sql.Int, doc.idParent0).query(
+        `INSERT INTO devsk.dInvCountDt (idCount, SeqNo, SrcType, idRefLot, idLot, idInvMain, LotNo, idWh, idUnit, AmountErp, CostPerUnit, DateExp)
+         OUTPUT INSERTED.idCountDt, INSERTED.LotNo
+         SELECT @id, @seq, 'A', r.idRefLot, r.idLot, lm.idInvMain, lm.LotNo, r.idWh, i.idUnit, r.Amount, lm.CostPerUnit, lm.DateExp
+         FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+         JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh AND w.idParent0 = @p0
+         JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = r.idLot AND lm.stDel IS NULL
+         JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = lm.idInvMain
+         WHERE r.idRefLot = @ref AND NOT EXISTS (SELECT 1 FROM devsk.dInvCountDt x WHERE x.idCount = @id AND x.idRefLot = r.idRefLot)`);
+      if (!r.recordset[0]) { const e = new Error('เพิ่มไม่ได้: Lot นี้อยู่ในเอกสารแล้ว หรือไม่ได้อยู่ในคลังหลักของเอกสาร'); e.status = 400; throw e; }
+      idDt = r.recordset[0].idCountDt;
+      detail = `เพิ่มรายการนอกขอบเขต Lot ${r.recordset[0].LotNo}`;
+    } else {
+      const input = scText(b.inputText, 100);
+      if (!input && !scText(b.itemText, 300)) { const e = new Error('กรุณาระบุ Lot / รหัส หรือชื่อสินค้าที่พบ'); e.status = 400; throw e; }
+      const r = await new sql.Request(t).input('id', sql.Int, id).input('seq', sql.Int, seq)
+        .input('inp', sql.NVarChar, input).input('item', sql.NVarChar, scText(b.itemText, 300))
+        .input('loc', sql.NVarChar, scText(b.locText, 100)).input('unit', sql.NVarChar, scText(b.unitText, 50))
+        .input('note', sql.NVarChar, scText(b.note, 500)).query(
+        `INSERT INTO devsk.dInvCountDt (idCount, SeqNo, SrcType, InputText, ItemText, LocText, UnitText, NoteDt, MapStatus, ActionCode)
+         OUTPUT INSERTED.idCountDt VALUES (@id, @seq, 'U', @inp, @item, @loc, @unit, @note, 'P', 'PENDING')`);
+      idDt = r.recordset[0].idCountDt;
+      detail = `บันทึกรายการไม่พบในระบบ "${input || b.itemText}"`;
+    }
+    const qty = scNum(b.qty);
+    if (qty != null) {
+      if (qty < 0) { const e = new Error('ยอดนับต้องไม่ติดลบ'); e.status = 400; throw e; }
+      await new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, idDt).input('qty', sql.Decimal(18, 6), scRound(qty))
+        .input('method', sql.Char, ['S', 'K', 'B'].includes(b.method) ? b.method : 'K').input('ps', sql.Int, req.idPs).query(
+        `INSERT INTO devsk.dInvCountEntry (idCount, idCountDt, Qty, EntryMode, Method, RecountNo, idPsTs, DateTs)
+         VALUES (@id, @dt, @qty, 'R', @method, 0, @ps, GETDATE())`);
+      await scRecalcLines(t, id, [idDt]);
+    }
+    await scLog(t, id, 'add_line', detail, req.idPs);
+    return { idCountDt: idDt };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- นำเข้าใบนับเปล่า (Excel): จับคู่ด้วย Lot No. (+ ตำแหน่ง เมื่อ Lot เดียวกันอยู่หลายตำแหน่ง) ----------
+// พบในเอกสาร → ใส่ยอด / อยู่ในคลังหลักแต่นอกขอบเขต → เพิ่มรายการ (A) / ไม่พบ → รายการไม่พบในระบบ (U)
+// ยอดของ Lot เดียวกันหลายแถวในไฟล์ = รวมกัน แล้วแทนที่ยอดเดิม (นำเข้าไฟล์เดิมซ้ำได้ ยอดไม่เบิ้ล)
+const SC_MAX_BLANK_ROWS = 3000;
+app.post('/api/stock-count/doc/:id/import-blank', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const rows = Array.isArray(req.body && req.body.rows) ? req.body.rows : [];
+  if (!rows.length) return scFail(res, 400, 'ไม่พบแถวที่กรอกยอดในไฟล์');
+  if (rows.length > SC_MAX_BLANK_ROWS) return scFail(res, 400, `นำเข้าได้ครั้งละไม่เกิน ${SC_MAX_BLANK_ROWS} แถว`);
+  const QUAL = ['NORMAL', 'QC', 'HOLD', 'REJECT'];
+  const norm = (s) => String(s == null ? '' : s).replace(/\s+/g, '').toUpperCase();
+  const out = await scTx(res, 'นำเข้าใบนับเปล่า', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT'], 'นำเข้ายอดนับได้เฉพาะระหว่างตรวจนับ');
+    if (doc.SheetType !== 'B') { const e = new Error('เอกสารนี้ไม่ได้ใช้ใบนับเปล่า'); e.status = 400; throw e; }
+    // ตำแหน่งที่ผู้นับเขียน เทียบได้ทั้งชื่อตำแหน่ง / ชื่อย่อ / path เต็ม / ชื่อท้ายสุดของ path (ไม่สนช่องว่าง ตัวพิมพ์)
+    const locKeys = (x) => [x.WareHouseName, x.short_lock, x.full_lock, String(x.full_lock || '').split('>').pop()].map(norm).filter(Boolean);
+    const docLines = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT d.idCountDt, d.LotNo, d.idWh, d.SrcType, d.stExclude, w.WareHouseName, w.short_lock, w.full_lock
+       FROM devsk.dInvCountDt d LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = d.idWh
+       WHERE d.idCount = @id AND d.SrcType <> 'U' ORDER BY d.stExclude, d.SeqNo`)).recordset;
+    const uLines = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT idCountDt, InputText, ItemText, LocText FROM devsk.dInvCountDt WHERE idCount = @id AND SrcType = 'U'`)).recordset;
+    // Lot ในคลังหลักของเอกสาร ที่ยังไม่อยู่ในเอกสาร (เฉพาะ Lot ที่อยู่ในไฟล์)
+    const lots = [...new Set(rows.map(r => scText(r.lotNo, 100)).filter(Boolean))];
+    const outScope = [];
+    for (let i = 0; i < lots.length; i += 500) {
+      const chunk = lots.slice(i, i + 500);
+      const rq = new sql.Request(t).input('id', sql.Int, id).input('p0', sql.Int, doc.idParent0);
+      chunk.forEach((l, k) => rq.input('l' + k, sql.VarChar, l));
+      outScope.push(...(await rq.query(
+        `SELECT r.idRefLot, lm.LotNo, r.idWh, w.WareHouseName, w.short_lock, w.full_lock
+         FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+         JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh AND w.idParent0 = @p0
+         JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = r.idLot AND lm.stDel IS NULL
+         WHERE lm.LotNo IN (${chunk.map((_, k) => '@l' + k).join(',')})
+           AND NOT EXISTS (SELECT 1 FROM devsk.dInvCountDt x WHERE x.idCount = @id AND x.idRefLot = r.idRefLot)
+         ORDER BY r.idRefLot`)).recordset);
+    }
+    // Lot เดียวกันหลาย ref ในตำแหน่งเดียวกัน (ERP แยกตามเอกสารรับเข้า) นับเป็นที่เดียว → ใช้รายการแรก
+    const oneWh = (arr) => arr.length > 0 && arr.every(c => c.idWh === arr[0].idWh);
+    const pick = (cands, loc) => {
+      if (loc) {
+        const m = cands.filter(c => locKeys(c).includes(norm(loc)));
+        if (m.length === 1 || oneWh(m)) return { one: m[0] };
+        // ชื่อตำแหน่งซ้ำกันหลายที่ → เลือกรายการในเอกสารก่อน (ถ้ามีที่เดียว)
+        if (m.length > 1) { const d = m.filter(c => c.kind === 'D'); return d.length === 1 ? { one: d[0] } : { many: true }; }
+      }
+      // ไม่ระบุตำแหน่ง / ตำแหน่งที่จดไม่ตรงระบบ → รายการในเอกสารก่อน แล้วค่อย Lot นอกขอบเขต (ต้องมีที่เดียว)
+      for (const kind of ['D', 'A']) {
+        let k = cands.filter(c => c.kind === kind);
+        // ไม่ระบุตำแหน่ง แต่ Lot อยู่ในเอกสารหลายที่ (เพิ่มนอกขอบเขตภายหลัง) → ใช้รายการจากยอด ERP ตอนเริ่มนับ (นำเข้าไฟล์เดิมซ้ำได้ผลเหมือนเดิม)
+        if (!loc && kind === 'D' && k.length > 1 && !oneWh(k)) { const s = k.filter(c => c.SrcType === 'S'); if (s.length === 1 || oneWh(s)) k = s; }
+        if (k.length === 1 || oneWh(k)) return { one: k[0], locDiff: !!loc };
+        if (k.length > 1) return { many: true };
+      }
+      return {};
+    };
+    const errors = [], target = new Map();
+    let seq = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT ISNULL(MAX(SeqNo), 0) AS n FROM devsk.dInvCountDt WHERE idCount = @id`)).recordset[0].n;
+    for (const r of rows) {
+      const lot = scText(r.lotNo, 100), loc = scText(r.loc, 100), item = scText(r.itemText, 300);
+      const qty = r.qty === '' || r.qty == null ? null : scNum(r.qty);
+      if (qty == null || Number.isNaN(qty)) { errors.push({ row: r.row, msg: 'ไม่ได้กรอกยอดนับ' }); continue; }
+      if (qty < 0 || qty > 1e12) { errors.push({ row: r.row, msg: 'ยอดนับต้องเป็นตัวเลขตั้งแต่ 0' }); continue; }
+      if (!lot && !item) { errors.push({ row: r.row, msg: 'ไม่ได้ระบุ Lot No. หรือชื่อสินค้า' }); continue; }
+      let key = null, kind = null, ref = null, rowNote = scText(r.note, 500);
+      if (lot) {
+        // ผู้สมัคร = รายการในเอกสาร (D) + Lot ในคลังหลักที่อยู่นอกขอบเขต (A) → ตำแหน่งที่จดใช้แยกเมื่อมีหลายที่
+        const cands = [...docLines.filter(d => norm(d.LotNo) === norm(lot)).map(d => ({ ...d, kind: 'D', ref: d.idCountDt })),
+                       ...outScope.filter(o => norm(o.LotNo) === norm(lot)).map(o => ({ ...o, kind: 'A', ref: o.idRefLot }))];
+        const p = pick(cands, loc);
+        let locNote = null;
+        if (p.many) { errors.push({ row: r.row, msg: `Lot ${lot} อยู่หลายตำแหน่ง — ระบุตำแหน่งจัดเก็บแบบเต็ม (path) ให้ตรงกับระบบ` }); continue; }
+        if (p.one) {
+          if (p.one.kind === 'D' && p.one.stExclude) { errors.push({ row: r.row, msg: `Lot ${lot} ถูกตั้งเป็นไม่นำมาคิด` }); continue; }
+          kind = p.one.kind; ref = p.one.ref; key = kind + ref;
+          if (p.locDiff) locNote = 'ตำแหน่งที่จด: ' + loc;
+        }
+        rowNote = [scText(r.note, 400), locNote].filter(Boolean).join(' · ');
+      }
+      if (!kind) { kind = 'U'; key = 'U' + norm(lot) + '|' + norm(item) + '|' + norm(loc); }
+      const cur = target.get(key) || { kind, ref, lot, loc, item, unit: scText(r.unit, 50), qty: 0, quality: null, note: null };
+      cur.qty += qty;
+      if (QUAL.includes(r.quality)) cur.quality = r.quality;
+      const nt = scText(rowNote, 500);
+      if (nt) cur.note = cur.note && cur.note !== nt ? `${cur.note} / ${nt}`.slice(0, 500) : nt;
+      target.set(key, cur);
+    }
+    const ids = [];
+    let nDoc = 0, nAdd = 0, nU = 0;
+    for (const x of target.values()) {
+      let dt = x.kind === 'D' ? x.ref : null;
+      if (x.kind === 'A') {
+        seq++;
+        const r = await new sql.Request(t).input('id', sql.Int, id).input('ref', sql.Int, x.ref).input('seq', sql.Int, seq).query(
+          `INSERT INTO devsk.dInvCountDt (idCount, SeqNo, SrcType, idRefLot, idLot, idInvMain, LotNo, idWh, idUnit, AmountErp, CostPerUnit, DateExp)
+           OUTPUT INSERTED.idCountDt
+           SELECT @id, @seq, 'A', r.idRefLot, r.idLot, lm.idInvMain, lm.LotNo, r.idWh, i.idUnit, r.Amount, lm.CostPerUnit, lm.DateExp
+           FROM devsk.dInvLotRefWh r WITH (NOLOCK)
+           JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = r.idLot
+           JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = lm.idInvMain
+           WHERE r.idRefLot = @ref`);
+        dt = r.recordset[0].idCountDt; nAdd++;
+      } else if (x.kind === 'U') {
+        // นำเข้าไฟล์เดิมซ้ำ → ใช้รายการไม่พบในระบบเดิม (Lot / ชื่อ / ตำแหน่ง เดียวกัน)
+        const ex = uLines.find(u => norm(u.InputText) === norm(x.lot) && norm(u.ItemText) === norm(x.item) && norm(u.LocText) === norm(x.loc));
+        if (ex) dt = ex.idCountDt;
+        else {
+          seq++;
+          const r = await new sql.Request(t).input('id', sql.Int, id).input('seq', sql.Int, seq)
+            .input('inp', sql.NVarChar, x.lot).input('item', sql.NVarChar, x.item).input('loc', sql.NVarChar, x.loc).input('unit', sql.NVarChar, x.unit).query(
+            `INSERT INTO devsk.dInvCountDt (idCount, SeqNo, SrcType, InputText, ItemText, LocText, UnitText, MapStatus, ActionCode)
+             OUTPUT INSERTED.idCountDt VALUES (@id, @seq, 'U', @inp, @item, @loc, @unit, 'P', 'PENDING')`);
+          dt = r.recordset[0].idCountDt;
+        }
+        nU++;
+      } else nDoc++;
+      // ยอดในไฟล์แทนที่ยอดเดิม: void entry เดิมของรอบนับปัจจุบัน แล้วบันทึกยอดรวมจากไฟล์
+      await new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, dt).input('ps', sql.Int, req.idPs).input('qty', sql.Decimal(18, 6), scRound(x.qty)).query(
+        `UPDATE e SET stVoid = 1, idPsVoid = @ps, DateVoid = GETDATE()
+         FROM devsk.dInvCountEntry e JOIN devsk.dInvCountDt d ON d.idCountDt = e.idCountDt AND d.RecountNo = e.RecountNo
+         WHERE d.idCount = @id AND d.idCountDt = @dt AND e.stVoid IS NULL;
+         INSERT INTO devsk.dInvCountEntry (idCount, idCountDt, Qty, EntryMode, Method, RecountNo, idPsTs, DateTs)
+         SELECT @id, idCountDt, @qty, 'R', 'S', RecountNo, @ps, GETDATE() FROM devsk.dInvCountDt WHERE idCountDt = @dt;`);
+      const sets = [], rq = new sql.Request(t).input('dt', sql.Int, dt);
+      if (x.quality) { sets.push('QualityCode = @q'); rq.input('q', sql.VarChar, x.quality); }
+      if (x.note) { sets.push('NoteDt = @note'); rq.input('note', sql.NVarChar, x.note); }
+      if (sets.length) await rq.query(`UPDATE devsk.dInvCountDt SET ${sets.join(', ')} WHERE idCountDt = @dt`);
+      ids.push(dt);
+    }
+    if (ids.length) await scRecalcLines(t, id, ids);
+    await scLog(t, id, 'import', `นำเข้าใบนับเปล่า ${rows.length} แถว · ในเอกสาร ${nDoc} · เพิ่ม Lot นอกขอบเขต ${nAdd} · ไม่พบในระบบ ${nU}${errors.length ? ` · ข้าม ${errors.length} แถว` : ''}`, req.idPs);
+    return { inDoc: nDoc, added: nAdd, unmatched: nU, errors };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- จัดการรายการไม่พบในระบบ (U): จับคู่ (M → ยอดบวกเข้ารายการที่เลือก) / ทิ้ง (D) / ส่งตั้งรหัสใหม่ (N) / กลับเป็นรอ (P) ----------
+app.post('/api/stock-count/doc/:id/unmatched/:dt', requireMenu([MENU_SC, MENU_SC_REVIEW]), async (req, res) => {
+  const id = scInt(req.params.id), dt = scInt(req.params.dt);
+  const st = String((req.body && req.body.status) || '');
+  if (!['M', 'D', 'N', 'P'].includes(st)) return scFail(res, 400, 'สถานะไม่ถูกต้อง');
+  const out = await scTx(res, 'จัดการรายการ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT', 'REVIEW'], 'จัดการรายการได้เฉพาะระหว่างตรวจนับ / ตรวจสอบผลต่าง');
+    const u = (await new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, dt).query(
+      `SELECT * FROM devsk.dInvCountDt WHERE idCount = @id AND idCountDt = @dt AND SrcType = 'U'`)).recordset[0];
+    if (!u) { const e = new Error('ไม่พบรายการ'); e.status = 404; throw e; }
+    const note = scText(req.body.note, 500);
+    const mapTo = st === 'M' ? scInt(req.body.mapTo) : null;
+    // ยกเลิกการจับคู่เดิม (ถอนยอดที่เคยบวกเข้ารายการปลายทาง)
+    if (u.MapStatus === 'M' && u.idCountDtMap && u.AmountCount != null) {
+      await new sql.Request(t).input('id', sql.Int, id).input('dt', sql.Int, u.idCountDtMap).input('qty', sql.Decimal(18, 6), u.AmountCount).input('ps', sql.Int, req.idPs).query(
+        `UPDATE devsk.dInvCountEntry SET stVoid = 1, idPsVoid = @ps, DateVoid = GETDATE()
+         WHERE idEntry = (SELECT TOP 1 idEntry FROM devsk.dInvCountEntry
+                          WHERE idCount = @id AND idCountDt = @dt AND stVoid IS NULL AND Method = 'X' AND EntryMode = 'A' AND Qty = @qty
+                          ORDER BY idEntry DESC)`);
+      await scRecalcLines(t, id, [u.idCountDtMap]);
+    }
+    if (st === 'M') {
+      const target = (await new sql.Request(t).input('id', sql.Int, id).input('to', sql.Int, mapTo).query(
+        `SELECT idCountDt, LotNo FROM devsk.dInvCountDt WHERE idCount = @id AND idCountDt = @to AND SrcType <> 'U' AND stExclude = 0`)).recordset[0];
+      if (!target) { const e = new Error('กรุณาเลือกรายการในเอกสารที่จะจับคู่'); e.status = 400; throw e; }
+      if (u.AmountCount != null) {
+        await new sql.Request(t).input('id', sql.Int, id).input('to', sql.Int, mapTo).input('qty', sql.Decimal(18, 6), u.AmountCount).input('ps', sql.Int, req.idPs).query(
+          `INSERT INTO devsk.dInvCountEntry (idCount, idCountDt, Qty, EntryMode, Method, RecountNo, idPsTs, DateTs)
+           SELECT @id, idCountDt, @qty, 'A', 'X', RecountNo, @ps, GETDATE() FROM devsk.dInvCountDt WHERE idCountDt = @to`);
+        await scRecalcLines(t, id, [mapTo]);
+      }
+    }
+    await new sql.Request(t).input('dt', sql.Int, dt).input('st', sql.Char, st).input('to', sql.Int, mapTo).input('note', sql.NVarChar, note).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvCountDt SET MapStatus = @st, idCountDtMap = @to, MapNote = @note,
+              idPsMap = CASE WHEN @st = 'P' THEN NULL ELSE @ps END, DateMap = CASE WHEN @st = 'P' THEN NULL ELSE GETDATE() END,
+              ActionCode = CASE WHEN @st = 'P' THEN 'PENDING' ELSE 'DONE' END
+       WHERE idCountDt = @dt`);
+    const label = { M: 'จับคู่', D: 'ทิ้งรายการ', N: 'ส่งตั้งรหัสใหม่', P: 'กลับเป็นรอตัดสินใจ' }[st];
+    await scLog(t, id, 'unmatched', `${label}: "${u.InputText || u.ItemText}"`, req.idPs);
+    return { id: dt };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- ปิดการนับ → REVIEW: รายการที่ไม่ได้นับ Z = ถือเป็น 0 (entry ระบบ) / X = ไม่นำมาคิด ----------
+// ตั้งค่าเริ่มต้นการส่งปรับยอด: มีผลต่าง และเกินค่ายอมรับ (TolerancePct) → ส่งปรับ / ตรงกัน หรืออยู่ในเกณฑ์ → ไม่ต้องดำเนินการ
+app.post('/api/stock-count/doc/:id/close', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const rule = req.body && req.body.rule === 'X' ? 'X' : 'Z';
+  const out = await scTx(res, 'ปิดการนับ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['COUNT'], 'เอกสารนี้ปิดการนับไปแล้ว');
+    const rq = new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).input('rule', sql.Char, rule)
+      .input('tol', sql.Decimal(9, 4), doc.TolerancePct || 0);
+    const r = await rq.query(
+      `DECLARE @nUn int = (SELECT COUNT(*) FROM devsk.dInvCountDt WHERE idCount = @id AND SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NULL);
+       IF @rule = 'Z'
+         INSERT INTO devsk.dInvCountEntry (idCount, idCountDt, Qty, EntryMode, Method, RecountNo, idPsTs, DateTs)
+         SELECT @id, idCountDt, 0, 'R', 'X', RecountNo, @ps, GETDATE()
+         FROM devsk.dInvCountDt WHERE idCount = @id AND SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NULL;
+       ELSE
+         UPDATE devsk.dInvCountDt SET stExclude = 1 WHERE idCount = @id AND SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NULL;
+       SELECT @nUn AS nUn;`);
+    if (rule === 'Z') await scRecalcLines(t, id);
+    await new sql.Request(t).input('id', sql.Int, id).input('tol', sql.Decimal(9, 4), doc.TolerancePct || 0)
+      .input('ps', sql.Int, req.idPs).input('rule', sql.Char, rule).query(
+      `UPDATE devsk.dInvCountDt SET
+         stAdjust = CASE WHEN SrcType <> 'U' AND stExclude = 0 AND AmountCount IS NOT NULL
+                          AND ABS(AmountCount - ISNULL(AmountErp, 0)) >= 0.000001
+                          AND (@tol = 0 OR ISNULL(AmountErp, 0) = 0 OR ABS(AmountCount - AmountErp) * 100.0 / ABS(AmountErp) > @tol) THEN 1 ELSE 0 END,
+         ActionCode = CASE WHEN SrcType = 'U' THEN CASE WHEN ISNULL(MapStatus, 'P') = 'P' THEN 'PENDING' ELSE 'DONE' END
+                           WHEN stExclude = 1 OR AmountCount IS NULL OR ABS(AmountCount - ISNULL(AmountErp, 0)) < 0.000001 THEN 'NONE'
+                           WHEN @tol > 0 AND ISNULL(AmountErp, 0) <> 0 AND ABS(AmountCount - AmountErp) * 100.0 / ABS(AmountErp) <= @tol THEN 'NONE'
+                           ELSE 'PENDING' END
+       WHERE idCount = @id;
+       UPDATE devsk.dInvCountMt SET StatusCode = 'REVIEW', idPsClose = @ps, DateClose = GETDATE(), UncountedRule = @rule WHERE idCount = @id;`);
+    const nUn = r.recordset[0].nUn;
+    await scLog(t, id, 'close', `ปิดการนับ${nUn ? ` · รายการที่ไม่ได้นับ ${nUn} รายการ: ${rule === 'Z' ? 'ถือเป็น 0' : 'ไม่นำมาคิด'}` : ''}`, req.idPs);
+    return { notCounted: nUn };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- เปิดการนับต่อ (REVIEW → COUNT): ถอน entry ระบบ (ถือเป็น 0) + รายการไม่นำมาคิดที่ระบบตั้ง ----------
+app.post('/api/stock-count/doc/:id/reopen', requireMenu(MENU_SC), async (req, res) => {
+  const id = scInt(req.params.id);
+  const out = await scTx(res, 'เปิดการนับต่อ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['REVIEW'], 'เปิดการนับต่อได้เฉพาะเอกสารที่รอตรวจสอบผลต่าง');
+    await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvCountEntry SET stVoid = 1, idPsVoid = @ps, DateVoid = GETDATE()
+       WHERE idCount = @id AND Method = 'X' AND EntryMode = 'R' AND stVoid IS NULL;
+       UPDATE devsk.dInvCountDt SET stExclude = 0 WHERE idCount = @id AND stExclude = 1 AND ${doc.UncountedRule === 'X' ? '1 = 1' : '1 = 0'};
+       UPDATE devsk.dInvCountDt SET ActionCode = 'PENDING', stAdjust = 0 WHERE idCount = @id AND SrcType <> 'U';
+       UPDATE devsk.dInvCountMt SET StatusCode = 'COUNT', idPsClose = NULL, DateClose = NULL, UncountedRule = NULL WHERE idCount = @id;`);
+    await scRecalcLines(t, id);
+    await scLog(t, id, 'reopen', 'เปิดการนับต่อ', req.idPs);
+    return { id };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- สั่งนับซ้ำเฉพาะรายการที่เลือก (REVIEW → COUNT) ----------
+app.post('/api/stock-count/doc/:id/recount', requireMenu(MENU_SC_REVIEW), async (req, res) => {
+  const id = scInt(req.params.id);
+  const ids = (Array.isArray(req.body && req.body.ids) ? req.body.ids : []).map(scInt).filter(Boolean);
+  if (!ids.length) return scFail(res, 400, 'กรุณาเลือกรายการที่จะนับซ้ำ');
+  const out = await scTx(res, 'สั่งนับซ้ำ', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['REVIEW'], 'สั่งนับซ้ำได้เฉพาะเอกสารที่รอตรวจสอบผลต่าง');
+    const r = await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvCountEntry SET stVoid = 1, idPsVoid = @ps, DateVoid = GETDATE()
+       WHERE idCount = @id AND Method = 'X' AND EntryMode = 'R' AND stVoid IS NULL AND idCountDt NOT IN (${ids.join(',')});
+       UPDATE devsk.dInvCountDt SET RecountNo = RecountNo + 1, AmountCount = NULL, idPsCount = NULL, DateCountLn = NULL,
+              stAdjust = 0, ActionCode = 'FIX', stExclude = 0
+       WHERE idCount = @id AND SrcType <> 'U' AND idCountDt IN (${ids.join(',')});
+       SELECT @@ROWCOUNT AS n;
+       UPDATE devsk.dInvCountDt SET stExclude = 0 WHERE idCount = @id AND stExclude = 1 AND ${doc.UncountedRule === 'X' ? '1 = 1' : '1 = 0'};
+       UPDATE devsk.dInvCountMt SET StatusCode = 'COUNT', idPsClose = NULL, DateClose = NULL, UncountedRule = NULL WHERE idCount = @id;`);
+    await scRecalcLines(t, id);
+    const n = r.recordset[0].n;
+    await scLog(t, id, 'recount', `สั่งนับซ้ำ ${n} รายการ`, req.idPs);
+    return { recount: n };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- ส่งขออนุมัติปรับยอด: สร้าง RQ 1 ใบ (รายการที่ stAdjust = 1) / ไม่มีรายการ → DONE ----------
+// AmountBefore = ยอด ERP ปัจจุบัน / ปรับ = ยอดนับ − ยอด snapshot (ผลต่างจากการนับเท่านั้น) / After = Before ± ปรับ
+// idPsCommand = ผู้ตรวจสอบผลต่าง / idPsAction = ผู้ตรวจนับ / Lot ใน RQ ถูกล็อกโดย view ของ ERP จนอนุมัติครบ
+app.post('/api/stock-count/doc/:id/submit', requireMenu(MENU_SC_REVIEW), async (req, res) => {
+  const id = scInt(req.params.id);
+  const out = await scTx(res, 'ส่งขออนุมัติปรับยอด', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['REVIEW'], 'ส่งขออนุมัติปรับยอดได้เฉพาะเอกสารที่รอตรวจสอบผลต่าง');
+    const um = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT COUNT(*) AS n FROM devsk.dInvCountDt WHERE idCount = @id AND SrcType = 'U' AND ISNULL(MapStatus, 'P') = 'P'`)).recordset[0].n;
+    if (um) { const e = new Error(`ยังมีรายการไม่พบในระบบที่ยังไม่ได้จัดการ ${um} รายการ`); e.status = 409; throw e; }
+    const miss = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT COUNT(*) AS n FROM devsk.dInvCountDt WHERE idCount = @id AND stAdjust = 1 AND idCountCause IS NULL`)).recordset[0].n;
+    if (miss) { const e = new Error(`กรุณาระบุสาเหตุของรายการที่ส่งปรับยอดให้ครบ (ยังขาด ${miss} รายการ)`); e.status = 400; throw e; }
+    // ยอด ERP ปัจจุบัน (เตือนเคลื่อนไหวหลัง snapshot) — ล็อกแถวสต๊อกกันเปลี่ยนระหว่างสร้าง RQ
+    await new sql.Request(t).input('id', sql.Int, id).query(
+      `UPDATE d SET AmountErpNow = r.Amount
+       FROM devsk.dInvCountDt d JOIN devsk.dInvLotRefWh r WITH (UPDLOCK) ON r.idRefLot = d.idRefLot
+       WHERE d.idCount = @id AND d.stAdjust = 1`);
+    const lines = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT d.idCountDt, d.idLot, d.idRefLot, d.idInvMain, d.LotNo, d.idUnit, d.AmountErp, d.AmountCount, d.AmountErpNow, d.NoteDt, c.CauseName
+       FROM devsk.dInvCountDt d LEFT JOIN devsk.dInvCountCause c ON c.idCountCause = d.idCountCause
+       WHERE d.idCount = @id AND d.stAdjust = 1 ORDER BY d.SeqNo`)).recordset;
+    if (!lines.length) {
+      await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).query(
+        `UPDATE devsk.dInvCountDt SET ActionCode = 'NONE' WHERE idCount = @id AND SrcType <> 'U';
+         UPDATE devsk.dInvCountMt SET StatusCode = 'DONE', idPsSubmit = @ps, DateSubmit = GETDATE() WHERE idCount = @id;`);
+      await scLog(t, id, 'done', 'ปิดเอกสาร ไม่มีรายการต้องปรับยอด', req.idPs);
+      return { done: true };
+    }
+    const now = new Date();
+    const rqCode = await getNextRqDocCode(t, doc.idComp, now);
+    const typeName = (await new sql.Request(t).input('ty', sql.Int, doc.idCountType).query(
+      `SELECT TypeName FROM devsk.dInvCountType WHERE idCountType = @ty`)).recordset[0];
+    // NoteReq / NoteDt ของ ERP เป็น varchar (Thai_CI_AS = TIS-620): ตัวอักษรนอกไทย/อังกฤษ (เช่น "·") ถูกเก็บเป็น "?" → ใช้ " / " และกรองด้วย erpText
+    const noteReq = erpText(`ตรวจนับสต๊อก ${doc.DocCode}${typeName ? ` (${typeName.TypeName})` : ''}${doc.Note ? ` / ${doc.Note}` : ''}`).slice(0, 500);
+    const m = await new sql.Request(t)
+      .input('code', sql.VarChar, rqCode).input('cmd', sql.Int, doc.idPsReviewer).input('note', sql.VarChar, noteReq)
+      .input('act', sql.Int, doc.idPsCounter).input('comp', sql.Int, doc.idComp).input('ps', sql.Int, req.idPs).input('idc', sql.Int, id)
+      .query(`INSERT INTO devsk.dInvReqCountMt (DocCode, idPsCommand, NoteReq, idPsAction, idComp, idPsTs, DateTs, idCount, SrcType)
+              OUTPUT INSERTED.idRqUpdate
+              VALUES (@code, @cmd, @note, @act, @comp, @ps, GETDATE(), @idc, 'SC')`);
+    const idRq = m.recordset[0].idRqUpdate;
+    for (const l of lines) {
+      const diff = scRound(Number(l.AmountCount) - Number(l.AmountErp || 0));
+      const before = Number(l.AmountErpNow == null ? l.AmountErp : l.AmountErpNow);
+      const after = scRound(before + diff);
+      const note = erpText([l.CauseName, l.NoteDt].filter(Boolean).join(' / ')).slice(0, 500);
+      await new sql.Request(t)
+        .input('rq', sql.Int, idRq).input('lot', sql.Int, l.idLot).input('ref', sql.Int, l.idRefLot).input('inv', sql.Int, l.idInvMain)
+        .input('lotNo', sql.VarChar, String(l.LotNo || '').slice(0, 50)).input('unit', sql.Int, l.idUnit)
+        .input('before', sql.Decimal(18, 6), before).input('op', sql.VarChar, diff >= 0 ? '+' : '-')
+        .input('amt', sql.Decimal(18, 6), Math.abs(diff)).input('after', sql.Decimal(18, 6), after)
+        .input('note', sql.VarChar, note).input('dt', sql.Int, l.idCountDt)
+        .query(`INSERT INTO devsk.dInvReqCountDt (idRqUpdate, idLot, idRefLot, idInvMain, LotNo, idUnit, AmountBefore, Operate, AmountOperate, AmountAfter, NoteDt, idCountDt)
+                VALUES (@rq, @lot, @ref, @inv, @lotNo, @unit, @before, @op, @amt, @after, @note, @dt)`);
+    }
+    await new sql.Request(t).input('id', sql.Int, id).input('rq', sql.Int, idRq).input('ps', sql.Int, req.idPs).query(
+      `UPDATE devsk.dInvCountDt SET ActionCode = CASE WHEN stAdjust = 1 THEN 'WAIT' WHEN SrcType = 'U' THEN ActionCode ELSE 'NONE' END WHERE idCount = @id;
+       UPDATE devsk.dInvCountMt SET StatusCode = 'APPROVE', idRqUpdate = @rq, ApvRound = ApvRound + 1,
+              idPsSubmit = @ps, DateSubmit = GETDATE(), SendBackNote = NULL, idPsSendBack = NULL, DateSendBack = NULL
+       WHERE idCount = @id;`);
+    await rqLog(t, idRq, 'submit', `สร้างจากเอกสารตรวจนับ ${doc.DocCode} (${lines.length} รายการ)`, req.idPs);
+    await scLog(t, id, 'submit', `ส่งขออนุมัติปรับยอด ${rqCode} (${lines.length} รายการ)`, req.idPs);
+    return { idRq, rqCode, lines: lines.length, nPlus: lines.filter(l => Number(l.AmountCount) - Number(l.AmountErp || 0) >= 0).length, nMinus: lines.filter(l => Number(l.AmountCount) - Number(l.AmountErp || 0) < 0).length };
+  });
+  if (!out) return;
+  if (out.idRq) {
+    try { const code = await scFixRqDup(out.idRq); if (code) out.rqCode = code; } catch (e) { console.error('SC RQ dup check error:', e); }
+  }
+  res.json({ success: true, ...out });
+});
+
+// ---------- ยกเลิกเอกสาร (ทุกสถานะก่อนปรับสต๊อก) — มี RQ ค้างอยู่ → ยกเลิก RQ ด้วย (ปลดล็อก Lot) ----------
+app.post('/api/stock-count/doc/:id/cancel', requireMenu(MENU_SC_CANCEL), async (req, res) => {
+  const id = scInt(req.params.id);
+  const note = scText(req.body && req.body.note, 500);
+  if (!note) return scFail(res, 400, 'กรุณาระบุเหตุผลการยกเลิก');
+  const out = await scTx(res, 'ยกเลิกเอกสาร', async (t) => {
+    const doc = await scLockDoc(t, id, req.access);
+    scNeed(doc, ['DRAFT', 'COUNT', 'REVIEW', 'APPROVE'], 'ยกเลิกไม่ได้: เอกสารปรับสต๊อก / ปิดไปแล้ว');
+    if (doc.idRqUpdate && doc.StatusCode === 'APPROVE') {
+      const rq = (await new sql.Request(t).input('rq', sql.Int, doc.idRqUpdate).query(
+        `SELECT idRqUpdate, idPsCancel, idPsAccept, idPsCheck, idPsApprove FROM devsk.dInvReqCountMt WITH (UPDLOCK) WHERE idRqUpdate = @rq`)).recordset[0];
+      if (rq && rq.idPsAccept && rq.idPsCheck && rq.idPsApprove) { const e = new Error('ยกเลิกไม่ได้: ใบขอปรับยอดอนุมัติครบแล้ว'); e.status = 409; throw e; }
+      if (rq && !rq.idPsCancel) {
+        await new sql.Request(t).input('rq', sql.Int, doc.idRqUpdate).input('ps', sql.Int, req.idPs).input('note', sql.VarChar, erpText(`ยกเลิกเอกสารตรวจนับ ${doc.DocCode}: ${note}`).slice(0, 500))
+          .query(`UPDATE devsk.dInvReqCountMt SET idPsCancel = @ps, DateCancel = GETDATE(), CancelNote = @note WHERE idRqUpdate = @rq`);
+        await rqLog(t, doc.idRqUpdate, 'cancel', note, req.idPs);
+      }
+    }
+    await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).input('note', sql.NVarChar, note).query(
+      `UPDATE devsk.dInvCountMt SET StatusCode = 'CANCEL', idPsCancel = @ps, DateCancel = GETDATE(), CancelNote = @note WHERE idCount = @id`);
+    await scLog(t, id, 'cancel', note, req.idPs);
+    return { id };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ==================================================================
+// ---------- อนุมัติปรับยอดสต๊อก: RQ ทุกใบ (ERP desktop + ตรวจนับ) ----------
+// ==================================================================
+const ADJ_HEAD_SELECT = `
+  m.idRqUpdate, m.DocCode, m.idComp, LTRIM(RTRIM(co.CompCode)) AS CompCode, co.CompName, m.NoteReq, m.DateTs, m.SrcType, m.idCount,
+  sc.DocCode AS ScCode, sc.StatusCode AS ScStatus,
+  m.idPsTs, pts.PsName AS CreatorName, m.idPsCommand, pcm.PsName AS CommandName, m.idPsAction, pac.PsName AS ActionName,
+  m.idPsAccept, pa.PsName AS AcceptName, m.DateAccept, m.idPsCheck, pk.PsName AS CheckName, m.DateCheck,
+  m.idPsApprove, pp.PsName AS ApproveName, m.DateApprove, m.idPsCancel, m.DateCancel, m.CancelNote,
+  m.idUpdateRev, rv.DocCode AS RevDocCode, rv.idRqUpdate AS RevRqId, rvq.DocCode AS RevRqCode,
+  pcm.PsFullName AS CommandFull, pcm.PositionName AS CommandPos, pac.PsFullName AS ActionFull, pac.PositionName AS ActionPos,
+  pa.PsFullName AS AcceptFull, pa.PositionName AS AcceptPos, pk.PsFullName AS CheckFull, pk.PositionName AS CheckPos,
+  pp.PsFullName AS ApproveFull, pp.PositionName AS ApprovePos,
+  (SELECT COUNT(*) FROM devsk.dInvReqCountDt d WITH (NOLOCK) WHERE d.idRqUpdate = m.idRqUpdate) AS nLine,
+  (SELECT SUM(CASE WHEN d.Operate = '+' THEN 1 ELSE 0 END) FROM devsk.dInvReqCountDt d WITH (NOLOCK) WHERE d.idRqUpdate = m.idRqUpdate) AS nPlus,
+  (SELECT SUM(CASE WHEN d.Operate = '-' THEN 1 ELSE 0 END) FROM devsk.dInvReqCountDt d WITH (NOLOCK) WHERE d.idRqUpdate = m.idRqUpdate) AS nMinus,
+  (SELECT SUM(CASE WHEN d.Operate = '-' THEN -1 ELSE 1 END * d.AmountOperate * ISNULL(lm.CostPerUnit, 0))
+     FROM devsk.dInvReqCountDt d WITH (NOLOCK) LEFT JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = d.idLot
+     WHERE d.idRqUpdate = m.idRqUpdate) AS AdjValue`;
+const ADJ_HEAD_JOIN = `
+  LEFT JOIN PchInvAndProject.dbo.dCompany co WITH (NOLOCK) ON co.idComp = m.idComp
+  LEFT JOIN devsk.dInvCountMt sc WITH (NOLOCK) ON sc.idCount = m.idCount
+  LEFT JOIN devsk.dInvLotCountMt rv WITH (NOLOCK) ON rv.idUpdate = m.idUpdateRev
+  LEFT JOIN devsk.dInvReqCountMt rvq WITH (NOLOCK) ON rvq.idRqUpdate = rv.idRqUpdate
+  LEFT JOIN devsk.vPersonxSelect pts ON pts.idPs = m.idPsTs
+  LEFT JOIN devsk.vPersonxSelect pcm ON pcm.idPs = m.idPsCommand
+  LEFT JOIN devsk.vPersonxSelect pac ON pac.idPs = m.idPsAction
+  LEFT JOIN devsk.vPersonxSelect pa ON pa.idPs = m.idPsAccept
+  LEFT JOIN devsk.vPersonxSelect pk ON pk.idPs = m.idPsCheck
+  LEFT JOIN devsk.vPersonxSelect pp ON pp.idPs = m.idPsApprove`;
+function adjMapHead(x) {
+  const person = (id, name, full, pos) => (id ? { id, name: name || '-', full: (full || '').trim(), position: pos || '' } : null);
+  const step = (id, name, at, full, pos) => (id ? { id, by: name || '-', at, full: (full || '').trim(), position: pos || '' } : null);
+  return {
+    id: x.idRqUpdate, docCode: x.DocCode, idComp: x.idComp, compCode: x.CompCode, compName: x.CompName, note: x.NoteReq, dateTs: x.DateTs,
+    src: x.SrcType || null, idCount: x.idCount, scCode: x.ScCode, scStatus: x.ScStatus,
+    revOf: x.idUpdateRev ? { id: x.idUpdateRev, docCode: x.RevDocCode || '', idRq: x.RevRqId || null, rqCode: x.RevRqCode || '' } : null,
+    creator: x.CreatorName, command: x.CommandName, action: x.ActionName,
+    commandPs: person(x.idPsCommand, x.CommandName, x.CommandFull, x.CommandPos), actionPs: person(x.idPsAction, x.ActionName, x.ActionFull, x.ActionPos),
+    steps: { ack: step(x.idPsAccept, x.AcceptName, x.DateAccept, x.AcceptFull, x.AcceptPos), check: step(x.idPsCheck, x.CheckName, x.DateCheck, x.CheckFull, x.CheckPos),
+             approve: step(x.idPsApprove, x.ApproveName, x.DateApprove, x.ApproveFull, x.ApprovePos) },
+    cancel: x.idPsCancel ? { at: x.DateCancel, note: x.CancelNote } : null,
+    nLine: x.nLine || 0, nPlus: x.nPlus || 0, nMinus: x.nMinus || 0, adjValue: Number(x.AdjValue || 0)
+  };
+}
+
+// รายการขอปรับยอดสต๊อก (เมนูติดตาม): tab = pending (ยังไม่ครบ 3 ขั้น) / cancel
+//   ใบที่อนุมัติครบแล้ว ไม่อยู่ในเมนูนี้ — ดูที่ประวัติการปรับสต๊อก (มาจากใบที่ครบ 3 ขั้น)
+//   ตัวกรอง: idComp, src (SC = จากการตรวจนับ / PC = WIM Desktop / REV = กลับรายการ), from / to (วันที่ขอปรับ yyyy-mm-dd), q (เลขที่ RQ / SC / เหตุผล)
+//   ไม่ระบุช่วงวันที่: รออนุมัติ = ทุกใบ / ยกเลิก = 90 วันล่าสุด — คืนจำนวนของทั้ง 2 แท็บ (ตัวกรองเดียวกัน) ไว้แสดงบนแท็บ
+const ADJ_TAB_COND = {
+  pending: 'm.idPsCancel IS NULL AND (m.idPsAccept IS NULL OR m.idPsCheck IS NULL OR m.idPsApprove IS NULL)',
+  cancel: 'm.idPsCancel IS NOT NULL'
+};
+const ADJ_TRACK_MAX = 1000;
+app.get('/api/stock-adjust/track', requireMenu(MENU_ADJ_TRACK, { companyParam: 'idComp' }), async (req, res) => {
+  try {
+    const tab = ADJ_TAB_COND[req.query.tab] ? req.query.tab : 'pending';
+    const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+    const pool = await poolPromise;
+    const request = pool.request();
+    let base = 'WHERE 1 = 1';
+    const idComp = scInt(req.query.idComp);
+    if (idComp) { request.input('idComp', sql.Int, idComp); base += ' AND m.idComp = @idComp'; }
+    else base += ' ' + compFilter(req.access, request, 'm.idComp');
+    if (req.query.src === 'SC') base += " AND m.SrcType = 'SC'";
+    else if (req.query.src === 'REV') base += " AND m.SrcType = 'REV'";
+    else if (req.query.src === 'PC') base += " AND ISNULL(m.SrcType, '') NOT IN ('SC', 'REV')";
+    const q = String(req.query.q || '').trim().slice(0, 100);
+    if (q) { request.input('q', sql.NVarChar(110), '%' + q.replace(/[[\]%_]/g, '[$&]') + '%'); base += ' AND (m.DocCode LIKE @q OR m.NoteReq LIKE @q OR sc.DocCode LIKE @q)'; }
+    const hasRange = isDate(req.query.from) || isDate(req.query.to);
+    let range = '';
+    if (isDate(req.query.from)) { request.input('dFrom', sql.Date, req.query.from); range += ' AND m.DateTs >= @dFrom'; }
+    if (isDate(req.query.to)) { request.input('dTo', sql.Date, req.query.to); range += ' AND m.DateTs < DATEADD(day, 1, @dTo)'; }
+    const dateOf = (t) => hasRange ? range : (t === 'pending' ? '' : ' AND m.DateTs >= DATEADD(day, -90, CAST(GETDATE() AS date))');
+    const cnt = Object.keys(ADJ_TAB_COND).map(t => `SUM(CASE WHEN ${ADJ_TAB_COND[t]}${dateOf(t)} THEN 1 ELSE 0 END) AS n_${t}`).join(', ');
+    const r = await request.query(
+      `SELECT TOP ${ADJ_TRACK_MAX + 1} ${ADJ_HEAD_SELECT} FROM devsk.dInvReqCountMt m WITH (NOLOCK) ${ADJ_HEAD_JOIN}
+         ${base} AND ${ADJ_TAB_COND[tab]}${dateOf(tab)} ORDER BY m.DateTs DESC, m.idRqUpdate DESC;
+       SELECT ${cnt} FROM devsk.dInvReqCountMt m WITH (NOLOCK) LEFT JOIN devsk.dInvCountMt sc WITH (NOLOCK) ON sc.idCount = m.idCount ${base}`);
+    const list = r.recordsets[0];
+    const c = r.recordsets[1][0] || {};
+    res.json({ success: true, tab, data: list.slice(0, ADJ_TRACK_MAX).map(adjMapHead), more: list.length > ADJ_TRACK_MAX, max: ADJ_TRACK_MAX,
+      counts: { pending: c.n_pending || 0, cancel: c.n_cancel || 0 }, ranged: hasRange, me: req.idPs });
+  } catch (err) {
+    console.error('ADJ track error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการขอปรับยอดสต๊อกไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// รายการรออนุมัติ (ยังไม่ยกเลิก + ยังไม่ครบ 3 ขั้น) / done=1 → ที่ครบแล้ว 90 วันล่าสุด
+app.get('/api/stock-adjust/list', requireMenu(MENU_ADJ, { companyParam: 'idComp' }), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const request = pool.request();
+    let where = req.query.done === '1'
+      ? `WHERE m.idPsCancel IS NULL AND m.idPsAccept IS NOT NULL AND m.idPsCheck IS NOT NULL AND m.idPsApprove IS NOT NULL AND m.DateTs >= DATEADD(day, -90, GETDATE())`
+      : `WHERE m.idPsCancel IS NULL AND (m.idPsAccept IS NULL OR m.idPsCheck IS NULL OR m.idPsApprove IS NULL)`;
+    const idComp = scInt(req.query.idComp);
+    if (idComp) { request.input('idComp', sql.Int, idComp); where += ' AND m.idComp = @idComp'; }
+    else where += ' ' + compFilter(req.access, request, 'm.idComp');
+    const r = await request.query(
+      `SELECT TOP 500 ${ADJ_HEAD_SELECT} FROM devsk.dInvReqCountMt m WITH (NOLOCK) ${ADJ_HEAD_JOIN} ${where} ORDER BY m.DateTs DESC, m.idRqUpdate DESC`);
+    res.json({ success: true, data: r.recordset.map(adjMapHead), postingReady: SC_POSTING_READY, me: req.idPs,
+      can: { ack: hasMenu(req.access, MENU_ADJ_ACK), check: hasMenu(req.access, MENU_ADJ_CHECK), approve: hasMenu(req.access, MENU_ADJ_APPROVE), review: hasMenu(req.access, MENU_SC_REVIEW) } });
+  } catch (err) {
+    console.error('ADJ list error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายการขอปรับยอดไม่สำเร็จ', detail: err.message });
+  }
+});
+
+app.get('/api/stock-adjust/doc/:id', requireMenu([...MENU_ADJ, MENU_ADJ_TRACK, MENU_ADJ_REPORT, MENU_ADJ_REVERSE, MENU_SC_REVIEW, MENU_SC]), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('id', sql.Int, scInt(req.params.id)).query(
+      `SELECT ${ADJ_HEAD_SELECT} FROM devsk.dInvReqCountMt m WITH (NOLOCK) ${ADJ_HEAD_JOIN} WHERE m.idRqUpdate = @id;
+
+       SELECT d.idRqUpdateDt, d.idLot, d.idRefLot, d.LotNo, i.InvCode, i.InvName, u.UnitName,
+              w.WareHouseName AS LocName, w.full_lock AS LocPath,
+              d.AmountBefore, d.Operate, d.AmountOperate, d.AmountAfter, d.NoteDt, lm.CostPerUnit,
+              r.Amount AS AmountNow, cd.AmountErp, cd.AmountCount
+       FROM devsk.dInvReqCountDt d WITH (NOLOCK)
+       LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+       LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = i.idUnit
+       LEFT JOIN devsk.dInvLotRefWh r WITH (NOLOCK) ON r.idRefLot = d.idRefLot
+       LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh
+       LEFT JOIN devsk.dInvLotMain lm WITH (NOLOCK) ON lm.idLot = d.idLot
+       LEFT JOIN devsk.dInvCountDt cd WITH (NOLOCK) ON cd.idCountDt = d.idCountDt
+       WHERE d.idRqUpdate = @id ORDER BY d.idRqUpdateDt;
+
+       SELECT l.StepCode, l.Note, l.DateTs, p.PsName FROM devsk.dInvReqCountLog l WITH (NOLOCK)
+       LEFT JOIN devsk.vPersonxSelect p ON p.idPs = l.idPsTs WHERE l.idRqUpdate = @id ORDER BY l.idLog;
+       SELECT TOP 1 lc.idUpdate, lc.DocCode, lc.DateTs FROM devsk.dInvLotCountMt lc WITH (NOLOCK) WHERE lc.idRqUpdate = @id ORDER BY lc.idUpdate DESC;`);
+    const head = r.recordsets[0][0];
+    if (!head) return scFail(res, 404, 'ไม่พบใบขอปรับยอดสต๊อก');
+    if (!hasComp(req.access, head.idComp)) return scFail(res, 403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    const num = (v) => (v == null ? null : Number(v));
+    // หัวใบพิมพ์: บริษัท (ไทย / อังกฤษ / ที่อยู่ / โทร / แฟกซ์ / เลขผู้เสียภาษี) — ชุดเดียวกับใบส่งคืนสินค้า
+    const c = (await pool.request().input('comp', sql.Int, head.idComp).query(
+      `SELECT c.CompNameEng, c.Address, c.AddressEng, c.PostCode, c.Tel, c.Fax, c.TaxCode, LTRIM(RTRIM(pv.ProvinceName)) AS ProvinceName
+       FROM PchInvAndProject.dbo.dCompany c WITH (NOLOCK) LEFT JOIN PchInvAndProject.dbo.dProvinceFix pv WITH (NOLOCK) ON pv.idProvince = c.idProvince
+       WHERE c.idComp = @comp`)).recordset[0] || {};
+    const compInfo = { nameEn: c.CompNameEng || '', address: c.Address || '', addressEn: c.AddressEng || '', province: c.ProvinceName || '',
+      postCode: c.PostCode || '', tel: c.Tel || '', fax: c.Fax || '', taxId: c.TaxCode || '' };
+    // เอกสารปรับของใบนี้ถูกกลับรายการแล้วหรือยัง (ใบกลับรายการที่ไม่ยกเลิก)
+    const posted = r.recordsets[3][0] || null;
+    let reversedBy = [];
+    if (posted) {
+      reversedBy = (await pool.request().input('up', sql.Int, posted.idUpdate).query(
+        `SELECT x.idRqUpdate, x.DocCode, (SELECT COUNT(*) FROM devsk.dInvReqCountDt xd WITH (NOLOCK) WHERE xd.idRqUpdate = x.idRqUpdate) AS nLine,
+                (SELECT TOP 1 p.DocCode FROM devsk.dInvLotCountMt p WITH (NOLOCK) WHERE p.idRqUpdate = x.idRqUpdate) AS PostCode
+         FROM devsk.dInvReqCountMt x WITH (NOLOCK) WHERE x.idUpdateRev = @up AND x.idPsCancel IS NULL ORDER BY x.idRqUpdate`)).recordset
+        .map(x => ({ id: x.idRqUpdate, docCode: x.DocCode, nLine: x.nLine, postCode: x.PostCode || null }));
+    }
+    let sc = null;
+    if (head.idCount) {
+      const s = await pool.request().input('sc', sql.Int, head.idCount).query(
+        `SELECT ${SC_HEAD_SELECT}, st.* FROM devsk.dInvCountMt m WITH (NOLOCK) ${SC_HEAD_JOIN} ${SC_STATS_APPLY} WHERE m.idCount = @sc`);
+      if (s.recordset[0]) {
+        const x = scMapHead(s.recordset[0]);
+        sc = { id: x.id, docCode: x.docCode, status: x.status, typeName: x.typeName, dateCount: x.dateCount, round: x.round, mode: x.mode, blind: x.blind,
+          scope: x.idWhScope === x.idParent0 ? x.whName : x.scopePath, counter: x.counter, reviewer: x.reviewer, dateClose: x.dateClose, stats: x.stats };
+      }
+    }
+    res.json({
+      success: true, postingReady: SC_POSTING_READY, me: req.idPs,
+      can: { ack: hasMenu(req.access, MENU_ADJ_ACK), check: hasMenu(req.access, MENU_ADJ_CHECK), approve: hasMenu(req.access, MENU_ADJ_APPROVE), reverse: hasMenu(req.access, MENU_ADJ_REVERSE) },
+      data: {
+        ...adjMapHead(head), compInfo,
+        lines: r.recordsets[1].map(d => ({
+          id: d.idRqUpdateDt, lotNo: d.LotNo, invCode: d.InvCode, invName: d.InvName, unit: d.UnitName, loc: d.LocName, locPath: d.LocPath,
+          before: num(d.AmountBefore), op: d.Operate, amount: num(d.AmountOperate), after: num(d.AmountAfter), note: d.NoteDt,
+          cost: num(d.CostPerUnit), now: num(d.AmountNow), erp: num(d.AmountErp), count: num(d.AmountCount)
+        })),
+        log: r.recordsets[2].map(l => ({ step: l.StepCode, note: l.Note, at: l.DateTs, by: l.PsName })),
+        posted: posted ? { id: posted.idUpdate, docCode: posted.DocCode, at: posted.DateTs } : null,
+        reversedBy, sc
+      }
+    });
+  } catch (err) {
+    console.error('ADJ doc error:', err);
+    res.status(500).json({ success: false, message: 'โหลดใบขอปรับยอดสต๊อกไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// ---------- กดขั้น รับทราบ / ตรวจสอบ / อนุมัติ (ก่อนหลังได้) ----------
+// ขั้นที่จะทำให้ครบ 3 ขั้น: ยังไม่เปิดจนกว่าจะมีส่วนปรับสต๊อกจริง (กัน view ปลดล็อก Lot ทั้งที่สต๊อกยังไม่ถูกปรับ)
+// ---------- ปรับสต๊อกจริง (ครบ 3 ขั้น) — ชุดเดียวกับ WIM Desktop: InsertLotCountMt / InsertLotCountDt / InvLotMainUpdate / InvLotStockCard ----------
+// เลขที่ dInvLotCountMt = RunTsLotCount: MAX(DocCode) ของบริษัทในปี ค.ศ. (YEAR(DateTs)) → ตัด 5 ตัวแรก ("yymm/") +1 เป็น 5 หลัก / prefix = yymm พ.ศ. ของวันนี้
+const ADJ_CARD_NOTE = 'เมนูทำรายการปรับ/ตรวจนับสต็อก';
+const ADJ_CARD_TYPE = { '+': 1, '-': 2, '=': 3 };   // dInvLotStockCard.typeTs: 1 เพิ่ม (QtyIn) / 2 ลด (QtyOut) / 3 ตั้งยอดใหม่ (QtyIn)
+async function getNextLotCountCode(runner, idComp, date) {
+  const r = await new sql.Request(runner)
+    .input('idComp', sql.Int, idComp).input('y', sql.Int, date.getFullYear())
+    .query(`SELECT MAX(DocCode) AS mx FROM devsk.dInvLotCountMt WITH (UPDLOCK, HOLDLOCK) WHERE idComp = @idComp AND YEAR(DateTs) = @y`);
+  const mx = r.recordset[0].mx;
+  const last = mx ? parseInt(String(mx).substring(5), 10) || 0 : 0;
+  const yymm = String(date.getFullYear() + 543).slice(-2) + String(date.getMonth() + 1).padStart(2, '0');
+  return `${yymm}/${String(last + 1).padStart(5, '0')}`;
+}
+// m = แถว dInvReqCountMt (ล็อกแล้ว) / ทุกอย่างอยู่ใน transaction t — พลาดตรงไหน = rollback ทั้งใบ (รวมขั้นที่เพิ่งกด)
+// ยอดเปลี่ยนระหว่างรออนุมัติ: ปรับตามจำนวนที่ขอจากยอดปัจจุบัน (เหมือน Desktop) / ปรับลดจนติดลบ = ไม่ให้ปรับทั้งใบ
+async function adjPost(t, m, req) {
+  const lines = (await new sql.Request(t).input('id', sql.Int, m.idRqUpdate).query(
+    `SELECT d.idRqUpdateDt, d.idLot, d.idRefLot, d.idInvMain, d.LotNo, d.idUnit, d.AmountBefore, d.Operate, d.AmountOperate, d.AmountAfter, d.NoteDt,
+            w.Amount AS AmountNow, w.idWh, w.idRefLot AS whRef
+     FROM devsk.dInvReqCountDt d
+     LEFT JOIN devsk.dInvLotRefWh w WITH (UPDLOCK, ROWLOCK) ON w.idRefLot = d.idRefLot
+     WHERE d.idRqUpdate = @id ORDER BY d.idRqUpdateDt`)).recordset;
+  if (!lines.length) { const e = new Error('ใบขอปรับยอดสต๊อกนี้ไม่มีรายการ — ปรับสต๊อกไม่ได้'); e.status = 409; throw e; }
+  const problems = [];
+  for (const l of lines) {
+    const op = String(l.Operate || '').trim(), qty = Number(l.AmountOperate || 0);
+    l.op = op;
+    if (!l.whRef) { problems.push(`Lot ${l.LotNo}: ไม่พบตำแหน่งจัดเก็บในระบบ`); continue; }
+    if (!ADJ_CARD_TYPE[op]) { problems.push(`Lot ${l.LotNo}: เครื่องหมายปรับไม่ถูกต้อง (${op || '-'})`); continue; }
+    const now = Number(l.AmountNow || 0);
+    // Lot ถูกล็อกตั้งแต่ส่งใบขอ → ยอดควรเท่าตอนขอเสมอ / ไม่เท่า = มีการเคลื่อนไหวที่ไม่ผ่านด่านล็อก → ไม่ปรับ (กันปรับผิดเงียบ ๆ)
+    if (l.AmountBefore != null && Math.abs(now - Number(l.AmountBefore)) > SC_EPS) {
+      problems.push(`Lot ${l.LotNo}: ยอดเปลี่ยนหลังขอปรับ (ตอนขอ ${scRound(Number(l.AmountBefore))} / ตอนนี้ ${scRound(now)})`); continue;
+    }
+    l.newAmt = scRound(op === '+' ? now + qty : op === '-' ? now - qty : qty);
+    if (l.newAmt < -SC_EPS) problems.push(`Lot ${l.LotNo}: ยอดไม่พอ (คงเหลือ ${scRound(now)} ปรับลด ${scRound(qty)})`);
+  }
+  if (problems.length) {
+    const e = new Error(`ปรับสต๊อกไม่ได้ — ${problems.slice(0, 5).join(' / ')}${problems.length > 5 ? ` และอีก ${problems.length - 5} รายการ` : ''}`);
+    e.status = 409; throw e;
+  }
+  const code = await getNextLotCountCode(t, m.idComp, new Date());
+  // กลับรายการ: ตัวเลขเข้า/ออกเหมือนการปรับปกติ แต่หมายเหตุใน Stock Card บอกว่าเป็นการปรับย้อนของเอกสารไหน
+  let cardNote = ADJ_CARD_NOTE;
+  if (m.SrcType === 'REV' && m.idUpdateRev) {
+    const o = (await new sql.Request(t).input('o', sql.Int, m.idUpdateRev).query(`SELECT DocCode FROM devsk.dInvLotCountMt WHERE idUpdate = @o`)).recordset[0];
+    if (o) cardNote = erpText(`กลับรายการปรับยอดสต๊อก ${o.DocCode}`).slice(0, 200);
+  }
+  const mt = await new sql.Request(t)
+    .input('rq', sql.Int, m.idRqUpdate).input('code', sql.VarChar(15), code).input('ts', sql.Int, m.idPsTs)
+    .input('cmd', sql.Int, m.idPsCommand).input('act', sql.Int, m.idPsAction).input('note', sql.VarChar(500), erpText(m.NoteReq).slice(0, 500))
+    .input('comp', sql.Int, m.idComp)
+    .query(`INSERT INTO devsk.dInvLotCountMt (idRqUpdate, DocCode, idPsTs, DateTs, idPsCommand, idPsAction, Note, idComp)
+            OUTPUT INSERTED.idUpdate VALUES (@rq, @code, @ts, GETDATE(), @cmd, @act, @note, @comp)`);
+  const idUpdate = mt.recordset[0].idUpdate;
+  for (const l of lines) {
+    const qty = Number(l.AmountOperate || 0), type = ADJ_CARD_TYPE[l.op];
+    await new sql.Request(t)
+      .input('up', sql.Int, idUpdate).input('rqdt', sql.Int, l.idRqUpdateDt).input('lot', sql.Int, l.idLot).input('ref', sql.Int, l.idRefLot)
+      .input('inv', sql.Int, l.idInvMain).input('lotNo', sql.VarChar(50), String(l.LotNo || '').slice(0, 50)).input('unit', sql.Int, l.idUnit)
+      .input('before', sql.Decimal(18, 6), l.AmountBefore).input('op', sql.VarChar(2), l.op).input('amt', sql.Decimal(18, 6), qty)
+      .input('after', sql.Decimal(18, 6), l.AmountAfter).input('note', sql.VarChar(255), erpText(l.NoteDt).slice(0, 255))
+      .input('newAmt', sql.Decimal(20, 6), l.newAmt).input('ps', sql.Int, req.idPs)
+      .query(`INSERT INTO devsk.dInvLotCountDt (idUpdate, idRqUpdateDt, idLot, idRefLot, idInvMain, lotNo, idUnit, AmountBefore, Operate, AmountOperate, AmountAfter, Note)
+              VALUES (@up, @rqdt, @lot, @ref, @inv, @lotNo, @unit, @before, @op, @amt, @after, @note);
+              UPDATE devsk.dInvLotRefWh SET Amount = @newAmt WHERE idRefLot = @ref;
+              UPDATE devsk.dInvLotMain SET idPsUpDate = @ps, DateUpDate = GETDATE() WHERE idLot = @lot;`);
+    const bal = (await new sql.Request(t).input('lot', sql.Int, l.idLot).input('inv', sql.Int, l.idInvMain).query(
+      `SELECT (SELECT ISNULL(SUM(Amount), 0) FROM devsk.dInvLotRefWh WHERE idLot = @lot) AS lotBal,
+              (SELECT ISNULL(SUM(wh.Amount), 0) FROM devsk.dInvLotRefWh wh LEFT JOIN devsk.dInvLotMain lm ON wh.idLot = lm.idLot
+               WHERE lm.idInvMain = @inv AND lm.CompRec = (SELECT CompRec FROM devsk.dInvLotMain WHERE idLot = @lot) AND lm.stDel IS NULL) AS invBal`)).recordset[0];
+    await new sql.Request(t)
+      .input('inv', sql.Int, l.idInvMain).input('lot', sql.Int, l.idLot).input('lotNo', sql.VarChar(100), String(l.LotNo || '')).input('wh', sql.Int, l.idWh)
+      .input('ref', sql.Int, l.idRefLot).input('type', sql.Int, type).input('qty', sql.Decimal(20, 6), qty).input('bal', sql.Decimal(20, 6), bal.lotBal)
+      .input('note', sql.VarChar(200), cardNote).input('ps', sql.Int, req.idPs).input('up', sql.Int, idUpdate).input('balInv', sql.Decimal(20, 6), bal.invBal)
+      .query(`INSERT INTO devsk.dInvLotStockCard (idInvMain, idLot, LotNo, idWh, idRefLot, typeTs, ${type === 2 ? 'QtyOut' : 'QtyIn'}, QtyBalance, Note, idPsTs, DateTs, idRef, RefSys, RefTable, QtyBalInv)
+              VALUES (@inv, @lot, @lotNo, @wh, @ref, @type, @qty, @bal, @note, @ps, GETDATE(), @up, 'WIM', 'dInvLotCountMt', @balInv)`);
+  }
+  // เอกสารตรวจนับต้นทาง → ปรับสต๊อกแล้ว / รายการที่รออนุมัติ → ดำเนินการแล้ว
+  if (m.idCount && m.SrcType === 'SC') {
+    await new sql.Request(t).input('sc', sql.Int, m.idCount).input('rq', sql.Int, m.idRqUpdate).query(
+      `UPDATE devsk.dInvCountMt SET StatusCode = 'POSTED', DatePosted = GETDATE() WHERE idCount = @sc AND idRqUpdate = @rq AND StatusCode = 'APPROVE';
+       UPDATE devsk.dInvCountDt SET ActionCode = 'DONE' WHERE idCount = @sc AND ActionCode = 'WAIT'
+         AND idCountDt IN (SELECT idCountDt FROM devsk.dInvReqCountDt WHERE idRqUpdate = @rq);`);
+    await scLog(t, m.idCount, 'posted', `ปรับสต๊อก ${code} ตามใบขอปรับยอดสต๊อก ${m.DocCode} (${lines.length} รายการ)`, req.idPs);
+  }
+  await rqLog(t, m.idRqUpdate, 'post', `ปรับสต๊อก ${code} (${lines.length} รายการ)`, req.idPs);
+  return { postCode: code, idUpdate, nLine: lines.length };
+}
+
+async function adjDoStep(t, id, step, note, req) {
+  const m = (await new sql.Request(t).input('id', sql.Int, id).query(
+    `SELECT * FROM devsk.dInvReqCountMt WITH (UPDLOCK, ROWLOCK) WHERE idRqUpdate = @id`)).recordset[0];
+  if (!m) { const e = new Error('ไม่พบใบขอปรับยอดสต๊อก'); e.status = 404; throw e; }
+  if (!hasComp(req.access, m.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+  if (m.idPsCancel) { const e = new Error('ใบขอปรับยอดสต๊อกนี้ถูกยกเลิกแล้ว'); e.status = 409; throw e; }
+  if (m[step.ps]) { const e = new Error(`ขั้น${step.name}ถูกบันทึกไปแล้ว`); e.status = 409; throw e; }
+  const others = Object.values(ADJ_STEPS).filter(s => s !== step);
+  const completes = others.every(s => m[s.ps]);   // ขั้นนี้ทำให้ครบ 3 ขั้น = ปรับสต๊อกจริง
+  if (completes && !SC_POSTING_READY) {
+    const e = new Error('ขั้นสุดท้าย (ครบ 3 ขั้น = ปรับสต๊อกจริง) ยังเปิดใช้บนเว็บไม่ได้ — อยู่ระหว่างพัฒนาส่วนปรับสต๊อก กรุณาอนุมัติปรับยอดขั้นนี้ในโปรแกรม WIM Desktop');
+    e.status = 409; throw e;
+  }
+  await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).query(
+    `UPDATE devsk.dInvReqCountMt SET ${step.ps} = @ps, ${step.date} = GETDATE(), ${step.st} = 1 WHERE idRqUpdate = @id`);
+  await rqLog(t, id, step.log, note, req.idPs);
+  if (m.idCount) await scLog(t, m.idCount, 'apv_' + step.log, `${step.name} ${m.DocCode}${note ? ` · ${note}` : ''}`, req.idPs);
+  const post = completes ? await adjPost(t, m, req) : null;
+  return { id, docCode: m.DocCode, ...(post || {}) };
+}
+app.post('/api/stock-adjust/doc/:id/step', requireMenu(MENU_ADJ), async (req, res) => {
+  const id = scInt(req.params.id);
+  const step = ADJ_STEPS[String((req.body && req.body.step) || '')];
+  if (!step) return scFail(res, 400, 'ขั้นตอนไม่ถูกต้อง');
+  if (!hasMenu(req.access, step.menu)) return scFail(res, 403, `ไม่มีสิทธิ์${step.name}`);
+  const note = scText(req.body.note, 500);
+  const out = await scTx(res, `บันทึก${step.name}`, (t) => adjDoStep(t, id, step, note, req));
+  if (out) res.json({ success: true, ...out });
+});
+
+// ---------- กดขั้นเดียวกันหลายใบพร้อมกัน: แต่ละใบแยก transaction (ใบไหนไม่ผ่าน ไม่กระทบใบอื่น) ----------
+const ADJ_BULK_MAX = 100;
+app.post('/api/stock-adjust/bulk-step', requireMenu(MENU_ADJ), async (req, res) => {
+  const step = ADJ_STEPS[String((req.body && req.body.step) || '')];
+  if (!step) return scFail(res, 400, 'ขั้นตอนไม่ถูกต้อง');
+  if (!hasMenu(req.access, step.menu)) return scFail(res, 403, `ไม่มีสิทธิ์${step.name}`);
+  const ids = [...new Set((Array.isArray(req.body.ids) ? req.body.ids : []).map(scInt).filter(Boolean))];
+  if (!ids.length) return scFail(res, 400, 'กรุณาเลือกใบขอปรับยอดสต๊อก');
+  if (ids.length > ADJ_BULK_MAX) return scFail(res, 400, `เลือกได้ครั้งละไม่เกิน ${ADJ_BULK_MAX} ใบ`);
+  const note = scText(req.body.note, 500);
+  const results = [];
+  try {
+    const pool = await poolPromise;
+    for (const id of ids) {
+      const t = new sql.Transaction(pool);
+      await t.begin();
+      try {
+        const x = await adjDoStep(t, id, step, note, req);
+        await t.commit();
+        results.push({ id, ok: true, docCode: x.docCode, postCode: x.postCode || null });
+      } catch (err) {
+        try { await t.rollback(); } catch (e) { /* rolled back already */ }
+        if (!err.status) console.error('ADJ bulk step error:', id, err);
+        results.push({ id, ok: false, message: err.status ? err.message : 'บันทึกไม่สำเร็จ' });
+      }
+    }
+    res.json({ success: true, ok: results.filter(x => x.ok).length, results });
+  } catch (err) {
+    console.error('ADJ bulk step error:', err);
+    res.status(500).json({ success: false, message: `บันทึก${step.name}ไม่สำเร็จ`, detail: err.message, results });
+  }
+});
+
+// ---------- ส่งกลับแก้ไข (เฉพาะ RQ ที่มาจากการตรวจนับ): ยกเลิก RQ (ปลดล็อก Lot) → เอกสาร SC กลับไปรอตรวจสอบผลต่าง ----------
+//   ใบกลับรายการ (REV): ไม่อนุมัติ = ยกเลิกใบ (ปลดล็อก Lot) — ขอกลับรายการใหม่ได้
+app.post('/api/stock-adjust/doc/:id/send-back', requireMenu(MENU_ADJ), async (req, res) => {
+  const id = scInt(req.params.id);
+  const note = scText(req.body && req.body.note, 500);
+  if (!note) return scFail(res, 400, 'กรุณาระบุเหตุผลที่ส่งกลับแก้ไข');
+  const out = await scTx(res, 'ส่งกลับแก้ไข', async (t) => {
+    const m = (await new sql.Request(t).input('id', sql.Int, id).query(
+      `SELECT * FROM devsk.dInvReqCountMt WITH (UPDLOCK, ROWLOCK) WHERE idRqUpdate = @id`)).recordset[0];
+    if (!m) { const e = new Error('ไม่พบใบขอปรับยอดสต๊อก'); e.status = 404; throw e; }
+    if (!hasComp(req.access, m.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+    const isRev = m.SrcType === 'REV';
+    if (!isRev && (m.SrcType !== 'SC' || !m.idCount)) { const e = new Error('ใบขอปรับยอดสต๊อกจาก WIM Desktop ส่งกลับแก้ไขบนเว็บไม่ได้'); e.status = 400; throw e; }
+    if (m.idPsCancel) { const e = new Error('ใบขอปรับยอดสต๊อกนี้ถูกยกเลิกแล้ว'); e.status = 409; throw e; }
+    if (m.idPsAccept && m.idPsCheck && m.idPsApprove) { const e = new Error('อนุมัติปรับยอดครบแล้ว ส่งกลับไม่ได้'); e.status = 409; throw e; }
+    if (isRev) {
+      await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).input('note', sql.VarChar, erpText(`ไม่อนุมัติกลับรายการ: ${note}`).slice(0, 500)).query(
+        `UPDATE devsk.dInvReqCountMt SET idPsCancel = @ps, DateCancel = GETDATE(), CancelNote = @note WHERE idRqUpdate = @id`);
+      await rqLog(t, id, 'reject', note, req.idPs);
+      return { id, rejected: true };
+    }
+    const doc = await scLockDoc(t, m.idCount, req.access);
+    await new sql.Request(t).input('id', sql.Int, id).input('ps', sql.Int, req.idPs).input('note', sql.VarChar, erpText(`ส่งกลับแก้ไข: ${note}`).slice(0, 500)).query(
+      `UPDATE devsk.dInvReqCountMt SET idPsCancel = @ps, DateCancel = GETDATE(), CancelNote = @note WHERE idRqUpdate = @id`);
+    await rqLog(t, id, 'sendback', note, req.idPs);
+    if (doc.StatusCode === 'APPROVE' && doc.idRqUpdate === id) {
+      await new sql.Request(t).input('sc', sql.Int, doc.idCount).input('ps', sql.Int, req.idPs).input('note', sql.NVarChar, note).query(
+        `UPDATE devsk.dInvCountDt SET ActionCode = 'FIX' WHERE idCount = @sc AND ActionCode = 'WAIT';
+         UPDATE devsk.dInvCountMt SET StatusCode = 'REVIEW', SendBackNote = @note, idPsSendBack = @ps, DateSendBack = GETDATE() WHERE idCount = @sc;`);
+      await scLog(t, doc.idCount, 'sendback', `${m.DocCode} ส่งกลับแก้ไข: ${note}`, req.idPs);
+    }
+    return { id, idCount: m.idCount };
+  });
+  if (out) res.json({ success: true, ...out });
+});
+
+// ==================================================================
+// ---------- กลับรายการปรับยอดสต๊อก (ปรับผิด → ปรับทิศตรงข้าม) ----------
+//   ใช้ได้กับเอกสารปรับทุกใบ (dInvLotCountMt: WIM Desktop + เว็บ) ยกเว้นใบที่เป็นการกลับรายการเอง
+//   = สร้าง RQ ใหม่ SrcType 'REV' (Mt.idUpdateRev = เอกสารเดิม / Dt.idUpdateDtRev = รายการเดิม) → รับทราบ / ตรวจสอบ / อนุมัติ ตามปกติ → adjPost
+//   ผลต่างเดิม: + = +จำนวน / − = −จำนวน / = = ยอดหลัง − ยอดก่อน → กลับเป็น + หรือ − (ไม่ใช้ = เพราะยอดอาจเคลื่อนไหวหลังปรับ)
+//   รายการหนึ่งกลับได้ครั้งเดียว (มีใบกลับรายการที่ยังไม่ยกเลิก = ห้ามซ้ำ) / Lot ที่มี RQ ค้างอยู่ = รอให้ใบนั้นจบก่อน
+// ==================================================================
+async function adjRevLoad(runner, idUpdate, lock) {
+  const nl = lock ? '' : 'WITH (NOLOCK)';
+  const head = (await new sql.Request(runner).input('id', sql.Int, idUpdate).query(
+    `SELECT m.idUpdate, m.DocCode, m.DateTs, m.idComp, m.Note, m.idRqUpdate, rq.DocCode AS RqCode, rq.SrcType
+     FROM devsk.dInvLotCountMt m ${lock ? 'WITH (UPDLOCK, ROWLOCK)' : 'WITH (NOLOCK)'}
+     LEFT JOIN devsk.dInvReqCountMt rq ${nl} ON rq.idRqUpdate = m.idRqUpdate WHERE m.idUpdate = @id`)).recordset[0];
+  if (!head) return null;
+  const rows = (await new sql.Request(runner).input('id', sql.Int, idUpdate).query(
+    `SELECT d.idUpdateDt, d.idLot, d.idRefLot, d.idInvMain, d.lotNo, d.idUnit, d.AmountBefore, d.Operate, d.AmountOperate, d.AmountAfter,
+            i.InvName, u.UnitName, w.short_lock AS WhShort, r.Amount AS AmountNow, r.idRefLot AS whRef,
+            (SELECT TOP 1 x.DocCode + '|' + CAST(x.idRqUpdate AS varchar(12)) + '|' + ISNULL((SELECT TOP 1 p.DocCode FROM devsk.dInvLotCountMt p ${nl} WHERE p.idRqUpdate = x.idRqUpdate), '')
+               FROM devsk.dInvReqCountDt xd ${nl} JOIN devsk.dInvReqCountMt x ${nl} ON x.idRqUpdate = xd.idRqUpdate
+               WHERE xd.idUpdateDtRev = d.idUpdateDt AND x.idPsCancel IS NULL ORDER BY x.idRqUpdate DESC) AS RevBy,
+            (SELECT TOP 1 x.DocCode FROM devsk.dInvReqCountDt xd ${nl} JOIN devsk.dInvReqCountMt x ${nl} ON x.idRqUpdate = xd.idRqUpdate
+               WHERE xd.idRefLot = d.idRefLot AND x.idPsCancel IS NULL AND (x.idPsAccept IS NULL OR x.idPsCheck IS NULL OR x.idPsApprove IS NULL)) AS LockBy
+     FROM devsk.dInvLotCountDt d ${nl}
+     LEFT JOIN devsk.dInventoryMain i WITH (NOLOCK) ON i.idInvMain = d.idInvMain
+     LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = i.idUnit
+     LEFT JOIN devsk.dInvLotRefWh r ${lock ? 'WITH (UPDLOCK, ROWLOCK)' : 'WITH (NOLOCK)'} ON r.idRefLot = d.idRefLot
+     LEFT JOIN dbo.ssWarehouse w WITH (NOLOCK) ON w.idWh = r.idWh
+     WHERE d.idUpdate = @id ORDER BY d.idUpdateDt`)).recordset;
+  const lines = rows.map(l => {
+    const op = String(l.Operate || '').trim(), amt = Number(l.AmountOperate || 0);
+    const delta = op === '+' ? amt : op === '-' ? -amt : scRound(Number(l.AmountAfter || 0) - Number(l.AmountBefore || 0));
+    const rev = scRound(-delta), now = l.whRef ? scRound(Number(l.AmountNow || 0)) : null;
+    const after = now == null ? null : scRound(now + rev);
+    const [rbCode, rbId, rbPost] = l.RevBy ? String(l.RevBy).split('|') : [];
+    let state = 'ok', msg = '';
+    if (rbCode) { state = rbPost ? 'done' : 'pending'; msg = rbPost ? `กลับรายการแล้ว (${rbCode} → ${rbPost})` : `มีใบขอกลับรายการ ${rbCode} รออนุมัติ`; }
+    else if (Math.abs(rev) < SC_EPS) { state = 'zero'; msg = 'ไม่มีผลต่างให้กลับรายการ'; }
+    else if (!l.whRef) { state = 'noloc'; msg = 'ไม่พบตำแหน่งจัดเก็บของ Lot นี้แล้ว'; }
+    else if (l.LockBy) { state = 'locked'; msg = `Lot มีใบขอปรับยอด ${l.LockBy} ค้างอยู่ — รอให้ใบนั้นจบก่อน`; }
+    else if (after < -SC_EPS) { state = 'neg'; msg = `ยอดไม่พอ (คงเหลือ ${now} ต้องลด ${Math.abs(rev)})`; }
+    return { id: l.idUpdateDt, idLot: l.idLot, idRefLot: l.idRefLot, idInvMain: l.idInvMain, lotNo: l.lotNo, idUnit: l.idUnit, invName: l.InvName, unit: l.UnitName, wh: l.WhShort,
+      op, amount: amt, before: Number(l.AmountBefore || 0), after0: Number(l.AmountAfter || 0),
+      revOp: rev >= 0 ? '+' : '-', revAmount: Math.abs(rev), now, newAfter: after, state, msg, revBy: rbCode ? { id: Number(rbId), docCode: rbCode, postCode: rbPost || null } : null };
+  });
+  return { head: { id: head.idUpdate, docCode: head.DocCode, date: head.DateTs, idComp: head.idComp, note: head.Note || '', idRq: head.idRqUpdate, rqCode: head.RqCode || '',
+    isRev: head.SrcType === 'REV' }, lines };
+}
+
+app.get('/api/stock-adjust/reverse/:id', requireMenu(MENU_ADJ_REVERSE), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const x = await adjRevLoad(pool, scInt(req.params.id), false);
+    if (!x) return scFail(res, 404, 'ไม่พบเอกสารปรับยอดสต๊อก');
+    if (!hasComp(req.access, x.head.idComp)) return scFail(res, 403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้');
+    res.json({ success: true, ...x });
+  } catch (err) {
+    console.error('ADJ reverse info error:', err);
+    res.status(500).json({ success: false, message: 'โหลดข้อมูลกลับรายการไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// สร้างใบขอกลับรายการ: body { ids: [idUpdateDt], note } — ผู้ขอ = ผู้ออกคำสั่ง / ผู้ปฏิบัติงาน
+app.post('/api/stock-adjust/reverse/:id', requireMenu(MENU_ADJ_REVERSE), async (req, res) => {
+  const idUpdate = scInt(req.params.id);
+  const note = scText(req.body && req.body.note, 400);
+  const ids = [...new Set((Array.isArray(req.body && req.body.ids) ? req.body.ids : []).map(scInt).filter(Boolean))];
+  if (!note) return scFail(res, 400, 'กรุณาระบุเหตุผลการกลับรายการ');
+  if (!ids.length) return scFail(res, 400, 'กรุณาเลือกรายการที่จะกลับรายการ');
+  const out = await scTx(res, 'ขอกลับรายการ', (t) => adjRevCreate(t, idUpdate, ids, note, req));
+  if (!out) return;
+  try { const code = await scFixRqDup(out.idRq); if (code) out.rqCode = code; } catch (e) { console.error('ADJ reverse RQ dup check error:', e); }
+  res.json({ success: true, ...out });
+});
+async function adjRevCreate(t, idUpdate, ids, note, req) {
+  const x = await adjRevLoad(t, idUpdate, true);
+  if (!x) { const e = new Error('ไม่พบเอกสารปรับยอดสต๊อก'); e.status = 404; throw e; }
+  if (!hasComp(req.access, x.head.idComp)) { const e = new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทนี้'); e.status = 403; throw e; }
+  if (x.head.isRev) { const e = new Error('เอกสารนี้เป็นการกลับรายการอยู่แล้ว — กลับรายการซ้ำไม่ได้'); e.status = 409; throw e; }
+  const byId = new Map(x.lines.map(l => [l.id, l]));
+  const pick = ids.map(i => byId.get(i));
+  if (pick.some(l => !l)) { const e = new Error('รายการที่เลือกไม่อยู่ในเอกสารนี้'); e.status = 400; throw e; }
+  const bad = pick.filter(l => l.state !== 'ok');
+  if (bad.length) {
+    const e = new Error(`กลับรายการไม่ได้ — ${bad.slice(0, 5).map(l => `Lot ${l.lotNo}: ${l.msg}`).join(' / ')}${bad.length > 5 ? ` และอีก ${bad.length - 5} รายการ` : ''}`);
+    e.status = 409; throw e;
+  }
+  const rqCode = await getNextRqDocCode(t, x.head.idComp, new Date());
+  const ref = `${x.head.docCode}${x.head.rqCode ? ` (${x.head.rqCode})` : ''}`;
+  const m = await new sql.Request(t)
+    .input('code', sql.VarChar, rqCode).input('ps', sql.Int, req.idPs).input('comp', sql.Int, x.head.idComp).input('rev', sql.Int, x.head.id)
+    .input('note', sql.VarChar, erpText(`กลับรายการปรับยอดสต๊อก ${ref}: ${note}`).slice(0, 500))
+    .query(`INSERT INTO devsk.dInvReqCountMt (DocCode, idPsCommand, NoteReq, idPsAction, idComp, idPsTs, DateTs, SrcType, idUpdateRev)
+            OUTPUT INSERTED.idRqUpdate VALUES (@code, @ps, @note, @ps, @comp, @ps, GETDATE(), 'REV', @rev)`);
+  const idRq = m.recordset[0].idRqUpdate;
+  for (const l of pick) {
+    await new sql.Request(t)
+      .input('rq', sql.Int, idRq).input('lot', sql.Int, l.idLot).input('ref', sql.Int, l.idRefLot).input('inv', sql.Int, l.idInvMain)
+      .input('lotNo', sql.VarChar, String(l.lotNo || '').slice(0, 50)).input('unit', sql.Int, l.idUnit)
+      .input('before', sql.Decimal(18, 6), l.now).input('op', sql.VarChar, l.revOp).input('amt', sql.Decimal(18, 6), l.revAmount)
+      .input('after', sql.Decimal(18, 6), l.newAfter).input('note', sql.VarChar, erpText(`กลับรายการ ${x.head.docCode}`).slice(0, 500)).input('dt', sql.Int, l.id)
+      .query(`INSERT INTO devsk.dInvReqCountDt (idRqUpdate, idLot, idRefLot, idInvMain, LotNo, idUnit, AmountBefore, Operate, AmountOperate, AmountAfter, NoteDt, idUpdateDtRev)
+              VALUES (@rq, @lot, @ref, @inv, @lotNo, @unit, @before, @op, @amt, @after, @note, @dt)`);
+  }
+  await rqLog(t, idRq, 'submit', `ขอกลับรายการ ${ref} (${pick.length} รายการ): ${note}`, req.idPs);
+  return { idRq, rqCode, lines: pick.length };
+}
+
+// ==================================================================
+// ---------- งานรออนุมัติของฉัน (/approvals): ทุกเรื่องที่รอผู้ใช้คนนี้ในที่เดียว ----------
+//   ใบขอปรับยอดสต๊อก / ส่งคืนสินค้า Supplier = ตามสิทธิ์ขั้น (เมนูรับทราบ / ตรวจสอบ / อนุมัติ) + บริษัทที่มีสิทธิ์ — เงื่อนไข "รอ" ชุดเดียวกับหน้าอนุมัติของเรื่องนั้น
+//   Over PO = ผู้อนุมัติที่ถูกระบุตัวในใบขออนุมัติ (ไม่ใช่ตามสิทธิ์เมนู) → หน้านี้ไม่มีสิทธิ์เมนูของตัวเอง
+//   เมนูแสดงเฉพาะคนที่เกี่ยวข้อง (approvalEligible): มีสิทธิ์ขั้นใดขั้นหนึ่ง หรือเคยถูกระบุเป็นผู้อนุมัติ Over PO
+//   กดรายการ = เปิดหน้าเอกสารเดิมของเรื่องนั้น (&from=inbox → ปุ่มกลับ / ปิด พากลับมาที่นี่) — ไม่มีหน้าอนุมัติซ้ำซ้อน
+//   เรื่องใหม่ที่ต้องอนุมัติ: เพิ่มอีกหนึ่งส่วนใน approvalInbox() (คืนรายการรูปแบบเดียวกัน)
+// ==================================================================
+const APV_INBOX_MAX = 300;   // ต่อเรื่อง (เก่าสุดตัดทิ้ง — หน้าแจ้งให้ไปที่หน้าอนุมัติของเรื่องนั้น)
+const APV_RTS_STEPS = [['ack', 'รับทราบ'], ['check1', 'ตรวจสอบ 1'], ['check2', 'ตรวจสอบ 2'], ['approve', 'อนุมัติ']];
+async function approvalInbox(idPs, access) {
+  const pool = await poolPromise;
+  const out = [], more = {};
+  // 1) ใบขอปรับยอดสต๊อก (RQ ทุกใบ: WIM Desktop + ตรวจนับ + กลับรายการ)
+  const rqSteps = Object.keys(ADJ_STEPS).filter(k => hasMenu(access, ADJ_STEPS[k].menu));
+  if (rqSteps.length) {
+    const request = pool.request();
+    const cond = rqSteps.map(k => `m.${ADJ_STEPS[k].ps} IS NULL`).join(' OR ');
+    const r = await request.query(
+      `SELECT TOP ${APV_INBOX_MAX + 1} m.idRqUpdate, m.DocCode, m.idComp, LTRIM(RTRIM(co.CompCode)) AS CompCode, co.CompName, m.NoteReq, m.DateTs, m.SrcType,
+              sc.DocCode AS ScCode, rv.DocCode AS RevDocCode, m.idPsAccept, m.idPsCheck, m.idPsApprove, pcm.PsName AS CommandName,
+              (SELECT COUNT(*) FROM devsk.dInvReqCountDt d WITH (NOLOCK) WHERE d.idRqUpdate = m.idRqUpdate) AS nLine
+       FROM devsk.dInvReqCountMt m WITH (NOLOCK)
+       LEFT JOIN PchInvAndProject.dbo.dCompany co WITH (NOLOCK) ON co.idComp = m.idComp
+       LEFT JOIN devsk.dInvCountMt sc WITH (NOLOCK) ON sc.idCount = m.idCount
+       LEFT JOIN devsk.dInvLotCountMt rv WITH (NOLOCK) ON rv.idUpdate = m.idUpdateRev
+       LEFT JOIN devsk.vPersonxSelect pcm ON pcm.idPs = m.idPsCommand
+       WHERE m.idPsCancel IS NULL AND (${cond}) ${compFilter(access, request, 'm.idComp')}
+       ORDER BY m.DateTs DESC`);
+    more.rq = r.recordset.length > APV_INBOX_MAX;
+    r.recordset.slice(0, APV_INBOX_MAX).forEach(x => {
+      const done = { ack: !!x.idPsAccept, check: !!x.idPsCheck, approve: !!x.idPsApprove };
+      const mine = rqSteps.filter(k => !done[k]);
+      if (!mine.length) return;
+      const src = x.SrcType === 'SC' ? `ตรวจนับ ${x.ScCode || ''}` : x.SrcType === 'REV' ? `กลับรายการ ${x.RevDocCode || ''}` : 'WIM Desktop';
+      out.push({ mod: 'rq', id: x.idRqUpdate, docNo: x.DocCode, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
+        title: x.NoteReq || '-', src, srcType: x.SrcType === 'SC' || x.SrcType === 'REV' ? x.SrcType : 'PC', nLine: x.nLine || 0, by: x.CommandName || '',
+        my: mine.map(k => ({ code: k, name: ADJ_STEPS[k].name })),
+        progress: [['ack', 'รับทราบ'], ['check', 'ตรวจสอบ'], ['approve', 'อนุมัติ']].map(([k, n]) => ({ name: n, done: done[k] })),
+        href: `/stock-adjust-approve?id=${x.idRqUpdate}&step=${mine[0]}&from=inbox` });
+    });
+  }
+  // 2) ส่งคืนสินค้า / ลดหนี้ Supplier — ตรวจสอบ 2 คน: คนที่ตรวจสอบ 1 แล้ว ไม่เห็นใบนั้นอีก (รอผู้ตรวจสอบอีกท่าน)
+  const rtsSteps = Object.keys(RTS_STEPS).filter(k => hasMenu(access, RTS_STEPS[k].menu));
+  if (rtsSteps.length) {
+    const request = pool.request().input('me', sql.Int, idPs);
+    const cond = rtsSteps.map(k => `(1 = 1 ${RTS_STEPS[k].pending}${k === 'check' ? ' AND NOT (mt.DateCheck IS NOT NULL AND mt.idPsCheck = @me)' : ''})`).join(' OR ');
+    const r = await request.query(
+      `SELECT TOP ${APV_INBOX_MAX + 1} mt.idBuyRT, mt.DocCode, mt.DateTs, mt.idComp, LTRIM(RTRIM(c.CompCode)) AS CompCode, c.CompName, LTRIM(RTRIM(s.SupName)) AS SupName, mt.Note,
+              mt.DateAccept, mt.DateCheck, mt.DateCheck2, mt.DateApv, mt.DateSendBack, mt.idPsCheck, pTs.PsName AS CreatorName,
+              mt.TotalValue, mt.TotalDiff, mt.stNoCostAdj, ty.TypeName, ty.stReturnGoods, ty.stCredit, ty.stReplace,
+              (SELECT COUNT(*) FROM devsk.PkBuyRTDt dt WITH (NOLOCK) WHERE dt.idBuyRT = mt.idBuyRT AND dt.stDel IS NULL) AS nLine
+       FROM devsk.PkBuyRTMt mt WITH (NOLOCK)
+       LEFT JOIN PchInvAndProject.dbo.dCompany c WITH (NOLOCK) ON c.idComp = mt.idComp
+       LEFT JOIN PchInvAndProject.dbo.vSupplier s WITH (NOLOCK) ON s.idSup = mt.idSup
+       LEFT JOIN devsk.PkBuyRTType ty WITH (NOLOCK) ON ty.idTypeRT = mt.TypeRT
+       OUTER APPLY (SELECT TOP 1 v.PsName FROM devsk.vPersonxSelect v WITH (NOLOCK) WHERE v.idPs = mt.idPsTs) pTs
+       WHERE (${cond}) ${compFilter(access, request, 'mt.idComp')}
+       ORDER BY mt.DateTs DESC`);
+    more.rts = r.recordset.length > APV_INBOX_MAX;
+    r.recordset.slice(0, APV_INBOX_MAX).forEach(x => {
+      const mine = rtsSteps.filter(k => k === 'ack' ? !x.DateAccept && !x.DateSendBack
+        : k === 'check' ? x.DateAccept && !x.DateCheck2 && !(x.DateCheck && x.idPsCheck === idPs)
+        : x.DateCheck2 && !x.DateApv);
+      if (!mine.length) return;
+      const doneAt = { ack: x.DateAccept, check1: x.DateCheck, check2: x.DateCheck2, approve: x.DateApv };
+      out.push({ mod: 'rts', id: x.idBuyRT, docNo: x.DocCode, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
+        title: x.Note || '-', src: x.SupName ? `Supplier ${x.SupName}` : '', nLine: x.nLine || 0, by: x.CreatorName || '',
+        sup: x.SupName || '', typeName: x.TypeName || '', value: x.TotalValue, credit: x.stCredit === '1' ? x.TotalDiff : null,
+        flags: { returnGoods: x.stReturnGoods === '1', replace: x.stReplace === '1', credit: x.stCredit === '1', noCostAdj: x.stNoCostAdj === '1' },
+        my: mine.map(k => ({ code: k, name: k === 'check' ? (x.DateCheck ? 'ตรวจสอบ 2' : 'ตรวจสอบ 1') : RTS_STEPS[k].name })),
+        progress: APV_RTS_STEPS.map(([k, n]) => ({ name: n, done: !!doneAt[k] })),
+        href: `/supplier-return-doc?id=${x.idBuyRT}&step=${mine[0]}&from=inbox` });
+    });
+  }
+  // 3) Over PO: ใบขออนุมัติรับซื้อ (OPA) ที่ระบุผู้ใช้คนนี้เป็นผู้อนุมัติ และยังไม่กดขั้นของตัวเอง
+  const ops = await opsApvPendingData(idPs);
+  ops.forEach(x => out.push({ mod: 'ops', id: x.id, docNo: x.buyDocNo || x.docNo, comp: x.reqName || '', compCode: '', date: x.buyAt ? String(x.buyAt).replace(' ', 'T') + ':00.000Z' : null,
+    title: x.items.map(it => it.invName).filter(Boolean).join(', ') || '-', src: `คำร้อง ${x.docNo}`, nLine: x.items.length, by: x.buyBy || '',
+    amount: x.total,
+    my: x.steps.map(k => ({ code: k, name: opsStepAct(k) })),
+    progress: OPS_APV_STEPS.map((st, i) => ({ name: opsStepAct(st.code), done: i < x.done })), progressCount: { done: x.done, count: x.count },
+    href: `/over-po-sale-opa?id=${x.id}&from=inbox` }));
+  // วันที่ทุกเรื่องเป็นเวลาท้องถิ่นแบบเดียวกับหน้าอื่น (ค่าจากฐานข้อมูลติด Z) → เรียงด้วยค่าเวลาได้ตรง ๆ
+  const ts = (v) => { const t = new Date(v).getTime(); return Number.isFinite(t) ? t : 0; };
+  out.sort((a, b) => ts(b.date) - ts(a.date));
+  // ระบุชื่อฉัน (named) = ผู้อนุมัติถูกระบุตัวในเอกสาร (Over PO) / ตามสิทธิ์ของฉัน (role) = ตามสิทธิ์ขั้นตอน (ปรับยอดสต๊อก / ส่งคืนสินค้า)
+  //   ตัวเลขบนเมนู / หน้า Home (badge): กลุ่มระบบ (เห็นทุกเมนูอัตโนมัติ เช่น ผู้บริหาร / ผู้ดูแลระบบ) นับเฉพาะงานที่ระบุชื่อ — งานตามสิทธิ์ของระดับผู้จัดการไม่นับ
+  out.forEach(x => { x.scope = x.mod === 'ops' ? 'named' : 'role'; });
+  const counts = { rq: 0, rts: 0, ops: 0 }, badgeCounts = { rq: 0, rts: 0, ops: 0 };
+  const inBadge = (x) => !access.unrestricted || x.scope === 'named';
+  out.forEach(x => { counts[x.mod]++; if (inBadge(x)) badgeCounts[x.mod]++; });
+  const named = out.filter(x => x.scope === 'named').length;
+  return { data: out, counts, total: out.length, named, role: out.length - named, more,
+    badge: out.filter(inBadge).length, badgeCounts, unrestricted: !!access.unrestricted,
+    mods: { rq: rqSteps.length > 0, rts: rtsSteps.length > 0, ops: ops.length > 0 } };   // ขอรับซื้อเมล็ด Over PO: การ์ดแสดงเฉพาะคนที่มีงานที่ระบุชื่อ
+}
+app.get(['/approvals', '/approvals.html'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'approvals.html')));
+app.get('/api/approval-inbox', requireLogin, async (req, res) => {
+  try {
+    const access = await getUserAccess(req.idPs);
+    const x = await approvalInbox(req.idPs, access);
+    const eligible = await approvalEligible(req.idPs, access);
+    apvCountCache.set(req.idPs, { at: Date.now(), counts: x.badgeCounts, total: x.badge, eligible });
+    res.json({ success: true, ...x, eligible, me: req.idPs, postingReady: SC_POSTING_READY,
+      can: { rqBulk: rqBulkSteps(access), rtsBulk: rtsSteps4Bulk(access) } });
+  } catch (err) {
+    console.error('Approval inbox error:', err);
+    res.status(500).json({ success: false, message: 'โหลดงานรออนุมัติไม่สำเร็จ', detail: err.message });
+  }
+});
+// ใครเห็นเมนูงานรออนุมัติ: มีสิทธิ์ขั้นของเรื่องใดเรื่องหนึ่ง (รับทราบ / ตรวจสอบ / อนุมัติ) หรือเคยถูกระบุเป็นผู้อนุมัติ Over PO (ไม่ใช่แค่ตอนมีงานค้าง — เมนูไม่โผล่ ๆ หาย ๆ)
+//   เรื่องใหม่ที่ต้องอนุมัติ: เพิ่มสิทธิ์ขั้นของเรื่องนั้นใน APV_STEP_MENUS
+const APV_STEP_MENUS = () => [...Object.values(ADJ_STEPS).map(s => s.menu), ...Object.values(RTS_STEPS).map(s => s.menu)];
+async function approvalEligible(idPs, access) {
+  if (APV_STEP_MENUS().some(m => hasMenu(access, m))) return true;
+  const pool = await poolPromise;
+  const r = await pool.request().input('ps', sql.Int, idPs).query(`SELECT TOP 1 1 AS x FROM devsk.SeedReqSaleApv WITH (NOLOCK) WHERE idPsAssign = @ps`);
+  return r.recordset.length > 0;
+}
+// ตัวเลขบน sidebar / หน้า Home: จำไว้ 30 วินาทีต่อผู้ใช้ (ทุกหน้าเรียก — ไม่ query ซ้ำทุกครั้งที่เปลี่ยนหน้า)
+const APV_COUNT_TTL = 30 * 1000;
+const apvCountCache = new Map();
+async function approvalCount(idPs) {
+  const c = apvCountCache.get(idPs);
+  if (c && Date.now() - c.at < APV_COUNT_TTL) return c;
+  const access = await getUserAccess(idPs);
+  const eligible = await approvalEligible(idPs, access);
+  const x = eligible ? await approvalInbox(idPs, access) : { badgeCounts: { rq: 0, rts: 0, ops: 0 }, badge: 0 };
+  const v = { at: Date.now(), counts: x.badgeCounts, total: x.badge, eligible };   // ตัวเลขบนเมนู (กลุ่มระบบ = เฉพาะงานที่ระบุชื่อ)
+  apvCountCache.set(idPs, v);
+  if (apvCountCache.size > 2000) apvCountCache.clear();
+  return v;
+}
+const rtsSteps4Bulk = (access) => Object.keys(RTS_STEPS).filter(k => hasMenu(access, RTS_STEPS[k].menu));
+const rqBulkSteps = (access) => Object.keys(ADJ_STEPS).filter(k => hasMenu(access, ADJ_STEPS[k].menu));
+app.get('/api/approval-inbox/count', requireLogin, async (req, res) => {
+  try {
+    const v = await approvalCount(req.idPs);
+    res.json({ success: true, total: v.total, counts: v.counts, eligible: v.eligible });
+  } catch (err) {
+    console.error('Approval count error:', err);
+    res.status(500).json({ success: false, message: 'โหลดจำนวนงานรออนุมัติไม่สำเร็จ' });
+  }
+});
+
 // ==================================================================
 // ---------- หน้า Home: ตัวเลขสรุปเฉพาะเมนู + บริษัทที่ผู้ใช้มีสิทธิ์ ----------
 // ==================================================================
@@ -4690,37 +8478,39 @@ app.get('/api/home/summary', requireLogin, async (req, res) => {
     if (hasMenu(access, 'coating')) {
       const request = pool.request();
       const r = await request.query(
-        `SELECT
+        `SELECT mt.idComp AS id, c.CompName AS name,
            COUNT(DISTINCT CASE WHEN mt.DateRmStart IS NULL THEN mt.idRm END) AS waiting,
            COUNT(DISTINCT CASE WHEN mt.DateRmStart IS NOT NULL AND mt.DateRmEnd IS NULL THEN mt.idRm END) AS inprogress
          FROM ${COATING_TABLE} mt
          JOIN devsk.WimWaitCutMt wmt ON mt.idRm = wmt.idMt AND wmt.ProcessID = 12
+         LEFT JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = mt.idComp
          WHERE mt.idPsCancel IS NULL AND mt.TypeRm IS NULL
            AND wmt.stUseCut = 1 AND mt.WAfter IS NULL
-           ${compFilter(access, request, 'mt.idComp')}`
+           ${compFilter(access, request, 'mt.idComp')}
+           AND mt.idComp NOT IN (${HOME_EXCLUDE_COMP_IDS.join(', ')})
+         GROUP BY mt.idComp, c.CompName
+         ORDER BY c.CompName`
       );
-      data.coating = r.recordset[0];
+      data.coating = summarizeByComp(r.recordset, ['waiting', 'inprogress']);
     }
 
     if (hasMenu(access, 'moisture')) {
       const request = pool.request();
       const r = await request.query(
-        `SELECT
+        `SELECT mt.idComp AS id, c.CompName AS name,
            COUNT(DISTINCT CASE WHEN mt.DateRdHmS IS NULL THEN mt.idRm END) AS waiting,
-           COUNT(DISTINCT CASE WHEN mt.DateRdHmS IS NOT NULL AND mt.DateRdHmE IS NULL THEN mt.idRm END) AS inprogress,
-           COUNT(DISTINCT CASE WHEN mt.DateRdHmS IS NOT NULL AND mt.DateRdHmE IS NULL THEN mt.${COL_ROOM} END) AS roomsBusy
+           COUNT(DISTINCT CASE WHEN mt.DateRdHmS IS NOT NULL AND mt.DateRdHmE IS NULL THEN mt.idRm END) AS inprogress
          FROM ${COATING_TABLE} mt
          JOIN devsk.WimWaitCutMt wmt ON mt.idRm = wmt.idMt AND wmt.ProcessID = 12
+         LEFT JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = mt.idComp
          WHERE mt.idPsCancel IS NULL AND mt.TypeRm IS NULL
            AND wmt.stUseCut = 1 AND mt.WAfter IS NULL
-           ${compFilter(access, request, 'mt.idComp')}`
+           ${compFilter(access, request, 'mt.idComp')}
+           AND mt.idComp NOT IN (${HOME_EXCLUDE_COMP_IDS.join(', ')})
+         GROUP BY mt.idComp, c.CompName
+         ORDER BY c.CompName`
       );
-      const roomReq = pool.request();
-      const rooms = await roomReq.query(
-        `SELECT COUNT(*) AS roomsTotal FROM devsk.SeedReduceHmRoom
-         WHERE stDel IS NULL ${compFilter(access, roomReq, 'idComp')}`
-      );
-      data.moisture = { ...r.recordset[0], roomsTotal: rooms.recordset[0].roomsTotal };
+      data.moisture = summarizeByComp(r.recordset, ['waiting', 'inprogress']);
     }
 
     if (hasMenu(access, 'urs_request')) {
@@ -4740,10 +8530,64 @@ app.get('/api/home/summary', requireLogin, async (req, res) => {
       data.urs = { draftDocs: row.draftDocs || 0, awaitingReply: row.awaitingReply || 0, notReady: row.notReady || 0 };
     }
 
+    // ตรวจนับสต๊อก: เอกสารที่ยังไม่จบ (กำลังนับ / รอตรวจสอบผลต่าง / ร่าง) แยกบริษัท — ใบขอปรับยอดที่รออนุมัติอยู่ในการ์ดงานรออนุมัติ (ไม่นับซ้ำ)
+    if (hasMenu(access, MENU_SC) || hasMenu(access, MENU_SC_REVIEW)) {
+      const request = pool.request();
+      const r = await request.query(
+        `SELECT m.idComp AS id, c.CompName AS name,
+           SUM(CASE WHEN m.StatusCode = 'COUNT' THEN 1 ELSE 0 END) AS counting,
+           SUM(CASE WHEN m.StatusCode = 'REVIEW' THEN 1 ELSE 0 END) AS review,
+           SUM(CASE WHEN m.StatusCode = 'DRAFT' THEN 1 ELSE 0 END) AS draft
+         FROM devsk.dInvCountMt m WITH (NOLOCK)
+         LEFT JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = m.idComp
+         WHERE m.StatusCode IN ('DRAFT', 'COUNT', 'REVIEW')
+           ${compFilter(access, request, 'm.idComp')}
+           AND m.idComp NOT IN (${HOME_EXCLUDE_COMP_IDS.join(', ')})
+         GROUP BY m.idComp, c.CompName
+         ORDER BY c.CompName`);
+      data.stockCount = { ...summarizeByComp(r.recordset, ['counting', 'review', 'draft']), canReview: hasMenu(access, MENU_SC_REVIEW) };
+    }
+
+    // ผู้อนุมัติ Over PO: ใบขออนุมัติที่รอการพิจารณาของผู้ใช้ (เงื่อนไขเดียวกับ /api/ops/apv/pending) — แสดงการ์ดเมื่อมีรายการ
+    {
+      const r = await pool.request().input('ps', sql.Int, req.idPs).query(`
+        SELECT COUNT(*) AS n, CAST(ISNULL(SUM(t.amt), 0) AS decimal(18, 2)) AS total
+        FROM (
+          SELECT (SELECT SUM(ROUND(d.AmountBuy * ISNULL(d.Price, 0), 2)) FROM devsk.SeedReqSaleDt d WHERE d.idOps = m.idOps AND d.AmountBuy > 0) AS amt
+          FROM devsk.SeedReqSaleMt m
+          ${OPS_ROUND_SQL()}
+          WHERE m.DateBuy IS NOT NULL AND m.DateCancel IS NULL AND m.DateReject IS NULL AND m.DateApv IS NULL AND ISNULL(ar.ApvBack, 0) = 0
+            AND EXISTS (SELECT 1 FROM devsk.SeedReqSaleApv a WHERE a.idOps = m.idOps AND a.ApvRound = m.ApvRound AND a.idPsAssign = @ps AND a.Result IS NULL)
+        ) t`);
+      const row = r.recordset[0];
+      if (row && row.n) data.opsApv = { pending: row.n, total: Number(row.total) || 0 };
+    }
+    // งานรออนุมัติของฉัน (ทุกเรื่อง) — การ์ดเดียวแทนการ์ด Over PO ข้างบน (หน้า Home รุ่นใหม่ใช้อันนี้)
+    let apvEligible = false;
+    try {
+      const v = await approvalCount(req.idPs);
+      apvEligible = v.eligible;
+      if (v.total) data.approvals = { total: v.total, counts: v.counts };
+    } catch (e) { console.error('Home approvals error:', e); }
+
+    let companies = null;
+    if (!access.allComps) {
+      const compReq = pool.request();
+      const comps = await compReq.query(
+        `SELECT c.idComp AS id, c.CompName AS name
+         FROM PchInvAndProject.dbo.dCompany c
+         WHERE c.idComp NOT IN (${HOME_EXCLUDE_COMP_IDS.join(', ')})
+           ${compFilter(access, compReq, 'c.idComp')}
+         ORDER BY c.CompName`
+      );
+      companies = comps.recordset;
+    }
+
     res.json({
       success: true,
       unrestricted: access.unrestricted,
-      allowedMenuCodes: [...access.menus],
+      allowedMenuCodes: [...access.menus, ...(apvEligible ? ['approvals'] : [])],   // approvals = เมนูงานรออนุมัติ (ไม่มีใน WIMWebMenu)
+      companies,                             // บริษัทที่มีสิทธิ์ (null = ทุกบริษัท)
       menuOrder: await getMenuOrderSafe(),   // ลำดับเมนูหน้า Home (WIMWebMenu.SortOrder)
       wipMenuCodes: await getWipMenusSafe(), // เมนู On process (ซ่อนจากผู้ใช้ทั่วไป)
       data
