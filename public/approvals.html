@@ -1021,8 +1021,37 @@
   @media (max-width:560px){ .kpis{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;} .kpi{padding:12px;} .kpi .v{font-size:28px;} .kpi .l{font-size:13.5px;} }
   @media (max-width:380px){ .rp-tabs button svg, .rp-actions .btn svg{display:none;} .rp-actions .btn{font-size:12px;} .rp-tabs button{font-size:13px;} }
   /* ================= งานรออนุมัติ (/approvals) ================= */
-  .ib-dash{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; margin-bottom:16px;}
-  .ib-dash .dash-card{font:inherit; color:inherit; cursor:pointer; text-align:left;}
+  .ib-dash{display:flex; flex-wrap:wrap; gap:12px; margin-bottom:18px;}
+  .ib-dash .dash-card{flex:1 1 190px; max-width:260px;}
+  .ib-dash .dash-card, .ib-stepcards .dash-card{font:inherit; color:inherit; cursor:pointer; text-align:left;}
+  .ib-sect{font-size:13px; color:var(--concrete-400); margin:0 0 8px;}
+  .ib-stepcards{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-bottom:16px;}
+  .ib-start{border:1px dashed rgba(255,255,255,.16); border-radius:12px; padding:28px 16px; text-align:center; color:var(--concrete-400);}
+  .ib-start b{display:block; color:#fff; font-size:15px; margin-bottom:4px;}
+  /* ห้องของขั้น: ปุ่มกลับ + ขั้นอื่นที่ยังค้าง (แถวเดียวกัน ปุ่มเหมือนกัน) → หัวข้อเรื่อง */
+  .ib-steps:empty{display:none;}
+  .ib-room{display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:0 0 18px;}
+  .ib-room .lb{font-size:15px; font-weight:700; color:#e3e8ef;}
+  .ib-room .lb .sm{display:none;}
+  .ib-room .oth, .ib-room .chips{display:contents;}
+  .ib-room button{font:inherit; font-size:15px; font-weight:600; min-height:40px; padding:6px 16px; border-radius:999px; cursor:pointer; color:#fff;
+    border:1.5px solid var(--c); background:color-mix(in srgb, var(--c) 14%, transparent); display:inline-flex; align-items:center; gap:6px;}
+  .ib-room button:hover{background:color-mix(in srgb, var(--c) 26%, transparent);}
+  .ib-room button b{font-size:18px; color:var(--c);}
+  .ib-room button.home{--c:#9aa6b2; background:rgba(255,255,255,.06); margin-right:8px;}
+  .ib-h{font-size:21px; font-weight:700; color:#fff; margin:0 0 14px; padding:12px 16px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
+    border:1.5px solid var(--c); border-left-width:6px; border-radius:12px; background:color-mix(in srgb, var(--c) 30%, #0b1220);}
+  .ib-h b{color:var(--c); font-size:1.15em;}
+  /* หัวรายการ: เลือกทั้งหมด + เส้นทาง + ปุ่มกดหลายใบ (มือถือ: ปุ่มติดล่างจอ) */
+  .ib-crumb{display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; border:1px solid rgba(255,255,255,.1); border-left:4px solid var(--c); border-radius:10px; padding:10px 14px; margin-bottom:12px; background:rgba(255,255,255,.03);}
+  .ib-crumb label{display:inline-flex; align-items:center; gap:8px; cursor:pointer; color:#fff; font-weight:600;}
+  .ib-crumb input[type=checkbox]{width:20px; height:20px; margin:0; accent-color:var(--amber-500); cursor:pointer;}
+  .ib-crumb .h{font-weight:700; color:#fff;}
+  .ib-crumb .h i{font-style:normal; color:var(--concrete-400); font-weight:400; margin:0 4px;}
+  .ib-crumb .sp{flex:1;}
+  .ib-crumb .pn{font-size:13px; color:var(--concrete-400);}
+  .ib-crumb .go, .ib-sel .btn{display:inline-flex; align-items:center; gap:6px; min-height:40px;}
+  .ib-sel{display:none;}
   /* แท็บ ระบุชื่อฉัน / ตามสิทธิ์ของฉัน (ปุ่มแบบเดียวกับแท็บมุมมองของรายงาน) */
   .ib-scope{margin-bottom:14px;}
   .ib-scope:empty{display:none;}
@@ -1059,16 +1088,6 @@
   /* ปุ่มขั้นของฉัน: คอลัมน์แรก (กดง่าย ไม่ต้องเลื่อนสายตาไปท้ายแถว) */
   .ib-table .act{white-space:nowrap; width:1%;}
   .ib-table .act .btn{width:124px; justify-content:center;}
-  /* ตัวกรองขั้น (ผู้ที่มีงานหลายขั้น) */
-  .ib-steps{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 14px;}
-  .ib-steps:empty{display:none;}
-  .ib-steps .lb{font-size:13px; font-weight:600; color:var(--concrete-400); margin-right:2px;}
-  .ib-steps button{font:inherit; font-size:13.5px; font-weight:600; min-height:38px; padding:0 14px; border-radius:999px; cursor:pointer;
-    color:var(--concrete-200); background:rgba(255,255,255,.04); border:1px solid color-mix(in srgb, var(--c) 45%, transparent);}
-  .ib-steps button b{color:var(--c); margin-left:4px;}
-  .ib-steps button:hover{background:color-mix(in srgb, var(--c) 12%, transparent);}
-  .ib-steps button.on{background:color-mix(in srgb, var(--c) 22%, transparent); border-color:var(--c); color:#fff;}
-  .ib-steps button.on b{color:#fff;}
   .ib-table .act .btn, .ib-card .acts .btn{display:inline-flex; align-items:center; gap:6px; text-decoration:none; min-height:38px;}
   .ib-table .act .btn svg, .ib-card .acts .btn svg{width:15px; height:15px;}
   .pk{width:18px; height:18px; accent-color:var(--amber-500); cursor:pointer;}
@@ -1086,23 +1105,32 @@
   .ib-empty b{color:#fff; font-size:17px;}
   .bulk-list .lastp{color:#ff8a75;}
   @media (max-width:700px){
-    .ib-dash{grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px;}
-    body .ib-dash .dash-card{padding:10px;}
-    body .ib-dash .dash-card .lbl{font-size:12.5px;}
-    body .ib-dash .dash-card .val{font-size:26px;}
-    body .ib-dash .dash-card .val small{font-size:11.5px; margin-left:3px;}
-    /* การ์ดเรื่องแคบ 3 ใบต่อแถว: ตัดคำว่า รายการ (ล้นการ์ด) — การ์ดรวมด้านบนยังมี */
-    body .ib-dash .dash-card:not(:first-child) .val small{display:none;}
-    .ib-dash .kc-bg{width:36px; height:36px;}
-    .ib-dash .dash-card:first-child{grid-column:1 / -1;}
-    .ib-filter .form-group, .ib-filter .form-group.grow{flex:1 1 100%;}
+    .ib-stepcards{gap:8px;}
+    .ib-stepcards .dash-card .sub{display:none;}
+    .ib-dash{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); margin:0 0 14px; gap:10px;}
+    .ib-dash .dash-card{max-width:none; min-width:0; min-height:0; padding:12px 12px 10px;}
+    .ib-dash .dash-card .lbl{white-space:normal; line-height:1.25;}
+    .ib-dash .dash-card .val{font-size:30px;}
+    .ib-h{font-size:19px; padding:11px 14px;}
+    .ib-room{gap:8px; margin-bottom:14px;}
+    .ib-room .lb .lg{display:none;} .ib-room .lb .sm{display:inline;} .ib-room .lb{font-size:14px;}
+    .ib-room .oth{display:flex; align-items:center; flex-wrap:wrap; gap:8px; flex:1 1 100%;}
+    .ib-room .chips{display:contents;}
+    .ib-room .lb{white-space:nowrap;}
+    .ib-room button{font-size:14px; padding:6px 10px; min-height:42px;}
+    .ib-room button.home{margin-right:0;}
+    .ib-crumb{padding:10px 12px;}
+    .ib-crumb .go{display:none;}
+    .ib-sel.on{display:flex; position:fixed; left:0; right:0; bottom:0; z-index:30; gap:10px; align-items:center; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:#101a2c; border-top:1px solid rgba(255,255,255,.18); box-shadow:0 -8px 20px rgba(0,0,0,.4);}
+    .ib-sel .pn{font-size:13.5px; color:#fff; white-space:nowrap;}
+    .ib-sel .btn{flex:1; min-height:46px; justify-content:center;}
+    body.has-sel main{padding-bottom:84px;}
+    .ib-filter .form-group.grow{flex:1 1 100%;}
+    .ib-filter .form-group{flex:1 1 calc(50% - 7px); min-width:0;}   /* บริษัท / เรียงตาม อยู่แถวเดียวกัน ให้เห็นรายการเร็วขึ้น */
     .ib-filter .form-group.btn-col .btn{width:100%; justify-content:center;}
-    .ib-steps{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));}
     /* ชื่อแท็บยาว: มือถือเรียงแท็บละแถว ชื่อซ้าย ตัวเลขขวา */
     .ib-scope.rp-tabs{grid-template-columns:minmax(0, 1fr); gap:8px;}
     .ib-scope.rp-tabs button{justify-content:space-between; padding:11px 14px; font-size:14px;}
-    .ib-steps .lb{display:none;}
-    .ib-steps button{padding:0 8px; min-height:44px;}
   }
 </style>
 <script src="/js/session-guard.js"></script>
@@ -1131,9 +1159,9 @@
       <section class="page active">
         <div class="card">
           <div class="rp-tabs ib-scope" id="ibScope"></div>
-          <div class="ib-dash" id="ibDash"></div>
           <div class="ib-steps" id="ibSteps"></div>
-          <div class="ib-filter">
+          <div id="ibDash"></div>
+          <div class="ib-filter" id="ibFilter">
             <div class="form-group grow"><label for="fQ">ค้นหา</label><input type="text" id="fQ" placeholder="เลขที่เอกสาร / บริษัท / รายละเอียด" autocomplete="off"></div>
             <div class="form-group"><label for="fComp">บริษัท</label><select id="fComp"><option value="">ทุกบริษัท</option></select></div>
             <div class="form-group"><label for="fSort">เรียงตาม</label><select id="fSort"><option value="new">ส่งล่าสุดก่อน</option><option value="old">ค้างนานสุดก่อน</option></select></div>
@@ -1203,12 +1231,48 @@
   // สีขั้น: ชุดเดียวกับหน้าอนุมัติ (รับทราบ ม่วง / ตรวจสอบ ส้ม / อนุมัติ เขียว)
   const stepTone = (code) => /^(ack|accept)$/.test(code) ? 'ack' : /^check/.test(code) ? 'check' : 'approve';
 
-  // แท็บ: named = ระบุชื่อฉัน (Over PO) / role = ตามสิทธิ์ของฉัน / '' = ไม่แบ่ง (มีงานแบบเดียว)
-  //   กลุ่มระบบ (ผู้บริหาร / ผู้ดูแลระบบ) เปิดมาที่ ระบุชื่อฉัน เสมอ — งานตามสิทธิ์ของระดับผู้จัดการไม่ปนมา
-  let scope = null;
+  // แท็บใหญ่: named = ระบุชื่อฉัน (Over PO) / role = ตามสิทธิ์ของฉัน
+  //   ตามสิทธิ์: เข้ามา = หน้า "ทุกขั้นตอน" (การ์ดรับทราบ / ตรวจสอบ / อนุมัติ) → เลือกขั้น = "ห้อง" ของขั้นนั้น (การ์ดเรื่อง + รายการ)
+  //   ในห้องมีปุ่มกลับหน้าหลัก + ชิปขั้นอื่นที่ยังค้าง (กดข้ามห้องได้) / มีสิทธิ์ขั้นเดียว = เข้าห้องเลย
+  //   สถานะ (แท็บ/ขั้น/เรื่อง) เก็บใน history.state: ปุ่มย้อนของเบราว์เซอร์ = ออกจากห้อง / กลับจากหน้าเอกสารแล้วอยู่ห้องเดิม
+  let scope = null, tabsShown = false;
   const SCOPE = { named: 'งานอนุมัติที่ระบุชื่อฉัน', role: 'งานอนุมัติตามสิทธิ์ของฉัน' };
-  let stepF = store.get('step') || '';   // ตัวกรองขั้น (รับทราบ / ตรวจสอบ / อนุมัติ) — แสดงเมื่อผู้ใช้มีงานมากกว่า 1 ขั้น
-  let data = null, mod = store.get('mod') || '', picked = new Set(), loadSeq = 0, busy = false;
+  const KC = {
+    eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>',
+    scan: '<path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><path d="M7 12h10"/>',
+    check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 10"/>',
+    pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/>',
+    truck: '<rect x="1" y="5" width="14" height="11" rx="1"/><path d="M15 9h4l3 3v4h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
+    box: '<path d="M21 16V8a2 2 0 00-1-1.7l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.7l7 4a2 2 0 002 0l7-4a2 2 0 001-1.7z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/>'
+  };
+  const kcBg = (k) => `<svg class="kc-bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${KC[k]}</svg>`;
+  Object.assign(MOD.rq, { ic: 'pencil' }); Object.assign(MOD.rts, { ic: 'truck' }); Object.assign(MOD.ops, { ic: 'box' });
+  const STEPS = [
+    { k: 'ack', name: 'รับทราบ', wait: 'รอรับทราบ', sub: 'รับทราบเอกสาร', c: '#8b72e6', ic: 'eye' },
+    { k: 'check', name: 'ตรวจสอบ', wait: 'รอตรวจสอบ', sub: 'ตรวจสอบความถูกต้อง', c: '#d97706', ic: 'scan' },
+    { k: 'approve', name: 'อนุมัติ', wait: 'รออนุมัติ', sub: 'อนุมัติให้ดำเนินการ', c: '#22c55e', ic: 'check' }
+  ];
+  let stepF = '', mod = '';
+  let data = null, picked = new Set(), loadSeq = 0, busy = false, roomPushed = false;
+
+  function navSave(push){
+    const s = { scope, step: stepF, mod };
+    try{ if(push){ history.pushState(s, ''); roomPushed = true; } else history.replaceState(s, ''); } catch(e){}
+  }
+  // จำห้องไว้ตอนกดเปิดเอกสาร: เอกสารปิดด้วย location.href='/approvals' (history ใหม่ ไม่มี state) → กลับมาห้องเดิมแทนหน้าหลัก
+  function leaveToDoc(){ try{ sessionStorage.setItem('apvRoom', JSON.stringify({ scope, step: stepF, mod, t: Date.now() })); } catch(e){} }
+  function navRestore(){
+    let s = history.state;
+    if(!(s && typeof s === 'object' && 'step' in s)){
+      s = null;
+      try{
+        const r = JSON.parse(sessionStorage.getItem('apvRoom') || 'null'); sessionStorage.removeItem('apvRoom');
+        if(r && Date.now() - r.t < 30 * 60 * 1000) s = r;
+      } catch(e){}
+    }
+    if(s){ scope = s.scope || scope; stepF = s.step || ''; mod = s.mod || ''; }
+    else { stepF = ''; mod = ''; }
+  }
 
   async function load(){
     const my = ++loadSeq;
@@ -1218,8 +1282,8 @@
       const d = await api('/api/approval-inbox');
       if(my !== loadSeq) return;
       data = d;
-      const tabs = d.unrestricted || (d.named > 0 && d.role > 0);
-      if(!tabs) scope = '';
+      tabsShown = !!(d.named > 0 && d.role > 0);   // มีงานทั้ง 2 แบบเท่านั้นถึงแสดงแท็บ (ไม่มีงานระบุชื่อ = ซ่อน)
+      if(!tabsShown) scope = d.named > 0 ? 'named' : 'role';
       else if(!scope) scope = d.unrestricted || d.named ? 'named' : 'role';
       const comps = [...new Set(d.data.map(x => x.comp).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
       const keep = $('fComp').value;
@@ -1230,46 +1294,39 @@
     } catch(err){ if(my === loadSeq) $('ibBody').innerHTML = `<p class="empty-msg">${esc(err.message)}</p>`; }
   }
 
-  // ตัวเลขทุกจุดนับตามตัวกรองที่ใช้อยู่ (บริษัท / ค้นหา / ขั้นตอน / เรื่อง) — การ์ดเรื่องไม่นับตัวกรองเรื่องเอง, ปุ่มขั้นตอนไม่นับตัวกรองขั้นตอนเอง
+  // ตัวเลขทุกจุดในห้องนับตามตัวกรองที่ใช้อยู่ (บริษัท / ค้นหา) — ตัวเลขขั้นในหน้าทุกขั้นตอน / ชิปขั้นอื่นนับทั้งหมด (ไม่ตามตัวกรอง)
   const hasTone = (x, t) => x.my.some(s => stepTone(s.code) === t);
-  function filtered({ useMod = true, useStep = true } = {}){
+  function filtered({ useMod = true, filt = true } = {}){
     const q = $('fQ').value.trim().toLowerCase(), comp = $('fComp').value;
-    let list = data.data.filter(x => (!scope || x.scope === scope) && (!useMod || !mod || x.mod === mod) && (!useStep || !stepF || hasTone(x, stepF)) && (!comp || x.comp === comp)
-      && (!q || [x.docNo, x.comp, x.title, x.src, x.by].some(v => String(v || '').toLowerCase().includes(q))));
+    let list = data.data.filter(x => x.scope === scope && (scope !== 'role' || !stepF || hasTone(x, stepF)) && (!useMod || !mod || x.mod === mod)
+      && (!filt || ((!comp || x.comp === comp) && (!q || [x.docNo, x.comp, x.title, x.src, x.by].some(v => String(v || '').toLowerCase().includes(q))))));
     if($('fSort').value === 'old') list = list.slice().reverse();
     return list;
   }
-  const baseRows = () => filtered({ useStep: false });
   const rows = () => filtered();
-  // ขั้นที่ปุ่มของแถวนี้จะพาไป: กรองขั้นอยู่ = ขั้นนั้น / ไม่กรอง = ขั้นแรกที่รอฉัน
+  const roleTones = () => { const s = new Set(data.data.filter(x => x.scope === 'role').flatMap(x => x.my.map(m => stepTone(m.code)))); return STEPS.filter(t => s.has(t.k)); };
+  // ขั้นที่ปุ่มของแถวนี้จะพาไป: อยู่ในห้องขั้นไหน = ขั้นนั้น / ที่อื่น = ขั้นแรกที่รอฉัน
   const curStep = (x) => (stepF && x.my.find(s => stepTone(s.code) === stepF)) || x.my[0];
   const hrefOf = (x) => { const s = curStep(x); return /[?&]step=/.test(x.href) ? x.href.replace(/([?&]step=)[^&]*/, '$1' + encodeURIComponent(s.code)) : x.href; };
-  const STEP_TONES = [['ack', 'รับทราบ', '#8b72e6'], ['check', 'ตรวจสอบ', '#d97706'], ['approve', 'อนุมัติ', '#22c55e']];
-  function steps(){
-    const tones = new Set(data.data.filter(x => !scope || x.scope === scope).flatMap(x => x.my.map(s => stepTone(s.code))));
-    if(tones.size < 2){ stepF = ''; $('ibSteps').innerHTML = ''; return; }
-    const base = baseRows();
-    const btn = (k, label, n, c) => `<button type="button" class="${stepF === k ? 'on' : ''}" style="--c:${c}" data-stepf="${k}">${label} <b>${fmtInt(n)}</b></button>`;
-    $('ibSteps').innerHTML = `<span class="lb">ขั้นตอน:</span>${btn('', 'ทั้งหมด', base.length, '#f2a91c')}${STEP_TONES.filter(([k]) => tones.has(k)).map(([k, n, c]) => btn(k, n, base.filter(x => hasTone(x, k)).length, c)).join('')}`;
+  // จัดสถานะให้ถูกต้องเสมอ: ขั้นที่ไม่มีงานแล้ว = ออกจากห้อง / ขั้นเดียว = เข้าห้องเลย / เรื่องที่ว่าง = ไปเรื่องถัดไปที่มีงาน
+  function normalise(){
+    if(scope === 'role'){
+      const tones = roleTones();
+      if(stepF && !tones.some(t => t.k === stepF)) stepF = '';
+      if(!stepF && tones.length === 1) stepF = tones[0].k;
+    } else stepF = '';
+    if(scope === 'role' && !stepF){ mod = ''; return []; }
+    const all = filtered({ useMod: false, filt: false }), cur = filtered({ useMod: false });
+    const mods = Object.keys(MOD).filter(k => all.some(x => x.mod === k));
+    const cnt = (k) => cur.filter(x => x.mod === k).length;
+    if(!mods.includes(mod) || (!cnt(mod) && mods.some(k => cnt(k)))) mod = mods.find(k => cnt(k)) || mods[0] || '';
+    return mods;
   }
 
   function scopeTabs(){
-    if(scope === ''){ $('ibScope').innerHTML = ''; return; }
+    if(!tabsShown){ $('ibScope').innerHTML = ''; return; }
     const n = { named: data.named, role: data.role };
     $('ibScope').innerHTML = Object.keys(SCOPE).map(k => `<button type="button" class="${scope === k ? 'on' : ''}" data-scope="${k}">${SCOPE[k]} <b>${fmtInt(n[k])}</b></button>`).join('');
-  }
-  function dash(){
-    const all = filtered({ useMod: false }), c = {};
-    all.forEach(x => { c[x.mod] = (c[x.mod] || 0) + 1; });
-    // การ์ดเรื่องเฉพาะในแท็บนี้: ระบุชื่อฉัน = Over PO / ตามสิทธิ์ของฉัน = ปรับยอดสต๊อก + ส่งคืนสินค้า
-    const inScope = (k) => !scope || (scope === 'named') === (k === 'ops');
-    if(mod && !inScope(mod)) mod = '';
-    const show = Object.keys(MOD).filter(k => inScope(k) && (data.mods[k] || data.counts[k]));
-    const card = (k, label, n, color) => `<button type="button" class="dash-card ${mod === k ? 'active' : ''} ${n ? '' : 'zero'}" style="--c:${color}" data-mod="${k}">
-      <span class="lbl">${label}</span><span class="val">${fmtInt(n)}<small>รายการ</small></span></button>`;
-    // มีเรื่องเดียว (เช่น แท็บระบุชื่อฉัน = ขอรับซื้อเมล็ด Over PO) → การ์ดรวมใบเดียว ใช้ชื่อเรื่องนั้น (การ์ดเรื่องซ้ำกับยอดรวม)
-    if(show.length === 1){ mod = ''; $('ibDash').innerHTML = card('', `รอฉัน · ${MOD[show[0]].short}`, all.length, MOD[show[0]].c); return; }
-    $('ibDash').innerHTML = card('', 'รอฉันทั้งหมด', all.length, '#f2a91c') + show.map(k => card(k, MOD[k].short, c[k] || 0, MOD[k].c)).join('');
   }
   const modChip = (x) => `<span class="mod-chip" style="--c:${MOD[x.mod].c}">${esc(MOD[x.mod].short)}</span>`;
   // ปุ่มขั้น: กว้างเท่ากันทุกแถว / ชื่อสั้น
@@ -1278,18 +1335,43 @@
   const progress = (x) => `<div class="prog">${x.progress.map(p => `<span class="${p.done ? 'ok' : ''}">${p.done ? '✓' : '○'} ${esc(p.name)}</span>`).join('')}</div>`;
   function ageChip(x){ const d = daysSince(x.date); return `<span class="age ${d > 30 ? 'a3' : d > 7 ? 'a2' : ''}" title="ส่งเมื่อ ${thStamp(x.date)}">${d ? `ค้าง ${fmtInt(d)} วัน` : 'วันนี้'}</span>`; }
   const detail = (x) => `${esc(x.src || '')}${x.src ? ' · ' : ''}${fmtInt(x.nLine)} รายการ${x.amount != null ? ` · <b>${fmtMoney(x.amount)}</b> บาท` : ''}${x.by ? ` · ${esc(shortName(x.by))}` : ''}`;
+  const empty = (b, s) => `<div class="ib-empty"><b>${b}</b><span>${s}</span></div>`;
 
   function render(){
     if(!data) return;
-    dash(); steps();
-    const list = rows(), more = Object.keys(data.more || {}).filter(k => data.more[k]);
     scopeTabs();
-    $('ibHint').innerHTML = (scope === 'role' && data.unrestricted ? '<span class="warn">กลุ่มระบบเห็นงานตามสิทธิ์ของทุกเรื่อง — ตัวเลขบนเมนูนับเฉพาะงานที่ระบุชื่อคุณ</span><br>' : '') + `กดรายการเพื่อเปิดเอกสาร แล้วดำเนินการตามขั้นตอนของคุณ — ปิดเอกสารแล้วกลับมาที่หน้านี้${data.can.rqBulk.length && scope !== 'named' ? ' · ใบขอปรับยอดสต๊อก ติ๊กหลายใบแล้วกดขั้นตอนเดียวกันพร้อมกันได้' : ''}`
+    ['ibSteps', 'ibDash', 'ibBulk', 'ibHint'].forEach(id => { $(id).innerHTML = ''; });
+    document.body.classList.remove('has-sel');
+    const showFilter = (on) => { $('ibFilter').style.display = on ? '' : 'none'; };
+    if(data.eligible === false){ showFilter(false); $('ibBody').innerHTML = empty('คุณไม่มีงานอนุมัติในระบบ', 'หน้านี้สำหรับผู้ที่มีสิทธิ์รับทราบ / ตรวจสอบ / อนุมัติ หรือถูกระบุเป็นผู้อนุมัติขอรับซื้อเมล็ด Over PO — ติดต่อผู้ดูแลระบบหากต้องการสิทธิ์'); return; }
+    if(!data.total){ showFilter(false); $('ibBody').innerHTML = empty('ไม่มีงานรออนุมัติ', 'เมื่อมีเอกสารรอขั้นของคุณ จะแสดงที่นี่ และมีตัวเลขบนเมนู "งานรออนุมัติ"'); return; }
+    const mods = normalise();
+    const mine = data.data.filter(x => x.scope === scope);
+    if(!mine.length){ showFilter(false); $('ibBody').innerHTML = scope === 'named' ? empty('ไม่มีงานที่ระบุชื่อคุณ', 'เอกสารที่ระบุคุณเป็นผู้อนุมัติ (เช่น ขอรับซื้อเมล็ด Over PO) จะแสดงที่นี่') : empty('ไม่มีงานตามสิทธิ์ของคุณ', 'เอกสารที่รอขั้นรับทราบ / ตรวจสอบ / อนุมัติตามสิทธิ์ของคุณจะแสดงที่นี่'); return; }
+
+    // ---- หน้า "ทุกขั้นตอน" (ตามสิทธิ์ ยังไม่เลือกขั้น) ----
+    if(scope === 'role' && !stepF){
+      showFilter(false); $('fQ').value = ''; $('fComp').value = '';
+      const n = (k) => mine.filter(x => hasTone(x, k)).length;
+      $('ibDash').innerHTML = `<div class="ib-sect">ตามสิทธิ์ของคุณ — เลือกขั้นตอนที่ต้องการทำ</div><div class="ib-stepcards">${roleTones().map(t => `<button type="button" class="dash-card ${n(t.k) ? '' : 'zero'}" style="--c:${t.c}" data-step="${t.k}"><span class="lbl">${t.wait}</span><span class="val">${fmtInt(n(t.k))}<small>ใบ</small></span><span class="sub">${t.sub}</span>${kcBg(t.ic)}</button>`).join('')}</div>`;
+      $('ibBody').innerHTML = '<div class="ib-start"><b>เลือกขั้นตอนด้านบนเพื่อดูรายการ</b>แต่ละขั้นจะแสดงเรื่องที่รอคุณ และกดดำเนินการหลายใบพร้อมกันได้</div>';
+      return;
+    }
+
+    // ---- ห้องของขั้น / แท็บระบุชื่อฉัน ----
+    showFilter(true);
+    const stepDef = STEPS.find(t => t.k === stepF), hc = stepDef ? stepDef.c : '#f2a91c';
+    const list = rows(), cur = filtered({ useMod: false }), more = Object.keys(data.more || {}).filter(k => data.more[k]);
+    if(scope === 'role'){
+      const others = roleTones().filter(t => t.k !== stepF).map(t => ({ t, n: mine.filter(x => hasTone(x, t.k)).length })).filter(o => o.n > 0);
+      if(roleTones().length > 1) $('ibSteps').innerHTML = `<div class="ib-room"><button type="button" class="home" data-back="1">← กลับหน้าหลัก</button></div>`;
+    }
+    const card = (k) => { const n = cur.filter(x => x.mod === k).length; return `<button type="button" class="dash-card ${mod === k ? 'active' : ''} ${n ? '' : 'zero'}" style="--c:${MOD[k].c}" data-mod="${k}"><span class="lbl">${MOD[k].short}</span><span class="val">${fmtInt(n)}<small>รายการ</small></span>${kcBg(MOD[k].ic)}</button>`; };
+    $('ibDash').innerHTML = `<div class="ib-h" style="--c:${hc}">${scope === 'role' ? 'เรื่องที่' + stepDef.wait : 'เรื่องที่ระบุชื่อฉัน'} <b>${fmtInt(cur.length)} ใบ</b></div>` + (mods.length > 1 ? `<div class="ib-dash">${mods.map(card).join('')}</div>` : '');
+    $('ibHint').innerHTML = (scope === 'role' && data.unrestricted ? '<span class="warn">กลุ่มระบบเห็นงานตามสิทธิ์ของทุกเรื่อง — ตัวเลขบนเมนูนับเฉพาะงานที่ระบุชื่อคุณ</span><br>' : '') + `กดรายการเพื่อเปิดเอกสาร แล้วดำเนินการตามขั้นตอนของคุณ — ปิดเอกสารแล้วกลับมาที่หน้านี้${scope === 'role' && BULK[mod] ? ' · ติ๊กหลายใบแล้วกดดำเนินการพร้อมกันได้' : ''}`
       + (more.length ? `<br><span class="warn">แสดง 300 ใบล่าสุดของ${more.map(k => MOD[k].name).join(' / ')} — ใบที่เก่ากว่าดูได้ที่หน้าอนุมัติของเรื่องนั้น</span>` : '');
-    renderBulk(list);
-    if(data.eligible === false){ $('ibBulk').innerHTML = ''; $('ibHint').textContent = ''; $('ibBody').innerHTML = '<div class="ib-empty"><b>คุณไม่มีงานอนุมัติในระบบ</b><span>หน้านี้สำหรับผู้ที่มีสิทธิ์รับทราบ / ตรวจสอบ / อนุมัติ หรือถูกระบุเป็นผู้อนุมัติขอรับซื้อเมล็ด Over PO — ติดต่อผู้ดูแลระบบหากต้องการสิทธิ์</span></div>'; return; }
-    if(!data.total){ $('ibBody').innerHTML = '<div class="ib-empty"><b>ไม่มีงานรออนุมัติ</b><span>เมื่อมีเอกสารรอขั้นของคุณ จะแสดงที่นี่ และมีตัวเลขบนเมนู "งานรออนุมัติ"</span></div>'; return; }
-    if(!list.length){ $('ibBody').innerHTML = scope === 'named' && !data.named ? '<div class="ib-empty"><b>ไม่มีงานที่ระบุชื่อคุณ</b><span>เอกสารที่ระบุคุณเป็นผู้อนุมัติ (เช่น ขอรับซื้อเมล็ด Over PO) จะแสดงที่นี่</span></div>' : '<p class="empty-msg">ไม่พบรายการตามตัวกรองนี้</p>'; return; }
+    if(!list.length){ $('ibBody').innerHTML = '<p class="empty-msg">ไม่พบรายการตามตัวกรองนี้</p>'; return; }
+    renderBulk(list, stepDef);
     const tbl = list.map(x => `<tr data-href="${esc(hrefOf(x))}" style="--c:${MOD[x.mod].c}">
         <td class="c pk-col">${pickBox(x)}</td>
         <td class="act">${myBtn(x)}</td>
@@ -1314,21 +1396,29 @@
     rts: { name: 'เอกสารส่งคืนสินค้า Supplier', steps: { ack: 'รับทราบ', check: 'ตรวจสอบ', approve: 'อนุมัติ' }, can: () => data.can.rtsBulk || [] }
   };
   const bkey = (x) => x.mod + ':' + x.id;
-  const canBulk = (x) => !!BULK[x.mod] && x.my.some(s => BULK[x.mod].can().includes(s.code));
+  // กดหลายใบได้เฉพาะในห้องของขั้น (ตามสิทธิ์): ขั้นของห้องนี้ต้องอยู่ในสิทธิ์กดหลายใบของเรื่องนั้น
+  const canBulk = (x) => scope === 'role' && !!stepF && !!BULK[x.mod] && x.my.some(s => BULK[x.mod].can().includes(s.code) && stepTone(s.code) === stepF);
+  const bulkCode = (m) => (BULK[m] ? BULK[m].can().find(k => stepTone(k) === stepF) : '') || '';
   const pickBox = (x) => canBulk(x) ? `<input type="checkbox" class="pk" data-pick="${bkey(x)}" ${picked.has(bkey(x)) ? 'checked' : ''} aria-label="เลือก ${esc(x.docNo)}">` : '';
-  function renderBulk(list){
-    const bars = Object.keys(BULK).map(m => {
-      const rows = list.filter(x => x.mod === m && canBulk(x));
-      if(!rows.length) return '';
-      const B = BULK[m];
-      const sel = data.data.filter(x => x.mod === m && picked.has(bkey(x)));
-      const by = (k) => sel.filter(x => x.my.some(s => s.code === k));
-      const all = rows.every(x => picked.has(bkey(x)));
-      return `<div class="bulk ${sel.length ? 'on' : ''}"><label><input type="checkbox" data-pickall="${m}" ${all ? 'checked' : ''}> เลือก${B.name}ทั้งหมด (${rows.length})</label>
-        <span class="bi">${sel.length ? `เลือก <b>${sel.length}</b> ใบ` : 'ติ๊กเลือกหลายใบ แล้วกดขั้นพร้อมกัน'}</span>
-        <span class="ba">${B.can().map(k => { const n = by(k).length; return `<button type="button" class="btn btn-sm sb-${k} ${n ? 'solid' : ''}" data-bulk="${m}:${k}" ${n ? '' : 'disabled'}>${IC.check} ${B.steps[k]} (${n})</button>`; }).join('')}</span></div>`;
-    });
-    $('ibBulk').innerHTML = bars.join('');
+  // หัวรายการ: เลือกทั้งหมด + เส้นทาง "รออนุมัติ › ปรับยอดสต๊อก (7 ใบ)" + ปุ่มกดหลายใบ (ปุ่มเดียว = ขั้นของห้องนี้) / มือถือ: ปุ่มติดล่างจอ
+  function renderBulk(list, stepDef){
+    const m = mod, B = BULK[m], k = bulkCode(m), canPick = scope === 'role' && !!B && !!k && list.some(canBulk);
+    const c = MOD[m] ? MOD[m].c : '#f2a91c';
+    const name = MOD[m] ? MOD[m].short : '';
+    const nAll = filtered({ useMod: false }).filter(x => x.mod === m).length;
+    const title = `${stepDef ? stepDef.wait : 'ระบุชื่อฉัน'}<i>›</i>${name} (${fmtInt(nAll)} ใบ)`;
+    let pickHtml = '', goHtml = '', selHtml = '';
+    if(canPick){
+      const rowsB = list.filter(canBulk), n = selOf(m, k).length, all = rowsB.every(x => picked.has(bkey(x)));
+      const btn = `<button type="button" class="btn sb-${k} solid go" data-bulk="${m}:${k}">${IC.check} ${stepDef.name} ${fmtInt(n)} ใบ</button>`;
+      pickHtml = `<label><input type="checkbox" data-pickall="${m}" ${all ? 'checked' : ''}> เลือกทั้งหมด (${rowsB.length})</label>`;
+      if(n){
+        goHtml = `<span class="pn">เลือก ${fmtInt(n)} ใบ</span>${btn}`;
+        selHtml = `<div class="ib-sel on"><span class="pn">เลือก ${fmtInt(n)} ใบ</span>${btn.replace(' go"', '"')}</div>`;
+        document.body.classList.add('has-sel');
+      }
+    }
+    $('ibBulk').innerHTML = `<div class="ib-crumb" style="--c:${c}">${pickHtml}<span class="h">${title}</span><span class="sp"></span>${goHtml}</div>${selHtml}`;
   }
   function dlg(title, html){ $('dlgTitle').textContent = title; $('dlgBody').innerHTML = html; $('dlgModal').classList.add('show'); }
   const closeDlg = () => { if(!busy) $('dlgModal').classList.remove('show'); };
@@ -1392,12 +1482,15 @@
     if(t.closest('[data-close]') || t.id === 'dlgModal'){ closeDlg(); return; }
     const bg = t.closest('[data-bulkgo]'); if(bg){ const [bm, bs] = bg.dataset.bulkgo.split(':'); bulkGo(bm, bs, bg); return; }
     const bk = t.closest('[data-bulk]'); if(bk && !bk.disabled){ const [bm, bs] = bk.dataset.bulk.split(':'); bulkDlg(bm, bs); return; }
+    const lk = t.closest('a[href]'); if(lk && !/^#|^javascript:/.test(lk.getAttribute('href') || '')) leaveToDoc();
     if(t.closest('input[type=checkbox], label, a')) return;
-    const sc = t.closest('[data-scope]'); if(sc){ scope = sc.dataset.scope; mod = ''; picked = new Set(); render(); return; }
-    const sf = t.closest('[data-stepf]'); if(sf){ stepF = sf.dataset.stepf; store.set('step', stepF); picked = new Set(); render(); return; }
-    const m = t.closest('[data-mod]'); if(m){ mod = m.dataset.mod; store.set('mod', mod); picked = new Set(); render(); return; }
+    const sc = t.closest('[data-scope]'); if(sc){ scope = sc.dataset.scope; stepF = ''; mod = ''; picked = new Set(); navSave(false); render(); return; }
+    const st = t.closest('[data-step]'); if(st){ stepF = st.dataset.step; mod = ''; picked = new Set(); navSave(true); render(); window.scrollTo(0, 0); return; }   // เข้าห้อง (มีรายการใน history ให้ปุ่มย้อนออกห้อง)
+    const sg = t.closest('[data-stepgo]'); if(sg){ stepF = sg.dataset.stepgo; mod = ''; picked = new Set(); navSave(false); render(); window.scrollTo(0, 0); return; }   // ข้ามไปห้องขั้นอื่น
+    if(t.closest('[data-back]')){ if(roomPushed){ history.back(); } else { stepF = ''; mod = ''; picked = new Set(); navSave(false); render(); } window.scrollTo(0, 0); return; }
+    const m = t.closest('[data-mod]'); if(m){ mod = m.dataset.mod; picked = new Set(); navSave(false); render(); return; }
     if(t.closest('#btnRefresh')){ load(); return; }
-    const row = t.closest('[data-href]'); if(row){ location.href = row.dataset.href; }
+    const row = t.closest('[data-href]'); if(row){ leaveToDoc(); location.href = row.dataset.href; }
   });
   document.addEventListener('change', (e) => {
     const t = e.target;
@@ -1410,7 +1503,9 @@
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeDlg(); });
   // กลับมาจากหน้าเอกสาร (ปุ่มย้อนกลับของ browser / bfcache) = โหลดใหม่ ให้เห็นงานที่เพิ่งทำไปหายจากรายการ
   window.addEventListener('pageshow', (e) => { if(e.persisted) load(); });
-  document.addEventListener('DOMContentLoaded', () => { $('btnRefresh').innerHTML = `${IC.refresh} Refresh`; load(); });
+  // ปุ่มย้อนของเบราว์เซอร์ / ท่าปัดย้อนบนมือถือ: ออกจากห้อง (หรือกลับเข้าห้อง) ตามสถานะใน history
+  window.addEventListener('popstate', () => { navRestore(); roomPushed = false; picked = new Set(); render(); });
+  document.addEventListener('DOMContentLoaded', () => { $('btnRefresh').innerHTML = `${IC.refresh} Refresh`; navRestore(); load(); });
 })();
 </script>
 </body>

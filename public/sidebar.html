@@ -22,6 +22,13 @@
   #sidebar .nav-submenu-inner:has(> .nav-group-sub) > .nav-subitem.active{color:var(--amber-500, #f2a91c);}
   /* กลุ่มย่อยที่มีหน้าปัจจุบันอยู่ข้างใน: ตัวหนังสือสีส้มทอง */
   #sidebar .nav-group-sub:has(.nav-subitem.active) > .nav-parent{color:var(--amber-500, #f2a91c);}
+  /* เส้นนำทางเมนูซ้อนหลายชั้น: ส้มไล่ระดับ — ชั้นกลุ่มย่อยเข้มกว่าเมนูย่อยข้างใน / กลุ่มที่เปิดอยู่เข้มสุด (ให้เห็นว่าอะไรเป็นลูกของอะไร) */
+  #sidebar .nav-submenu-inner > .nav-subitem, #sidebar .nav-group-sub > .nav-parent{border-left:2px solid rgba(242,169,28,.5) !important;}
+  #sidebar .nav-group-sub > .nav-submenu .nav-subitem{border-left:2px solid rgba(242,169,28,.3) !important;}
+  #sidebar .nav-subitem::before, #sidebar .nav-group-sub > .nav-parent::before{display:none !important;}   /* ไม่มีรอยต่อแนวนอน เหลือเส้นแนวตั้งอย่างเดียว */
+  #sidebar .nav-group-sub.open > .nav-parent{border-left-color:rgba(242,169,28,.95) !important;}
+  #sidebar .nav-subitem{border-top-left-radius:0; border-bottom-left-radius:0; margin-bottom:0;}   /* เส้นซ้ายต่อกันเป็นแนวตรง ไม่โค้งเป็นวงเล็บ */
+  #sidebar .nav-subitem.active{border-left-color:var(--amber-500, #f2a91c) !important; background:rgba(242,169,28,.1);}
   /* เมนู On process (WIMWebMenu.stWip): ผู้ใช้ทั่วไป = ซ่อน (hidden) / กลุ่มระบบ = เห็นพร้อมป้าย WIP */
   #sidebar [hidden]{display:none !important;}
   /* งานรออนุมัติ: ตัวเลขงานที่รอผู้ใช้ (sidebar.js เติมให้) */

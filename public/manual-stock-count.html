@@ -842,19 +842,27 @@
             <section class="doc-section" id="a-inbox">
               <div class="sec-head"><span class="sec-no">02</span><h2>งานรออนุมัติ: ที่เดียวสำหรับทุกเรื่อง</h2></div>
               <p>เมนู <span class="ui">งานรออนุมัติ</span> (บนสุดของเมนูซ้าย มีตัวเลขบอกจำนวนงาน) รวมทุกเรื่องที่รอคุณ ทั้งใบขอปรับยอดสต๊อก ส่งคืนสินค้า Supplier และขอรับซื้อเมล็ด Over PO</p>
-              <figure class="shot"><a href="images/manual/stock-count/apv-inbox.png" target="_blank"><img src="images/manual/stock-count/apv-inbox.png" alt="งานรออนุมัติ" loading="lazy"></a><figcaption>หน้างานรออนุมัติ</figcaption></figure>
-                            <ol class="pin-list">
-                <li><span class="pin pin-inline">1</span><span><b>การ์ดสรุป</b>: รอฉันทั้งหมด และแยกตามเรื่อง กดเพื่อกรอง ตัวเลขเปลี่ยนตามตัวกรองที่เลือกอยู่</span></li>
-                <li><span class="pin pin-inline">2</span><span><b>ตัวกรองขั้นตอน</b> (รับทราบ / ตรวจสอบ / อนุมัติ): แสดงเมื่อคุณมีงานมากกว่า 1 ขั้นตอน</span></li>
+              <p><b>1) หน้าทุกขั้นตอน</b> — เมื่อเข้ามา (ในแท็บ <b>งานอนุมัติตามสิทธิ์ของฉัน</b>) จะเห็นการ์ดของแต่ละขั้นที่คุณมีสิทธิ์ พร้อมจำนวนใบที่รอ ยังไม่มีรายการให้ เลือกขั้นที่ต้องการทำก่อน</p>
+              <figure class="shot"><a href="images/manual/stock-count/apv-inbox.png?v=3" target="_blank"><img src="images/manual/stock-count/apv-inbox.png?v=3" alt="งานรออนุมัติ หน้าทุกขั้นตอน" loading="lazy"></a><figcaption>หน้าทุกขั้นตอน: เลือกขั้นที่ต้องการทำ</figcaption></figure>
+              <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><b>การ์ดขั้นตอน</b> (รอรับทราบ / รอตรวจสอบ / รออนุมัติ): ตัวเลขคือจำนวนใบที่รอคุณในขั้นนั้น กดเพื่อเข้า &ldquo;ห้อง&rdquo; ของขั้น</span></li>
+                <li><span class="pin pin-inline">2</span><span>แสดงเฉพาะขั้นที่คุณมีงาน — ถ้ามีงานขั้นเดียว ระบบเข้าห้องให้เลย</span></li>
+                <li><span class="pin pin-inline">3</span><span>ยังไม่เลือกขั้น = ยังไม่แสดงรายการ เพื่อไม่ให้สับสนว่ากำลังดูขั้นไหน</span></li>
+              </ol>
+              <p><b>2) ห้องของขั้น</b> — หลังเลือกขั้น หน้าจอทั้งหมดเป็นของขั้นนั้น</p>
+              <figure class="shot"><a href="images/manual/stock-count/apv-room.png?v=3" target="_blank"><img src="images/manual/stock-count/apv-room.png?v=3" alt="งานรออนุมัติ ห้องของขั้น" loading="lazy"></a><figcaption>ห้องของขั้น (ตัวอย่าง: รอตรวจสอบ)</figcaption></figure>
+              <ol class="pin-list">
+                <li><span class="pin pin-inline">1</span><span><span class="ui">← กลับหน้าหลัก</span>: กลับไปหน้าทุกขั้นตอน (ปุ่มย้อนของเบราว์เซอร์ / ปัดย้อนบนมือถือ ก็ออกจากห้องเช่นกัน)</span></li>
+                <li><span class="pin pin-inline">2</span><span><b>หัวข้อเรื่องที่รอ…</b> บอกว่าตอนนี้อยู่ขั้นไหน และมีกี่ใบ — ถ้าขั้นนี้มีหลายเรื่อง (ปรับยอดสต๊อก / ส่งคืนสินค้า Supplier / Over PO) จะมีการ์ดเรื่อง ให้กดเลือกดูทีละเรื่อง</span></li>
                 <li><span class="pin pin-inline">3</span><span><b>ค้นหา</b> เลขที่เอกสาร / บริษัท / รายละเอียด</span></li>
                 <li><span class="pin pin-inline">4</span><span><b>บริษัท</b> และ <b>เรียงตาม</b> (ส่งล่าสุดก่อน / ค้างนานสุดก่อน)</span></li>
                 <li><span class="pin pin-inline">5</span><span><span class="ui">Refresh</span></span></li>
-                <li><span class="pin pin-inline">6</span><span><b>แถบเลือกหลายใบ</b> (ใบขอปรับยอดสต๊อก): ติ๊กหลายใบแล้วกดขั้นตอนเดียวกันพร้อมกัน</span></li>
-                <li><span class="pin pin-inline">7</span><span><b>ดำเนินการ</b>: ปุ่มสีตามขั้นตอนของคุณ กดแล้วเปิดใบขอปรับยอดเพื่อกด ปิดแล้วกลับมาหน้านี้</span></li>
+                <li><span class="pin pin-inline">6</span><span><b>แถบเลือกหลายใบ</b> (ใบขอปรับยอดสต๊อก / ส่งคืนสินค้า): ติ๊กหลายใบแล้วกดปุ่มของขั้นนั้นพร้อมกัน — มีปุ่มเดียวตามห้องที่อยู่ (มือถือ: ปุ่มติดล่างจอ) กดหลายใบทำทีละเรื่อง ไม่ปนกัน</span></li>
+                <li><span class="pin pin-inline">7</span><span><b>ดำเนินการ</b>: ปุ่มสีตามขั้นตอนของคุณ กดแล้วเปิดเอกสารเพื่อกด ปิดแล้วกลับมาห้องเดิม</span></li>
                 <li><span class="pin pin-inline">8</span><span><b>ความคืบหน้า</b>: ✓ ขั้นที่ผ่านแล้ว ○ ขั้นที่ยังรอ</span></li>
                 <li><span class="pin pin-inline">9</span><span><b>ค้าง … วัน</b>: สีส้มเมื่อเกิน 7 วัน สีแดงเมื่อเกิน 30 วัน</span></li>
               </ol>
-              <p>แท็บ <b>งานอนุมัติที่ระบุชื่อฉัน</b> / <b>งานอนุมัติตามสิทธิ์ของฉัน</b> จะแสดงเมื่อคุณมีงานทั้ง 2 แบบ</p>
+              <p>แท็บ <b>งานอนุมัติที่ระบุชื่อฉัน</b> (เช่น ขอรับซื้อเมล็ด Over PO ที่ระบุชื่อคุณเป็นผู้อนุมัติ) / <b>งานอนุมัติตามสิทธิ์ของฉัน</b> จะแสดงเมื่อคุณมีงานทั้ง 2 แบบ — แท็บระบุชื่อฉันแสดงเป็นรายการตรงๆ ไม่มีหน้าทุกขั้นตอน</p>
               <p>หรือใช้เมนูเฉพาะขั้นใน <span class="ui">คลังวัสดุและสินค้า › ตรวจนับสต๊อก</span>: <span class="ui">รับทราบปรับยอดสต๊อก</span> / <span class="ui">ตรวจสอบปรับยอดสต๊อก</span> / <span class="ui">อนุมัติปรับยอดสต๊อก</span> แสดงเป็นการ์ดใบที่รอขั้นนั้น</p>
               <figure class="shot"><a href="images/manual/stock-count/adj-list.png" target="_blank"><img src="images/manual/stock-count/adj-list.png" alt="เมนูตรวจสอบปรับยอดสต๊อก" loading="lazy"></a><figcaption>เมนูตรวจสอบปรับยอดสต๊อก (การ์ดใบที่รอขั้นตรวจสอบ)</figcaption></figure>
               <ol class="pin-list">

@@ -201,7 +201,9 @@ const SHOTS = {
     return top(page, 1650, 'sc-overview', [[1, 'text=เอกสารที่ยังไม่ปิด', 0, 'l', -2], [2, 'text=ผลการนับ 30 วันล่าสุด', 0, 'l', -2], [3, 'text=ความแม่นยำ', 0, 'l', -2], [4, 'h3:has-text("สัดส่วนผลการนับ")', 0, 'l', -2], [5, 'h3:has-text("สาเหตุผลต่าง")', 0, 'l', -2], [6, 'h3:has-text("สินค้าที่ขาดบ่อย")', 0, 'l', -2], [7, 'h3:has-text("แผนตรวจนับรายคลัง")', 0, 'l', -2]]); },
   // ---- ฝั่งอนุมัติปรับยอด ----
   async 'apv-inbox'(page) { await go(page, '/approvals', P.check);
-    return top(page, 900, 'apv-inbox', [[1, '#ibDash > *', 0], [2, '#ibSteps button', 1], [3, '#fQ'], [4, '#fComp'], [5, '#btnRefresh'], [6, '#ibBulk .bulk', 0, 'tl', 8, 6], [7, '.ib-table tbody tr:nth-child(1) .act .btn'], [8, '.ib-table tbody tr:nth-child(1) .prog', 0, 'tr'], [9, '.ib-table tbody tr:nth-child(1) .age', 0, 'r']]); },
+    return top(page, 520, 'apv-inbox', [[1, '.ib-stepcards .dash-card', 0], [2, '.ib-stepcards .dash-card', 2], [3, '.ib-start']]); },
+  async 'apv-room'(page) { await go(page, '/approvals', P.check); await page.click('[data-step="check"]'); await page.waitForTimeout(500);
+    return top(page, 900, 'apv-room', [[1, '.ib-room .home'], [2, '.ib-h b', 0, 'r', 8, 0], [3, '#fQ'], [4, '#fComp'], [5, '#btnRefresh'], [6, '.ib-crumb', 0, 'tl', 8, 6], [7, '.ib-table tbody tr:nth-child(1) .act .btn'], [8, '.ib-table tbody tr:nth-child(1) .prog', 0, 'tr'], [9, '.ib-table tbody tr:nth-child(1) .age', 0, 'r']]); },
   async 'adj-list'(page) { await go(page, '/stock-adjust-approve?step=check', P.check);
     return top(page, 900, 'adj-list', [[1, '.bulk', 0, 'tl', 8, 6], [2, '.rq-card .pick', 0, 'l', -4], [3, '.rq-card .src', 0, 'tl', -2, -2], [4, '.rq-card .steps .stp', 0, 'tl', 0, -2], [5, '.rq-card .go', 0]]); },
   async 'adj-doc'(page) { await go(page, '/stock-adjust-approve?id=1&step=check', P.check); await page.waitForTimeout(500);

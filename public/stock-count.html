@@ -19,6 +19,7 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
+  html{-webkit-text-size-adjust:100%; text-size-adjust:100%;}   /* iOS: ไม่ขยายตัวหนังสืออัตโนมัติ (ตอนพิมพ์ ย่อแผ่น A4 ให้พอดีหน้า ตัวหนังสือถูกขยายจนหัวเอกสาร / หัวตารางทับกัน) */
   body{font-family:'Inter',sans-serif; background:var(--navy-950); color:var(--concrete-200); min-height:100vh; overflow-x:hidden;}
   #printArea{display:none;}
 
@@ -1047,6 +1048,8 @@
   }
   .su-form .form-group{margin-bottom:12px;}
   .su-form input[type=text], .su-form input[type=number]{height:46px; min-height:46px;}
+  .dc-meta > div{min-width:0;}
+  .dc-meta .mode-tag{white-space:normal; max-width:100%;}
   .dc-more{margin-top:10px;}
   .dc-more .btn{width:100%; justify-content:center; min-height:44px; pointer-events:none;}
   .dc-more .btn svg{width:18px; height:18px;}
@@ -1800,8 +1803,8 @@
           <div><span class="k">วันที่ตรวจนับ / ครั้งที่</span>${thDate(d.dateCount)} · ${d.round}</div>
           <div><span class="k">ประเภท</span>${esc(d.typeName)}</div>
           <div style="grid-column:1/-1"><span class="k">คลัง / พื้นที่</span>${esc(d.idWhScope !== d.idParent0 ? d.scopePath : d.whName)}</div>
-          <div><span class="k">วิธีนับ</span>${modeTag(d)}</div>
-          <div><span class="k">ผลการนับ</span>${resultCell(d, s, base ? Math.round(s.counted / base * 100) : 0, base)}</div>
+          <div${d.blind ? ' style="grid-column:1/-1"' : ''}><span class="k">วิธีนับ</span>${modeTag(d)}</div>
+          <div${d.blind ? ' style="grid-column:1/-1"' : ''}><span class="k">ผลการนับ</span>${resultCell(d, s, base ? Math.round(s.counted / base * 100) : 0, base)}</div>
         </div>
         <div class="dc-more"><span class="btn btn-secondary">${IC.menu || ''} รายละเอียด</span></div>
       </div>`;
