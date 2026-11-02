@@ -1368,7 +1368,7 @@
     }
     const card = (k) => { const n = cur.filter(x => x.mod === k).length; return `<button type="button" class="dash-card ${mod === k ? 'active' : ''} ${n ? '' : 'zero'}" style="--c:${MOD[k].c}" data-mod="${k}"><span class="lbl">${MOD[k].short}</span><span class="val">${fmtInt(n)}<small>รายการ</small></span>${kcBg(MOD[k].ic)}</button>`; };
     $('ibDash').innerHTML = `<div class="ib-h" style="--c:${hc}">${scope === 'role' ? 'เรื่องที่' + stepDef.wait : 'เรื่องที่ระบุชื่อฉัน'} <b>${fmtInt(cur.length)} ใบ</b></div>` + (mods.length > 1 ? `<div class="ib-dash">${mods.map(card).join('')}</div>` : '');
-    $('ibHint').innerHTML = (scope === 'role' && data.unrestricted ? '<span class="warn">กลุ่มระบบเห็นงานตามสิทธิ์ของทุกเรื่อง — ตัวเลขบนเมนูนับเฉพาะงานที่ระบุชื่อคุณ</span><br>' : '') + `กดรายการเพื่อเปิดเอกสาร แล้วดำเนินการตามขั้นตอนของคุณ — ปิดเอกสารแล้วกลับมาที่หน้านี้${scope === 'role' && BULK[mod] ? ' · ติ๊กหลายใบแล้วกดดำเนินการพร้อมกันได้' : ''}`
+    $('ibHint').innerHTML = (scope === 'role' && data.namedOnly ? '<span class="warn">คุณเห็นงานตามสิทธิ์ของทุกเรื่อง — ตัวเลขบนเมนูนับเฉพาะงานที่ระบุชื่อคุณ</span><br>' : '') + `กดรายการเพื่อเปิดเอกสาร แล้วดำเนินการตามขั้นตอนของคุณ — ปิดเอกสารแล้วกลับมาที่หน้านี้${scope === 'role' && BULK[mod] ? ' · ติ๊กหลายใบแล้วกดดำเนินการพร้อมกันได้' : ''}`
       + (more.length ? `<br><span class="warn">แสดง 300 ใบล่าสุดของ${more.map(k => MOD[k].name).join(' / ')} — ใบที่เก่ากว่าดูได้ที่หน้าอนุมัติของเรื่องนั้น</span>` : '');
     if(!list.length){ $('ibBody').innerHTML = '<p class="empty-msg">ไม่พบรายการตามตัวกรองนี้</p>'; return; }
     renderBulk(list, stepDef);

@@ -3275,10 +3275,18 @@ app.get('/api/permissions/companies', requireMenu(MENU_ADMIN), async (req, res) 
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(
-      `SELECT idComp, CompName
-       FROM PchInvAndProject.dbo.dCompany
-       WHERE stDel IS NULL
-       ORDER BY CompName`
+      // idCompGroup / CompGroupName = กลุ่มบริษัทจาก dGroupCompMap (NULL = ยังไม่จัดกลุ่ม แต่ยังต้องแสดงให้เลือกได้)
+      `SELECT c.idComp, c.CompName, g.idCompGroup, g.CompGroupName
+       FROM PchInvAndProject.dbo.dCompany c
+       OUTER APPLY (
+         SELECT TOP 1 p.id AS idCompGroup, p.groupName AS CompGroupName
+         FROM PchInvAndProject.devsk.dGroupCompMap m
+         JOIN PchInvAndProject.devsk.dGroupCompMap p ON p.id = m.parentid AND p.parentid = 0 AND p.stActive = 1
+         WHERE m.idcomp = c.idComp AND m.stActive = 1
+         ORDER BY m.id
+       ) g
+       WHERE c.stDel IS NULL
+       ORDER BY c.CompName`
     );
     res.json({ success: true, data: result.recordset });
   } catch (err) {
@@ -8329,6 +8337,23 @@ async function adjRevCreate(t, idUpdate, ids, note, req) {
 // ==================================================================
 const APV_INBOX_MAX = 300;   // ต่อเรื่อง (เก่าสุดตัดทิ้ง — หน้าแจ้งให้ไปที่หน้าอนุมัติของเรื่องนั้น)
 const APV_RTS_STEPS = [['ack', 'รับทราบ'], ['check1', 'ตรวจสอบ 1'], ['check2', 'ตรวจสอบ 2'], ['approve', 'อนุมัติ']];
+// กรรมการผู้จัดการ (ตำแหน่งมีคำว่า "กรรมการผู้จัดการ") = นับตัวเลขบนเมนู / หน้า Home เฉพาะงานที่ระบุชื่อ — กลุ่มระบบคนอื่น (ผู้ดูแลระบบ) นับงานตามสิทธิ์ด้วย
+const MD_POSITION_LIKE = '%กรรมการผู้จัดการ%';
+const mdCache = new Map();
+async function isManagingDirector(idPs) {
+  const c = mdCache.get(idPs);
+  if (c && Date.now() - c.at < 10 * 60 * 1000) return c.v;
+  let v = false;
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('ps', sql.Int, idPs).input('pos', sql.NVarChar(100), MD_POSITION_LIKE)
+      .query('SELECT TOP 1 1 AS x FROM devsk.vPersonxSelect WITH (NOLOCK) WHERE idPs = @ps AND PositionName LIKE @pos');
+    v = r.recordset.length > 0;
+  } catch (e) { console.error('isManagingDirector error:', e); }
+  mdCache.set(idPs, { at: Date.now(), v });
+  if (mdCache.size > 2000) mdCache.clear();
+  return v;
+}
 async function approvalInbox(idPs, access) {
   const pool = await poolPromise;
   const out = [], more = {};
@@ -8354,7 +8379,7 @@ async function approvalInbox(idPs, access) {
       const mine = rqSteps.filter(k => !done[k]);
       if (!mine.length) return;
       const src = x.SrcType === 'SC' ? `ตรวจนับ ${x.ScCode || ''}` : x.SrcType === 'REV' ? `กลับรายการ ${x.RevDocCode || ''}` : 'WIM Desktop';
-      out.push({ mod: 'rq', id: x.idRqUpdate, docNo: x.DocCode, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
+      out.push({ mod: 'rq', id: x.idRqUpdate, docNo: x.DocCode, idComp: x.idComp, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
         title: x.NoteReq || '-', src, srcType: x.SrcType === 'SC' || x.SrcType === 'REV' ? x.SrcType : 'PC', nLine: x.nLine || 0, by: x.CommandName || '',
         my: mine.map(k => ({ code: k, name: ADJ_STEPS[k].name })),
         progress: [['ack', 'รับทราบ'], ['check', 'ตรวจสอบ'], ['approve', 'อนุมัติ']].map(([k, n]) => ({ name: n, done: done[k] })),
@@ -8385,7 +8410,7 @@ async function approvalInbox(idPs, access) {
         : x.DateCheck2 && !x.DateApv);
       if (!mine.length) return;
       const doneAt = { ack: x.DateAccept, check1: x.DateCheck, check2: x.DateCheck2, approve: x.DateApv };
-      out.push({ mod: 'rts', id: x.idBuyRT, docNo: x.DocCode, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
+      out.push({ mod: 'rts', id: x.idBuyRT, docNo: x.DocCode, idComp: x.idComp, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
         title: x.Note || '-', src: x.SupName ? `Supplier ${x.SupName}` : '', nLine: x.nLine || 0, by: x.CreatorName || '',
         sup: x.SupName || '', typeName: x.TypeName || '', value: x.TotalValue, credit: x.stCredit === '1' ? x.TotalDiff : null,
         flags: { returnGoods: x.stReturnGoods === '1', replace: x.stReplace === '1', credit: x.stCredit === '1', noCostAdj: x.stNoCostAdj === '1' },
@@ -8396,24 +8421,27 @@ async function approvalInbox(idPs, access) {
   }
   // 3) Over PO: ใบขออนุมัติรับซื้อ (OPA) ที่ระบุผู้ใช้คนนี้เป็นผู้อนุมัติ และยังไม่กดขั้นของตัวเอง
   const ops = await opsApvPendingData(idPs);
-  ops.forEach(x => out.push({ mod: 'ops', id: x.id, docNo: x.buyDocNo || x.docNo, comp: x.reqName || '', compCode: '', date: x.buyAt ? String(x.buyAt).replace(' ', 'T') + ':00.000Z' : null,
+  ops.forEach(x => out.push({ mod: 'ops', id: x.id, docNo: x.buyDocNo || x.docNo, idComp: x.req, comp: x.reqName || '', compCode: '', date: x.buyAt ? String(x.buyAt).replace(' ', 'T') + ':00.000Z' : null,
     title: x.items.map(it => it.invName).filter(Boolean).join(', ') || '-', src: `คำร้อง ${x.docNo}`, nLine: x.items.length, by: x.buyBy || '',
     amount: x.total,
     my: x.steps.map(k => ({ code: k, name: opsStepAct(k) })),
     progress: OPS_APV_STEPS.map((st, i) => ({ name: opsStepAct(st.code), done: i < x.done })), progressCount: { done: x.done, count: x.count },
     href: `/over-po-sale-opa?id=${x.id}&from=inbox` }));
+  // กรรมการผู้จัดการ: ไม่แสดงงานของบริษัททดสอบ (HOME_EXCLUDE_COMP_IDS) ทั้งในรายการและตัวเลข
+  const namedOnly = !!access.unrestricted && await isManagingDirector(idPs);
+  if(namedOnly){ for(let i = out.length - 1; i >= 0; i--) if(HOME_EXCLUDE_COMP_IDS.includes(Number(out[i].idComp))) out.splice(i, 1); }
   // วันที่ทุกเรื่องเป็นเวลาท้องถิ่นแบบเดียวกับหน้าอื่น (ค่าจากฐานข้อมูลติด Z) → เรียงด้วยค่าเวลาได้ตรง ๆ
   const ts = (v) => { const t = new Date(v).getTime(); return Number.isFinite(t) ? t : 0; };
   out.sort((a, b) => ts(b.date) - ts(a.date));
   // ระบุชื่อฉัน (named) = ผู้อนุมัติถูกระบุตัวในเอกสาร (Over PO) / ตามสิทธิ์ของฉัน (role) = ตามสิทธิ์ขั้นตอน (ปรับยอดสต๊อก / ส่งคืนสินค้า)
-  //   ตัวเลขบนเมนู / หน้า Home (badge): กลุ่มระบบ (เห็นทุกเมนูอัตโนมัติ เช่น ผู้บริหาร / ผู้ดูแลระบบ) นับเฉพาะงานที่ระบุชื่อ — งานตามสิทธิ์ของระดับผู้จัดการไม่นับ
+  //   ตัวเลขบนเมนู / หน้า Home (badge): กรรมการผู้จัดการในกลุ่มระบบ นับเฉพาะงานที่ระบุชื่อ — ผู้ดูแลระบบคนอื่นนับงานตามสิทธิ์ด้วย
   out.forEach(x => { x.scope = x.mod === 'ops' ? 'named' : 'role'; });
   const counts = { rq: 0, rts: 0, ops: 0 }, badgeCounts = { rq: 0, rts: 0, ops: 0 };
-  const inBadge = (x) => !access.unrestricted || x.scope === 'named';
+  const inBadge = (x) => !namedOnly || x.scope === 'named';
   out.forEach(x => { counts[x.mod]++; if (inBadge(x)) badgeCounts[x.mod]++; });
   const named = out.filter(x => x.scope === 'named').length;
   return { data: out, counts, total: out.length, named, role: out.length - named, more,
-    badge: out.filter(inBadge).length, badgeCounts, unrestricted: !!access.unrestricted,
+    badge: out.filter(inBadge).length, badgeCounts, unrestricted: !!access.unrestricted, namedOnly,
     mods: { rq: rqSteps.length > 0, rts: rtsSteps.length > 0, ops: ops.length > 0 } };   // ขอรับซื้อเมล็ด Over PO: การ์ดแสดงเฉพาะคนที่มีงานที่ระบุชื่อ
 }
 app.get(['/approvals', '/approvals.html'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'approvals.html')));
@@ -8448,7 +8476,7 @@ async function approvalCount(idPs) {
   const access = await getUserAccess(idPs);
   const eligible = await approvalEligible(idPs, access);
   const x = eligible ? await approvalInbox(idPs, access) : { badgeCounts: { rq: 0, rts: 0, ops: 0 }, badge: 0 };
-  const v = { at: Date.now(), counts: x.badgeCounts, total: x.badge, eligible };   // ตัวเลขบนเมนู (กลุ่มระบบ = เฉพาะงานที่ระบุชื่อ)
+  const v = { at: Date.now(), counts: x.badgeCounts, total: x.badge, eligible };   // ตัวเลขบนเมนู (กรรมการผู้จัดการ = เฉพาะงานที่ระบุชื่อ)
   apvCountCache.set(idPs, v);
   if (apvCountCache.size > 2000) apvCountCache.clear();
   return v;
