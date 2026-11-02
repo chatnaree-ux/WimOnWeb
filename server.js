@@ -421,8 +421,10 @@ const PORT = process.env.PORT || 3001;
 // ==================================================================
 // กติกา:
 //   ไม่มีกลุ่ม = ไม่มีสิทธิ์เมนูและบริษัทใดเลย / กลุ่มระบบ (stSystem) = ทุกเมนู + ทุกบริษัท
-//   กลุ่มทั่วไป = เฉพาะเมนูใน WIMWebMenuPermission + บริษัทใน WIMWebGroupCompPer
+//   กลุ่มทั่วไป = เฉพาะเมนูใน CoreCenter.MenuUserSet + บริษัทใน CoreCenter.MenuUserPsComp (ระบบ WEB_WIM)
 // idPs อ่านจาก session เท่านั้น (ไม่เชื่อค่าที่หน้าเว็บส่งมา) / cache สั้นๆ กันยิง DB ทุก request
+// สิทธิ์เก็บที่ CoreCenter ระบบ WEB_WIM — ทุก query/แก้ไขตารางกลางต้องจำกัดเฉพาะระบบนี้ ห้ามแตะแถวของระบบอื่น
+const PERM_SYS = 'WEB_WIM';
 const ACCESS_CACHE_MS = 30 * 1000;
 const accessCache = new Map();
 
@@ -435,11 +437,13 @@ async function getUserAccess(idPs) {
   const pool = await poolPromise;
   const groupResult = await pool.request()
     .input('idPs', sql.Int, idPs)
+    .input('sys', sql.VarChar(255), PERM_SYS)
     .query(
-      `SELECT g.idGroup, g.stSystem
-       FROM WIMWebUserGroupMember m
-       JOIN WIMWebUserGroup g ON m.idGroup = g.idGroup
-       WHERE m.idPs = @idPs AND m.stDel IS NULL AND g.stDel IS NULL`
+      `SELECT p.idUser, ISNULL(CAST(s.stSystem AS int), 0) AS stSystem
+       FROM CoreCenter.dbo.MenuUserPs p
+       JOIN CoreCenter.dbo.MenuUser u ON u.idUser = p.idUser AND u.MenuSys = @sys
+       LEFT JOIN WIMWebGroupSet s ON s.idUser = p.idUser
+       WHERE p.idPs = @idPs`
     );
 
   let access;
@@ -447,36 +451,39 @@ async function getUserAccess(idPs) {
     // ไม่มีกลุ่ม = login ได้ เข้าหน้า Home ได้ แต่ปิดทุกเมนู (ให้แจ้งผู้ดูแลระบบเปิดสิทธิ์)
     // ยกเว้นหน้าตอบกลับคำร้อง URS (/api/urs/reply) ที่เช็คแค่ login — มีลิงก์ก็ตอบกลับได้
     access = { unrestricted: false, allComps: false, menus: new Set(), comps: new Set() };
+  } else if (groupResult.recordset.some(g => g.stSystem === 1)) {
+    access = { unrestricted: true, allComps: true, menus: new Set(), comps: new Set() };
   } else {
-    const { idGroup, stSystem } = groupResult.recordset[0];
-    if (stSystem === true || stSystem === 1) {
-      access = { unrestricted: true, allComps: true, menus: new Set(), comps: new Set() };
-    } else {
-      const menuResult = await pool.request()
-        .input('idGroup', sql.Int, idGroup)
-        .query(
-          `SELECT m.MenuCode
-           FROM WIMWebMenuPermission p
-           JOIN WIMWebMenu m ON p.idMenu = m.idMenu
-           WHERE p.idGroup = @idGroup AND p.stAllow = 1 AND p.stDel IS NULL AND m.stDel IS NULL
-             AND ISNULL(m.stWip, 0) = 0` // เมนู On process ไม่นับ แม้มีแถวสิทธิ์ค้างอยู่
-        );
-      const compResult = await pool.request()
-        .input('idGroup', sql.Int, idGroup)
-        .query(
-          `SELECT p.idComp
-           FROM WIMWebGroupCompPer p
-           JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = p.idComp
-           WHERE p.idGroup = @idGroup AND p.stAllow = 1 AND p.stDel IS NULL
-             AND c.stDel IS NULL AND c.CompName IS NOT NULL`
-        );
-      access = {
-        unrestricted: false,
-        allComps: false,
-        menus: new Set(menuResult.recordset.map(r => r.MenuCode)),
-        comps: new Set(compResult.recordset.map(r => String(r.idComp)))
-      };
-    }
+    // หน้าเว็บเราให้อยู่กลุ่มเดียว แต่ระบบกลางเพิ่มหลายกลุ่มได้ — รวมสิทธิ์จากทุกกลุ่มของ WEB_WIM
+    const menuResult = await pool.request()
+      .input('idPs', sql.Int, idPs)
+      .input('sys', sql.VarChar(255), PERM_SYS)
+      .query(
+        `SELECT DISTINCT w.MenuCode
+         FROM CoreCenter.dbo.MenuUserPs p
+         JOIN CoreCenter.dbo.MenuUser u ON u.idUser = p.idUser AND u.MenuSys = @sys
+         JOIN CoreCenter.dbo.MenuUserSet ms ON ms.idUser = p.idUser
+         JOIN WIMWebMenu w ON w.CoreMenuCode = ms.MenuCode
+         WHERE p.idPs = @idPs AND w.stDel IS NULL
+           AND ISNULL(w.stWip, 0) = 0` // เมนู On process ไม่นับ แม้มีแถวสิทธิ์ค้างอยู่
+      );
+    const compResult = await pool.request()
+      .input('idPs', sql.Int, idPs)
+      .input('sys', sql.VarChar(255), PERM_SYS)
+      .query(
+        `SELECT DISTINCT pc.idComp
+         FROM CoreCenter.dbo.MenuUserPs p
+         JOIN CoreCenter.dbo.MenuUser u ON u.idUser = p.idUser AND u.MenuSys = @sys
+         JOIN CoreCenter.dbo.MenuUserPsComp pc ON pc.idUser = p.idUser AND pc.idPs = p.idPs
+         JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = pc.idComp
+         WHERE p.idPs = @idPs AND c.stDel IS NULL AND c.CompName IS NOT NULL`
+      );
+    access = {
+      unrestricted: false,
+      allComps: false,
+      menus: new Set(menuResult.recordset.map(r => r.MenuCode)),
+      comps: new Set(compResult.recordset.map(r => String(r.idComp)))
+    };
   }
   accessCache.set(idPs, { access, exp: Date.now() + ACCESS_CACHE_MS });
   return access;
@@ -539,46 +546,21 @@ const LOT_TABLE = 'GR_Group.devsk.dInvLotMain';
 const SP_STOCKCARD = 'devsk.sp_StockCardInv';
 const SP_PARAM_LOT = 'idLot';
 
-// ---------- บริษัทใน combobox: แสดงเฉพาะบริษัทที่กลุ่มของผู้ใช้ได้รับสิทธิ์ใน WIMWebGroupCompPer ----------
+// ---------- บริษัทใน combobox: แสดงเฉพาะบริษัทที่ผู้ใช้มีสิทธิ์ (CoreCenter.MenuUserPsComp) ----------
 // กลุ่มระบบ = เห็นทุกบริษัท / ไม่มีกลุ่ม หรือกลุ่มที่ไม่ได้กำหนดสิทธิ์บริษัท = ไม่เห็นบริษัทเลย
 app.get('/api/companies', requireLogin, async (req, res) => {
   const idPs = req.idPs;
 
   try {
+    const access = await getUserAccess(idPs);
     const pool = await poolPromise;
-    const systemResult = await pool.request()
-      .input('idPs', sql.Int, idPs)
-      .query(
-        `SELECT TOP 1 1 AS isSystem
-         FROM WIMWebUserGroupMember m
-         JOIN WIMWebUserGroup g ON g.idGroup = m.idGroup
-         WHERE m.idPs = @idPs AND m.stDel IS NULL AND g.stDel IS NULL AND g.stSystem = 1`
-      );
-
-    if (systemResult.recordset.length > 0) {
-      const all = await pool.request().query(
-        `SELECT CompName AS name, idComp AS id
-         FROM PchInvAndProject.dbo.dCompany
-         WHERE stDel IS NULL AND CompName IS NOT NULL
-         ORDER BY CompName`
-      );
-      return res.json({ success: true, data: all.recordset });
-    }
-
-    const result = await pool.request()
-      .input('idPs', sql.Int, idPs)
-      .query(
-        `SELECT DISTINCT c.CompName AS name, c.idComp AS id
-         FROM WIMWebUserGroupMember m
-         JOIN WIMWebUserGroup g ON g.idGroup = m.idGroup
-         JOIN WIMWebGroupCompPer p ON p.idGroup = g.idGroup
-         JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = p.idComp
-         WHERE m.idPs = @idPs AND m.stDel IS NULL
-           AND g.stDel IS NULL AND ISNULL(g.stSystem, 0) = 0
-           AND p.stAllow = 1 AND p.stDel IS NULL
-           AND c.stDel IS NULL AND c.CompName IS NOT NULL
-         ORDER BY c.CompName`
-      );
+    const request = pool.request();
+    const result = await request.query(
+      `SELECT CompName AS name, idComp AS id
+       FROM PchInvAndProject.dbo.dCompany
+       WHERE stDel IS NULL AND CompName IS NOT NULL ${compFilter(access, request, 'idComp')}
+       ORDER BY CompName`
+    );
     res.json({ success: true, data: result.recordset });
   } catch (err) {
     console.error('Companies error:', err);
@@ -1873,10 +1855,12 @@ app.get('/api/permissions/menus', requireMenu(MENU_ADMIN), async (req, res) => {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(
-      `SELECT idMenu, MenuCode, MenuName, MenuUrl, idParentMenu, SortOrder, CAST(ISNULL(stWip, 0) AS bit) AS stWip
-       FROM WIMWebMenu
-       WHERE stDel IS NULL
-       ORDER BY SortOrder, idMenu`
+      // ชื่อเมนูอ่านจากกลาง (แถวหัวข้อไม่มีรหัสกลาง ใช้ชื่อฝั่งเรา)
+      `SELECT w.idMenu, w.MenuCode, ISNULL(d.MenuName, w.MenuName) AS MenuName, w.MenuUrl, w.idParentMenu, w.SortOrder, CAST(ISNULL(w.stWip, 0) AS bit) AS stWip
+       FROM WIMWebMenu w
+       LEFT JOIN CoreCenter.dbo.MenuData d ON d.MenuCode = w.CoreMenuCode AND d.MenuSys = '${PERM_SYS}'
+       WHERE w.stDel IS NULL
+       ORDER BY w.SortOrder, w.idMenu`
     );
     res.json({ success: true, data: result.recordset });
   } catch (err) {
@@ -1889,11 +1873,13 @@ app.get('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(
-      `SELECT g.idGroup, g.GroupName, g.stSystem,
-              (SELECT COUNT(*) FROM WIMWebUserGroupMember m WHERE m.idGroup = g.idGroup AND m.stDel IS NULL) AS memberCount
-       FROM WIMWebUserGroup g
-       WHERE g.stDel IS NULL
-       ORDER BY g.stSystem DESC, g.GroupName`
+      // idGroup ใน API นี้ = CoreCenter.MenuUser.idUser (หน้าเว็บใช้ชื่อเดิม)
+      `SELECT u.idUser AS idGroup, u.UserName AS GroupName, CAST(ISNULL(s.stSystem, 0) AS bit) AS stSystem,
+              (SELECT COUNT(DISTINCT p.idPs) FROM CoreCenter.dbo.MenuUserPs p WHERE p.idUser = u.idUser) AS memberCount
+       FROM CoreCenter.dbo.MenuUser u
+       LEFT JOIN WIMWebGroupSet s ON s.idUser = u.idUser
+       WHERE u.MenuSys = '${PERM_SYS}'
+       ORDER BY stSystem DESC, u.UserName`
     );
     res.json({ success: true, data: result.recordset });
   } catch (err) {
@@ -1904,19 +1890,30 @@ app.get('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
 
 // ---------- บันทึกประวัติการเปลี่ยนสิทธิ์ (WIMWebPermLog) — ใคร/เมื่อไร/ย้ายจากกลุ่มไหน/เมนู-บริษัทที่เพิ่ม-เอาออก ----------
 // conn = pool หรือ transaction (ส่ง transaction มาเพื่อให้ log บันทึกพร้อมกับการแก้สิทธิ์)
-async function writePermLog(conn, req, { actionType, idGroup = null, idGroupOld = null, idPsTarget = null, added = null, removed = null }) {
+// idUser / idUserOld = CoreCenter.MenuUser.idUser (แถวเก่าก่อนย้ายไปกลางใช้ idGroup / idGroupOld)
+async function writePermLog(conn, req, { actionType, idUser = null, idUserOld = null, idPsTarget = null, added = null, removed = null }) {
   await new sql.Request(conn)
     .input('actionType', sql.NVarChar(30), actionType)
-    .input('idGroup', sql.Int, idGroup)
-    .input('idGroupOld', sql.Int, idGroupOld)
+    .input('idUser', sql.Int, idUser)
+    .input('idUserOld', sql.Int, idUserOld)
     .input('idPsTarget', sql.Int, idPsTarget)
     .input('added', sql.NVarChar(sql.MAX), added && added.length ? added.join(',') : null)
     .input('removed', sql.NVarChar(sql.MAX), removed && removed.length ? removed.join(',') : null)
     .input('idPsAction', sql.Int, req.idPs || null)
     .input('ip', sql.VarChar(45), (req.ip || '').slice(0, 45) || null)
-    .query(`INSERT INTO WIMWebPermLog (ActionType, idGroup, idGroupOld, idPsTarget, Added, Removed, idPsAction, IpAddress)
-            VALUES (@actionType, @idGroup, @idGroupOld, @idPsTarget, @added, @removed, @idPsAction, @ip)`);
+    .query(`INSERT INTO WIMWebPermLog (ActionType, idUser, idUserOld, idPsTarget, Added, Removed, idPsAction, IpAddress)
+            VALUES (@actionType, @idUser, @idUserOld, @idPsTarget, @added, @removed, @idPsAction, @ip)`);
 }
+
+// กลุ่มต้องเป็นของ WEB_WIM เท่านั้น — กันส่ง idUser ของระบบอื่นมาแก้ตารางกลาง
+async function isPermGroup(conn, idUser) {
+  const r = await new sql.Request(conn)
+    .input('idUser', sql.Int, idUser)
+    .input('sys', sql.VarChar(255), PERM_SYS)
+    .query('SELECT 1 AS ok FROM CoreCenter.dbo.MenuUser WHERE idUser = @idUser AND MenuSys = @sys');
+  return r.recordset.length > 0;
+}
+const GROUP_NOT_FOUND = { success: false, message: 'ไม่พบกลุ่มผู้ใช้งานในระบบนี้' };
 
 // เทียบชุด id เดิมกับชุดใหม่ → { added, removed } (เรียงตามเลข)
 function diffIds(oldIds, newIds) {
@@ -1936,11 +1933,12 @@ app.post('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
     const pool = await poolPromise;
     const result = await pool.request()
       .input('groupName', sql.NVarChar, groupName.trim())
-      .query(`INSERT INTO WIMWebUserGroup (GroupName) OUTPUT INSERTED.idGroup VALUES (@groupName)`);
-    const newIdGroup = result.recordset[0].idGroup;
-    try { await writePermLog(pool, req, { actionType: 'GROUP_CREATE', idGroup: newIdGroup }); }
+      .input('sys', sql.VarChar(255), PERM_SYS)
+      .query('INSERT INTO CoreCenter.dbo.MenuUser (UserName, MenuSys) OUTPUT INSERTED.idUser VALUES (@groupName, @sys)');
+    const idUser = result.recordset[0].idUser;
+    try { await writePermLog(pool, req, { actionType: 'GROUP_CREATE', idUser }); }
     catch (e) { console.error('Perm log (GROUP_CREATE) error:', e); }
-    res.json({ success: true, idGroup: newIdGroup });
+    res.json({ success: true, idGroup: idUser });
   } catch (err) {
     console.error('Usergroups create error:', err);
     res.status(500).json({ success: false, message: 'สร้างกลุ่มไม่สำเร็จ', detail: err.message });
@@ -1956,10 +1954,11 @@ app.get('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req,
     const result = await pool.request()
       .input('idGroup', sql.Int, idGroup)
       .query(
-        `SELECT m.idPs,v.PsName, v.PositionName, v.CompName, v.CompCode
-         FROM WIMWebUserGroupMember m
+        `SELECT DISTINCT m.idPs, v.PsName, v.PositionName, v.CompName, v.CompCode
+         FROM CoreCenter.dbo.MenuUserPs m
+         JOIN CoreCenter.dbo.MenuUser u ON u.idUser = m.idUser AND u.MenuSys = '${PERM_SYS}'
          JOIN devsk.vPersonxSelect v ON m.idPs = v.idPs
-         WHERE m.idGroup = @idGroup AND m.stDel IS NULL
+         WHERE m.idUser = @idGroup
          ORDER BY v.PsName`
       );
     res.json({ success: true, data: result.recordset });
@@ -1992,7 +1991,7 @@ app.get('/api/usergroups/available-users', requireMenu([MENU_ADMIN, 'urs_request
 
 app.post('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req, res) => {
   const idGroup = parseInt(req.params.idGroup, 10);
-  const { idPs } = req.body;
+  const idPs = parseInt(req.body.idPs, 10);
   if (!idGroup || !idPs) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน' });
 
   let transaction;
@@ -2001,25 +2000,52 @@ app.post('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req
     transaction = new sql.Transaction(pool);
     await transaction.begin();
 
-    // กลุ่มเดิมของผู้ใช้ (ไว้บันทึกว่าย้ายมาจากกลุ่มไหน)
+    if (!await isPermGroup(transaction, idGroup)) {
+      await transaction.rollback();
+      return res.status(404).json(GROUP_NOT_FOUND);
+    }
+
+    // กลุ่มเดิมของผู้ใช้ เฉพาะ WEB_WIM (ระบบอื่นต้องไม่โดน)
     const oldRs = await new sql.Request(transaction)
       .input('idPs', sql.Int, idPs)
-      .query('SELECT TOP 1 idGroup FROM WIMWebUserGroupMember WHERE idPs = @idPs AND stDel IS NULL ORDER BY idMember DESC');
-    const idGroupOld = oldRs.recordset.length ? oldRs.recordset[0].idGroup : null;
+      .input('sys', sql.VarChar(255), PERM_SYS)
+      .query(`SELECT DISTINCT p.idUser FROM CoreCenter.dbo.MenuUserPs p
+              JOIN CoreCenter.dbo.MenuUser u ON u.idUser = p.idUser AND u.MenuSys = @sys
+              WHERE p.idPs = @idPs`);
+    const oldGroups = oldRs.recordset.map(r => r.idUser);
+    const others = oldGroups.filter(g => g !== idGroup);
+    const alreadyIn = oldGroups.includes(idGroup);
 
-    await new sql.Request(transaction)
-      .input('idPs', sql.Int, idPs)
-      .query('DELETE FROM WIMWebUserGroupMember WHERE idPs = @idPs');
+    // 1 คน 1 กลุ่ม: ออกจากกลุ่มอื่นของ WEB_WIM พร้อมสิทธิ์บริษัทของกลุ่มนั้น
+    for (const other of others) {
+      for (const table of ['MenuUserPsComp', 'MenuUserPs']) {
+        await new sql.Request(transaction)
+          .input('idPs', sql.Int, idPs)
+          .input('idUser', sql.Int, other)
+          .query(`DELETE FROM CoreCenter.dbo.${table} WHERE idPs = @idPs AND idUser = @idUser`);
+      }
+    }
 
-    await new sql.Request(transaction)
-      .input('idPs', sql.Int, idPs)
-      .input('idGroup', sql.Int, idGroup)
-      .query('INSERT INTO WIMWebUserGroupMember (idPs, idGroup) VALUES (@idPs, @idGroup)');
+    if (!alreadyIn) {
+      await new sql.Request(transaction)
+        .input('idPs', sql.Int, idPs)
+        .input('idUser', sql.Int, idGroup)
+        .query('INSERT INTO CoreCenter.dbo.MenuUserPs (idUser, idPs) VALUES (@idUser, @idPs)');
+      // สมาชิกใหม่ได้ชุดบริษัทของกลุ่ม
+      await new sql.Request(transaction)
+        .input('idPs', sql.Int, idPs)
+        .input('idUser', sql.Int, idGroup)
+        .query(`INSERT INTO CoreCenter.dbo.MenuUserPsComp (idUser, idPs, idComp)
+                SELECT DISTINCT @idUser, @idPs, c.idComp FROM WIMWebGroupCompPer c
+                WHERE c.idUser = @idUser AND c.stAllow = 1 AND c.stDel IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM CoreCenter.dbo.MenuUserPsComp x
+                                  WHERE x.idUser = @idUser AND x.idPs = @idPs AND x.idComp = c.idComp)`);
+    }
 
-    if (idGroupOld !== idGroup) {
+    if (others.length || !alreadyIn) {
       await writePermLog(transaction, req, {
-        actionType: idGroupOld ? 'MEMBER_MOVE' : 'MEMBER_ADD',
-        idGroup, idGroupOld, idPsTarget: parseInt(idPs, 10)
+        actionType: others.length ? 'MEMBER_MOVE' : 'MEMBER_ADD',
+        idUser: idGroup, idUserOld: others.length ? others[0] : null, idPsTarget: idPs
       });
     }
 
@@ -2043,12 +2069,20 @@ app.delete('/api/usergroups/:idGroup/members/:idPs', requireMenu(MENU_ADMIN), as
     const pool = await poolPromise;
     transaction = new sql.Transaction(pool);
     await transaction.begin();
+    if (!await isPermGroup(transaction, idGroup)) {
+      await transaction.rollback();
+      return res.status(404).json(GROUP_NOT_FOUND);
+    }
+    await new sql.Request(transaction)
+      .input('idPs', sql.Int, idPs)
+      .input('idUser', sql.Int, idGroup)
+      .query('DELETE FROM CoreCenter.dbo.MenuUserPsComp WHERE idPs = @idPs AND idUser = @idUser');
     const del = await new sql.Request(transaction)
       .input('idPs', sql.Int, idPs)
-      .input('idGroup', sql.Int, idGroup)
-      .query('DELETE FROM WIMWebUserGroupMember WHERE idPs = @idPs AND idGroup = @idGroup');
+      .input('idUser', sql.Int, idGroup)
+      .query('DELETE FROM CoreCenter.dbo.MenuUserPs WHERE idPs = @idPs AND idUser = @idUser');
     if (del.rowsAffected[0] > 0) {
-      await writePermLog(transaction, req, { actionType: 'MEMBER_REMOVE', idGroup, idPsTarget: idPs });
+      await writePermLog(transaction, req, { actionType: 'MEMBER_REMOVE', idUser: idGroup, idPsTarget: idPs });
     }
     await transaction.commit();
     clearAccessCache();
@@ -2068,7 +2102,11 @@ app.get('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async (
     const pool = await poolPromise;
     const result = await pool.request()
       .input('idGroup', sql.Int, idGroup)
-      .query(`SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL`);
+      .query(`SELECT DISTINCT w.idMenu
+              FROM CoreCenter.dbo.MenuUserSet s
+              JOIN CoreCenter.dbo.MenuUser u ON u.idUser = s.idUser AND u.MenuSys = '${PERM_SYS}'
+              JOIN WIMWebMenu w ON w.CoreMenuCode = s.MenuCode AND w.stDel IS NULL
+              WHERE s.idUser = @idGroup`);
     res.json({ success: true, data: result.recordset.map(r => r.idMenu) });
   } catch (err) {
     console.error('Get group permissions error:', err);
@@ -2079,7 +2117,6 @@ app.get('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async (
 app.post('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async (req, res) => {
   const idGroup = parseInt(req.params.idGroup, 10);
   const { menuIds } = req.body;
-  const idPsCreate = req.idPs;
   if (!idGroup) return res.status(400).json({ success: false, message: 'idGroup ไม่ถูกต้อง' });
   if (!Array.isArray(menuIds)) return res.status(400).json({ success: false, message: 'รูปแบบข้อมูลไม่ถูกต้อง' });
 
@@ -2089,36 +2126,42 @@ app.post('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async 
     transaction = new sql.Transaction(pool);
     await transaction.begin();
 
-    const oldMenus = (await new sql.Request(transaction)
-      .input('idGroup', sql.Int, idGroup)
-      .query('SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL'))
-      .recordset.map(r => r.idMenu);
-
-    await new sql.Request(transaction)
-      .input('idGroup', sql.Int, idGroup)
-      .query('DELETE FROM WIMWebMenuPermission WHERE idGroup = @idGroup');
-
-    for (const idMenu of menuIds) {
-      const req2 = new sql.Request(transaction)
-        .input('idGroup', sql.Int, idGroup)
-        .input('idMenu', sql.Int, idMenu);
-      if (idPsCreate) req2.input('idPsCreate', sql.Int, idPsCreate);
-      // เมนู On process (stWip = 1) ให้สิทธิ์ไม่ได้ — ข้ามไป (กันกรณีส่งมาตรงๆ ไม่ผ่านหน้ากำหนดสิทธิ์)
-      await req2.query(
-        `INSERT INTO WIMWebMenuPermission (idGroup, idMenu, stAllow${idPsCreate ? ', idPsCreate' : ''})
-         SELECT @idGroup, idMenu, 1${idPsCreate ? ', @idPsCreate' : ''}
-         FROM WIMWebMenu WHERE idMenu = @idMenu AND ISNULL(stWip, 0) = 0`
-      );
+    if (!await isPermGroup(transaction, idGroup)) {
+      await transaction.rollback();
+      return res.status(404).json(GROUP_NOT_FOUND);
     }
 
-    // เทียบกับที่บันทึกจริง (เมนู On process ถูกข้ามไป) — บันทึก log เฉพาะเมื่อมีการเปลี่ยน
-    const newMenus = (await new sql.Request(transaction)
-      .input('idGroup', sql.Int, idGroup)
-      .query('SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1'))
-      .recordset.map(r => r.idMenu);
+    // แก้เฉพาะเมนูที่รู้จัก (มีรหัสกลางใน WIMWebMenu) และเฉพาะส่วนที่เปลี่ยน — แถวอื่นในกลางไม่ถูกแตะ
+    const menus = (await new sql.Request(transaction)
+      .query('SELECT idMenu, CoreMenuCode, CAST(ISNULL(stWip, 0) AS int) AS stWip FROM WIMWebMenu WHERE stDel IS NULL AND CoreMenuCode IS NOT NULL'))
+      .recordset;
+    const oldCodes = new Set((await new sql.Request(transaction)
+      .input('idUser', sql.Int, idGroup)
+      .query('SELECT MenuCode FROM CoreCenter.dbo.MenuUserSet WHERE idUser = @idUser'))
+      .recordset.map(r => r.MenuCode));
+    const oldMenus = menus.filter(m => oldCodes.has(m.CoreMenuCode)).map(m => m.idMenu);
+    // เมนู On process (stWip = 1) ให้สิทธิ์ไม่ได้ — ข้ามไป (กันกรณีส่งมาตรงๆ ไม่ผ่านหน้ากำหนดสิทธิ์)
+    const wanted = new Set(menuIds.map(Number));
+    const newMenus = menus.filter(m => wanted.has(m.idMenu) && !m.stWip).map(m => m.idMenu);
     const menuDiff = diffIds(oldMenus, newMenus);
+    const codeOf = id => menus.find(m => m.idMenu === id).CoreMenuCode;
+
+    for (const id of menuDiff.removed) {
+      await new sql.Request(transaction)
+        .input('idUser', sql.Int, idGroup)
+        .input('code', sql.VarChar(255), codeOf(id))
+        .query('DELETE FROM CoreCenter.dbo.MenuUserSet WHERE idUser = @idUser AND MenuCode = @code');
+    }
+    for (const id of menuDiff.added) {
+      await new sql.Request(transaction)
+        .input('idUser', sql.Int, idGroup)
+        .input('code', sql.VarChar(255), codeOf(id))
+        .query('INSERT INTO CoreCenter.dbo.MenuUserSet (idUser, MenuCode) VALUES (@idUser, @code)');
+    }
+
+    // บันทึก log เฉพาะเมื่อมีการเปลี่ยน
     if (menuDiff.added.length || menuDiff.removed.length) {
-      await writePermLog(transaction, req, { actionType: 'MENU_SET', idGroup, ...menuDiff });
+      await writePermLog(transaction, req, { actionType: 'MENU_SET', idUser: idGroup, ...menuDiff });
     }
 
     await transaction.commit();
@@ -2147,7 +2190,7 @@ app.get('/api/permissions/my', requireLogin, async (req, res) => {
 // ==================================================================
 
 // ---------- บริษัทในระบบคำร้องขอเมล็ดพันธุ์เร่งด่วน (idComp 2, 3, 4) ----------
-// ส่งครบทุกบริษัท พร้อม allowed = user มีสิทธิ์บริษัทนั้น (WIMWebGroupCompPer / กลุ่มระบบเห็นทุกบริษัท)
+// ส่งครบทุกบริษัท พร้อม allowed = user มีสิทธิ์บริษัทนั้น (CoreCenter.MenuUserPsComp / กลุ่มระบบเห็นทุกบริษัท)
 //   หน้าเว็บ: "บริษัทที่ส่งคำร้องขอ" + รายการคำร้อง = เฉพาะ allowed / "บริษัทต้นทาง" = เลือกได้ทุกบริษัท
 const URS_COMPANY_IDS = [2, 3, 4];
 
@@ -3304,7 +3347,11 @@ app.get('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN),
     const pool = await poolPromise;
     const result = await pool.request()
       .input('idGroup', sql.Int, idGroup)
-      .query(`SELECT idComp FROM WIMWebGroupCompPer WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL`);
+      // ชุดบริษัทระดับกลุ่มเก็บฝั่งเรา (ระบบกลางเก็บรายคน)
+      .query(`SELECT c.idComp
+              FROM WIMWebGroupCompPer c
+              JOIN CoreCenter.dbo.MenuUser u ON u.idUser = c.idUser AND u.MenuSys = '${PERM_SYS}'
+              WHERE c.idUser = @idGroup AND c.stAllow = 1 AND c.stDel IS NULL`);
     res.json({ success: true, data: result.recordset.map(r => r.idComp) });
   } catch (err) {
     console.error('Get group company permissions error:', err);
@@ -3312,7 +3359,7 @@ app.get('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN),
   }
 });
 
-// ---------- บันทึกสิทธิ์บริษัทของกลุ่ม (แทนที่ชุดสิทธิ์เดิมทั้งหมดด้วยชุดใหม่ที่ส่งมา) ----------
+// ---------- บันทึกสิทธิ์บริษัทของกลุ่ม: แก้ชุดของกลุ่ม แล้วกระจายเฉพาะส่วนที่เปลี่ยนให้สมาชิก (บริษัทที่เพิ่มให้รายคนจากระบบกลางไม่หาย) ----------
 app.post('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN), async (req, res) => {
   const idGroup = parseInt(req.params.idGroup, 10);
   const { compIds } = req.body; // compIds = array ของ idComp ที่อนุญาต
@@ -3326,29 +3373,68 @@ app.post('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN)
     transaction = new sql.Transaction(pool);
     await transaction.begin();
 
+    const groupRs = await new sql.Request(transaction)
+      .input('idUser', sql.Int, idGroup)
+      .input('sys', sql.VarChar(255), PERM_SYS)
+      .query('SELECT UserName FROM CoreCenter.dbo.MenuUser WHERE idUser = @idUser AND MenuSys = @sys');
+    if (!groupRs.recordset.length) {
+      await transaction.rollback();
+      return res.status(404).json(GROUP_NOT_FOUND);
+    }
+
+    // WIMWebGroupCompPer ผูก FK กับ WIMWebUserGroup — กลุ่มที่เกิดหลังย้ายไปกลางยังไม่มีแถวคู่ ให้สร้างตอนนี้
+    let localRs = await new sql.Request(transaction)
+      .input('idUser', sql.Int, idGroup)
+      .query('SELECT TOP 1 idGroup FROM WIMWebUserGroup WHERE idUser = @idUser');
+    if (!localRs.recordset.length) {
+      localRs = await new sql.Request(transaction)
+        .input('idUser', sql.Int, idGroup)
+        .input('name', sql.NVarChar(200), groupRs.recordset[0].UserName)
+        .query('INSERT INTO WIMWebUserGroup (GroupName, idUser) OUTPUT INSERTED.idGroup VALUES (@name, @idUser)');
+    }
+    const idLocal = localRs.recordset[0].idGroup;
+
     const oldComps = (await new sql.Request(transaction)
-      .input('idGroup', sql.Int, idGroup)
-      .query('SELECT idComp FROM WIMWebGroupCompPer WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL'))
+      .input('idUser', sql.Int, idGroup)
+      .query('SELECT idComp FROM WIMWebGroupCompPer WHERE idUser = @idUser AND stAllow = 1 AND stDel IS NULL'))
       .recordset.map(r => r.idComp);
 
     await new sql.Request(transaction)
-      .input('idGroup', sql.Int, idGroup)
-      .query('DELETE FROM WIMWebGroupCompPer WHERE idGroup = @idGroup');
+      .input('idLocal', sql.Int, idLocal)
+      .query('DELETE FROM WIMWebGroupCompPer WHERE idGroup = @idLocal');
 
-    for (const idComp of compIds) {
+    for (const idComp of new Set(compIds.map(Number))) {
       const req2 = new sql.Request(transaction)
-        .input('idGroup', sql.Int, idGroup)
+        .input('idLocal', sql.Int, idLocal)
+        .input('idUser', sql.Int, idGroup)
         .input('idComp', sql.Int, idComp);
       if (idPsCreate) req2.input('idPsCreate', sql.Int, idPsCreate);
       await req2.query(
-        `INSERT INTO WIMWebGroupCompPer (idGroup, idComp, stAllow${idPsCreate ? ', idPsCreate' : ''})
-         VALUES (@idGroup, @idComp, 1${idPsCreate ? ', @idPsCreate' : ''})`
+        `INSERT INTO WIMWebGroupCompPer (idGroup, idUser, idComp, stAllow${idPsCreate ? ', idPsCreate' : ''})
+         VALUES (@idLocal, @idUser, @idComp, 1${idPsCreate ? ', @idPsCreate' : ''})`
       );
     }
 
     const compDiff = diffIds(oldComps, compIds);
+    for (const idComp of compDiff.removed) {
+      await new sql.Request(transaction)
+        .input('idUser', sql.Int, idGroup)
+        .input('idComp', sql.Int, idComp)
+        .query('DELETE FROM CoreCenter.dbo.MenuUserPsComp WHERE idUser = @idUser AND idComp = @idComp');
+    }
+    for (const idComp of compDiff.added) {
+      await new sql.Request(transaction)
+        .input('idUser', sql.Int, idGroup)
+        .input('idComp', sql.Int, idComp)
+        .query(`INSERT INTO CoreCenter.dbo.MenuUserPsComp (idUser, idPs, idComp)
+                SELECT DISTINCT p.idUser, p.idPs, @idComp FROM CoreCenter.dbo.MenuUserPs p
+                WHERE p.idUser = @idUser
+                  AND NOT EXISTS (SELECT 1 FROM CoreCenter.dbo.MenuUserPsComp x
+                                  WHERE x.idUser = p.idUser AND x.idPs = p.idPs AND x.idComp = @idComp)`);
+    }
+
     if (compDiff.added.length || compDiff.removed.length) {
-      await writePermLog(transaction, req, { actionType: 'COMP_SET', idGroup, ...compDiff });
+      await writePermLog(transaction, req, { actionType: 'COMP_SET', idUser: idGroup, ...compDiff });
     }
 
     await transaction.commit();
