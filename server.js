@@ -256,6 +256,28 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
+// ---------- ติดตั้งเป็นแอป (PWA): ไฟล์ manifest ----------
+// ส่งจาก Node ไม่วางเป็นไฟล์ใน public — IIS บางรุ่นไม่รู้จักชนิดไฟล์ .json/.webmanifest (ไม่ต้องแก้ web.config)
+const APP_MANIFEST = JSON.stringify({
+  name: 'WIM — Warehouse & Inventory Management',
+  short_name: 'WIM',
+  description: 'ระบบบริหารคลังสินค้าและสต๊อก',
+  lang: 'th',
+  start_url: '/main-menu',
+  scope: '/',
+  display: 'standalone',
+  background_color: '#0c1420',
+  theme_color: '#0c1420',
+  icons: [
+    { src: '/images/app/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: '/images/app/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: '/images/app/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+  ]
+});
+app.get('/manifest.webmanifest', (req, res) => {
+  res.type('application/manifest+json').set('Cache-Control', 'no-cache').send(APP_MANIFEST);
+});
+
 // ---------- การตั้งค่าเชื่อมต่อ SQL Server ----------
 const dbConfig = {
   server: process.env.DB_SERVER,
