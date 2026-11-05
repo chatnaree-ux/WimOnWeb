@@ -7,7 +7,6 @@
 <link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
@@ -955,6 +954,7 @@
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/report-print.js?v=20261030n"></script>
+<script src="/js/wim-excel.js?v=20261105a"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
 <!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
 <link rel="stylesheet" href="/css/kpi-cards.css">
@@ -1699,7 +1699,17 @@
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
 
   // ---------- Export Excel (1 แถว = 1 Lot ที่รับ / บรรทัด PO ที่ยังไม่รับ = 1 แถว) ----------
-  exportBtn.addEventListener('click', () => {
+  // เงื่อนไขที่ใช้ดึงรายงานล่าสุด (ใส่ในหัวไฟล์ Excel)
+  let lastFilters = [];
+  function buildFilterInfo(){
+    const opt = (sel) => (sel.selectedIndex >= 0 && sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.trim() : '');
+    const kw = keywordInput.value.trim(), dm = kw ? 'all' : getDateMode();
+    const period = dm === 'month' ? opt(monthSelect) + ' ' + monthYearSelect.value : dm === 'year' ? 'ปี ' + yearOnlySelect.value : 'ทุกช่วงเวลา' + (kw ? ' (ค้นด้วยคำค้นหา)' : '');
+    const info = [['บริษัท', opt(companySelect)], ['ช่วงเวลา', period], ['ผู้ขาย', supplierSelect.value ? opt(supplierSelect) : 'ทั้งหมด'], ['พืช', cropSelect.value ? opt(cropSelect) : 'ทั้งหมด']];
+    if (kw) info.push(['คำค้นหา', kw]);
+    return info;
+  }
+  exportBtn.addEventListener('click', async () => {
     if (!allPos.length) return;
     const list = filteredPos();
     const header = ['เลขที่ PO', 'วันที่ PO', 'ผู้ขาย', 'สิ้นสุด PO', 'สินค้า', 'จำนวน PO', 'หน่วย PO', 'สถานะ',
@@ -1716,10 +1726,18 @@
         l.unitError ? 'หน่วย PO กับหน่วยรับไม่ตรงกัน ไม่สามารถคำนวณได้' : (i === 0 && r.cumPct > overPct ? `รับสะสมเกิน ${overPct}%` : '')
       ])));
     }));
-    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'รับเมล็ดพันธุ์');
-    XLSX.writeFile(wb, `po_receive_affiliate_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const old = exportBtn.innerHTML; exportBtn.disabled = true; exportBtn.textContent = 'กำลังสร้างไฟล์…';
+    try {
+      // ไฟล์ Excel มาตรฐานของระบบ (WIMExcel): แถบชื่อ + Export Date/By + กรอบเงื่อนไข + หัวตาราง
+      await WIMExcel.download({
+        filename: `po_receive_affiliate_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        title: 'รายงานการรับเมล็ดพันธุ์จากบริษัทในเครือ', titleEn: 'AFFILIATE SEED RECEIVING REPORT',
+        info: [...lastFilters, ['สถานะที่แสดง', statusFilter === 'all' ? 'ทั้งหมด' : (statusFilter === 'ended' ? 'สิ้นสุด PO' : STATUS_LABEL[statusFilter])], ['ซ่อน PO ที่สิ้นสุดแล้ว', hideEnded ? 'ใช่' : 'ไม่'], ['จำนวน PO', list.length + ' PO']],
+        sheets: [{ name: 'รับเมล็ดพันธุ์', head: header, body: rows, freezeCols: 1 }],
+        notes: ['1 แถว = 1 Lot ที่รับ · บรรทัด PO ที่ยังไม่รับ = 1 แถว']
+      });
+    } catch (err) { alert('สร้างไฟล์ Excel ไม่สำเร็จ: ' + err.message); }
+    finally { exportBtn.disabled = false; exportBtn.innerHTML = old; }
   });
 
   // ---------- โหลดรายงาน ----------
@@ -1746,6 +1764,7 @@
     if (supplierSelect.value) params.set('supplierId', supplierSelect.value);
     if (cropSelect.value) params.set('cropId', cropSelect.value);
     if (keywordInput.value.trim()) params.set('keyword', keywordInput.value.trim());
+    lastFilters = buildFilterInfo();
 
     viewBtn.disabled = true;
     viewBtn.innerHTML = '<span class="spinner"></span> กำลังโหลด…';
@@ -2069,36 +2088,39 @@
   }
 
   // ---------- Export Excel (ทุกสินค้าใน PO ต่อกันใน sheet เดียว) ----------
-  scExportBtn.addEventListener('click', () => {
+  scExportBtn.addEventListener('click', async () => {
     if (!scPo) return;
     const po = scPo;
-    const aoa = [
-      ['Stock Card การรับเมล็ดจากบริษัทในเครือ'],
-      ['PO No.', po.poCode, 'วันที่ออก PO', fmtDate(po.dateBuy), 'Supplier', po.supName || '', 'สถานะ', STATUS_LABEL[po.status] + (po.completed ? ' / สิ้นสุด PO' : '')],
-      []
-    ];
-    po.lines.forEach(line => {
-      aoa.push(['สินค้า', line.invName || '', 'สถานะ', STATUS_LABEL[line.status], '% รับ', line.pct === null ? '' : Number(line.pct.toFixed(2)), 'หน่วย', line.unit]);
-      aoa.push(['วันที่', 'รายการ', 'เลขที่เอกสาร', 'เลขที่อ้างอิง', 'Lot No.', 'จำนวน PO', 'จำนวนรับ', 'คงเหลือ PO', '% รับสะสม', 'หมายเหตุ']);
-      aoa.push([fmtDate(po.dateBuy), 'เปิด PO', po.poCode, '', '', line.amountPOInUnit, '', line.amountPOInUnit, 0, '']);
+    const head = ['วันที่', 'รายการ', 'เลขที่เอกสาร', 'เลขที่อ้างอิง', 'Lot No.', 'จำนวน PO', 'จำนวนรับ', 'คงเหลือ PO', '% รับสะสม', 'หมายเหตุ'];
+    const sections = po.lines.map(line => {
+      const body = [[fmtDate(po.dateBuy), 'เปิด PO', po.poCode, '', '', line.amountPOInUnit, '', line.amountPOInUnit, 0, '']];
       let recNo = 0, prevDoc = null;
       (line.ledger || []).forEach(r => {
         const docKey = `${r.docRec}|${r.dateRec}`;
         if (docKey !== prevDoc) { recNo++; prevDoc = docKey; }
-        aoa.push([
+        body.push([
           fmtDate(r.dateRec), 'รับครั้งที่ ' + recNo, r.docRec || '', r.docRef || '', r.lotNo || '', '',
           r.unitError ? r.amountRec : r.qty, r.balance, r.cumPct === null ? '' : Number(r.cumPct.toFixed(2)),
           r.unitError ? `หน่วยไม่ตรงกัน (${r.unitRec}) ไม่นำมาคำนวณ` : (r.balance < 0 ? 'รับเกิน PO' : '')
         ]);
       });
-      if (po.completed) aoa.push([po.dateComplete ? fmtDate(po.dateComplete) : '', 'สิ้นสุด PO', '', '', '', '', '', line.balance, line.pct === null ? '' : Number(line.pct.toFixed(2)), po.completeNote || '']);
-      aoa.push(['รวม', '', '', '', '', line.amountPOInUnit, line.received, line.balance, line.pct === null ? '' : Number(line.pct.toFixed(2)), '']);
-      aoa.push([]);
+      if (po.completed) body.push([po.dateComplete ? fmtDate(po.dateComplete) : '', 'สิ้นสุด PO', '', '', '', '', '', line.balance, line.pct === null ? '' : Number(line.pct.toFixed(2)), po.completeNote || '']);
+      return {
+        title: 'สินค้า: ' + (line.invName || '') + '   ·   สถานะ: ' + STATUS_LABEL[line.status] + '   ·   % รับ: ' + (line.pct === null ? '-' : line.pct.toFixed(2)) + '   ·   หน่วย: ' + (line.unit || ''),
+        head, body, foot: [['รวม', '', '', '', '', line.amountPOInUnit, line.received, line.balance, line.pct === null ? '' : Number(line.pct.toFixed(2)), '']]
+      };
     });
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Stock Card PO');
-    XLSX.writeFile(wb, `stockcard_po_${po.poCode.replace(/[\\/:*?"<>|]/g, '-')}.xlsx`);
+    const old = scExportBtn.innerHTML; scExportBtn.disabled = true; scExportBtn.textContent = 'กำลังสร้างไฟล์…';
+    try {
+      // ไฟล์ Excel มาตรฐานของระบบ (WIMExcel): ทุกสินค้าใน PO ต่อกันใน sheet เดียว (ตารางละสินค้า)
+      await WIMExcel.download({
+        filename: `stockcard_po_${po.poCode.replace(/[\\/:*?"<>|]/g, '-')}.xlsx`,
+        title: 'Stock Card การรับเมล็ดจากบริษัทในเครือ', titleEn: 'PO STOCK CARD',
+        info: [['PO No.', po.poCode], ['วันที่ออก PO', fmtDate(po.dateBuy)], ['Supplier', po.supName || ''], ['สถานะ', STATUS_LABEL[po.status] + (po.completed ? ' / สิ้นสุด PO' : '')], ['บริษัท', scCompanySelect.selectedOptions[0]?.text || '', 'full']],
+        sheets: [{ name: 'Stock Card PO', sections, widths: [14, 18, 18, 18, 18, 14, 14, 14, 12, 40] }]
+      });
+    } catch (err) { alert('สร้างไฟล์ Excel ไม่สำเร็จ: ' + err.message); }
+    finally { scExportBtn.disabled = false; scExportBtn.innerHTML = old; }
   });
   // พิมพ์: ใส่ class ชั่วคราวให้ CSS พิมพ์เฉพาะ Stock Card (กด Ctrl+P ปกติจะไม่โดน)
   // พิมพ์: เอกสารทางการ (A4 แนวนอน) สร้างด้วย WIMReport — หัวบริษัท / ข้อมูล PO / ตารางรับราย Lot ต่อสินค้า / แถวรวม

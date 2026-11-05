@@ -7,7 +7,6 @@
 <link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --navy-950:#0c1420;
@@ -528,6 +527,7 @@
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
 <script src="/js/report-print.js?v=20261030n"></script>
+<script src="/js/wim-excel.js?v=20261105a"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
 </head>
 <body>
@@ -1177,26 +1177,28 @@
   window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); const pa = document.getElementById('printArea'); if (pa) pa.innerHTML = ''; });
 
   const exportBtn = document.getElementById('exportBtn');
-  exportBtn.addEventListener('click', () => {
+  exportBtn.addEventListener('click', async () => {
     if (!lastProcessedRows.length) return;
-
-    const header = ['วันที่', 'รายละเอียด', 'คลัง', 'เข้า', 'ออก', 'คงเหลือ', 'หน่วย', 'ผู้ทำรายการ'];
-    const body = lastProcessedRows.map(r => [
-      r.date, r.detail, r.warehouse,
-      r.inQty === '' ? '' : Number(r.inQty),
-      r.outQty === '' ? '' : Number(r.outQty),
-      Number(r.balance),
-      r.unit, r.user
-    ]);
-
-    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
-    ws['!cols'] = [{wch:12},{wch:40},{wch:14},{wch:10},{wch:10},{wch:12},{wch:8},{wch:22}];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Stock Card');
-
+    const rows = lastProcessedRows, last = rows[rows.length - 1], comp = companySelect.options[companySelect.selectedIndex];
     const lotNo = confirmLotNo.textContent.trim() || 'stockcard';
-    XLSX.writeFile(wb, `stockcard_${lotNo}.xlsx`);
+    const sum = (k) => rows.reduce((acc, r) => acc + (Number(r[k]) || 0), 0);
+    const old = exportBtn.innerHTML; exportBtn.disabled = true; exportBtn.textContent = 'กำลังสร้างไฟล์…';
+    try {
+      // ไฟล์ Excel มาตรฐานของระบบ (WIMExcel): แถบชื่อ + Export Date/By + กรอบเงื่อนไข + หัวตาราง/แถวรวม
+      await WIMExcel.download({
+        filename: `stockcard_${lotNo}.xlsx`,
+        title: 'Stock Card', titleEn: 'STOCK CARD  ·  BY LOT NO.',
+        info: [['Lot No.', lotNo], ['จำนวนรายการ', rows.length + ' รายการ'], ['สินค้า', confirmProduct.textContent.trim()], ['ช่วงข้อมูล', rows[0].date + ' – ' + last.date], ['บริษัท', comp ? comp.text : '', 'full']],
+        sheets: [{
+          name: 'Stock Card', widths: [12, 40, 14, 10, 10, 12, 8, 22],
+          head: ['วันที่', 'รายละเอียด', 'คลัง', 'เข้า', 'ออก', 'คงเหลือ', 'หน่วย', 'ผู้ทำรายการ'],
+          body: rows.map(r => [r.date, r.detail, r.warehouse, r.inQty === '' ? '' : Number(r.inQty), r.outQty === '' ? '' : Number(r.outQty), Number(r.balance), r.unit, r.user]),
+          foot: [['รวม', '', '', sum('inQty'), sum('outQty'), Number(last.balance), last.unit || '', '']]
+        }],
+        notes: ['คงเหลือ = ยอดสะสมจากรายการรับเข้า − จ่ายออกตามลำดับวันที่']
+      });
+    } catch (err) { alert('สร้างไฟล์ Excel ไม่สำเร็จ: ' + err.message); }
+    finally { exportBtn.disabled = false; exportBtn.innerHTML = old; }
   });
 
   async function resolveIdLot(companyId, lotNo){

@@ -7,7 +7,7 @@
 <link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="/js/wim-excel.js?v=20261105a"></script>
 <style>
   :root{
     --navy-950:#0c1420;
@@ -897,9 +897,24 @@
   });
   window.addEventListener('afterprint', () => { document.body.classList.remove('printing'); const pa = document.getElementById('printArea'); if (pa) pa.innerHTML = ''; });
 
-  exportBtn.addEventListener('click', () => {
+  // เงื่อนไขที่ใช้ดึงรายงานล่าสุด (ใส่ในหัวไฟล์ Excel)
+  let lastFilters = [];
+  function buildFilterInfo(){
+    const comp = companySelect.options[companySelect.selectedIndex];
+    const dm = document.querySelector('input[name="dateMode"]:checked'), sm = document.querySelector('input[name="statusMode"]:checked');
+    const lbl = (el) => (el && el.parentElement ? el.parentElement.textContent.replace(/\s+/g, ' ').trim() : '');
+    const period = dm.value === 'day' ? dateFromInput.value + ' – ' + dateToInput.value
+      : dm.value === 'month' ? (monthSelect.options[monthSelect.selectedIndex] ? monthSelect.options[monthSelect.selectedIndex].text : '') + ' ' + monthYearInput.value : 'ปี ' + yearOnlyInput.value;
+    const info = [['บริษัท', comp ? comp.text : ''], ['สถานะ', lbl(sm)], ['ช่วงเวลา', lbl(dm) + ': ' + period]];
+    if (document.getElementById('chkLotNo').checked && document.getElementById('lotNoInput').value.trim()) info.push(['เลข Lot รับคืน', document.getElementById('lotNoInput').value.trim()]);
+    if (document.getElementById('chkReturnNo').checked && document.getElementById('returnNoInput').value.trim()) info.push(['เลขที่ใบรับคืน', document.getElementById('returnNoInput').value.trim()]);
+    if (document.getElementById('chkProductName').checked && document.getElementById('productNameInput').value.trim()) info.push(['ชื่อสินค้า/เมล็ด', document.getElementById('productNameInput').value.trim()]);
+    return info;
+  }
+
+  exportBtn.addEventListener('click', async () => {
     if (!lastProcessedRows.length) return;
-    const header = ['ลำดับ', ...COLUMNS.map(c => c.label)];
+    const head = ['ลำดับ', ...COLUMNS.map(c => c.label)];
     const body = lastProcessedRows.map((r, idx) => [
       idx + 1,
       ...COLUMNS.map(c => {
@@ -909,10 +924,17 @@
         return val ?? '';
       })
     ]);
-    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'รับคืนสินค้า');
-    XLSX.writeFile(wb, `salereturn_${new Date().toISOString().slice(0,10)}.xlsx`);
+    const old = exportBtn.innerHTML; exportBtn.disabled = true; exportBtn.textContent = 'กำลังสร้างไฟล์…';
+    try {
+      // ไฟล์ Excel มาตรฐานของระบบ (WIMExcel): แถบชื่อ + Export Date/By + กรอบเงื่อนไข + หัวตาราง
+      await WIMExcel.download({
+        filename: `salereturn_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        title: 'รายงานการรับคืนสินค้า', titleEn: 'SALE RETURN REPORT',
+        info: [...lastFilters, ['จำนวนรายการ', lastProcessedRows.length + ' รายการ']],
+        sheets: [{ name: 'รับคืนสินค้า', head, body, freezeCols: 1 }]
+      });
+    } catch (err) { alert('สร้างไฟล์ Excel ไม่สำเร็จ: ' + err.message); }
+    finally { exportBtn.disabled = false; exportBtn.innerHTML = old; }
   });
 
   async function loadReport(){
@@ -952,6 +974,7 @@
       params.set('productName', document.getElementById('productNameInput').value.trim());
     }
 
+    lastFilters = buildFilterInfo();
     viewBtn.disabled = true;
     viewBtn.innerHTML = '<span class="spinner"></span> กำลังโหลด…';
     renderState('');

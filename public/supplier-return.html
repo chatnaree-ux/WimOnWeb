@@ -1023,7 +1023,7 @@
 </style>
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="/js/wim-excel.js?v=20261105a"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
 <!-- การ์ดสรุปแบบเดียวกันทั้งระบบ (ต้องอยู่หลัง <style> ของหน้า) -->
 <link rel="stylesheet" href="/css/kpi-cards.css">
@@ -2267,8 +2267,7 @@
     };
   }
 
-  $('listExcelBtn').addEventListener('click', () => {
-    if(typeof XLSX === 'undefined') return showToast('โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ — ลองรีเฟรชหน้าอีกครั้ง', true);
+  $('listExcelBtn').addEventListener('click', async () => {
     const rows = visibleRows();
     if(!rows.length) return;
     // ชีต 1: 1 แถว = 1 เอกสาร
@@ -2296,15 +2295,20 @@
           it.cost == null ? '' : it.cost, c.cost, ty.credit ? it.price : '', ty.credit ? c.buy : '', ty.credit ? c.diff : '', it.reason || '']);
       });
     });
-    const wb = XLSX.utils.book_new();
-    const ws1 = XLSX.utils.aoa_to_sheet([docHead, ...docRows]);
-    const ws2 = XLSX.utils.aoa_to_sheet([itemHead, ...itemRows]);
-    ws1['!cols'] = docHead.map((h, i) => ({ wch: [4, 9].includes(i) ? 28 : 16 }));
-    ws2['!cols'] = itemHead.map((h, i) => ({ wch: i === 8 ? 40 : 15 }));
-    XLSX.utils.book_append_sheet(wb, ws1, 'เอกสารส่งคืน');
-    XLSX.utils.book_append_sheet(wb, ws2, 'รายการสินค้า');
-    const fsum = filterSummary();
-    XLSX.writeFile(wb, `supplier_return_${fsum.period.replace(/[\s/–]+/g, '_')}.xlsx`);
+    const fsum = filterSummary(), btn = $('listExcelBtn'), old = btn.innerHTML; btn.disabled = true; btn.textContent = 'กำลังสร้างไฟล์…';
+    try {
+      // ไฟล์ Excel มาตรฐานของระบบ (WIMExcel): แถบชื่อ + Export Date/By + กรอบเงื่อนไข + หัวตาราง (2 ชีต: รายเอกสาร / รายรายการสินค้า)
+      await WIMExcel.download({
+        filename: `supplier_return_${fsum.period.replace(/[\s/–]+/g, '_')}.xlsx`,
+        title: 'รายงานการส่งคืนสินค้าให้ Supplier', titleEn: 'SUPPLIER RETURN REPORT',
+        info: [['ช่วงเวลา', fsum.period], ['บริษัท', fsum.comp], ['ประเภทการคืน', fsum.type], ['สถานะ', fsum.status], ['คำค้นหา', fsum.q || '-'], ['จำนวนเอกสาร', rows.length + ' เอกสาร']],
+        sheets: [
+          { name: 'เอกสารส่งคืน', title: 'รายงานการส่งคืนสินค้าให้ Supplier — รายเอกสาร', head: docHead, body: docRows, widths: docHead.map((h, i) => [4, 9].includes(i) ? 28 : 16), freezeCols: 1 },
+          { name: 'รายการสินค้า', title: 'รายงานการส่งคืนสินค้าให้ Supplier — รายรายการสินค้า', head: itemHead, body: itemRows, widths: itemHead.map((h, i) => i === 8 ? 40 : 15), freezeCols: 1 }
+        ]
+      });
+    } catch (err) { showToast('สร้างไฟล์ Excel ไม่สำเร็จ: ' + err.message, true); }
+    finally { btn.disabled = false; btn.innerHTML = old; }
   });
 
   // พิมพ์รายงาน (A4 แนวนอน): 1 บล็อก = 1 เอกสาร — หัวเอกสาร (ไม่มีสถานะ) + ตารางรายการสินค้า + รวมเอกสาร / ท้ายรายงาน = สรุปรวม

@@ -1041,6 +1041,7 @@
 <script src="/js/thai-datepicker.js"></script>
 <script src="/js/adj-reverse.js"></script>
 <script src="/js/report-print.js?v=20261030n"></script>
+<script src="/js/wim-excel.js?v=20261105a"></script>
 <link rel="stylesheet" href="/css/mobile-base.css">
 </head>
 <body>
@@ -1429,14 +1430,15 @@
       const sheet = (name, cols, widths, rows, fmt) => {
         const ws = wb.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 5 }] });
         ws.columns = widths.map(w => ({ width: w }));
-        ws.addRow([`รายงานการปรับยอดสต๊อก (${title}) | STOCK ADJUSTMENT REPORT`]).font = { bold: true, size: 14 };
-        ws.addRow([`วันที่ปรับ: ${periodText(f)}`, '', '', filterText(f).join(' · ')]);
-        ws.addRow([`พิมพ์โดย: ${me || '-'} · ${thStamp(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString())}`]).font = { color: { argb: 'FF666666' } };
-        ws.addRow([]);
-        const hr = ws.addRow(cols); hr.height = 30;
-        hr.eachCell(c => { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE9B3' } }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c.border = thin; });
+        // หัวรายงานมาตรฐานของระบบ (WIMExcel): แถบชื่อ + Export Date/By + กรอบเงื่อนไข
+        const info = [['วันที่ปรับ', periodText(f)], ['มุมมอง', title]];
+        filterText(f).forEach(t => { const i = t.indexOf(': '); info.push(i > 0 ? [t.slice(0, i), t.slice(i + 2)] : ['ตัวกรอง', t]); });
+        const hr0 = WIMExcel.header(ws, cols.length, { title: `รายงานการปรับยอดสต๊อก (${title})`, titleEn: 'STOCK ADJUSTMENT REPORT', info });
+        const hr = ws.getRow(hr0); hr.values = cols; hr.height = 30;
+        hr.eachCell(c => { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD5DEEA' } }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c.border = thin; });
         rows.forEach(r => { const row = ws.addRow(r); row.eachCell({ includeEmpty: true }, c => { c.border = hair; c.alignment = { vertical: 'top', wrapText: true }; }); if(fmt) fmt(row, r); });
-        ws.autoFilter = { from: { row: 5, column: 1 }, to: { row: 5, column: cols.length } };
+        ws.autoFilter = { from: { row: hr0, column: 1 }, to: { row: hr0, column: cols.length } };
+        ws.views = [{ state: 'frozen', ySplit: hr0 }];
         return ws;
       };
       const qtyCells = (row, idx) => idx.forEach(([i, v]) => { const c = row.getCell(i); c.numFmt = xlsQtyFmt(v); c.alignment = { horizontal: 'right', vertical: 'top' }; });
