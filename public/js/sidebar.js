@@ -164,6 +164,13 @@
     add('link', { rel: 'apple-touch-icon', href: '/images/app/apple-touch-icon.png' });
     add('meta', { name: 'apple-mobile-web-app-title', content: 'WIM' });
     add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' });
+    // เปิดเป็นแอป: ชื่อแอปอยู่ในแถบชื่อหน้าต่างแล้ว → ตัดคำนำหน้า 'WIM — ' ของชื่อหน้าออก ไม่ให้ซ้ำ (แท็บเบราว์เซอร์ปกติยังเห็น 'WIM — …')
+    try {
+      if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+        const re = /^WIM\s*[—-]\s*/, strip = () => { if (re.test(document.title)) document.title = document.title.replace(re, ''); };
+        strip(); const t = document.querySelector('title'); if (t) new MutationObserver(strip).observe(t, { childList: true, characterData: true, subtree: true });
+      }
+    } catch (e) { /* ไม่กระทบการใช้งาน */ }
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(err => console.warn('ลงทะเบียน service worker ไม่สำเร็จ:', err));
     }

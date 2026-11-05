@@ -259,9 +259,9 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // ---------- ติดตั้งเป็นแอป (PWA): ไฟล์ manifest ----------
 // ส่งจาก Node ไม่วางเป็นไฟล์ใน public — IIS บางรุ่นไม่รู้จักชนิดไฟล์ .json/.webmanifest (ไม่ต้องแก้ web.config)
 const APP_MANIFEST = JSON.stringify({
-  name: 'WIM — Warehouse & Inventory Management',
+  name: 'WIM · Warehouse & Inventory Management',
   short_name: 'WIM',
-  description: 'ระบบบริหารคลังสินค้าและสต๊อก',
+  description: 'WIM (Warehouse & Inventory Management) ระบบบริหารสินค้าคงคลัง — ขอเบิก ตรวจนับสต๊อก ปรับยอด รับ/ส่งคืนสินค้า และรายงานสต๊อกของบริษัทในกลุ่ม',
   lang: 'th',
   start_url: '/main-menu',
   scope: '/',
