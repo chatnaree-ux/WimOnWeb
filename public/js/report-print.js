@@ -16,7 +16,7 @@
   'use strict';
   if (window.WIMReport) return;
 
-  const VERSION = '20261030n';   // แสดงท้ายกระดาษ (ตัวเล็ก) ไว้ตรวจว่าเครื่องได้ไฟล์ใหม่แล้ว
+  const VERSION = '20261105a';   // แสดงท้ายกระดาษ (ตัวเล็ก) ไว้ตรวจว่าเครื่องได้ไฟล์ใหม่แล้ว
   const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const LOGO_BASE_URL = 'https://seedsgroup.dyndns.org/spm/Center/Logo/';
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -125,12 +125,14 @@
     </table>`;
   }
 
+  // info = [[หัวข้อ, ค่า, 'full'?]] จัดเป็นคู่ละแถว · รายการที่ใส่ 'full' (ข้อความยาว เช่น รายชื่อบริษัท) ได้แถวเต็มความกว้างของตัวเอง
   function infoHtml(info){
     if (!info || !info.length) return '';
-    const rows = [];
-    for (let i = 0; i < info.length; i += 2) {
+    const rows = [], val = (v) => (v == null || v === '' ? '-' : v);
+    for (let i = 0; i < info.length;) {
       const a = info[i], b = info[i + 1];
-      rows.push(`<tr><th>${esc(a[0])}</th><td${b ? '' : ' colspan="3"'}>${a[1] == null || a[1] === '' ? '-' : a[1]}</td>${b ? `<th>${esc(b[0])}</th><td>${b[1] == null || b[1] === '' ? '-' : b[1]}</td>` : ''}</tr>`);
+      if (a[2] === 'full' || !b || b[2] === 'full') { rows.push(`<tr><th>${esc(a[0])}</th><td colspan="3">${val(a[1])}</td></tr>`); i += 1; continue; }
+      rows.push(`<tr><th>${esc(a[0])}</th><td>${val(a[1])}</td><th>${esc(b[0])}</th><td>${val(b[1])}</td></tr>`); i += 2;
     }
     return `<table class="rpt-info">${rows.join('')}</table>`;
   }

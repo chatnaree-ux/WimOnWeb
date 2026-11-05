@@ -6679,6 +6679,250 @@ app.get('/api/stock-adjust-report/trend', requireMenu(MENU_ADJ_REPORT, { company
   }
 });
 
+// ==================================================================
+// รายงานสถิติการเบิกสินค้า/วัสดุ (/cut-stock-report) — ยอดเบิกรายเดือน ย้อนหลัง 5 ปี (จำนวนอย่างเดียว ยังไม่มีมูลค่า)
+//   แหล่งข้อมูล: WimCutStockDtSub.AmountCutChange (หน่วยหลักของสินค้า dInventoryMain.idUnit) — ไม่รวมเอกสารที่ปฏิเสธ / รายการที่ยกเลิก
+//   Process: devsk.WimProcessRec SystemId = 2 (ประเภทการเบิก) — ค่าเริ่มต้นไม่นับ "การโอนย้ายคลังออก" (9) เพราะของไม่ได้ลดลงจริง
+//   แท็บ: seed = กลุ่ม 1/42/44/45/63 · fg = กลุ่ม 2 · pack / coat = สินค้ากลุ่ม 4 ที่ประเภทวัสดุโรงงาน (dFactoryInvType) ถูกจัดแท็บใน WimCutStockRptTab
+//   สินค้า → ประเภท: dInventoryMain.idInvPOP = dFactoryInv.idInv_POP (เลือก idFInvType น้อยสุดต่อสินค้า กันยอดซ้ำ)
+// ==================================================================
+const MENU_ISSUE_RPT = 'cut_stock_report';
+const MENU_ISSUE_SETUP = 'cut_stock_report_setup';
+const ISSUE_SEED_GROUPS = [1, 42, 44, 45, 63];
+const ISSUE_FG_GROUP = 2;
+const ISSUE_PACK_GROUP = 4;
+const ISSUE_DEFAULT_OFF_PROC = [9];
+// การขอเบิก (8): เบิกผ่านใบขอเบิก WimRequestCutMt เมื่อไม่มี Process หลักรองรับ — แยกย่อยตามหัวข้อการเบิก WimProcessRequest (QA / RD / PT / SP / SU / SA / TT / EM)
+//   ใบเก่าที่ไม่ได้ระบุหัวข้อ → ใช้หัวข้อของคำนิยาม (WimProcessNote.idProReq) / ยังไม่มีอีก = 0 "ไม่ระบุหัวข้อการเบิก"
+const ISSUE_REQ_PROC = 8;
+// การเบิกเพื่อผลิตสินค้า (5) ของบริษัท AV (idComp 4): แยกตามรหัส Job ผลิต = WimWaitCutMt.JBNo (= PkJobMt.stTypeJ) 1 = T · 2 = E · 3 = V (ตัวอักษรหน้าเลขที่ Job)
+//   ใบที่ไม่มีรหัส Job (JBNo 0 — เอกสารเก่าก่อนกลางปี 2565) ไม่นับ เหมือนเงื่อนไข "รหัส Job ผลิต" ใน WIM ERP · บริษัทอื่นยังไม่ใช้รหัสนี้ → นับตามเดิม ไม่กรอง
+const ISSUE_PROD_PROC = 5;
+const ISSUE_JOB_COMP = 4;
+const ISSUE_JOBS = [{ id: 1, code: 'T' }, { id: 2, code: 'E' }, { id: 3, code: 'V' }];
+const ISSUE_TABS = ['seed', 'pack', 'fg', 'coat', 'all'];
+const issueIntList = (v) => [...new Set(String(v || '').split(',').map(s => parseInt(s, 10)).filter(Number.isInteger))].slice(0, 200);
+
+app.get(['/cut-stock-report', '/cut-stock-report.html'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'cut-stock-report.html')));
+
+// ---------- แคชข้อมูลเบิกสรุปในหน่วยความจำ ----------
+// ตารางเบิก (WimCutStock*) ~6 แสนแถว แต่การอ่านครั้งแรกตอนข้อมูลยังไม่อยู่ในหน่วยความจำของ SQL ช้ามาก (13–80 วินาที เกินเวลาตัดสาย 30 วินาที → "โหลดไม่สำเร็จ")
+// จึงอ่าน "ยอดเบิกสรุปต่อ สินค้า × บริษัท × Process × เดือน" (~1.3 แสนแถว ~10MB) ครั้งเดียว เก็บไว้ในหน่วยความจำ แล้วให้ทุกแท็บ / ตัวกรอง / รายการบริษัท / Process คำนวณจากแคชนี้
+//   - เริ่มโหลดล่วงหน้าตอนเปิดเซิร์ฟเวอร์ / อายุแคช ISSUE_CACHE_TTL เกินแล้วคำขอถัดไปได้ข้อมูลเดิมทันที และโหลดใหม่เบื้องหลัง
+//   - ปุ่ม Refresh ในหน้า = fresh=1 บังคับโหลดใหม่ (รอจนเสร็จ) / จัดแท็บใหม่ (setup) → โหลดตารางจัดแท็บใหม่เท่านั้น ไม่ต้องอ่านตารางเบิกซ้ำ
+const ISSUE_USAGE_FROM = '2019-01-01';
+const ISSUE_CACHE_TTL = 10 * 60 * 1000;
+const issueFact = { rows: null, items: null, typeTab: null, at: 0, loading: null };
+let issueLongPool = null;   // pool แยก requestTimeout ยาว (โหลดแคชตอนข้อมูลยังเย็น) — ไม่กระทบ pool หลักที่ตัดสาย 30 วินาที
+const issueGetLongPool = () => issueLongPool || (issueLongPool = new sql.ConnectionPool({ ...dbConfig, requestTimeout: 180000, pool: { max: 2, min: 0, idleTimeoutMillis: 30000 } }).connect());
+async function issueLoadTypeTab(pool) {
+  const r = await pool.request().query('SELECT idFInvType, TabCode FROM devsk.WimCutStockRptTab WITH (NOLOCK)');
+  return new Map(r.recordset.map(x => [x.idFInvType, x.TabCode]));
+}
+function issueLoadFact() {
+  if (issueFact.loading) return issueFact.loading;
+  issueFact.loading = (async () => {
+    const t0 = Date.now();
+    const pool = await issueGetLongPool();
+    const r = await pool.request().input('d', sql.Date, ISSUE_USAGE_FROM).query(
+      // สแกนตารางเบิกครั้งเดียว (แถวของการขอเบิกแยกตาม idWaitCutDt) แล้วค่อยเชื่อมใบขอเบิก — เร็วกว่า JOIN ใบขอเบิกตอนสแกน ~4 เท่า
+      `IF OBJECT_ID('tempdb..#f') IS NOT NULL DROP TABLE #f;
+       SELECT dt.idInvMain AS i, mt.idComp AS c, dt.idProcess AS p, YEAR(mt.DateTs) AS y, MONTH(mt.DateTs) AS m,
+              CASE WHEN dt.idProcess = ${ISSUE_REQ_PROC} OR (dt.idProcess = ${ISSUE_PROD_PROC} AND mt.idComp = ${ISSUE_JOB_COMP}) THEN dt.idWaitCutDt END AS wdt, SUM(sub.AmountCutChange) AS amt
+       INTO #f
+       FROM devsk.WimCutStockDtSub sub WITH (NOLOCK)
+       JOIN devsk.WimCutStockDtMain dt WITH (NOLOCK) ON sub.idCutDtMain = dt.idCutDt
+       JOIN devsk.WimCutStockMt mt WITH (NOLOCK) ON dt.idCutMt = mt.idCutMt
+       WHERE mt.DateTs >= @d AND mt.idPsReject IS NULL AND dt.idPsCancel IS NULL AND dt.idProcess IS NOT NULL
+       GROUP BY dt.idInvMain, mt.idComp, dt.idProcess, YEAR(mt.DateTs), MONTH(mt.DateTs), CASE WHEN dt.idProcess = ${ISSUE_REQ_PROC} OR (dt.idProcess = ${ISSUE_PROD_PROC} AND mt.idComp = ${ISSUE_JOB_COMP}) THEN dt.idWaitCutDt END;
+       SELECT f.i, f.c, f.p, CASE WHEN f.p = ${ISSUE_REQ_PROC} THEN ISNULL(ISNULL(rq.idProReq, TRY_CAST(pn.idProReq AS int)), 0) END AS r,
+              CASE WHEN f.p = ${ISSUE_REQ_PROC} THEN ISNULL(ISNULL(rq.idProcessNote, w.idProcessNote), 0) END AS n,
+              CASE WHEN f.p = ${ISSUE_PROD_PROC} AND f.c = ${ISSUE_JOB_COMP} THEN ISNULL(w.JBNo, 0) END AS j, f.y, f.m, SUM(f.amt) AS amt
+       FROM #f f
+       LEFT JOIN devsk.WimWaitCutDt wd WITH (NOLOCK) ON wd.idWaitCutDt = f.wdt
+       LEFT JOIN devsk.WimWaitCutMt w WITH (NOLOCK) ON w.IdWaitCutMt = wd.idWaitCutMt
+       LEFT JOIN devsk.WimRequestCutMt rq WITH (NOLOCK) ON w.TbName = 'WimRequestCutMt' AND rq.idReq = w.IdMt
+       LEFT JOIN devsk.WimProcessNote pn WITH (NOLOCK) ON pn.idProcessNote = ISNULL(rq.idProcessNote, w.idProcessNote)
+       GROUP BY f.i, f.c, f.p, CASE WHEN f.p = ${ISSUE_REQ_PROC} THEN ISNULL(ISNULL(rq.idProReq, TRY_CAST(pn.idProReq AS int)), 0) END,
+                CASE WHEN f.p = ${ISSUE_REQ_PROC} THEN ISNULL(ISNULL(rq.idProcessNote, w.idProcessNote), 0) END,
+                CASE WHEN f.p = ${ISSUE_PROD_PROC} AND f.c = ${ISSUE_JOB_COMP} THEN ISNULL(w.JBNo, 0) END, f.y, f.m;
+       DROP TABLE #f;
+       -- ประเภทพืช: devsk.vInventorySeed (ครอบคลุมกลุ่ม 1 / 2 / 42) → dbo.dSeed
+       SELECT inv.idInvMain, inv.InvCode, inv.InvName, inv.idInvGroup, g.InvGroupName, inv.idUnit, u.UnitName, ft.idFInvType, ftn.FInvName, sd.SeedName AS CropName
+       FROM devsk.dInventoryMain inv WITH (NOLOCK)
+       LEFT JOIN devsk.dInvGroup g WITH (NOLOCK) ON g.idInvGroup = inv.idInvGroup
+       OUTER APPLY (SELECT TOP 1 vs.idSeed FROM devsk.vInventorySeed vs WITH (NOLOCK) WHERE vs.idInvMain = inv.idInvMain AND vs.idSeed IS NOT NULL) cr
+       LEFT JOIN dbo.dSeed sd WITH (NOLOCK) ON sd.idSeed = cr.idSeed
+       LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = inv.idUnit
+       OUTER APPLY (SELECT TOP 1 f.idFInvType FROM devsk.dFactoryInv f WITH (NOLOCK) WHERE f.idInv_POP = inv.idInvPOP ORDER BY f.idFInvType) ft
+       LEFT JOIN devsk.dFactoryInvType ftn WITH (NOLOCK) ON ftn.idFInvType = ft.idFInvType;
+       SELECT idProReq, LTRIM(RTRIM(ProReqCode)) AS ProReqCode, ProReqNameThai, ProReqNameEng FROM devsk.WimProcessRequest WITH (NOLOCK) ORDER BY idProReq;
+       SELECT idProcessNote, ProcessNoteName FROM devsk.WimProcessNote WITH (NOLOCK);`);
+    issueFact.typeTab = await issueLoadTypeTab(pool);
+    issueFact.notes = new Map(r.recordsets[3].map(x => [x.idProcessNote, String(x.ProcessNoteName || '').replace(/\s+/g, ' ').trim()]));
+    issueFact.reqTypes = r.recordsets[2].map(x => ({ id: x.idProReq, code: x.ProReqCode || '', name: String(x.ProReqNameThai || '').trim(), nameEn: String(x.ProReqNameEng || '').trim() }));
+    issueFact.rows = r.recordsets[0];
+    issueFact.items = new Map(r.recordsets[1].map(x => [x.idInvMain, x]));
+    issueFact.at = Date.now();
+    console.log(`Issue report cache loaded: ${issueFact.rows.length} rows, ${issueFact.items.size} items, ${Date.now() - t0} ms`);
+    return issueFact;
+  })().finally(() => { issueFact.loading = null; });
+  return issueFact.loading;
+}
+async function issueEnsureFact(fresh) {
+  if (!issueFact.rows || fresh) return issueLoadFact();
+  if (Date.now() - issueFact.at > ISSUE_CACHE_TTL) issueLoadFact().catch(err => console.error('Issue report cache refresh error:', err.message));
+  return issueFact;
+}
+// แท็บของสินค้า: กลุ่ม 1/42/44/45/63 = seed · กลุ่ม 2 = fg · กลุ่ม 4 + ประเภทวัสดุที่จัดไว้ PACK / COAT · ที่เหลือ = oth (เห็นเฉพาะแท็บ ทั้งหมด)
+function issueTabOf(inf, typeTab) {
+  const g = inf.idInvGroup;
+  if (ISSUE_SEED_GROUPS.includes(g)) return 'seed';
+  if (g === ISSUE_FG_GROUP) return 'fg';
+  if (g === ISSUE_PACK_GROUP) { const t = typeTab.get(inf.idFInvType); if (t === 'PACK') return 'pack'; if (t === 'COAT') return 'coat'; }
+  return 'oth';
+}
+setTimeout(() => issueLoadFact().catch(err => console.error('Issue report cache preload error:', err.message)), 8000);
+
+app.get('/api/cut-stock-report/meta', requireMenu(MENU_ISSUE_RPT), async (req, res) => {
+  try {
+    const tab = ISSUE_TABS.includes(String(req.query.tab)) ? String(req.query.tab) : 'all';
+    const pool = await poolPromise;
+    const request = pool.request();
+    const compSql = compFilter(req.access, request, 'c.idComp');
+    const [r, f] = await Promise.all([request.query(
+      `SELECT c.idComp, LTRIM(RTRIM(c.CompCode)) AS CompCode, c.CompName FROM PchInvAndProject.dbo.dCompany c WITH (NOLOCK)
+       WHERE c.stDel IS NULL AND c.CompName IS NOT NULL ${compSql} ORDER BY c.CompCode, c.CompName;
+       SELECT Id, ProcessName FROM devsk.WimProcessRec WITH (NOLOCK) WHERE SystemId = 2 ORDER BY Id;`), issueEnsureFact(false)]);
+    // บริษัท / Process ที่มีการเบิกจริงในแท็บนี้ — เฉพาะบริษัทที่ผู้ใช้มีสิทธิ์
+    const allowed = new Set(r.recordsets[0].map(c => c.idComp));
+    const usedComp = new Set(), usedProc = new Set(), usedReq = new Set(), usedJob = new Set();
+    for (const x of f.rows) {
+      if (!allowed.has(x.c)) continue;
+      if (x.p === ISSUE_PROD_PROC && x.c === ISSUE_JOB_COMP && !x.j) continue;   // ไม่มีรหัส Job = ไม่นับ
+      const inf = f.items.get(x.i);
+      if (!inf || (tab !== 'all' && issueTabOf(inf, f.typeTab) !== tab)) continue;
+      usedComp.add(x.c); usedProc.add(x.p);
+      if (x.j) usedJob.add(x.j);
+      if (x.p === ISSUE_REQ_PROC) usedReq.add(x.r || 0);
+    }
+    res.json({ success: true, tab,
+      companies: r.recordsets[0].filter(c => usedComp.has(c.idComp)).map(c => ({ id: c.idComp, code: c.CompCode || c.CompName, name: c.CompName })),
+      processes: r.recordsets[1].filter(p => usedProc.has(p.Id)).map(p => ({ id: p.Id, name: String(p.ProcessName || '').trim(), defaultOn: !ISSUE_DEFAULT_OFF_PROC.includes(p.Id) })),
+      reqTypes: [...f.reqTypes.filter(t => usedReq.has(t.id)), ...(usedReq.has(0) ? [{ id: 0, code: '', name: 'ไม่ระบุหัวข้อการเบิก', nameEn: 'ใบขอเบิกเก่า' }] : [])],
+      jobs: ISSUE_JOBS.filter(j => usedJob.has(j.id)), jobProc: ISSUE_PROD_PROC, jobComp: ISSUE_JOB_COMP,
+      canSetup: hasMenu(req.access, MENU_ISSUE_SETUP) });
+  } catch (err) {
+    console.error('Issue report meta error:', err);
+    res.status(500).json({ success: false, message: 'โหลดข้อมูลตั้งต้นไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// year = ปี ค.ศ. ที่เลือก (ย้อนหลังไปอีก 4 ปี) · comps / procs = รหัสคั่นจุลภาค · reqs = หัวข้อการเบิก · jobs = รหัส Job ผลิต (1 T / 2 E / 3 V) · tab · q (ชื่อ/รหัส) · fresh=1 = โหลดแคชใหม่
+app.get('/api/cut-stock-report/data', requireMenu(MENU_ISSUE_RPT), async (req, res) => {
+  try {
+    const year = scInt(req.query.year), tab = String(req.query.tab || 'seed');
+    if (!year || year < 2000 || year > new Date().getFullYear() + 1) return scFail(res, 400, 'ปีไม่ถูกต้อง');
+    if (!ISSUE_TABS.includes(tab)) return scFail(res, 400, 'แท็บไม่ถูกต้อง');
+    const comps = issueIntList(req.query.comps), procs = issueIntList(req.query.procs);
+    if (!comps.length) return scFail(res, 400, 'กรุณาเลือกบริษัทอย่างน้อย 1 บริษัท');
+    if (!procs.length) return scFail(res, 400, 'กรุณาเลือก Process การเบิกอย่างน้อย 1 รายการ');
+    if (!comps.every(c => hasComp(req.access, c))) return scFail(res, 403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทที่เลือก');
+    const f = await issueEnsureFact(req.query.fresh === '1');
+    const reqSet = req.query.reqs !== undefined ? new Set(issueIntList(req.query.reqs)) : null;
+    const jobSet = req.query.jobs !== undefined ? new Set(issueIntList(req.query.jobs)) : null;   // ไม่ส่ง = ทุกรหัส Job (T / E / V)
+    const compSet = new Set(comps), procSet = new Set(procs), q = String(req.query.q || '').trim().slice(0, 100).toLowerCase();
+    const items = new Map(), procAmt = new Map(), tabCache = new Map(), usedNote = new Set();
+    for (const x of f.rows) {
+      if (x.y > year || x.y < year - 4 || !compSet.has(x.c) || !procSet.has(x.p)) continue;
+      if (x.p === ISSUE_REQ_PROC && reqSet && !reqSet.has(x.r || 0)) continue;
+      if (x.p === ISSUE_PROD_PROC && x.c === ISSUE_JOB_COMP && (!x.j || (jobSet && !jobSet.has(x.j)))) continue;
+      let it = items.get(x.i);
+      if (!it) {
+        if (tabCache.get(x.i) === false) continue;
+        const inf = f.items.get(x.i);
+        const t = inf ? issueTabOf(inf, f.typeTab) : null;
+        if (!inf || (tab !== 'all' && t !== tab) || (q && !(String(inf.InvName || '') + ' ' + String(inf.InvCode || '')).toLowerCase().includes(q))) { tabCache.set(x.i, false); continue; }
+        it = { id: x.i, code: String(inf.InvCode || '').trim(), name: String(inf.InvName || '').trim(), unit: String(inf.UnitName || '').trim(), unitId: inf.idUnit, group: inf.idInvGroup, groupName: String(inf.InvGroupName || '').trim(), crop: inf.CropName ? String(inf.CropName).trim() : '',
+          type: inf.FInvName ? String(inf.FInvName).trim() : '', tab: t, v: new Array(60).fill(0), pb: {}, nb: {}, jb: {} };
+        items.set(x.i, it);
+      }
+      const idx = (year - x.y) * 12 + (x.m - 1);
+      if (idx >= 0 && idx < 60) it.v[idx] += Number(x.amt);
+      const rk = x.p === ISSUE_REQ_PROC ? (x.r || 0) : '';
+      const pk = x.p === ISSUE_REQ_PROC ? 'r' + rk : 'p' + x.p;
+      it.pb[pk] = (it.pb[pk] || 0) + Number(x.amt);
+      const nk = x.p === ISSUE_REQ_PROC ? (x.n || 0) : '';
+      if (x.p === ISSUE_REQ_PROC) { const kk = rk + '.' + nk; it.nb[kk] = (it.nb[kk] || 0) + Number(x.amt); usedNote.add(nk); }
+      // เบิกเพื่อผลิต: แยกตามรหัส Job (AV) / 0 = บริษัทอื่นที่ไม่ใช้รหัส Job
+      const jk = x.p === ISSUE_PROD_PROC ? (x.j || 0) : '';
+      if (x.p === ISSUE_PROD_PROC) it.jb[jk] = (it.jb[jk] || 0) + Number(x.amt);
+      { const k = (year - x.y) + '|' + (x.m - 1) + '|' + x.p + '|' + rk + '|' + nk + '|' + it.unitId + '|' + jk; procAmt.set(k, (procAmt.get(k) || 0) + Number(x.amt)); }
+    }
+    const rd = (n) => Math.round(n * 10000) / 10000;
+    items.forEach(it => { it.v = it.v.map(rd); for (const k in it.pb) it.pb[k] = rd(it.pb[k]); for (const k in it.nb) it.nb[k] = rd(it.nb[k]); for (const k in it.jb) it.jb[k] = rd(it.jb[k]); });
+    const notes = {}; usedNote.forEach(id => { notes[id] = id ? (f.notes.get(id) || 'คำนิยาม ' + id) : 'ไม่ระบุคำนิยาม'; });
+    res.json({ success: true, year, tab, asOf: new Date(f.at).toISOString(), notes, items: [...items.values()],
+      procs: [...procAmt.entries()].map(([k, amt]) => { const [yo, m, p, r, n, u, j] = k.split('|'); return { yo: Number(yo), m: Number(m), p: Number(p), r: r === '' ? null : Number(r), n: n === '' ? null : Number(n), u: u === 'null' || u === 'undefined' ? null : Number(u), j: j === '' ? null : Number(j), amt: rd(amt) }; }) });
+  } catch (err) {
+    console.error('Issue report data error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายงานไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// จัดแท็บตามประเภทวัสดุ (dFactoryInvType → PACK / COAT) — สิทธิ์ cut_stock_report_setup
+app.get('/api/cut-stock-report/setup', requireMenu(MENU_ISSUE_SETUP), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().query(
+      `SELECT t.idFInvType, LTRIM(RTRIM(t.FInvName)) AS FInvName, tt.TabCode, ISNULL(c.n, 0) AS n
+       FROM devsk.dFactoryInvType t WITH (NOLOCK)
+       LEFT JOIN devsk.WimCutStockRptTab tt WITH (NOLOCK) ON tt.idFInvType = t.idFInvType
+       LEFT JOIN (SELECT x.idFInvType, COUNT(*) AS n FROM (
+           SELECT (SELECT MIN(f.idFInvType) FROM devsk.dFactoryInv f WITH (NOLOCK) WHERE f.idInv_POP = i.idInvPOP) AS idFInvType
+           FROM devsk.dInventoryMain i WITH (NOLOCK) WHERE i.idInvGroup = ${ISSUE_PACK_GROUP}) x
+         GROUP BY x.idFInvType) c ON c.idFInvType = t.idFInvType
+       WHERE t.stDel IS NULL OR tt.idFInvType IS NOT NULL
+       ORDER BY CASE WHEN tt.TabCode IS NULL THEN 1 ELSE 0 END, tt.TabCode, t.FInvName`);
+    res.json({ success: true, types: r.recordset.map(x => ({ id: x.idFInvType, name: x.FInvName, tab: x.TabCode || '', n: x.n })) });
+  } catch (err) {
+    console.error('Issue report setup load error:', err);
+    res.status(500).json({ success: false, message: 'โหลดการจัดแท็บไม่สำเร็จ', detail: err.message });
+  }
+});
+
+app.post('/api/cut-stock-report/setup', requireMenu(MENU_ISSUE_SETUP), async (req, res) => {
+  const list = Array.isArray(req.body && req.body.types) ? req.body.types.slice(0, 500) : null;
+  if (!list) return scFail(res, 400, 'ข้อมูลไม่ถูกต้อง');
+  const clean = [];
+  for (const x of list) {
+    const id = scInt(x && x.id), tabCode = String((x && x.tab) || '');
+    if (!id || !['', 'PACK', 'COAT'].includes(tabCode)) return scFail(res, 400, 'ข้อมูลไม่ถูกต้อง');
+    clean.push({ id, tab: tabCode });
+  }
+  const pool = await poolPromise;
+  const tx = new sql.Transaction(pool);
+  try {
+    await tx.begin();
+    for (const x of clean) {
+      const rq = new sql.Request(tx).input('id', sql.Int, x.id).input('tab', sql.VarChar(10), x.tab || null).input('ps', sql.Int, req.idPs);
+      await rq.query(
+        `IF NOT EXISTS (SELECT 1 FROM devsk.dFactoryInvType WHERE idFInvType = @id) RETURN;
+         IF @tab IS NULL DELETE FROM devsk.WimCutStockRptTab WHERE idFInvType = @id;
+         ELSE IF EXISTS (SELECT 1 FROM devsk.WimCutStockRptTab WHERE idFInvType = @id)
+           UPDATE devsk.WimCutStockRptTab SET TabCode = @tab, idPsTs = @ps, DateTs = GETDATE() WHERE idFInvType = @id AND TabCode <> @tab;
+         ELSE INSERT INTO devsk.WimCutStockRptTab (idFInvType, TabCode, idPsTs, DateTs) VALUES (@id, @tab, @ps, GETDATE());`);
+    }
+    await tx.commit();
+    if (issueFact.rows) { try { issueFact.typeTab = await issueLoadTypeTab(pool); } catch (e) { issueFact.at = 0; } }
+    res.json({ success: true });
+  } catch (err) {
+    try { await tx.rollback(); } catch (e) {}
+    console.error('Issue report setup save error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกการจัดแท็บไม่สำเร็จ', detail: err.message });
+  }
+});
+
 const scInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
 // ข้อความที่เขียนลงคอลัมน์ varchar ของ ERP (code page 874): เก็บได้แค่ ASCII + ไทย → ตัวอื่นแปลงเป็นตัวใกล้เคียง / ช่องว่าง (ไม่ให้กลายเป็น "?")
 const erpText = (s) => String(s == null ? '' : s)

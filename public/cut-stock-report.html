@@ -1,0 +1,1712 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIM — รายงานสถิติการเบิกสินค้า/วัสดุ</title>
+<link rel="icon" href="images/WIMicon.ico" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-950:#0c1420; --navy-900:#111d2e; --navy-800:#182a40; --navy-850:#0f1a29;
+    --steel-700:#25405c; --steel-500:#4a6b8a;
+    --concrete-200:#e7e4da; --concrete-400:#b9b4a5;
+    --amber-500:#f2a91c; --amber-600:#d8930c;
+    --safety-red:#e5533d; --ok-green:#3ecf8e; --sky-blue:#4ea7e0;
+    --radius:10px; --sidebar-w:270px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif; background:var(--navy-950); color:var(--concrete-200); min-height:100vh; overflow-x:hidden;}
+
+  .app-shell{display:flex; min-height:100vh;}
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:var(--sidebar-w); flex-shrink:0;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border-right:1px solid rgba(255,255,255,.07);
+    display:flex; flex-direction:column;
+    position:fixed; top:0; left:0; bottom:0; z-index:20;
+    transition:transform .25s ease;
+  }
+  .sidebar-head{display:flex; align-items:center; gap:12px; padding:22px 20px; border-bottom:1px solid rgba(255,255,255,.07);}
+  .brand-mark{
+    width:38px; height:38px; border:2px solid var(--amber-500); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    font-family:'Oswald',sans-serif; font-weight:700; color:var(--amber-500); font-size:15px;
+    transform:rotate(-3deg);
+  }
+  .brand-text{font-family:'Oswald',sans-serif; letter-spacing:.05em; font-size:16.5px; font-weight:600; color:var(--concrete-200); line-height:1.2;}
+  .brand-text small{display:block; font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.08em; color:var(--steel-500); font-weight:400; margin-top:2px;}
+
+  .side-nav{flex:1; padding:16px 12px; overflow-y:auto;}
+  .nav-section-label{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em; color:var(--steel-500); text-transform:uppercase; padding:6px 12px 8px;}
+  .nav-item{
+    width:100%; display:flex; align-items:center; gap:12px;
+    padding:11px 12px; border-radius:8px; margin-bottom:2px;
+    color:var(--concrete-200); text-decoration:none;
+    font-size:14px; font-family:'Inter',sans-serif; font-weight:500;
+    background:none; border:none; cursor:pointer; text-align:left;
+    transition:background .15s, color .15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-item.active{background:rgba(242,169,28,.12); color:var(--amber-500);}
+  .nav-icon{width:19px; height:19px; flex-shrink:0; color:var(--amber-500); opacity:.9;}
+  .nav-icon svg{width:100%; height:100%; stroke-width:1.8;}
+  .nav-label{flex:1;}
+  .nav-chevron{width:14px; height:14px; flex-shrink:0; color:var(--steel-500); transition:transform .2s ease;}
+  .nav-group.open .nav-chevron{transform:rotate(180deg);}
+  .nav-group.open > .nav-parent{background:rgba(255,255,255,.04);}
+  .nav-submenu{display:grid; grid-template-rows:0fr; overflow:hidden; transition:grid-template-rows .22s ease;}
+  .nav-group.open .nav-submenu{grid-template-rows:1fr;}
+  .nav-submenu-inner{overflow:hidden; padding-left:14px; margin:2px 0 6px;}
+  .nav-subitem{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 12px 9px 20px; border-radius:7px; margin-bottom:1px;
+    color:var(--concrete-400); text-decoration:none; font-size:13px;
+    position:relative; transition:background .15s, color .15s;
+    border-left:1px solid rgba(255,255,255,.09);
+  }
+  .nav-subitem::before{content:""; position:absolute; left:-1px; top:50%; width:12px; height:1px; background:rgba(255,255,255,.09);}
+  .nav-subitem:hover{background:rgba(255,255,255,.05); color:#fff;}
+  .nav-subitem.active{color:var(--amber-500); border-left-color:var(--amber-500); background:rgba(242,169,28,.08);}
+
+  .sidebar-foot{padding:16px; border-top:1px solid rgba(255,255,255,.07); display:flex; flex-direction:column; gap:10px;}
+  .user-chip{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    font-family:'JetBrains Mono',monospace; font-size:13.5px; font-weight:700; color:#fff;
+    border:1px solid rgba(255,255,255,.15); padding:11px 14px; border-radius:9px; background:rgba(255,255,255,.04);
+  }
+  .user-chip .dot{width:8px; height:8px; border-radius:50%; background:var(--ok-green); box-shadow:0 0 8px var(--ok-green); animation:pulse 2s infinite; flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  #userLabel{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .logout-btn{
+    font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.05em;
+    color:#fff; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.2);
+    border-radius:8px; padding:11px 14px; cursor:pointer; text-transform:uppercase;
+    transition:border-color .15s, color .15s, background .15s;
+    width:100%; text-align:center; text-decoration:none;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .logout-btn:hover{border-color:var(--safety-red); color:#ff8a75; background:rgba(255,60,60,.08);}
+
+  /* ---------- MAIN AREA ---------- */
+  .main-wrap{flex:1; margin-left:var(--sidebar-w); min-width:0;}
+  .topbar-mobile{
+    display:none; align-items:center; gap:14px; padding:16px 20px;
+    border-bottom:1px solid rgba(255,255,255,.07); position:sticky; top:0; background:var(--navy-950); z-index:15;
+  }
+  .hamburger{
+    width:38px; height:38px; border-radius:8px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.03); color:var(--concrete-200); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .hamburger svg{width:18px; height:18px;}
+
+  main{max-width:1440px; margin:0 auto; padding:clamp(28px,4vw,48px) clamp(20px,4vw,48px) 70px;}
+  /* แท็บรายการร้องขอ: ตารางกว้าง ให้ใช้ความกว้างหน้าจอเต็มที่ ไม่จำกัด 1440px */
+  main:has(#listPage.active){max-width:none;}
+
+  .eyebrow{font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.14em; color:var(--amber-500); text-transform:uppercase; margin:0 0 10px;}
+  h1{font-family:'Oswald',sans-serif; font-weight:700; text-transform:uppercase; font-size:clamp(24px,3.4vw,32px); line-height:1.15; margin:0 0 8px; color:#fff;}
+  .sub{font-size:14px; color:var(--concrete-400); margin:0 0 24px;}
+
+  /* ---------- แท็บสลับหน้า (สร้างคำร้อง / รายการ) ---------- */
+  .tab-bar{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:22px; border-bottom:1px solid rgba(255,255,255,.08);}
+  .nav-btn{
+    display:flex; align-items:center; gap:8px;
+    background:none; border:0; border-bottom:2px solid transparent; margin-bottom:-1px;
+    color:var(--concrete-400); padding:11px 16px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+    transition:color .15s, border-color .15s;
+  }
+  .nav-btn svg{width:16px; height:16px;}
+  .nav-btn:hover{color:#fff;}
+  .nav-btn.active{color:var(--amber-500); border-bottom-color:var(--amber-500);}
+
+  .page{display:none;}
+  .page.active{display:block; animation:fadeIn .25s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ---------- CARD ---------- */
+  .card{
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-800));
+    border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
+    padding:20px 22px; margin-bottom:22px;
+  }
+  .card h2{
+    display:flex; align-items:center; gap:10px; margin:0 0 18px;
+    font-family:'Oswald',sans-serif; font-size:16px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; color:#fff;
+  }
+  .card h2::before{content:""; width:4px; height:18px; border-radius:2px; background:var(--amber-500); flex-shrink:0;}
+
+  /* ---------- FORM ---------- */
+  .form-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px;}
+  .form-group{display:flex; flex-direction:column; gap:7px; min-width:0;}
+  .form-group.full{grid-column:1 / -1;}
+  .form-group label{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em; color:var(--concrete-400); text-transform:uppercase;}
+  .req{color:var(--safety-red); margin-left:2px;}
+  input,select,textarea{
+    width:100%; padding:11px 12px;
+    background:var(--navy-950); border:1px solid rgba(255,255,255,.1); border-radius:7px;
+    color:#fff; font-family:'Inter',sans-serif; font-size:14px;
+    transition:border-color .18s, box-shadow .18s;
+  }
+  input::placeholder,textarea::placeholder{color:var(--steel-500);}
+  input:focus,select:focus,textarea:focus{outline:none; border-color:var(--amber-500); box-shadow:0 0 0 3px rgba(242,169,28,.15);}
+  select{cursor:pointer;}
+  select option{background:var(--navy-900); color:#fff;}
+  input[type="date"]{color-scheme:dark;}
+  input[readonly]{background:rgba(255,255,255,.03); color:var(--concrete-400); cursor:not-allowed; border-style:dashed;}
+  input#requestNo{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--amber-500);}
+  textarea{resize:vertical; min-height:48px;}
+  /* ช่องเลือกผู้ร้องขอ: textbox + ไอคอนค้นหา คลิกแล้วเปิด popup */
+  .picker-input{position:relative; cursor:pointer;}
+  .picker-input input[readonly]{cursor:pointer; padding-right:38px; border-style:solid;}
+  .picker-input:hover input{border-color:rgba(242,169,28,.5);}
+  .picker-icon{position:absolute; right:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:var(--amber-500); pointer-events:none;}
+
+  /* ---------- BUTTONS ---------- */
+  .btn{
+    border:1px solid transparent; padding:10px 18px; border-radius:7px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    white-space:nowrap; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    transition:transform .15s, filter .15s, background .15s, border-color .15s, color .15s;
+  }
+  .btn svg{width:15px; height:15px;}
+  .btn:hover{transform:translateY(-1px); filter:brightness(1.1);}
+  .btn:active{transform:translateY(0);}
+  .btn-primary,.btn-success{background:var(--amber-500); color:var(--navy-950);}
+  .btn-secondary{background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.14); color:var(--concrete-200);}
+  .btn-secondary:hover{border-color:var(--amber-500); color:var(--amber-500); background:rgba(242,169,28,.08); filter:none;}
+  .btn-info{background:var(--sky-blue); color:var(--navy-950);}
+  .btn-danger{background:transparent; border-color:rgba(229,83,61,.55); color:#ff8a75;}
+  .btn-danger:hover{background:rgba(229,83,61,.12); border-color:var(--safety-red); filter:none;}
+  .btn-sm{padding:6px 12px; font-size:11.5px;}
+  .btn-disabled,.btn:disabled{background:rgba(255,255,255,.06) !important; border-color:transparent !important; color:var(--steel-500) !important; cursor:not-allowed; transform:none !important; filter:none !important;}
+
+  /* ---------- TABLE ---------- */
+  .table-header{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;}
+  .table-header h2{margin:0;}
+  .table-responsive{overflow-x:auto; border:1px solid rgba(255,255,255,.06); border-radius:8px;}
+  table{width:100%; border-collapse:collapse; min-width:820px; font-size:13px;}
+  #wimRptArea table{min-width:0;}   /* รายงานพิมพ์ (WIMReport): ห้ามกว้างเกินแผ่น */
+  thead th{
+    text-align:left; padding:11px 12px; white-space:nowrap; position:sticky; top:0;
+    font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:500; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--amber-500); background:#1a2433; border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  tbody td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.05); color:var(--concrete-200);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:rgba(255,255,255,.03);}
+  td input{padding:8px 10px; font-size:13px;}
+  th.num,td.num{text-align:right;}
+  th.ctr,td.ctr{text-align:center;}
+  td.num{font-family:'JetBrains Mono',monospace; white-space:nowrap;}
+  .qty-input{width:120px; text-align:right; font-family:'JetBrains Mono',monospace;}
+  .date-input{width:160px;}
+  /* ช่องวันที่ (.date-overlay-wrap): หน้าตา + ปฏิทินเลือกวันที่อยู่ใน thai-datepicker.js (ใช้ร่วมกันทุกหน้า) */
+  .empty-msg{text-align:center; color:var(--concrete-400); padding:28px 16px; font-size:13px; margin:0;}
+  .empty-msg .list-retry{margin-top:12px;}
+
+  /* ---------- ตารางรายการร้องขอ (แสดงรายเมล็ด จัดกลุ่มตามเอกสาร) ---------- */
+  .list-toolbar{display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; margin-bottom:16px;}
+  /* ---------- MODAL ---------- */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; z-index:60;
+    background:rgba(6,10,16,.7); backdrop-filter:blur(2px);
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal-box{
+    width:100%; max-width:760px; max-height:85vh; display:flex; flex-direction:column;
+    background:linear-gradient(180deg, var(--navy-900), var(--navy-850));
+    border:1px solid rgba(255,255,255,.1); border-radius:var(--radius);
+    box-shadow:0 30px 70px -20px rgba(0,0,0,.7); overflow:hidden;
+  }
+  .modal-header{display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0;}
+  .modal-header h3{margin:0; font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; color:#fff;}
+  .modal-close{
+    width:30px; height:30px; border-radius:7px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.03); color:var(--concrete-200); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; padding:0;
+  }
+  .modal-close:hover{border-color:var(--safety-red); color:#ff8a75;}
+  .modal-close svg{width:14px; height:14px; pointer-events:none;}
+  .modal-body{padding:16px 20px 20px; overflow-y:auto;}
+  .modal-body input[type=text]{margin-bottom:14px;}
+
+  /* ---------- TOAST ---------- */
+  .toast{
+    position:fixed; bottom:24px; right:24px; z-index:2000;
+    background:var(--navy-800); color:#fff; border:1px solid rgba(62,207,142,.45); border-left:3px solid var(--ok-green);
+    padding:14px 20px; border-radius:9px; box-shadow:0 20px 50px -15px rgba(0,0,0,.7); font-size:13.5px;
+    display:flex; align-items:center; gap:10px; opacity:0; transform:translateY(20px); transition:.3s; pointer-events:none;
+  }
+  .toast.show{opacity:1; transform:translateY(0);}
+
+  footer{text-align:center; padding:20px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--steel-500);}
+
+  /* ---------- เมนูที่ไม่มีสิทธิ์เข้าถึง ---------- */
+  .menu-locked{opacity:.4; cursor:not-allowed !important;}
+  .menu-locked::after{content:"🔒"; margin-left:auto; font-size:11px; opacity:.9;}
+  a.menu-locked{pointer-events:none;}
+  /* ---------- RESPONSIVE ---------- */
+  .sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:19;}
+  @media (max-width:1100px){ .form-grid{grid-template-columns:1fr 1fr;} }
+  @media (max-width:900px){
+    .sidebar{transform:translateX(-100%);}
+    body.sidebar-open .sidebar{transform:translateX(0);}
+    body.sidebar-open .sidebar-overlay{display:block;}
+    .main-wrap{margin-left:0;}
+    .topbar-mobile{display:flex;}
+  }
+  @media (max-width:560px){
+    .form-grid{grid-template-columns:1fr;}
+    .action-bar .btn{flex:1;}
+  }
+
+  /* กันล้นจอบน Safari / iPhone: Safari คิดความกว้างขั้นต่ำของ dropdown จากตัวเลือกที่ยาวที่สุด (ชื่อบริษัท / Supplier เต็ม)
+     และช่องในคอลัมน์ที่ไม่ยอมหด จะดันกล่องเลยขอบจอ — ให้ช่องกรอก / dropdown หดตามพื้นที่ได้เสมอ */
+  select, input, textarea{max-width:100%; min-width:0;}
+  .form-grid > *, .filter-bar > *{min-width:0;}
+
+
+  /* ==================================================================
+     อนุมัติปรับยอดสต๊อก (RQ) — ส่วนของหน้านี้
+  ================================================================== */
+  .page-head{margin-bottom:20px;}
+  /* หัวหน้า: อังกฤษ (eyebrow) + ไทย (ชื่อหน้า) ฟอนต์ตระกูลเดียวกัน ต่างกันที่ขนาด/น้ำหนัก ดูเป็นชุดเดียวกัน */
+  .page-head .eyebrow{font-family:'Inter','Noto Sans Thai',sans-serif; font-size:13px; font-weight:600; letter-spacing:.16em; color:var(--amber-500); margin:0 0 6px;}
+  .page-head h1{font-family:'Inter','Noto Sans Thai',sans-serif; font-weight:700; text-transform:none; letter-spacing:0; line-height:1.25; font-size:clamp(24px,3vw,30px);}
+  .form-group label{font-family:'Inter',sans-serif; font-size:13.5px; font-weight:600; letter-spacing:.01em; text-transform:none; color:var(--concrete-200);}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .muted{color:var(--concrete-400);}
+  [hidden]{display:none !important;}
+  select{color-scheme:dark;}
+  .btn{text-transform:none;}
+  a.btn{text-decoration:none;}
+  .btn-secondary{background:rgba(78,167,224,.12); border-color:rgba(78,167,224,.6); color:#a9d8f5;}
+  .btn-secondary:hover{background:rgba(78,167,224,.24); border-color:var(--sky-blue); color:#fff; filter:none;}
+  .btn-danger{background:rgba(229,83,61,.12); border-color:rgba(229,83,61,.65); color:#ff8a75;}
+  .btn-danger:hover{background:rgba(229,83,61,.24); border-color:var(--safety-red); color:#fff; filter:none;}
+  .modal-box .btn-primary{background:rgba(242,169,28,.16); border-color:rgba(242,169,28,.75); color:#ffcf66;}
+  .modal-box .btn-primary:hover{background:rgba(242,169,28,.28); color:#fff; filter:none;}
+
+  .list-toolbar{display:flex; gap:12px 16px; align-items:flex-end; flex-wrap:wrap; margin-bottom:14px;}
+
+  /* ==================================================================
+     รายงานสถิติการเบิกสินค้า/วัสดุ — ตัวกรอง / แท็บ / การ์ดสรุป / กราฟ / ตาราง 12 เดือน × 5 ปี (จอกว้าง) + การ์ด (จอแคบ)
+  ================================================================== */
+  .ir-filter{display:flex; flex-direction:column; gap:14px; margin-bottom:18px;}
+  /* ตัวกรอง 2 แถว: แถวบน = ช่องสูงคงที่ (ปี · หน่วย · ค้นหา + ปุ่ม) / แถวล่าง = กล่องชิปที่ขยายได้ (บริษัท · Process · ประเภทสินค้า · ประเภทพืช)
+     กล่องแถวล่างสูงเท่ากันทั้งแถว (ยืดตามกล่องที่ชิปเยอะสุด) และอยู่ล่างสุด → ขยายแล้วดันเฉพาะส่วนใต้ตัวกรองลงไป ไม่ทำให้ช่องอื่นเหลื่อม */
+  .ir-row1{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.5fr); gap:14px 16px; align-items:start;}
+  .ir-row2{display:flex; flex-wrap:wrap; gap:14px 16px; align-items:stretch;}
+  .ir-row2 .fg{flex:1 1 150px; display:flex; flex-direction:column;}
+  .ir-row2 .fg.proc{flex:1.5 1 230px;}
+  .ir-row2 .fg[hidden]{display:none;}
+  .ir-row2 .ms{flex:1 1 auto; display:flex; flex-direction:column;}
+  .ir-row2 .ms-btn{flex:1 1 auto; align-items:flex-start; padding-top:9px; padding-bottom:8px;}   /* กล่องถูกยืดตามกล่องข้างเคียง → ชิปแถวแรกชิดบนเสมอ (ตรงกันทุกกล่อง) ไม่จัดกลาง */
+  .ir-row2 .ms-btn svg{margin-top:6px;}
+  .ir-sa{display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px 12px; container-type:inline-size; min-width:0;}
+  .ir-sa .fg.wide{flex:1 1 170px;}
+  .ir-sa .ir-acts{flex:0 0 auto; margin-left:auto; flex-wrap:nowrap;}
+  @media (min-width:561px){   /* มือถือ (<=560px) ปุ่มกว้างเต็มแถว แสดงชื่อเต็มได้ — ย่อชื่อเฉพาะจอคอมที่พื้นที่แคบ */
+  @container (max-width:640px){ .ir-acts .lx{display:none;} }
+  @container (max-width:540px){ .ir-acts .lt{display:none;} }   /* แคบมาก: Excel / พิมพ์ เหลือไอคอน (มี title) */
+  }
+  @media (max-width:1100px){ .ir-row1{grid-template-columns:repeat(2, minmax(0, 1fr));} .ir-sa{grid-column:1 / -1;} }
+  @media (max-width:560px){ .ir-row1{grid-template-columns:minmax(0, 1fr);} .ir-row2 .fg, .ir-row2 .fg.proc{flex-basis:100%;} .ir-sa .fg.wide{flex-basis:100%;} .ir-sa .ir-acts{flex:1 1 100%; flex-wrap:wrap;} }
+  .ir-filter .fg{min-width:0; position:relative;}
+  
+  .ir-filter label{display:block; font-size:13.5px; font-weight:600; color:#d5dde8; margin-bottom:6px;}
+  .ir-filter select, .ir-filter input[type=search]{height:46px; min-height:46px; width:100%; padding-top:0; padding-bottom:0;}
+  .ir-acts{display:flex; gap:10px; flex-wrap:wrap; margin-left:auto;}
+  .ir-acts .btn{height:46px; min-height:46px; text-transform:none; font-family:'Inter','Noto Sans Thai',sans-serif; font-size:14px; letter-spacing:0;}
+  .ir-acts .btn svg{width:16px; height:16px;}
+  .btn-show{background:rgba(242,169,28,.18); border:1px solid rgba(242,169,28,.8); color:#ffcf66; font-weight:700;}
+  .btn-show:hover{background:#f2a91c; color:#1b1404;}
+  .btn-xls{background:rgba(62,207,142,.1); border:1px solid rgba(62,207,142,.5); color:#7ee2b4;}
+  .btn-xls:hover{background:rgba(62,207,142,.2); color:#fff;}
+  .ir-hint{font-size:12.5px; color:var(--concrete-400); margin:10px 0 0;}
+  .tbl-hint{font-size:14px; line-height:1.55; color:#dbe2ea; margin:0 0 10px;}
+  /* ตัวเลือกหลายรายการ (บริษัท / Process) */
+  .ms-btn{width:100%; min-height:46px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 10px 5px 8px; font:inherit; font-size:14px; color:var(--concrete-200); cursor:pointer;
+    background:var(--navy-950); border:1px solid rgba(255,255,255,.1); border-radius:7px; text-align:left;}
+  .ms-val{display:flex; flex-wrap:wrap; gap:5px; min-width:0; flex:1 1 auto;}
+  .ms-chip{max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:3px 10px; border-radius:999px; font-size:13px; font-weight:600; line-height:1.4;
+    background:rgba(78,167,224,.16); border:1px solid rgba(78,167,224,.45); color:#a9d8f5;}
+  .ms-chip.ex{background:rgba(229,83,61,.12); border-color:rgba(229,83,61,.5); color:#ff9d8c;}
+  .ms-chip.more{background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.2); color:#d5dde8;}
+  .ms-chip.none{background:transparent; border-style:dashed; color:var(--concrete-400);}
+  .ms-btn:hover, .ms.open .ms-btn{border-color:var(--amber-500);}
+  .ms-btn svg{width:14px; height:14px; flex-shrink:0; opacity:.7;}
+  .ms-pop{position:absolute; left:0; top:calc(100% + 4px); z-index:30; min-width:100%; width:max-content; max-width:min(420px, 92vw); max-height:340px; overflow:auto; padding:8px;
+    background:var(--navy-800); border:1px solid rgba(255,255,255,.18); border-radius:10px; box-shadow:0 20px 50px -15px rgba(0,0,0,.8);}
+  .ms-pop label{display:flex; align-items:center; gap:10px; margin:0; padding:9px 10px; border-radius:7px; font-size:14px; font-weight:500; color:var(--concrete-200); cursor:pointer; min-height:40px;}
+  .ms-pop label:hover{background:rgba(255,255,255,.06);}
+  .ms-pop input{width:18px; height:18px; margin:0; accent-color:var(--amber-500); flex-shrink:0;}
+  .ms-pop .all{border-bottom:1px solid rgba(255,255,255,.1); margin-bottom:4px; font-weight:700; color:#ffcf66;}
+  .ms-pop small{color:var(--concrete-400); font-size:11.5px; margin-left:auto; padding-left:8px;}
+  .ms-pop label.grp{font-weight:700; color:#e3e8ef; border-top:1px solid rgba(255,255,255,.1); margin-top:4px; padding-top:11px;}
+  .ms-pop label.sub{padding-left:36px; font-size:13.5px;}
+  .ms-pop label.grp + label.sub{margin-top:-2px;}
+  .hb.nc{cursor:default;} .hb.nc:hover{background:transparent;}
+  .hb.tg{cursor:pointer;} .hb.tg .nm::before{content:"▸"; display:inline-block; width:14px; color:var(--amber-500);} .hb.tg.open .nm::before{content:"▾";}
+  .hb.nt .nm{padding-left:22px; font-size:12.5px; color:#c9d2dc;} .hb.nt .br i{background:linear-gradient(90deg, #3d7fb0, #4ea7e0);} .hb.nt .am{font-weight:500; color:#d5dde8;}
+  .hb .pc{width:46px; text-align:right; color:var(--concrete-400); font-size:12px; flex-shrink:0;}
+  .ir-sub-h{font-size:13.5px; font-weight:700; color:#e3e8ef; margin:14px 0 4px; padding-top:12px; border-top:1px solid rgba(255,255,255,.08);}
+
+  .ir-bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 18px;}
+  .ir-tabs{display:flex; gap:8px; flex-wrap:wrap;}
+  .ir-tabs button{font:inherit; text-align:left; padding:9px 16px; border-radius:10px; cursor:pointer; line-height:1.3;
+    background:rgba(78,167,224,.08); border:1px solid rgba(78,167,224,.35); color:#a9d8f5; font-size:15px; font-weight:700;}
+  .ir-tabs button:hover{background:rgba(78,167,224,.16);}
+  .ir-tabs button.on{background:rgba(242,169,28,.18); border-color:rgba(242,169,28,.8); color:#ffcf66;}
+  .ir-tabs button.all{border-style:dashed;}
+  .ir-setup{margin-left:auto;}
+  .ir-views{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:0 0 14px;}
+  /* มุมมองช่วงเวลา รายเดือน / รายไตรมาส — ใช้กับทั้งตารางและกราฟ */
+  .ir-views .per{margin-left:auto; display:inline-flex; align-items:center; gap:8px;}
+  .ir-views .per .pl{font-size:13px; color:#b8c3d1;}
+  .ir-views .per .seg2 button{padding:9px 16px; font-size:14px; border-radius:0;}
+  .ir-views .per .seg2 button svg{display:none;}
+  .ir-views button{font:inherit; font-size:14px; font-weight:600; padding:9px 16px; border-radius:9px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+    background:rgba(78,167,224,.08); border:1px solid rgba(78,167,224,.35); color:#a9d8f5;}
+  .ir-views button svg{width:16px; height:16px;}
+  .ir-views button.on{background:rgba(242,169,28,.18); border-color:rgba(242,169,28,.8); color:#ffcf66;}
+  .ir-warn{margin:0 0 12px; padding:10px 14px; border-radius:8px; font-size:14px; color:#ffcf66; background:rgba(242,169,28,.1); border:1px solid rgba(242,169,28,.45);}
+  .ir-err{margin:0 0 12px; padding:12px 14px; border-radius:8px; font-size:14px; color:#ff9d8c; background:rgba(229,83,61,.1); border:1px solid rgba(229,83,61,.5);}
+
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; margin-bottom:16px;}
+  .kpi{position:relative; border-radius:12px; padding:14px 16px; background:linear-gradient(160deg, rgba(var(--k),.16), rgba(var(--k),.04)); border:1px solid rgba(var(--k),.4); overflow:hidden; min-width:0;}
+  .kpi .l{font-size:14.5px; font-weight:600; color:#d5dde8;}
+  .kpi .v{font-family:'Oswald',sans-serif; font-size:32px; font-weight:600; color:rgb(var(--k)); line-height:1.15; margin-top:4px; overflow-wrap:anywhere;}
+  .kpi .v.t{font-family:'Inter','Noto Sans Thai',sans-serif; font-size:18px; font-weight:700; line-height:1.35;}
+  .kpi .v small{display:block; font-family:'Inter','Noto Sans Thai',sans-serif; font-size:13.5px; color:#b8c3d1; font-weight:500; margin:0;}
+  .kpi .d{font-size:12.5px; color:#b8c3d1; margin-top:2px; line-height:1.4;}
+  .kpi svg.bg{position:absolute; right:-6px; bottom:-8px; width:62px; height:62px; color:rgb(var(--k)); opacity:.13;}
+  .up{color:#3ecf8e;} .dn{color:#ff8a75;} .flat{color:#b8c3d1;}
+
+  .ir-grid{display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 1fr); gap:14px; margin-bottom:14px;}
+  .ir-box{border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:14px 16px; background:rgba(255,255,255,.025); min-width:0;}
+  .ir-box h3{margin:0 0 2px; font-size:15.5px; font-weight:700; color:#fff;}
+  .ir-box .hint{font-size:12.5px; color:var(--concrete-400); margin-bottom:8px;}
+  .ir-box svg.ch{width:100%; height:auto; display:block; overflow:visible;}
+  .ir-box svg text{fill:#d5dde8; font-size:12.5px; font-weight:500; font-family:'Inter','Noto Sans Thai',sans-serif;}
+  /* กราฟแนวโน้ม: ชี้เมาส์ = เส้นแนวตั้งของเดือน + กล่องยอดทุกปี / ใกล้เส้นไหน = เส้นนั้นเด่น + เส้นแนวโน้มของปีนั้น */
+  .tw{position:relative;}
+  .tw svg .ln, .tw svg .dt{transition:opacity .15s;}
+  .tw svg.foc .ln:not(.on), .tw svg.foc .dt:not(.on){opacity:.16;}
+  .tw svg .ln.on{stroke-width:4.2px;}
+  .tw svg .gd{stroke:rgba(255,255,255,.4); stroke-width:1; stroke-dasharray:3 3;}
+  .tw svg .tl{stroke-width:2.4; stroke-dasharray:8 5;}
+  .tw svg text.pv{fill:#ffcf66; font-weight:700; font-size:12.5px; pointer-events:none;}
+  .tw svg.foc text.pv{opacity:.35;}
+  .tw svg text.tlt{font-size:13px; font-weight:700;}
+  /* แถบยอดของเดือนที่ชี้ อยู่เหนือกราฟ (สูงคงที่ ไม่ทำให้หน้ากระโดด) — ไม่ลอยทับเส้นกราฟ */
+  .tw-read{min-height:54px; display:flex; flex-wrap:wrap; align-items:center; gap:4px 16px; padding:7px 12px; margin:2px 0 6px; border-radius:9px;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); font-size:13.5px; color:#cfd8e3;}
+  .tw-read .ph{color:#8fa3b8;}
+  .tw-read .mo{color:#ffcf66; font-weight:700; min-width:76px;}
+  .tw-read .v{display:inline-flex; align-items:center; gap:6px; font-variant-numeric:tabular-nums;}
+  .tw-read .v i{width:10px; height:10px; border-radius:3px;}
+  .tw-read .v.f{color:#fff; font-weight:700;}
+  .tw-read .trd{flex-basis:100%; font-size:13px; color:#dbe2ea;}
+  .ir-box.full{grid-column:1 / -1;}
+  /* หัวกราฟ: ชื่อ + ปุ่มสลับมุมมอง รายเดือน / สะสม */
+  .ch-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px 16px; flex-wrap:wrap;}
+  .seg2{display:inline-flex; border:1px solid rgba(255,255,255,.18); border-radius:9px; overflow:hidden; flex-shrink:0;}
+  .seg2 button{font:inherit; font-size:13.5px; font-weight:600; padding:7px 14px; cursor:pointer; background:transparent; border:0; color:#cfd8e3;}
+  .seg2 button + button{border-left:1px solid rgba(255,255,255,.18);}
+  .seg2 button.on{background:rgba(242,169,28,.2); color:#ffcf66;}
+  /* สรุปคาดการณ์ทั้งปี */
+  .fc-note{display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; margin:8px 0 4px; padding:8px 12px; border-radius:9px; font-size:13.5px;
+    background:rgba(242,169,28,.08); border:1px dashed rgba(242,169,28,.55); color:#e7e4da;}
+  .fc-note b{color:#ffcf66; font-size:15px;}
+  .fc-note small{color:#b8c3d1; font-size:12.5px;}
+  .fc-note.na{background:rgba(255,255,255,.03); border-color:rgba(255,255,255,.15); color:#b8c3d1;}
+  .tw svg .fcl{stroke-dasharray:7 5; stroke-width:2.6; opacity:.85;}
+  .tw svg .fcb{opacity:.16;}
+  .tw-read .v.fc{color:#ffcf66;}
+  /* Heatmap เดือน × ปี: ช่องสีเข้ม = เบิกมาก */
+  .hm-wrap{overflow-x:auto;}
+  table.hm.q4{min-width:0;}
+  @media (max-width:560px){ table.hm.q4{border-spacing:3px;} table.hm.q4 th.yr{width:40px; font-size:12px;} table.hm.q4 th.tot{width:54px;} table.hm.q4 td{font-size:12px; padding:0;} }
+  table.hm{width:100%; min-width:720px; border-collapse:separate; border-spacing:4px; table-layout:fixed;}
+  table.hm th{font-size:13px; font-weight:700; color:#cfd8e3; padding:2px 0; text-align:center; position:static; background:transparent; border:0; font-family:'Inter','Noto Sans Thai',sans-serif; text-transform:none; letter-spacing:0;}
+  table.hm th.yr{width:62px; text-align:left; color:#e7e4da;} table.hm th.yr.y0{color:#ffcf66;}
+  table.hm th.tot{width:92px;}
+  table.hm td{height:42px; padding:0 4px; border:0; border-radius:7px; text-align:center; font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; cursor:default; transition:transform .1s, box-shadow .1s;}
+  table.hm tbody tr:hover{background:transparent;}
+  table.hm td:hover{transform:scale(1.06); box-shadow:0 0 0 2px #fff3; position:relative; z-index:1;}
+  table.hm td.pk{box-shadow:inset 0 0 0 2px #fff;}
+  table.hm td.na{background:repeating-linear-gradient(135deg, rgba(255,255,255,.04) 0 6px, transparent 6px 12px); color:#5b6f86; font-weight:400;}
+  table.hm td.pt{outline:2px dashed rgba(255,207,102,.75); outline-offset:-2px;}
+  table.hm td.tt{background:rgba(255,255,255,.05); color:#fff; text-align:right; padding-right:8px;}
+  table.hm tr.avg td{height:34px; font-size:12px;}
+  table.hm tr.avg th{color:#b8c3d1; font-size:12px;}
+  table.hm td.sel{box-shadow:inset 0 0 0 3px #4ea7e0, 0 0 0 2px rgba(78,167,224,.45); }
+  table.hm td[data-sel], table.hm th[data-selm]{cursor:pointer;}
+  .tw svg{cursor:pointer;}
+  .tw svg .selb{fill:rgba(78,167,224,.16); stroke:rgba(78,167,224,.6); stroke-width:1;}
+  .sel-chip{display:inline-flex; align-items:center; gap:8px; margin:0 0 8px; padding:5px 6px 5px 12px; border-radius:999px; font-size:13px; font-weight:600;
+    color:#cfe8fb; background:rgba(78,167,224,.16); border:1px solid rgba(78,167,224,.6);}
+  .sel-chip button{font:inherit; font-size:12px; padding:3px 10px; border-radius:999px; cursor:pointer; color:#fff; background:rgba(78,167,224,.45); border:0;}
+  .hm-leg{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; font-size:12.5px; color:#b8c3d1;}
+  .hm-leg .bar{width:180px; height:10px; border-radius:5px; background:linear-gradient(90deg, color-mix(in srgb, #f59e0b 8%, #142235), #f59e0b);}
+  .hm-leg .pkd{display:inline-block; width:14px; height:14px; border-radius:4px; box-shadow:inset 0 0 0 2px #fff; background:color-mix(in srgb, #f59e0b 60%, #142235); vertical-align:-2px;}
+  .lg{display:flex; gap:8px 10px; flex-wrap:wrap; margin:4px 0 6px;}
+  .lg button{font:inherit; font-size:13px; font-weight:600; display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:999px; cursor:pointer; color:#d5dde8; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.15);}
+  .lg button i{width:11px; height:11px; border-radius:3px; display:inline-block;}
+  .lg button.off{opacity:.4; text-decoration:line-through;}
+  .hb{display:flex; align-items:center; gap:10px; padding:6px 4px; border-radius:7px; font-size:13.5px; cursor:pointer;}
+  .hb:hover{background:rgba(255,255,255,.05);}
+  .hb .rk{width:20px; color:var(--concrete-400); text-align:right; flex-shrink:0;}
+  .hb .nm{flex:0 1 46%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#e7e4da;}
+  .hb .br{flex:1 1 0; height:14px; border-radius:4px; background:rgba(255,255,255,.07); min-width:30px;}
+  .hb .br i{display:block; height:100%; border-radius:4px; background:linear-gradient(90deg, #d8930c, #f2a91c);}
+  .hb .am{width:84px; text-align:right; font-variant-numeric:tabular-nums; color:#fff; font-weight:600; flex-shrink:0;}
+  .dn-row{display:flex; gap:14px; align-items:center; flex-wrap:wrap;}
+  .dn-leg{flex:1 1 150px; min-width:0; display:flex; flex-direction:column; gap:5px; font-size:13px;}
+  .dn-leg div{display:flex; align-items:center; gap:7px; min-width:0;}
+  .dn-leg i{width:11px; height:11px; border-radius:3px; flex-shrink:0;}
+  .dn-leg span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+  .dn-leg b{margin-left:auto; padding-left:6px; font-variant-numeric:tabular-nums; flex-shrink:0;}
+  @media (max-width:980px){ .ir-grid{grid-template-columns:minmax(0, 1fr);} }
+
+  /* ตาราง 12 เดือน × 5 ปี — หัวตาราง: กรอบทุกช่อง + เส้นคั่นหนาระหว่างเดือน (.gs) + เดือนสลับ 2 โทน (a / b) อ่านง่ายกว่าสีพาสเทลหลายสี */
+  .ir-area{container-type:inline-size;}
+  .irt-wrap{overflow:auto; max-height:calc(100vh - 140px); border:1px solid rgba(255,255,255,.16); border-radius:10px;}
+  table.irt{width:max-content; min-width:100%; border-collapse:separate; border-spacing:0; font-size:14px;}
+  table.irt th, table.irt td{padding:8px 11px; text-align:right; white-space:nowrap; border-bottom:1px solid rgba(255,255,255,.07); border-right:1px solid rgba(255,255,255,.045); font-variant-numeric:tabular-nums;}
+  table.irt thead th{position:sticky; z-index:3; font-family:'Inter','Noto Sans Thai',sans-serif; text-transform:none; letter-spacing:0; font-size:14px; font-weight:700; color:#fff; text-align:center;
+    border-right:1px solid rgba(15,23,42,.18); border-bottom:1px solid rgba(15,23,42,.18);}
+  table.irt thead tr.r1 th{top:0; height:40px;}
+  table.irt thead tr.r1 th.mh{font-size:16px;}
+  table.irt thead th.mh small.qr{font-size:12px; font-weight:600; margin-left:8px; color:#334155;}
+  table.irt thead tr.r2 th{top:38px; height:34px; font-weight:600; font-size:13.5px; cursor:pointer; border-bottom:2px solid #f2a91c;}
+  /* หัวตาราง (เฉพาะตารางเมทริกซ์นี้): สีสดตามไตรมาส โปร่งแสงบนพื้นรองสีขาว 55% — สว่าง ตัวอักษรเข้ม · พื้นยังทึบ ตัวเลขไม่ทะลุตอนเลื่อน */
+  .q1{--qc:#0ea5e9;} .q2{--qc:#10b981;} .q3{--qc:#6366f1;} .q4{--qc:#ec4899;} .qt{--qc:#f59e0b;}
+  table.irt thead th.mh{background:color-mix(in srgb, var(--qc) 55%, #ffffff); color:#0f172a;}
+  table.irt thead th.mh.alt{background:color-mix(in srgb, var(--qc) 67%, #ffffff);}
+  table.irt thead th.yh{background:color-mix(in srgb, var(--qc) 37%, #ffffff); color:#1e293b;}
+  table.irt thead th.yh.alt{background:color-mix(in srgb, var(--qc) 47%, #ffffff);}
+  table.irt thead th.yh.y0{color:#9a3412; font-weight:800;}
+  table.irt thead th.gs{border-left:2px solid rgba(15,23,42,.38);}
+  table.irt td.gs{border-left:2px solid rgba(255,255,255,.16);}
+  table.irt td.mb{background:rgba(255,255,255,.025);}
+  /* คอลัมน์ ประเภทพืช / ประเภทบรรจุภัณฑ์ — แยกจากชื่อสินค้า แถวไม่สูง · ไม่ตรึง (ตรึงเฉพาะปุ่มกราฟ + ชื่อสินค้า) */
+  table.irt thead th.cx{background:#1a2433; color:#ffcf66; vertical-align:middle; cursor:pointer; border-bottom:2px solid #f2a91c; width:100px; min-width:100px; max-width:100px; white-space:normal; padding-left:6px; padding-right:6px;}
+  table.irt td.cx{text-align:center; white-space:normal; width:100px; min-width:100px; max-width:100px; padding-left:6px; padding-right:6px; line-height:1.35; font-size:13.5px;}
+  table.irt tfoot td.cx{background:#1e2c40;}
+  table.irt td.cx.grp{color:#f5c66b; font-weight:600;}
+  table.irt td.cx.crop{color:#e7e4da;}
+  /* คอลัมน์ เทียบปีก่อน (% ช่วงเดียวกัน) — แคบ กดเรียงได้ */
+  table.irt thead th.sp{background:#1a2433; color:#ffcf66; vertical-align:middle; cursor:pointer; border-bottom:2px solid #f2a91c; width:84px; min-width:84px; max-width:84px; white-space:normal; font-size:13px; line-height:1.3; padding-left:4px; padding-right:4px;}
+  table.irt td.sp{width:84px; min-width:84px; max-width:84px; padding-left:4px; padding-right:8px; font-size:13px; font-weight:700;}
+  table.irt td.sp .up{color:#3ecf8e;} table.irt td.sp .dn{color:#ff8a75;} table.irt td.sp .flat{color:#8fa3b8; font-weight:500;}
+  table.irt td.sp .nw{color:#7cc4f5;}
+  /* หัวโซนตรึงซ้าย (สินค้า / ประเภท / ปุ่มกราฟ): พื้นมืดตัวอำพัน เป็นบล็อกเดียวกับคอลัมน์ข้างล่าง — โซนตัวเลขเป็นสีไตรมาส */
+  table.irt thead th.nm{left:44px; z-index:6; background:#1a2433; color:#ffcf66; text-align:center; width:300px; min-width:300px; max-width:300px; vertical-align:middle; cursor:pointer; border-bottom:2px solid #f2a91c;}
+  table.irt thead th.act{left:0; z-index:6; background:#1a2433; width:44px; min-width:44px; max-width:44px; padding-left:4px; padding-right:4px; border-bottom:2px solid #f2a91c;}
+  table.irt thead th.ix{background:#e2e8f0; color:#1e293b; vertical-align:middle;}
+  table.irt td.nm{position:sticky; left:44px; border-right:2px solid rgba(255,255,255,.14); z-index:2; background:#131f30; text-align:left; white-space:normal; width:300px; min-width:300px; max-width:300px; line-height:1.4; font-size:14.5px;}
+  /* หน่วย: ตัวอักษรสีม่วงอ่อน ไม่มีกรอบ/พื้น (ไม่ให้ดูเป็นปุ่ม) แยกจากชื่อด้วยสีและขนาด */
+  table.irt td.nm .u{font-size:12.5px; font-weight:600; white-space:nowrap; color:#c4b5fd;}
+  table.irt td.nm .u::before{content:"หน่วย "; font-weight:400; color:#9b8fd0;}
+  table.irt td.nm .ty{display:flex; flex-wrap:wrap; gap:0 12px; font-size:12.5px; color:#9fb0c3; margin-top:2px; line-height:1.45;}
+  .ty .lt{color:#f5c66b; font-weight:600;} .ty .lg{color:#9fb0c3;}
+  .ic-card .ty{display:flex; flex-wrap:wrap; gap:0 12px;}
+  .ic-card .ty .lt{color:#f5c66b;}
+  table.irt td.act{position:sticky; left:0; z-index:2; background:#131f30; text-align:center; padding:6px 4px; width:44px; min-width:44px; max-width:44px;}
+  table.irt td.z{color:#41566d;}
+  table.irt td.tt{background:rgba(245,176,65,.08); font-weight:700; color:#fff;}
+  table.irt td.y0{font-weight:600; color:#fff;}
+  table.irt tbody tr:hover td{background:#1a2c44;}
+  table.irt tbody tr:hover td.tt{background:#2b3a45;}
+  table.irt tfoot td{position:sticky; bottom:0; z-index:2; background:#1e2c40; font-weight:700; color:#ffcf66; border-top:2px solid #f2a91c;}
+  table.irt tfoot td.nm, table.irt tfoot td.act{z-index:4; background:#1e2c40;}
+  table.irt tfoot td.nm.ft{text-align:right;}
+  /* ปุ่มวิเคราะห์ (ไอคอนกราฟ) ในแถว: ฟ้า (กรอบ + พื้นจาง) ตามมาตรฐานปุ่มรอง — ไม่ชนสีอำพันของรวมทั้งปี */
+  .ib{display:inline-flex; width:34px; height:32px; align-items:center; justify-content:center; border-radius:8px; cursor:pointer; padding:0; color:#9fd6f7; background:rgba(78,167,224,.2); border:1px solid rgba(78,167,224,.85);}
+  .ib:hover{background:#4ea7e0; color:#08131f;}
+  .ib svg{width:17px; height:17px; pointer-events:none;}
+  .ir-sort{font-size:10px; margin-left:3px; opacity:.8;}
+  .ir-cards{display:none;}
+  @container (max-width: 899px){ .ir-area .irt-wrap{display:none;} .ir-area .ir-cards{display:flex; flex-direction:column; gap:10px;} }
+  .ic-card{border:1px solid rgba(255,255,255,.12); border-left:4px solid var(--amber-500); border-radius:10px; padding:12px 14px; background:rgba(255,255,255,.025); min-width:0;}
+  .ic-card .hd{display:flex; justify-content:space-between; gap:10px; align-items:flex-start;}
+  .ic-card .nm{font-weight:700; color:#fff; font-size:15px; line-height:1.35; overflow-wrap:anywhere;}
+  .ic-card .ty{font-size:12px; color:var(--concrete-400); margin-top:2px;}
+  .ic-card .ys{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px; margin:10px 0 8px;}
+  .ic-card .ys div{border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:6px 4px; text-align:center; font-size:11.5px; color:var(--concrete-400); background:rgba(255,255,255,.03);}
+  .ic-card .ys div:first-child{grid-column:1 / -1; border-color:rgba(242,169,28,.6); background:rgba(242,169,28,.1);} .ic-card .ys div:first-child b{font-size:18px;}
+  .ic-card .ys b{display:block; font-size:13.5px; color:#fff; margin-top:2px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere;}
+  .mini{display:flex; align-items:flex-end; gap:3px; height:44px;}
+  .mini i{flex:1 1 0; min-width:0; border-radius:2px 2px 0 0; background:#f2a91c; min-height:2px; opacity:.9;}
+  .mini i.z{background:#33465c; opacity:1;}
+  .mini-l{display:flex; gap:3px; font-size:9.5px; color:#7f93a8;}
+  .mini-l span{flex:1 1 0; text-align:center; min-width:0;}
+  .ic-card .acts{margin-top:10px;}
+  .ir-pager{display:flex; gap:6px; flex-wrap:wrap; align-items:center; justify-content:center; margin-top:14px; font-size:13.5px; color:var(--concrete-400);}
+  .ir-pager button{font:inherit; min-width:36px; height:36px; padding:0 10px; border-radius:7px; cursor:pointer; color:#a9d8f5; background:rgba(78,167,224,.08); border:1px solid rgba(78,167,224,.35);}
+  .ir-pager button.on{background:rgba(242,169,28,.2); border-color:rgba(242,169,28,.8); color:#ffcf66;}
+  .ir-pager button:disabled{opacity:.35; cursor:default;}
+
+  .ir-load{min-height:240px;}
+  .modal-box.wide{max-width:1000px;}
+  .modal-box.mid{max-width:620px;}
+  /* ---------- popup วิเคราะห์รายสินค้า: ตัวอักษรใหญ่ขึ้น สีสว่างขึ้นให้อ่านง่าย / การ์ดสรุปมีสีพื้น / คอลัมน์ปีตรึงซ้าย ---------- */
+  #drBody .dr-sub{font-size:16px; line-height:1.6; color:#e3e8ef; margin:0 0 4px;}
+  #drBody .dr-sub b{color:#fff; font-weight:700;} #drBody .dr-sub .g{color:#ffcf66; font-weight:700;}
+  #drBody .hint{font-size:14px; line-height:1.5; color:#c3cedb;}
+  #drBody .ir-box h3{font-size:17px;}
+  #drBody .ir-box svg text{font-size:13.5px; fill:#e3e8ef;}
+  #drBody .hb{font-size:14.5px;} #drBody .hb .nm{color:#f1f4f8;} #drBody .hb .am{font-size:14.5px;}
+  #drBody .hb.nt .nm{font-size:14px; color:#dbe4ee;} #drBody .hb.nt2 .nm{padding-left:44px; font-size:13.5px; color:#c9d4e0;} #drBody .hb.nt .am{color:#e7ecf2;}
+  #drBody .hb .pc{width:50px; font-size:13.5px; color:#c3cedb;}
+  #drBody .hb.tg:hover{background:rgba(242,169,28,.08);}
+  #drBody .lg button{font-size:14px;}
+  #drBody .tw-read{font-size:14.5px; color:#e3e8ef;} #drBody .tw-read .ph{color:#b8c3d1;}
+  #drBody .fc-note, #drBody .fc-note small{color:#d5dde8;}
+  .bw svg{cursor:crosshair; touch-action:pan-y;}
+  .bw svg .yb{fill:rgba(255,255,255,.035);}
+  .bw svg .hl{fill:rgba(255,255,255,.13); pointer-events:none;}
+  .bw svg text.yt{font-weight:700; font-size:13px;}
+  .bw svg text.mk{fill:#fff; font-weight:700; font-size:12.5px; paint-order:stroke; stroke:#0f1a29; stroke-width:3px; stroke-linejoin:round;}
+  #drBody .ch-head .seg2 button{font-size:14px;}
+  .dr-kpis{display:grid; grid-template-columns:repeat(auto-fit, minmax(172px, 1fr)); gap:10px; margin:12px 0;}
+  .dr-kpis .kpi{padding:12px 14px;}
+  .dr-kpis .kpi .l{font-size:14.5px; font-weight:600; color:#eef2f7; line-height:1.35;}
+  .dr-kpis .kpi .v{font-size:28px; margin-top:6px;}
+  .dr-kpis .kpi .v small{font-size:14px; color:#d5dde8; margin-top:0;}
+  #drBody table.irt td{font-size:14.5px; color:#e7ecf2;}
+  #drBody table.irt .ycol{position:sticky; left:0; z-index:4; text-align:center; font-weight:800; font-size:16px; min-width:78px; background:#1a2433; border-right:2px solid rgba(255,255,255,.22);}
+  #drBody table.irt thead th.ycol{z-index:7; background:#1a2433; color:#ffcf66; font-size:15px; border-bottom:2px solid #f2a91c;}
+  .dr-tg{font:inherit; font-size:14px; font-weight:600; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:9px; cursor:pointer; flex-shrink:0; color:#a9d8f5; background:rgba(78,167,224,.12); border:1px solid rgba(78,167,224,.55);}
+  .dr-tg b{font-size:17px; line-height:1; width:12px; text-align:center;}
+  .dr-tg:hover{background:rgba(78,167,224,.24); color:#fff;}
+  @media (max-width:560px){
+    .dr-kpis{grid-template-columns:repeat(2, minmax(0, 1fr));} .dr-kpis .kpi .v{font-size:23px;} .dr-kpis .kpi .l{font-size:13.5px;}
+    /* มือถือ: ชื่อ Process อยู่บรรทัดเต็ม (ไม่ถูกตัดเป็น …) แถบ + ตัวเลข + % อยู่บรรทัดถัดไป */
+    #drBody .hb{flex-wrap:wrap; row-gap:3px; padding:8px 4px;}
+    #drBody .hb .nm{flex:1 1 100%; white-space:normal; overflow:visible;}
+    #drBody .hb.nt .nm{padding-left:22px;} #drBody .hb.nt2 .nm{padding-left:44px;}
+    #drBody .hb .br{flex:1 1 0;}
+  }
+  /* คำอธิบายใน popup จัดแท็บ: ตัวใหญ่ + สว่างกว่าคำใบ้ทั่วไป อ่านได้โดยไม่ต้องเพ่ง */
+  .st-hint{font-size:14.5px; line-height:1.6; color:#dbe2ea; margin:0 0 10px;}
+  .st-hint.st-count{font-size:14px; font-weight:600; color:#ffcf66; margin:0 0 6px;}
+  .stp-row{display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid rgba(255,255,255,.07);}
+  .stp-row .n{flex:1 1 auto; min-width:0; font-size:14.5px; font-weight:600;}
+  .stp-row .c{color:var(--concrete-400); font-size:12px; font-weight:400; margin-left:6px;}
+  .stp-row select{width:200px; height:42px; padding-top:0; padding-bottom:0;}
+  @media (max-width:560px){
+    .ir-row2 .fg.wide, .ir-row2 .fg.ms-fg{flex:1 1 100%;}
+    .ir-acts{margin-left:0; width:100%;} .ir-acts .btn{flex:1 1 0; padding:0 8px; font-size:13px;}
+    .ir-acts .btn svg{display:none;}
+    .ir-tabs button{flex:1 1 calc(50% - 8px); font-size:14px; padding:8px 10px;}
+    .kpis{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;} .kpi{padding:12px;} .kpi .v{font-size:26px;} .kpi .v.t{font-size:15px;} .kpi .l{font-size:13.5px;}
+    .ir-views{display:flex;} .ir-views button{flex:1 1 0; justify-content:center;}
+    .ir-views .per{margin-left:0; width:100%;} .ir-views .per .seg2{flex:1 1 auto; display:flex;}
+    .stp-row{flex-wrap:wrap;} .stp-row select{width:100%;}
+    .hb .nm{flex-basis:40%;}
+  }
+  @media (max-width:400px){ .page-head .eyebrow{letter-spacing:.08em; font-size:12px;} }
+  #prOverlay .pr-msg{font-size:15px; line-height:1.65; color:#e3e8ef; margin:0 0 10px;} #prOverlay .pr-msg b{color:#ffcf66;}
+  #prOverlay .pr-warn{margin:0 0 12px; padding:10px 14px; border-radius:8px; font-size:14.5px; line-height:1.55; color:#ffcf66; background:rgba(242,169,28,.1); border:1px solid rgba(242,169,28,.45);}
+  #prOverlay .pr-chk{display:flex; align-items:center; gap:8px; margin:14px 0 0; font-size:14px; color:#c3cedb; cursor:pointer;} #prOverlay .pr-chk input{width:16px; height:16px; margin:0; accent-color:#f2a91c;}
+  #prOverlay .pr-btns{display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; margin-top:16px;} #prOverlay .pr-btns .btn svg{width:16px; height:16px;}
+  @media print{ #app, .toast{display:none;} }
+  /* ใบพิมพ์ 12 เดือน: ตารางแน่นขึ้น (ตัวเล็ก ขอบในแคบ) ให้ตัวเลข 2 ทศนิยมพอดีช่อง — html นำหน้าเพื่อชนะกฎของ iOS ใน report-print.js */
+  /* กรอบข้อมูลหัวรายงาน: ช่องหัวข้อ (พื้นฟ้า) แคบลง ช่องข้อมูลกว้างขึ้น → ข้อความยาว (บริษัท / Process) ขึ้นบรรทัดน้อยลง */
+  html #wimRptArea .rpt-info th{width:10.5%;}
+  html #wimRptArea .rpt-info td{width:39.5%;}
+  html #wimRptArea table.rpt-t th{text-transform:none;}
+  html #wimRptArea table.rpt-t.dense{font-size:6.8pt;}
+  html #wimRptArea table.rpt-t.dense th{font-size:6.8pt; padding:1mm .5mm;}
+  html #wimRptArea table.rpt-t.dense td{font-size:6.8pt; padding:.9mm .6mm;}
+  html #wimRptArea table.rpt-t.dense td.r{white-space:nowrap;}
+  html #wimRptArea table.rpt-t.dense td:nth-child(3), html #wimRptArea table.rpt-t.dense th:nth-child(3){padding-left:.3mm; padding-right:.3mm;}   /* หน่วย: ขอบในแคบ */
+  html #wimRptArea table.rpt-t.dense td:first-child{white-space:nowrap; padding-left:.3mm; padding-right:.3mm;}   /* ลำดับ: ไม่ตัดบรรทัด */
+</style>
+<script src="/js/session-guard.js"></script>
+<script src="/js/sidebar.js"></script>
+<script src="/js/report-print.js?v=20261105a"></script>
+<script src="/js/wim-loading.js"></script>
+<link rel="stylesheet" href="/css/wim-loading.css">
+<link rel="stylesheet" href="/css/wim-modal-title.css">
+<link rel="stylesheet" href="/css/mobile-base.css">
+</head>
+<body>
+
+<div class="app-shell" id="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <div class="main-wrap">
+    <div class="topbar-mobile">
+      <button class="hamburger" id="sidebarToggle" type="button" aria-label="เปิดเมนู">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <div class="brand-text">WIM</div>
+    </div>
+    <main>
+      <div class="page-head">
+        <div class="eyebrow">Stock Issue Statistics Report</div>
+        <h1>รายงานสถิติการเบิกสินค้า/วัสดุ</h1>
+      </div>
+      <section class="page active">
+        <div class="card">
+          <div class="ir-bar">
+            <div class="ir-tabs" id="tabs"></div>
+            <button type="button" class="btn btn-secondary btn-sm ir-setup" id="btnSetup" hidden></button>
+          </div>
+
+          <div class="ir-filter">
+            <div class="ir-row1">
+            <div class="fg"><label for="fYear">ข้อมูลเบิกปี</label><select id="fYear"></select></div>
+            <div class="fg"><label for="fUnit">หน่วย</label><select id="fUnit"></select></div>
+            <div class="ir-sa">
+            <div class="fg wide"><label for="fQ">ค้นหาชื่อสินค้า/วัสดุ</label><input type="search" id="fQ" placeholder="พิมพ์ส่วนหนึ่งของชื่อสินค้า/วัสดุ" maxlength="100"></div>
+            <div class="ir-acts">
+              <button type="button" class="btn btn-show" id="btnShow"></button>
+              <button type="button" class="btn btn-xls" id="btnXls"></button>
+              <button type="button" class="btn btn-secondary" id="btnPrint"></button>
+            </div>
+            </div>
+            </div>
+            <div class="ir-row2">
+            <div class="fg ms-fg"><label>บริษัท</label><div class="ms" id="msComp"></div></div>
+            <div class="fg ms-fg proc"><label>Process การเบิก</label><div class="ms" id="msProc"></div></div>
+            <div class="fg ms-fg" id="fgGrp" hidden><label>ประเภทสินค้า/วัสดุ</label><div class="ms" id="msGrp"></div></div>
+            <div class="fg ms-fg" id="fgCrop" hidden><label>ประเภทพืช</label><div class="ms" id="msCrop"></div></div>
+            </div>
+          </div>
+
+          <div class="ir-load" id="irLoad">
+            <div id="irErr"></div>
+            <div class="kpis" id="kpis"></div>
+            <div class="ir-views" id="views"></div>
+            <div id="irBody"><p class="empty-msg">กำลังโหลด…</p></div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer>©2026 WIM ⋅ WAREHOUSE AND INVENTORY MANAGEMENT</footer>
+  </div>
+</div>
+
+<div class="modal-overlay" id="drOverlay">
+  <div class="modal-box wide">
+    <div class="modal-header"><h3 class="wim-mtitle"><span class="ic" id="drIcon"></span><span id="drTitle">วิเคราะห์รายสินค้า</span></h3>
+      <button type="button" class="modal-close" data-close="drOverlay" aria-label="ปิด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
+    <div class="modal-body" id="drBody"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="stOverlay">
+  <div class="modal-box mid">
+    <div class="modal-header"><h3 class="wim-mtitle"><span class="ic" id="stIcon"></span>จัดแท็บตามประเภทวัสดุ</h3>
+      <button type="button" class="modal-close" data-close="stOverlay" aria-label="ปิด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
+    <div class="modal-body">
+      <p class="st-hint">ประเภทมาจากทะเบียนวัสดุโรงงานของ ERP · เลือกว่าประเภทไหนแสดงในแท็บ "บรรจุภัณฑ์" หรือ "สารเคมีเคลือบเมล็ด" (ใช้กับสินค้ากลุ่ม วัสดุโรงงาน) · ประเภทที่ไม่จัดแท็บ ดูได้ในแท็บ "ทั้งหมด"</p>
+      <div id="stList"><p class="empty-msg">กำลังโหลด…</p></div>
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;"><button type="button" class="btn btn-secondary" data-close="stOverlay">ยกเลิก</button><button type="button" class="btn btn-primary" id="stSave">บันทึก</button></div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="prOverlay">
+  <div class="modal-box mid">
+    <div class="modal-header"><h3 class="wim-mtitle"><span class="ic" id="prIcon"></span>พิมพ์รายงาน</h3>
+      <button type="button" class="modal-close" data-close="prOverlay" aria-label="ปิด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
+    <div class="modal-body">
+      <div id="prMsg"></div>
+      <label class="pr-chk"><input type="checkbox" id="prNever"> ไม่ต้องแสดงข้อความนี้อีก</label>
+      <div class="pr-btns"><button type="button" class="btn btn-secondary" data-close="prOverlay">ยกเลิก</button><button type="button" class="btn btn-xls" id="prXls"></button><button type="button" class="btn btn-primary" id="prGo">พิมพ์ต่อ</button></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+  function loadSidebar() { return WIMSidebar.load({ menuCode: 'cut_stock_report' }); }
+  document.addEventListener('DOMContentLoaded', loadSidebar);
+</script>
+<script>
+(function(){
+  'use strict';
+  /* ==================================================================
+     รายงานสถิติการเบิกสินค้า/วัสดุ (/cut-stock-report) — ยอดเบิกรายเดือน ย้อนหลัง 5 ปี
+       ข้อมูลโหลดครั้งเดียวต่อ (ปี · บริษัท · Process · แท็บ) — หน่วย / ค้นหา / เรียงลำดับ ทำในหน้าเว็บ
+       จำนวนอย่างเดียว (ยังไม่แสดงมูลค่า) — แต่ละสินค้าหน่วยต่างกัน จึงบวกรวมข้ามหน่วยไม่ได้ (เลือกหน่วยก่อนดูยอดรวม / กราฟ)
+  ================================================================== */
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt = (v) => { const n = Number(v) || 0; return Number.isInteger(n) ? n.toLocaleString('en-US') : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  // เปอร์เซ็นต์: มีคอมม่าคั่นหลักพัน (เช่น +2,120.2%)
+  const fmtPct = (v, d) => (Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmtInt = (n) => Number(n || 0).toLocaleString('en-US');
+  const fmtR = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');   // ค่าประมาณ (คาดการณ์) ปัดเป็นจำนวนเต็ม
+  // ตัวเลขในตาราง: ทศนิยม 2 ตำแหน่งเสมอ / สินค้าที่ยอดเล็กมาก (มีค่าต่ำกว่า 0.01) แสดงได้ถึง dp ตำแหน่งของรายการนั้น
+  const fmtQ = (v, dp) => (Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: Math.max(2, dp || 2) });
+  const dpOf = (arr) => { let mn = Infinity; for(const x of arr) if(x > 0 && x < mn) mn = x; return mn >= 0.01 ? 2 : mn >= 0.0001 ? 4 : 6; };
+  const compact = (n) => { const a = Math.abs(n); return a >= 1e6 ? (n / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M' : a >= 1e3 ? (n / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n * 10) / 10); };
+  const TH_MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const TH_MONTH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const MC = ['#fbd38d','#f9a8c9','#fdba74','#fde68a','#bbf7d0','#a5f3fc','#c4b5fd','#fecaca','#d9f99d','#fed7aa','#bae6fd','#e9d5ff'];
+  const YC = ['#f2a91c','#4ea7e0','#3ecf8e','#a78bfa','#8fa3b8'];
+  const PC = ['#f2a91c','#4ea7e0','#3ecf8e','#a78bfa','#ff8a75','#7ee2d4','#e879f9','#fbbf24','#94a3b8','#60a5fa'];
+  const TABS = [['seed', 'เมล็ดพันธุ์วัตถุดิบ'], ['pack', 'บรรจุภัณฑ์'], ['fg', 'สินค้าสำเร็จรูป'], ['coat', 'สารเคมีเคลือบเมล็ด'], ['all', 'ทั้งหมด']];
+  const TAB_NAME = { seed: 'เมล็ดพันธุ์วัตถุดิบ', pack: 'บรรจุภัณฑ์', fg: 'สินค้าสำเร็จรูป', coat: 'สารเคมีเคลือบเมล็ด', oth: 'อื่น ๆ', all: 'ทั้งหมด' };
+  const EXCELJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+  const IC = {
+    refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg>',
+    xls: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13l4 5M12 13l-4 5"/></svg>',
+    print: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>',
+    table: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
+    ana: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-5 3 3 5-7"/></svg>',
+    chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+    box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.7l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.7l7 4a2 2 0 002 0l7-4a2 2 0 001-1.7z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg>',
+    cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+    avg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>',
+    star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 9 22 9.3 16.5 14 18.2 21 12 17.2 5.8 21 7.5 14 2 9.3 9 9"/></svg>'
+  };
+  function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 3000); }
+  async function api(url, opt){
+    const res = await fetch(url, opt);
+    let data = null; try{ data = await res.json(); } catch(e){}
+    if(!data) throw new Error(`เชื่อมต่อ server ไม่สำเร็จ (${res.status})`);
+    if(!data.success) throw new Error(data.message || 'โหลดข้อมูลไม่สำเร็จ');
+    return data;
+  }
+  const loadScript = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+  const store = { get(k){ try{ return localStorage.getItem('isr_' + k); } catch(e){ return null; } }, set(k, v){ try{ localStorage.setItem('isr_' + k, v); } catch(e){} } };
+
+  const NOW = new Date(), CUR_Y = NOW.getFullYear(), CUR_M = NOW.getMonth() + 1;
+  const st = { year: CUR_Y, tab: TABS.some(t => t[0] === store.get('tab')) ? store.get('tab') : 'seed', view: store.get('view') === 'chart' ? 'chart' : 'table', trendMode: store.get('tmode') === 'c' ? 'c' : 'm', hmMode: store.get('hm') === 'all' ? 'all' : 'row', sel: null, per: store.get('per') === 'q' ? 'q' : 'm',
+    comps: new Set(), procs: new Set(), openReq: new Set(), grpSel: new Set(), cropSel: new Set(), grpOn: false, cropOn: false, unit: '', q: '', sort: { key: 't0', dir: -1 }, page: 1, hideYear: new Set(), jobsKeep: null };
+  let meta = { companies: [], processes: [], reqTypes: [], jobs: [], canSetup: false }, D = null, applied = null, seq = 0;
+  const REQ_PROC = 8;   // การขอเบิก: แยกย่อยตามหัวข้อการเบิก (ใบขอเบิก WimRequestCutMt)
+  const procName = (id) => ((meta.processes.find(x => x.id === id) || {}).name || 'Process ' + id).replace(/^การ/, '');
+  // หัวข้อการเบิก (ใบขอเบิก): รูปแบบเดียวกับหน้าขอเบิกใน WIM — รหัส:ชื่อ เช่น QA:ตรวจสอบคุณภาพ (รหัสเดียวกับเลขที่ใบขอเบิก QA69/11/006)
+  const reqLabel = (r) => r ? (r.code ? r.code + ':' + r.name : r.name) : 'ไม่ระบุหัวข้อการเบิก';
+  const reqName = (id) => reqLabel((meta.reqTypes || []).find(r => r.id === id));
+  const noteName = (n) => (D && D.notes && D.notes[n]) || (n ? 'คำนิยาม ' + n : 'ไม่ระบุคำนิยาม');
+  const keyLabel = (k) => k[0] === 'r' ? 'ขอเบิก · ' + reqName(Number(k.slice(1))) : procName(Number(k.slice(1)));
+  const metaCache = {};   // แท็บ → รายการบริษัท / Process ที่มีข้อมูลในแท็บนั้น (server แคชไว้ด้วย)
+  async function loadMeta(tab){
+    if(!metaCache[tab]) metaCache[tab] = await api('/api/cut-stock-report/meta?tab=' + tab);
+    return metaCache[tab];
+  }
+  // ใช้รายการของแท็บ: คงตัวเลือกที่ผู้ใช้เลือกเองไว้เท่าที่ยังมีในแท็บนี้ / ไม่เคยเลือกเอง หรือไม่เหลือเลย → ค่าเริ่มต้น (ทุกบริษัท + Process ทั้งหมดยกเว้นที่ไม่นับปกติ)
+  function applyMeta(m){
+    meta = m;
+    const cAv = new Set(m.companies.map(c => c.id));
+    let cs = st.compTouched ? [...st.comps].filter(id => cAv.has(id)) : [];
+    if(!cs.length) cs = m.companies.map(c => c.id);
+    st.comps.clear(); cs.forEach(id => st.comps.add(id));
+    normProc();
+    const pItems = procItems(), pAv = new Set(pItems.map(p => p.id));
+    let ps = st.procTouched ? [...st.procs].filter(id => pAv.has(id)) : [];
+    if(!ps.length) ps = pItems.filter(p => p.defaultOn).map(p => p.id);
+    st.procs.clear(); ps.forEach(id => st.procs.add(id));
+    msInit('msComp', 'บริษัท', m.companies.map(c => ({ id: c.id, name: c.name, short: c.code })), st.comps, () => { st.compTouched = true; rebuildProc(); schedule(); }, compChips);
+    msInit('msProc', 'Process', pItems, st.procs, () => { st.procTouched = true; schedule(); }, procChips);
+    $('btnSetup').hidden = !m.canSetup;
+  }
+  // รหัส Job ผลิต (T / E / V): เป็นตัวเลือกชั้นย่อยใต้ "การเบิกเพื่อผลิตสินค้า" เหมือนหัวข้อการเบิกของ "การขอเบิก"
+  //   มีเฉพาะเมื่อข้อมูลของบริษัทที่เข้าถึงมีรหัส Job (meta.jobs มาจากข้อมูลจริง — ปัจจุบันมีแต่บริษัท AV) และเลือกบริษัทนั้นอยู่ · ไม่มี = Process นี้เป็นตัวเลือกเดียวธรรมดา
+  //   ใบที่ไม่มีรหัส Job ของบริษัท AV ไม่นับ · บริษัทอื่นนับตามเดิม (เซิร์ฟเวอร์กรอง)
+  const jobMode = () => !!(meta.jobs && meta.jobs.length && st.comps.has(meta.jobComp));
+  const jobCode = (id) => ((meta.jobs || []).find(j => j.id === id) || {}).code || '';
+  function procItems(){
+    const reqs = meta.reqTypes || [], out = [], jm = jobMode();
+    meta.processes.forEach(p => {
+      if(p.id === REQ_PROC && reqs.length) reqs.forEach(r => out.push({ id: 'r' + r.id, name: reqLabel(r), note: r.nameEn ? r.nameEn.charAt(0) + r.nameEn.slice(1).toLowerCase() : '', grp: 'req', grpName: p.name, grpNote: 'ทุกหัวข้อการเบิก', defaultOn: p.defaultOn }));
+      else if(p.id === meta.jobProc && jm) meta.jobs.forEach(j => out.push({ id: 'j' + j.id, name: 'รหัส Job ผลิต ' + j.code, short: j.code, grp: 'prod', grpName: p.name, grpNote: '', defaultOn: p.defaultOn }));
+      else out.push({ id: 'p' + p.id, name: p.name, short: p.name.replace(/^การ/, ''), note: p.defaultOn ? '' : 'ไม่นับ (ปกติ)', defaultOn: p.defaultOn });
+    });
+    return out;
+  }
+  // สลับระหว่าง "Process เดียว" (p5) ↔ "แยกรหัส Job" (j1..j3) เมื่อเปลี่ยนบริษัท / แท็บ โดยคงสิ่งที่เลือกไว้
+  function normProc(){
+    const jp = 'p' + meta.jobProc, jKeys = [...st.procs].filter(k => k[0] === 'j');
+    if(jobMode()){
+      if(st.procs.has(jp)){ st.procs.delete(jp); const keep = st.jobsKeep && st.jobsKeep.size ? st.jobsKeep : null; meta.jobs.forEach(j => { if(!keep || keep.has(j.id)) st.procs.add('j' + j.id); }); }
+    } else if(jKeys.length){ st.jobsKeep = new Set(jKeys.map(k => Number(k.slice(1)))); jKeys.forEach(k => st.procs.delete(k)); st.procs.add(jp); }
+  }
+  function rebuildProc(){ normProc(); msInit('msProc', 'Process', procItems(), st.procs, () => { st.procTouched = true; schedule(); }, procChips); }
+  async function switchTab(tab){
+    st.tab = tab; store.set('tab', tab); st.sel = null; st.sort = { key: 't0', dir: -1 }; st.unit = ''; st.grpTouched = false; st.cropTouched = false; st.q = ''; $('fQ').value = ''; renderTabs();
+    await WIMLoading.wrap('irLoad', 'กำลังโหลดข้อมูลการเบิกย้อนหลัง 5 ปี', async () => {
+      try{ applyMeta(await loadMeta(tab)); } catch(err){ $('irErr').innerHTML = `<div class="ir-err">${esc(err.message)}</div>`; return; }
+      await load();
+    });
+  }
+  const PAGE = 100;
+
+  // ---------- ตัวเลือกหลายรายการ ----------
+  const ms = {};
+  function msInit(id, label, items, selected, onChange, chips){
+    const box = $(id); ms[id] = { items, selected, label, onChange, chips };
+    box.className = 'ms';
+    box.innerHTML = `<button type="button" class="ms-btn"><span class="ms-val"></span>${IC.chev}</button><div class="ms-pop" hidden></div>`;
+    msRender(id);
+    box.querySelector('.ms-btn').addEventListener('click', (e) => { e.stopPropagation(); const pop = box.querySelector('.ms-pop'), open = pop.hidden; closeMs(); pop.hidden = !open; box.classList.toggle('open', open); });
+    box.querySelector('.ms-pop').addEventListener('click', (e) => e.stopPropagation());
+    box.querySelector('.ms-pop').addEventListener('change', (e) => {
+      const m = ms[id], t = e.target;
+      if(t.dataset.all){ m.selected.clear(); if(t.checked) m.items.forEach(x => m.selected.add(x.id)); }
+      else if(t.dataset.grp){ m.items.filter(k => k.grp === t.dataset.grp).forEach(k => t.checked ? m.selected.add(k.id) : m.selected.delete(k.id)); }
+      else { const it = m.items.find(x => String(x.id) === t.value); if(it) t.checked ? m.selected.add(it.id) : m.selected.delete(it.id); }
+      msRender(id, true); m.onChange();
+    });
+  }
+  function msRender(id, keepOpen){
+    const m = ms[id], box = $(id), pop = box.querySelector('.ms-pop');
+    const n = m.selected.size, all = n === m.items.length;
+    box.querySelector('.ms-val').innerHTML = m.chips(m.items, m.selected, all);
+    box.title = m.items.filter(x => m.selected.has(x.id)).map(x => x.name).join('\n');
+    let last = null;
+    pop.innerHTML = `<label class="all"><input type="checkbox" data-all="1" ${all ? 'checked' : ''}> เลือกทั้งหมด</label>` +
+      m.items.map(x => {
+        let h = '';
+        if(x.grp && x.grp !== last){
+          const kids = m.items.filter(k => k.grp === x.grp), n = kids.filter(k => m.selected.has(k.id)).length;
+          h = `<label class="grp"><input type="checkbox" data-grp="${esc(x.grp)}" ${n === kids.length ? 'checked' : ''} ${n && n < kids.length ? 'data-ind="1"' : ''}> <span>${esc(x.grpName)}</span><small>${x.grpNote || ''}</small></label>`;
+        }
+        last = x.grp || null;
+        return h + `<label class="${x.grp ? 'sub' : ''}"><input type="checkbox" value="${esc(String(x.id))}" ${m.selected.has(x.id) ? 'checked' : ''}> <span>${esc(x.name)}</span>${x.note ? `<small>${esc(x.note)}</small>` : ''}</label>`;
+      }).join('');
+    pop.querySelectorAll('[data-ind]').forEach(i => { i.indeterminate = true; });
+    if(!keepOpen) pop.hidden = true;
+  }
+  const chip = (t, cls, title) => `<span class="ms-chip ${cls || ''}" ${title ? `title="${esc(title)}"` : ''}>${esc(t)}</span>`;
+  function compChips(items, sel, all){
+    if(!sel.size) return chip('ยังไม่ได้เลือกบริษัท', 'none');
+    if(all) return chip(`ทุกบริษัท (${items.length})`, '', items.map(x => x.name).join(', '));
+    const on = items.filter(x => sel.has(x.id)), show = on.slice(0, 5);
+    return show.map(x => chip(x.short || x.name, '', x.name)).join('') + (on.length > show.length ? chip(`+${on.length - show.length}`, 'more', on.slice(5).map(x => x.name).join(', ')) : '');
+  }
+  function procChips(items, sel){
+    if(!sel.size) return chip('ยังไม่ได้เลือก Process', 'none');
+    const units = [], seen = new Set();
+    items.forEach(x => {
+      if(!x.grp){ units.push({ short: x.short, name: x.name, on: sel.has(x.id) ? 'all' : 'none' }); return; }
+      if(seen.has(x.grp)) return; seen.add(x.grp);
+      const kids = items.filter(k => k.grp === x.grp), on = kids.filter(k => sel.has(k.id));
+      units.push({ grp: x.grp, short: x.grpName.replace(/^การ/, ''), name: x.grpName, on: on.length === kids.length ? 'all' : on.length ? 'some' : 'none', n: on.length, of: kids.length, kids: on });
+    });
+    const off = units.filter(u => u.on === 'none'), some = units.filter(u => u.on === 'some');
+    const uChip = (u) => u.on === 'some' ? (u.grp === 'prod' ? chip(`${u.short} (${u.kids.map(k => k.short).join(', ')})`, '', u.kids.map(k => k.name).join(', ')) : chip(`${u.short} ${u.n}/${u.of} หัวข้อ`, '', u.kids.map(k => k.name).join(', '))) : chip(u.short, '', u.name);
+    if(!off.length && !some.length) return chip(`ทุก Process (${units.length})`);
+    if(off.length <= 2 && units.length - off.length > off.length) return chip('ทุก Process') + some.map(uChip).join('') + off.map(u => chip('ไม่นับ: ' + u.short, 'ex', u.name)).join('');
+    const on = units.filter(u => u.on !== 'none'), show = on.slice(0, 3);
+    return show.map(uChip).join('') + (on.length > show.length ? chip(`+${on.length - show.length}`, 'more', on.slice(3).map(u => u.name).join(', ')) : '');
+  }
+  function closeMs(){ document.querySelectorAll('.ms-pop').forEach(p => { p.hidden = true; p.parentNode.classList.remove('open'); }); }
+  document.addEventListener('click', closeMs);
+
+  // ---------- ข้อมูล / คำนวณ ----------
+  const yLabel = (yi) => String(st.year - yi + 543);
+  // เดือนที่ครบแล้ว (ใช้เทียบ / เฉลี่ย / กราฟ) — เดือนปัจจุบันยังไม่ครบเดือน จึงไม่นับ (ในตารางยังแสดงยอดถึงปัจจุบัน)
+  const cutM = () => (D && D.year === CUR_Y ? Math.max(1, CUR_M - 1) : 12);
+  const sumRange = (v, yi, m) => { let s = 0; for(let k = 0; k < m; k++) s += v[yi * 12 + k]; return s; };
+  // ---------- ช่วงเวลา: รายเดือน (12 ช่วง) / รายไตรมาส (4 ช่วง: Q1 ม.ค.–มี.ค. · Q2 เม.ย.–มิ.ย. · Q3 ก.ค.–ก.ย. · Q4 ต.ค.–ธ.ค.) ----------
+  //   server ส่งรายเดือน it.v[ปี*12+เดือน] → หน้าเว็บรวมเป็นช่วง it.pv[ปี*NP+ช่วง] (รายเดือน = ชุดเดียวกับ v)
+  //   ช่วงปัจจุบันที่ยังไม่ครบ: ตารางแสดงยอดถึงวันนี้ / กราฟ การ์ด Heatmap(เฉลี่ย) ไม่นับ — หลักเดียวกันทั้งเดือนและไตรมาส
+  const isQ = () => st.per === 'q';
+  const NP = () => isQ() ? 4 : 12;
+  const PS = () => isQ() ? ['Q1', 'Q2', 'Q3', 'Q4'] : TH_MON;
+  const PH = () => isQ() ? ['Quarter 1', 'Quarter 2', 'Quarter 3', 'Quarter 4'] : TH_MON;   // หัวตาราง / Excel / ใบพิมพ์ = คำเต็มภาษาอังกฤษ (ผู้ใช้คุ้นกว่า) · กราฟ / Heatmap / การ์ดมือถือ = Q1–Q4 (พื้นที่น้อย)
+  const PL = (k) => isQ() ? `ไตรมาส ${k + 1}` : TH_MONTH[k];
+  const PLR = (k) => isQ() ? `ไตรมาส ${k + 1} (${TH_MON[k * 3]} – ${TH_MON[k * 3 + 2]})` : TH_MONTH[k];
+  const PU = () => isQ() ? 'ไตรมาส' : 'เดือน';
+  const QXC = ['#7dd3fc', '#6ee7b7', '#a5b4fc', '#f9a8d4'];   // สี Excel ของ Q1–Q4 (โทนเดียวกับหัวตาราง)
+  const toP = (v) => { if(!isQ()) return v; const o = new Array(20).fill(0); for(let yi = 0; yi < 5; yi++) for(let m = 0; m < 12; m++) o[yi * 4 + Math.floor(m / 3)] += v[yi * 12 + m]; return o; };
+  const curP = () => isQ() ? Math.floor((CUR_M - 1) / 3) : CUR_M - 1;
+  const cutP = () => !(D && D.year === CUR_Y) ? NP() : isQ() ? Math.max(1, Math.floor((CUR_M - 1) / 3)) : cutM();
+  const pAvail = (yi, k) => !(yi === 0 && st.year === CUR_Y && k > curP());
+  const pPartial = (yi, k) => yi === 0 && st.year === CUR_Y && k === curP();
+  const sumP = (v, yi, k) => { let s = 0; const np = NP(); for(let x = 0; x < k; x++) s += v[yi * np + x]; return s; };
+  const perText = (k) => k >= NP() ? 'ทั้งปี' : isQ() ? (k === 1 ? 'Q1' : `Q1 – Q${k}`) : `ม.ค. – ${TH_MON[k - 1]}`;
+  const pqc = (k) => isQ() ? 'q' + (k + 1) : qc(k);
+  function applyPer(){ if(D) D.items.forEach(it => { it.pv = toP(it.v); }); }
+  function prep(){
+    D.items.forEach(it => { it.yt = [0, 1, 2, 3, 4].map(yi => sumRange(it.v, yi, 12)); it.sk = it.name.toLowerCase(); it.dp = dpOf(it.v); it.pv = toP(it.v); });
+    const cnt = new Map();
+    D.items.forEach(it => { const k = it.unitId; const o = cnt.get(k) || { id: k, name: it.unit || '(ไม่ระบุหน่วย)', n: 0 }; o.n++; cnt.set(k, o); });
+    D.units = [...cnt.values()].sort((a, b) => b.n - a.n);
+  }
+  // ประเภท (InvGroup): แท็บที่รวมหลายประเภท (เมล็ดพันธุ์วัตถุดิบ / ทั้งหมด) · ประเภทพืช: แท็บเมล็ดพันธุ์วัตถุดิบ / สินค้าสำเร็จรูป
+  const showGrp = () => !!D && (st.tab === 'seed' || st.tab === 'all') && new Set(D.items.map(it => it.group)).size > 1;
+  const subOf = (it) => (st.tab === 'pack' ? it.type : it.crop) || '';
+  const subLabel = () => st.tab === 'pack' ? 'ประเภทบรรจุภัณฑ์' : 'ประเภทพืช';
+  const showCrop = () => !!D && (((st.tab === 'seed' || st.tab === 'fg') && D.items.some(it => it.crop)) || (st.tab === 'pack' && D.items.some(it => it.type)));
+  const listChips = (allLabel, noneLabel) => (items, sel, all) => {
+    if(!sel.size) return chip(noneLabel, 'none');
+    if(all) return chip(`${allLabel} (${items.length})`, '', items.map(x => x.name).join(', '));
+    const on = items.filter(x => sel.has(x.id)), show = on.slice(0, 2);
+    return show.map(x => chip(x.name, '', x.name)).join('') + (on.length > show.length ? chip(`+${on.length - show.length}`, 'more', on.slice(2).map(x => x.name).join(', ')) : '');
+  };
+  // ตัวกรองต่อกันเป็นลำดับ: ประเภท → ประเภทพืช → ค้นหาชื่อ → หน่วย
+  //   แต่ละตัวนับ / แสดงตัวเลือกจากรายการที่ผ่านตัวกรองก่อนหน้าแล้ว — ไม่มีตัวเลือกที่กดแล้วไม่เจออะไร
+  //   คงตัวเลือกที่ผู้ใช้เลือกเองไว้เท่าที่ยังมี / ไม่เคยเลือกหรือไม่เหลือ = ทั้งหมด (หน่วย = หน่วยที่มีรายการมากสุด)
+  const passGrp = (it) => !showGrp() || st.grpSel.has(it.group);
+  const passCrop = (it) => !showCrop() || st.cropSel.has(subOf(it));
+  const passQ = (it) => { const q = st.q.trim().toLowerCase(); return !q || it.sk.includes(q); };
+  const countBy = (list, fn) => { const m = new Map(); list.forEach(it => { const k = fn(it); m.set(k, (m.get(k) || 0) + 1); }); return m; };
+  function mkFilter(on, fg, msId, key, touched, label, allLabel, noneLabel, items, after){
+    $(fg).hidden = !on;
+    if(!on){ st[key].clear(); return; }
+    const av = new Set(items.map(x => x.id));
+    let keep = st[touched] ? [...st[key]].filter(id => av.has(id)) : [];
+    if(!keep.length) keep = items.map(x => x.id);
+    st[key].clear(); keep.forEach(id => st[key].add(id));
+    msInit(msId, label, items, st[key], () => { st[touched] = true; st.page = 1; after(); rerender(); }, listChips(allLabel, noneLabel));
+  }
+  function grpFilter(){
+    const names = new Map(D.items.map(it => [it.group, it.groupName || 'ไม่ระบุประเภท']));
+    const items = [...countBy(D.items, it => it.group).entries()].sort((a, b) => b[1] - a[1]).map(([id, n]) => ({ id, name: names.get(id), note: fmtInt(n) + ' รายการ' }));
+    mkFilter(showGrp(), 'fgGrp', 'msGrp', 'grpSel', 'grpTouched', 'ประเภท', 'ทุกประเภท', 'ยังไม่ได้เลือกประเภท', items, () => { cropFilter(); pickUnit(); });
+  }
+  function cropFilter(){
+    const base = D.items.filter(passGrp);
+    const L = subLabel(), items = [...countBy(base, subOf).entries()].sort((a, b) => (a[0] === '') - (b[0] === '') || (st.tab === 'pack' ? b[1] - a[1] : a[0].localeCompare(b[0], 'th'))).map(([id, n]) => ({ id, name: id || 'ไม่ระบุ' + L, note: fmtInt(n) + ' รายการ' }));
+    $('fgCrop').querySelector('label').textContent = L;
+    mkFilter(showCrop(), 'fgCrop', 'msCrop', 'cropSel', 'cropTouched', L, 'ทุก' + L, 'ยังไม่ได้เลือก' + L, items, pickUnit);
+  }
+  function viewFilters(){ grpFilter(); cropFilter(); pickUnit(); }
+  // หน่วย: จากรายการที่ผ่าน ประเภท / ประเภทพืช / ค้นหา แล้ว — หน่วยที่เลือกไว้ไม่มีรายการแล้ว → เปลี่ยนเป็นหน่วยที่มีรายการมากสุด
+  function pickUnit(){
+    const base = D.items.filter(it => passGrp(it) && passCrop(it) && passQ(it));
+    const cnt = new Map();
+    base.forEach(it => { const o = cnt.get(it.unitId) || { id: it.unitId, name: it.unit || '(ไม่ระบุหน่วย)', n: 0 }; o.n++; cnt.set(it.unitId, o); });
+    D.units = [...cnt.values()].sort((a, b) => b.n - a.n);
+    const ok = st.unit === 'all' ? D.units.length > 1 : D.units.some(u => String(u.id) === String(st.unit));
+    if(!ok && D.units.length) st.unit = String(D.units[0].id);   // ไม่มีรายการเลย (เช่น ยังไม่ได้เลือกประเภท) = คงหน่วยเดิมไว้
+    $('fUnit').innerHTML = (D.units.length > 1 ? `<option value="all">ทุกหน่วย (${fmtInt(base.length)} รายการ)</option>` : '') + D.units.map(u => `<option value="${u.id}">${esc(u.name)} (${fmtInt(u.n)} รายการ)</option>`).join('') || '<option value="all">ไม่มีรายการ</option>';
+    $('fUnit').value = st.unit;
+  }
+  const single = () => st.unit !== 'all';
+  const unitName = () => single() ? ((D.units.find(u => String(u.id) === String(st.unit)) || {}).name || '') : '';
+  function rows(){
+    if(!D) return [];
+    const q = st.q.trim().toLowerCase();
+    let list = D.items.filter(it => passGrp(it) && passCrop(it) && passQ(it) && (st.unit === 'all' || String(it.unitId) === String(st.unit)));
+    const k = st.sort.key, dir = st.sort.dir;
+    if(k === 'yoy'){ const vv = new Map(list.map(it => [it, yoyOf(it)]));
+      return list.sort((a, b) => { const x = vv.get(a), y = vv.get(b); if(x == null || y == null) return (x == null) - (y == null) || a.name.localeCompare(b.name, 'th'); return (x - y) * dir || a.name.localeCompare(b.name, 'th'); }); }
+    const val = (it) => k === 'name' ? it.name : k === 'grp' ? (it.groupName || '') : k === 'crop' ? subOf(it) : k[0] === 't' ? it.yt[+k.slice(1)] : it.pv[+k.slice(1)];
+    return list.sort((a, b) => { const x = val(a), y = val(b); return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'th')) * dir || a.name.localeCompare(b.name, 'th'); });
+  }
+  function sums(list){
+    const L = 5 * NP(), m = new Array(L).fill(0), t = [0, 0, 0, 0, 0];
+    list.forEach(it => { for(let i = 0; i < L; i++) m[i] += it.pv[i]; for(let y = 0; y < 5; y++) t[y] += it.yt[y]; });
+    return { m, t };
+  }
+  const pctTxt = (a, b) => b ? ((a - b) / b * 100) : null;
+  const pctHtml = (p) => p == null ? '<span class="flat">–</span>' : `<span class="${p > 0.05 ? 'up' : p < -0.05 ? 'dn' : 'flat'}">${p > 0.05 ? '▲' : p < -0.05 ? '▼' : '■'} ${fmtPct(Math.abs(p), 1)}%</span>`;
+
+  // ---------- โหลด ----------
+  let timer = null;
+  const schedule = () => { clearTimeout(timer); timer = setTimeout(load, 250); };
+  async function load(fresh){
+    const my = ++seq;
+    if(!meta.companies.length){ D = null; $('irErr').innerHTML = '<div class="ir-warn">ไม่พบข้อมูลการเบิกในแท็บนี้ (ตามสิทธิ์บริษัทของคุณ)</div>'; $('kpis').innerHTML = ''; $('views').innerHTML = ''; $('irBody').innerHTML = ''; return; }
+    if(!st.comps.size || !st.procs.size){ D = null; $('irErr').innerHTML = `<div class="ir-warn">เลือก${!st.comps.size ? 'บริษัท' : 'Process การเบิก'}อย่างน้อย 1 รายการ</div>`; $('kpis').innerHTML = ''; $('views').innerHTML = ''; $('irBody').innerHTML = ''; return; }
+    WIMLoading.show('irLoad', 'กำลังโหลดข้อมูลการเบิกย้อนหลัง 5 ปี'); $('irErr').innerHTML = '';
+    const keys = [...st.procs], reqs = keys.filter(k => k[0] === 'r').map(k => Number(k.slice(1)));
+    const jk = keys.filter(k => k[0] === 'j').map(k => Number(k.slice(1))).sort((a, b) => a - b);
+    const procs = keys.filter(k => k[0] === 'p').map(k => Number(k.slice(1))).concat(reqs.length ? [REQ_PROC] : []).concat(jk.length ? [meta.jobProc] : []);
+    const f = { year: st.year, comps: [...st.comps], procs, reqs, tab: st.tab, jobs: jk.length ? jk : null };
+    try{
+      const url = `/api/cut-stock-report/data?year=${f.year}&tab=${f.tab}&comps=${f.comps.join(',')}&procs=${f.procs.join(',')}${f.reqs.length ? '&reqs=' + f.reqs.join(',') : ''}${f.jobs ? '&jobs=' + f.jobs.join(',') : ''}${fresh ? '&fresh=1' : ''}`;
+      const r = await api(url);
+      if(my !== seq) return;
+      D = r; applied = f; st.page = 1; prep(); viewFilters(); render();
+      if(fresh) for(const k in metaCache) delete metaCache[k];   // รายการบริษัท / Process ของแท็บอื่นอ่านใหม่ตอนสลับแท็บ
+      const hm = r.asOf ? new Date(r.asOf).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
+      $('btnShow').title = hm ? `ข้อมูล ณ ${hm} น. — กดเพื่อโหลดข้อมูลล่าสุดจากฐานข้อมูล` : 'กดเพื่อโหลดข้อมูลล่าสุดจากฐานข้อมูล';
+    } catch(err){
+      if(my !== seq) return;
+      D = null; $('kpis').innerHTML = ''; $('views').innerHTML = ''; $('irBody').innerHTML = '';
+      $('irErr').innerHTML = `<div class="ir-err">${esc(err.message)} <button type="button" class="btn btn-secondary btn-sm" id="btnRetry" style="margin-left:8px">ลองใหม่</button></div>`;
+    } finally { WIMLoading.hide('irLoad'); }
+  }
+
+  // ---------- การ์ดสรุป ----------
+  function kpis(list){
+    const kpi = (k, label, v, d, ic, cls) => `<div class="kpi" style="--k:${k}"><div class="l">${label}</div><div class="v ${cls || ''}">${v}</div>${d ? `<div class="d">${d}</div>` : ''}${ic.replace('<svg', '<svg class="bg"')}</div>`;
+    const cm = cutP(), partial = cm < NP(), period = perText(cm);
+    if(!single()){
+      return kpi('242,169,28', 'รายการสินค้า/วัสดุ', `${fmtInt(list.length)}<small>รายการ</small>`, `มีการเบิกในช่วง 5 ปี · ${fmtInt(list.filter(i => i.yt[0] > 0).length)} รายการเบิกในปี ${yLabel(0)}`, IC.box)
+        + kpi('78,167,224', 'ยอดรวม', '<span style="font-size:17px">เลือกหน่วยเพื่อดู</span>', `รายการในมุมมองนี้มีหลายหน่วย (${D.units.length} หน่วย) บวกรวมกันไม่ได้`, IC.avg, 't');
+    }
+    const S = sums(list), u = `<small>${esc(unitName())}</small>`;
+    const y0 = sumP(S.m, 0, cm), y1 = sumP(S.m, 1, cm), p = pctTxt(y0, y1);
+    const avg = cm ? y0 / cm : 0, avg5 = (S.t[1] + S.t[2] + S.t[3] + S.t[4]) / (4 * NP());
+    let pk = 0; for(let m = 1; m < cm; m++) if(S.m[m] > S.m[pk]) pk = m;
+    const top = list.slice().sort((a, b) => b.yt[0] - a.yt[0])[0];
+    return kpi('242,169,28', `ยอดเบิกปี ${yLabel(0)}${partial ? ` (${period})` : ''}`, `${fmt(y0)}${u}`, `${pctHtml(p)} เทียบช่วงเดียวกันปี ${yLabel(1)} (${fmt(y1)})`, IC.cal)
+      + kpi('78,167,224', `เฉลี่ยต่อ${PU()}`, `${fmt(avg)}${u}`, avg5 ? `เฉลี่ยปีก่อนหน้า 4 ปี ${fmt(avg5)} · ${pctHtml(pctTxt(avg, avg5))}` : 'ปีก่อนหน้าไม่มีการเบิก', IC.avg)
+      + kpi('62,207,142', `${PU()}ที่เบิกสูงสุดปี ${yLabel(0)}`, S.m[pk] > 0 ? PL(pk) : '-', S.m[pk] > 0 ? `${isQ() ? TH_MON[pk * 3] + ' – ' + TH_MON[pk * 3 + 2] + ' · ' : ''}${fmt(S.m[pk])} ${esc(unitName())}` : '', IC.up, 't')
+      + kpi('167,139,250', 'สินค้าเบิกสูงสุด', top && top.yt[0] > 0 ? esc(top.name) : '-', top && top.yt[0] > 0 ? `${fmt(top.yt[0])} ${esc(unitName())} · ${(top.yt[0] / S.t[0] * 100).toFixed(1)}% ของยอดปี ${yLabel(0)}` : '', IC.star, 't')
+      + kpi('231,228,218', 'รายการสินค้า/วัสดุ', `${fmtInt(list.filter(i => i.yt[0] > 0).length)}<small>รายการ</small>`, `เบิกในปี ${yLabel(0)} · ทั้งหมดในช่วง 5 ปี ${fmtInt(list.length)} รายการ`, IC.box);
+  }
+
+  // ---------- ตาราง ----------
+  // คอลัมน์: สินค้า/วัสดุ (ตรึง) | ปุ่มวิเคราะห์ (ตรึง) | รวมทั้งปี × 5 ปี | ม.ค. – ธ.ค. × 5 ปี
+  const qc = (m) => `q${Math.floor(m / 3) + 1}${m % 3 === 1 ? ' alt' : ''}`;   // สีไตรมาส / เดือนกลางของไตรมาสเข้มกว่า
+  const arrow = (key) => st.sort.key === key ? `<span class="ir-sort">${st.sort.dir > 0 ? '▲' : '▼'}</span>` : '';
+  function thead(){
+    const cx = (show, key, label) => show ? `<th class="cx" rowspan="2" data-sort="${key}">${label}${arrow(key)}</th>` : '';
+    let r1 = `<th class="act" rowspan="2" title="กดไอคอนกราฟเพื่อวิเคราะห์รายสินค้า"></th><th class="nm" rowspan="2" data-sort="name">สินค้า / วัสดุ${arrow('name')}</th>` + cx(showCrop(), 'crop', subLabel())
+      + `<th class="sp" rowspan="2" data-sort="yoy" title="ยอดเบิกปี ${yLabel(0)} เทียบช่วงเดียวกันของปี ${yLabel(1)}${cutM() < 12 ? ' (เฉพาะเดือนที่ครบ ม.ค.–' + TH_MON[cutM() - 1] + ')' : ''} · กดเพื่อเรียง">เทียบ<br>ปีก่อน${arrow('yoy')}</th>`
+      + `<th colspan="5" class="mh qt gs">รวมทั้งปี</th>`
+      + PH().map((m, i) => `<th colspan="5" class="mh ${pqc(i)} gs"${isQ() ? ` title="${TH_MON[i * 3]} – ${TH_MON[i * 3 + 2]}"` : ''}>${m}${isQ() ? `<small class="qr">(${TH_MON[i * 3]} – ${TH_MON[i * 3 + 2]})</small>` : ''}</th>`).join('');
+    let r2 = [0, 1, 2, 3, 4].map(yi => `<th data-sort="t${yi}" class="yh qt${yi === 0 ? ' y0 gs' : ''}">${yLabel(yi)}${arrow('t' + yi)}</th>`).join('');
+    for(let m = 0; m < NP(); m++) r2 += [0, 1, 2, 3, 4].map(yi => { const key = 'm' + (yi * NP() + m); return `<th data-sort="${key}" class="yh ${pqc(m)}${yi === 0 ? ' y0 gs' : ''}">${yLabel(yi)}${arrow(key)}</th>`; }).join('');
+    return `<thead><tr class="r1">${r1}</tr><tr class="r2">${r2}</tr></thead>`;
+  }
+  // การ์ด (มือถือ) / popup: ประเภท (InvGroup เมื่อแท็บรวมหลายประเภท) · ประเภทพืช (เมล็ดพันธุ์วัตถุดิบ / สินค้าสำเร็จรูป)
+  const typeText = (it) => subOf(it) ? subLabel() + ' : ' + subOf(it) : '';
+  const subHtml = (it, multi) => { const g = multi && it.groupName ? `<span class="lt">ประเภท : ${esc(it.groupName)}</span>` : '', t = typeText(it); return g || t ? `<span class="ty">${g}${t ? `<span class="lg">${esc(t)}</span>` : ''}</span>` : ''; };
+  // % เทียบช่วงเดียวกันปีก่อน (ปีปัจจุบัน = เฉพาะเดือนที่ครบ) · null = ปีก่อนไม่มีการเบิก
+  const yoyOf = (it) => pctTxt(sumRange(it.v, 0, cutM()), sumRange(it.v, 1, cutM()));
+  function yoyCell(it){
+    const n = cutM(), y0 = sumRange(it.v, 0, n), y1 = sumRange(it.v, 1, n), pc = pctTxt(y0, y1);
+    const per = n < 12 ? ` (ม.ค.–${TH_MON[n - 1]})` : '';
+    const tip = `ปี ${yLabel(0)}${per}: ${fmt(y0)} · ปี ${yLabel(1)} ช่วงเดียวกัน: ${fmt(y1)}`;
+    const txt = pc != null ? (pc > 999 ? '<span class="up">▲ >999%</span>' : pctHtml(pc)) : y0 > 0 ? '<span class="nw">ใหม่</span>' : '<span class="flat">–</span>';
+    return `<td class="sp" title="${esc(tip)}">${txt}</td>`;
+  }
+  function tableView(list){
+    const start = (st.page - 1) * PAGE, pg = list.slice(start, start + PAGE);
+    const multi = showGrp(), sc = showCrop();
+    const body = pg.map((it, i) => {
+      const dp = it.dp;
+      let tds = it.yt.map((v, yi) => `<td class="tt${yi === 0 ? ' y0 gs' : ''}${v === 0 ? ' z' : ''}">${fmtQ(v, dp)}</td>`).join('');
+      for(let m = 0; m < NP(); m++) for(let yi = 0; yi < 5; yi++){ const v = it.pv[yi * NP() + m]; tds += `<td class="${yi === 0 ? 'y0 gs' : ''}${!isQ() && m % 3 === 1 ? ' mb' : ''}${v === 0 ? ' z' : ''}">${v === 0 ? '–' : fmtQ(v, dp)}</td>`; }
+      const cxs = sc ? `<td class="cx crop">${esc(subOf(it) || '-')}</td>` : '';
+      return `<tr><td class="act"><button type="button" class="ib" data-drill="${it.id}" title="วิเคราะห์สินค้านี้ (กราฟ)" aria-label="วิเคราะห์สินค้านี้">${IC.ana}</button></td><td class="nm">${start + i + 1}. ${esc(it.name)}<span class="ty"><span class="u">${esc(it.unit || '-')}</span>${multi && it.groupName ? `<span class="lt">ประเภท : ${esc(it.groupName)}</span>` : ''}</span></td>${cxs}${yoyCell(it)}
+${tds}</tr>`;
+    }).join('');
+    let foot = '';
+    if(single() && list.length){
+      const S = sums(list), dp = 2;   // แถวรวม: ทศนิยม 2 ตำแหน่ง (ยอดรวมหลายสินค้า ไม่ใช่ของเบารายการเดียว)
+      let tds = S.t.map((v, yi) => `<td class="${yi === 0 ? 'gs' : ''}">${fmtQ(v, dp)}</td>`).join('');
+      for(let m = 0; m < NP(); m++) for(let yi = 0; yi < 5; yi++) tds += `<td class="${yi === 0 ? 'gs' : ''}">${fmtQ(S.m[yi * NP() + m], dp)}</td>`;
+      foot = `<tfoot><tr><td class="act"></td><td class="nm ft">รวม ${fmtInt(list.length)} รายการ (${esc(unitName())})</td>${sc ? '<td class="cx"></td>' : ''}<td class="sp"></td>${tds}</tr></tfoot>`;
+    }
+    const cards = pg.map((it, i) => {
+      const pv0 = it.pv.slice(0, NP()), mx = Math.max(...pv0, 1);
+      return `<div class="ic-card"><div class="hd"><div><div class="nm">${start + i + 1}. ${esc(it.name)}</div><div class="ty">หน่วย ${esc(it.unit || '-')}</div>${subHtml(it, multi)}</div></div>
+        <div class="ys">${it.yt.map((v, yi) => `<div>${yLabel(yi)}<b>${yi && v >= 1000 ? Math.round(v).toLocaleString('en-US') : fmtQ(v, it.dp)}</b></div>`).join('')}</div>
+        <div class="mini">${pv0.map((v, m) => `<i class="${v === 0 ? 'z' : ''}" style="height:${v === 0 ? 3 : Math.max(8, v / mx * 100)}%" title="${PS()[m]} ${fmtQ(v, it.dp)}"></i>`).join('')}</div>
+        <div class="mini-l">${PS().map(m => `<span>${m}</span>`).join('')}</div>
+        <div class="acts"><button type="button" class="btn btn-secondary btn-sm" data-drill="${it.id}">${IC.ana} วิเคราะห์สินค้านี้</button></div></div>`;
+    }).join('');
+    const pages = Math.ceil(list.length / PAGE);
+    const pager = pages > 1 ? `<div class="ir-pager"><button data-page="${st.page - 1}" ${st.page <= 1 ? 'disabled' : ''}>‹</button>${pageNums(pages).map(n => n === '…' ? '<span>…</span>' : `<button data-page="${n}" class="${n === st.page ? 'on' : ''}">${n}</button>`).join('')}<button data-page="${st.page + 1}" ${st.page >= pages ? 'disabled' : ''}>›</button><span>แสดง ${fmtInt(start + 1)}–${fmtInt(Math.min(start + PAGE, list.length))} จาก ${fmtInt(list.length)}</span></div>` : '';
+    const partTxt = st.year !== CUR_Y ? '' : isQ() ? ` · ไตรมาส ${curP() + 1} ยังไม่ครบไตรมาส (การ์ด / กราฟนับถึงไตรมาส ${cutP()} · คอลัมน์เทียบปีก่อนนับถึงเดือน${TH_MONTH[cutM() - 1]})` : ` · เดือน${TH_MONTH[CUR_M - 1]}ยังไม่ครบเดือน (การ์ด / กราฟ / % เทียบนับถึงเดือน${TH_MONTH[cutM() - 1]})`;
+    return `<p class="tbl-hint">กดหัวคอลัมน์เพื่อเรียงลำดับ · กดไอคอนกราฟเพื่อวิเคราะห์รายสินค้า${partTxt}</p>
+      <div class="ir-area"><div class="irt-wrap"><table class="irt${sc ? ' has-sub' : ''}">${thead()}<tbody>${body}</tbody>${foot}</table></div><div class="ir-cards">${cards}</div></div>${pager}`;
+  }
+  function pageNums(pages){
+    const set = new Set([1, pages, st.page - 1, st.page, st.page + 1]), out = []; let last = 0;
+    [...set].filter(n => n >= 1 && n <= pages).sort((a, b) => a - b).forEach(n => { if(n - last > 1) out.push('…'); out.push(n); last = n; });
+    return out;
+  }
+
+  // ---------- กราฟ ----------
+  // คาดการณ์ยอดทั้งปีของปีปัจจุบัน: ปีก่อนหน้าแต่ละปีบอกว่า "ถึงเดือนเดียวกัน" ใช้ไปกี่ % ของทั้งปี → ยอดปีนี้ ÷ % นั้น = ยอดทั้งปีที่น่าจะเป็น
+  //   ค่ากลาง (มัธยฐาน) = คาดการณ์ / ต่ำสุด–สูงสุด = ช่วง · เดือนที่เหลือแบ่งตามสัดส่วนเฉลี่ยของปีก่อน ๆ · ต้องมีปีก่อนที่มีข้อมูลอย่างน้อย 2 ปี
+  function forecast(m){
+    if(!D || st.year !== CUR_Y) return null;
+    const np = NP(), cm = cutP(); if(cm >= np) return null;
+    const ytd0 = sumP(m, 0, cm); if(!(ytd0 > 0)) return { na: 'ปีนี้ยังไม่มีการเบิก จึงคาดการณ์ไม่ได้' };
+    const prior = [1, 2, 3, 4].map(yi => ({ yi, tot: sumP(m, yi, np), ytd: sumP(m, yi, cm) })).filter(p => p.tot > 0 && p.ytd > 0);
+    if(prior.length < 2) return { na: 'ข้อมูลปีก่อนหน้าไม่พอสำหรับคาดการณ์ (ต้องมีอย่างน้อย 2 ปี)' };
+    const ests = prior.map(p => ytd0 * p.tot / p.ytd).sort((a, b) => a - b), k = ests.length;
+    const est = k % 2 ? ests[(k - 1) / 2] : (ests[k / 2 - 1] + ests[k / 2]) / 2, lo = ests[0], hi = ests[k - 1];
+    const prof = new Array(np).fill(0);
+    prior.forEach(p => { const rem = p.tot - p.ytd; if(rem > 0) for(let x = cm; x < np; x++) prof[x] += m[p.yi * np + x] / rem; });
+    const ps = prof.slice(cm).reduce((a, b) => a + b, 0);
+    const spread = (total) => { const out = new Array(np).fill(null), rem = Math.max(0, total - ytd0); for(let x = cm; x < np; x++) out[x] = ps ? rem * prof[x] / ps : rem / (np - cm); return out; };
+    return { cm, ytd0, est, lo, hi, n: prior.length, mEst: spread(est), mLo: spread(lo), mHi: spread(hi) };
+  }
+  const cumOf = (m) => { const np = NP(), c = new Array(5 * np).fill(0); for(let yi = 0; yi < 5; yi++){ let s = 0; for(let x = 0; x < np; x++){ s += m[yi * np + x]; c[yi * np + x] = s; } } return c; };
+  // เส้นคาดการณ์ของมุมมองที่แสดง (รายเดือน / สะสม) — ต่อจากเดือนจริงเดือนสุดท้าย
+  function fcSeries(fc, mode){
+    if(!fc || fc.na) return null;
+    const pick = (arr) => { if(mode !== 'c') return arr; const np = NP(), out = new Array(np).fill(null); let s = fc.ytd0; for(let x = fc.cm; x < np; x++){ s += arr[x]; out[x] = s; } return out; };
+    return { est: pick(fc.mEst), lo: pick(fc.mLo), hi: pick(fc.mHi) };
+  }
+  const trendStore = {}; let trendSeq = 0;
+  // ขนาดกราฟเต็มแถว = ความกว้างจริงของพื้นที่ (1 หน่วยกราฟ ≈ 1px) ตัวอักษรแกนจึงอ่านได้ทั้งจอคอมและมือถือ
+  const twSize = (el) => { const w = Math.round(Math.max(330, Math.min(1180, ((el || $('irBody')).clientWidth || 1100) - 34))); return { w, h: w < 600 ? 270 : 330 }; };
+  const twPh = (sel) => `<span class="ph">ชี้เมาส์ (หรือแตะ) ที่กราฟเพื่อดูยอดของแต่ละ${PU()} · ชี้ใกล้เส้นของปีไหน จะแสดงเส้นแนวโน้มของปีนั้น${sel ? ` · คลิก${PU()}เพื่อดู Top 10 / สัดส่วนตาม Process เฉพาะ${PU()}นั้น` : ''}</span>`;
+  // ช่วงที่ Top 10 / สัดส่วนการเบิกตาม Process แสดง: เลือกเดือน (คลิกกราฟ / Heatmap) หรือทั้งปีที่เลือก
+  const selLabel = () => st.sel ? (isQ() ? `ไตรมาส ${st.sel.m + 1} ปี ${yLabel(st.sel.yi)}` : `เดือน${TH_MONTH[st.sel.m]} ${yLabel(st.sel.yi)}`) : `ปี ${yLabel(0)}`;
+  const selVal = (it) => st.sel ? it.pv[st.sel.yi * NP() + st.sel.m] : it.yt[0];
+  const selChip = () => st.sel ? `<div class="sel-chip">เฉพาะ${selLabel()} <button type="button" data-selclr="1">✕ ดูทั้งปี</button></div>` : '';
+  function setSel(yi, m){ st.sel = st.sel && st.sel.yi === yi && st.sel.m === m ? null : { yi, m }; rerender(); }
+  function trendSvg(mArr, opt){
+    opt = opt || {}; const hideSet = opt.hide || st.hideYear; const W = opt.w || 760, H = opt.h || 260, l = 58, b = 30, t = opt.h && isQ() ? 24 : 14, r = 14, cm = cutP(), np = NP(), q = isQ(), id = 'tw' + (++trendSeq);
+    const ys = [0, 1, 2, 3, 4].filter(y => !hideSet.has(y));
+    const fs2 = opt.fc || null;
+    const mx = Math.max(1, ...ys.map(yi => Math.max(...mArr.slice(yi * np, yi * np + np))), ...(fs2 && !hideSet.has(0) ? fs2.hi.filter(v => v != null) : [])) * (q ? 1.18 : 1.1);
+    const X = (m) => l + (W - l - r) * (m + .5) / np, Y = (v) => t + (H - t - b) * (1 - v / mx);
+    let h = '';
+    for(let i = 0; i <= 4; i++){ const y = t + (H - t - b) * i / 4; h += `<line x1="${l}" x2="${W - r}" y1="${y}" y2="${y}" stroke="rgba(255,255,255,.12)"/><text x="${l - 8}" y="${y + 4}" text-anchor="end">${compact(mx * (1 - i / 4))}</text>`; }
+    const every = (W - l - r) / np < 46 ? 2 : 1;   // จอแคบ: แสดงชื่อเดือนเว้นเดือน ไม่ให้ตัวอักษรชนกัน
+    PS().forEach((m, i) => { if(i % every === 0) h += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle">${q && W >= 600 ? m + ' (' + TH_MON[i * 3] + '–' + TH_MON[i * 3 + 2] + ')' : m}</text>`; });
+    const pts = {};
+    ys.slice().reverse().forEach(yi => {
+      const p = []; for(let m = 0; m < np; m++){ if(yi === 0 && m >= cm) break; p.push([X(m), Y(mArr[yi * np + m]), m]); }
+      if(!p.length) return;
+      pts[yi] = p;
+      h += `<polyline class="ln" data-yi="${yi}" fill="none" stroke="${YC[yi]}" stroke-width="${yi ? 2.2 : 3.6}" stroke-linejoin="round" points="${p.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ')}"/>`;
+      if(yi === 0 && !fs2 && cm <= curP() && st.year === CUR_Y && mArr[cm] > 0) h += `<circle class="dt" data-yi="0" cx="${X(cm).toFixed(1)}" cy="${Y(mArr[cm]).toFixed(1)}" r="${q ? 6 : 4}" fill="none" stroke="${YC[0]}" stroke-width="2"/>`;
+      p.forEach(pt => { h += `<circle class="dt" data-yi="${yi}" cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="${q ? (yi ? 4.6 : 6) : (yi ? 3.2 : 4.2)}" fill="${YC[yi]}"/>`; });
+      // รายไตรมาส (4 จุด): ตัวเลขกำกับจุดของปีที่เลือก ไม่ให้กราฟดูโล่ง
+      if(q && yi === 0) p.forEach(pt => { h += `<text class="pv" x="${pt[0].toFixed(1)}" y="${(pt[1] - 12).toFixed(1)}" text-anchor="middle">${compact(mArr[pt[2]])}</text>`; });
+    });
+    if(fs2 && pts[0] && pts[0].length){
+      const last = pts[0][pts[0].length - 1], xs = []; for(let x = last[2] + 1; x < np; x++) xs.push(x);
+      if(xs.length){
+        if(opt.mode === 'c') h += `<polygon class="fcb" fill="${YC[0]}" points="${[[last[0], last[1]], ...xs.map(x => [X(x), Y(fs2.hi[x])]), ...xs.slice().reverse().map(x => [X(x), Y(fs2.lo[x])])].map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ')}"/>`;
+        h += `<polyline class="fcl" fill="none" stroke="${YC[0]}" points="${[[last[0], last[1]], ...xs.map(x => [X(x), Y(fs2.est[x])])].map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ')}"/>`;
+        xs.forEach(x => { h += `<circle cx="${X(x).toFixed(1)}" cy="${Y(fs2.est[x]).toFixed(1)}" r="3.6" fill="#0f1a29" stroke="${YC[0]}" stroke-width="2"/>`; });
+        const ex = xs[xs.length - 1];
+        h += `<text x="${X(ex) - 6}" y="${Y(fs2.est[ex]) - 10}" text-anchor="end" style="fill:${YC[0]};font-weight:700">คาดการณ์</text>`;
+      }
+    }
+    if(opt.sel && st.sel){ const cw = (W - l - r) / np; h = `<rect class="selb" x="${(X(st.sel.m) - cw / 2).toFixed(1)}" y="${t}" width="${cw.toFixed(1)}" height="${H - t - b}" rx="4"/>` + h; }
+    h += `<line class="gd" x1="0" x2="0" y1="${t}" y2="${H - b}" visibility="hidden"/><line class="tl" x1="0" x2="0" y1="0" y2="0" visibility="hidden"/><text class="tlt" x="0" y="0" visibility="hidden"></text>`;
+    trendStore[id] = { sel: !!opt.sel, vals: mArr, pts, ys: ys.filter(yi => pts[yi]), W, H, l, r, t, b, X, Y, cm, np, fc: fs2 && !hideSet.has(0) ? fs2 : null };
+    return `<div class="tw" data-tw="${id}"><div class="tw-read">${twPh(!!opt.sel)}</div><svg class="ch" viewBox="0 0 ${W} ${H}">${h}</svg></div>`;
+  }
+  // เส้นแนวโน้ม (ถดถอยเชิงเส้น) ของปีหนึ่ง จากเดือนที่มีข้อมูล
+  function trendOf(d, yi){
+    const p = d.pts[yi] || []; if(p.length < 2) return null;
+    const xs = p.map(q => q[2]), vs = p.map(q => d.vals[yi * d.np + q[2]]), n = xs.length;
+    const sx = xs.reduce((a, b) => a + b, 0), sy = vs.reduce((a, b) => a + b, 0), sxy = xs.reduce((a, x, i) => a + x * vs[i], 0), sxx = xs.reduce((a, x) => a + x * x, 0);
+    const den = n * sxx - sx * sx, sl = den ? (n * sxy - sx * sy) / den : 0, ic = (sy - sl * sx) / n;
+    return { sl, m0: xs[0], m1: xs[n - 1], v0: ic + sl * xs[0], v1: ic + sl * xs[n - 1], avg: sy / n };
+  }
+  function twFocus(wrap, yi, m){
+    const d = trendStore[wrap.dataset.tw]; if(!d) return;
+    const svg = wrap.querySelector('svg'), rd = wrap.querySelector('.tw-read');
+    svg.classList.toggle('foc', yi != null);
+    svg.querySelectorAll('[data-yi]').forEach(el => el.classList.toggle('on', Number(el.dataset.yi) === yi));
+    const tl = svg.querySelector('.tl'), tlt = svg.querySelector('.tlt'), gd = svg.querySelector('.gd');
+    const tr = yi != null ? trendOf(d, yi) : null;
+    if(tr){
+      const clampY = (v) => d.Y(Math.max(0, v));
+      tl.setAttribute('x1', d.X(tr.m0)); tl.setAttribute('x2', d.X(tr.m1)); tl.setAttribute('y1', clampY(tr.v0)); tl.setAttribute('y2', clampY(tr.v1)); tl.setAttribute('stroke', YC[yi]); tl.setAttribute('visibility', 'visible');
+      const up = tr.sl > 0;
+      tlt.textContent = `แนวโน้ม ${yLabel(yi)} ${up ? '▲' : tr.sl < 0 ? '▼' : '■'}`;
+      tlt.setAttribute('x', Math.min(d.W - d.r - 4, d.X(tr.m1) + 6)); tlt.setAttribute('y', clampY(tr.v1) - 8); tlt.setAttribute('text-anchor', d.X(tr.m1) > d.W - 140 ? 'end' : 'start');
+      tlt.setAttribute('fill', YC[yi]); tlt.style.fill = YC[yi]; tlt.setAttribute('visibility', 'visible');
+    } else { tl.setAttribute('visibility', 'hidden'); tlt.setAttribute('visibility', 'hidden'); }
+    const trTxt = tr ? `<span class="trd">แนวโน้มปี ${yLabel(yi)}: <b style="color:${tr.sl > 0 ? '#3ecf8e' : tr.sl < 0 ? '#ff8a75' : '#cfd8e3'}">${tr.sl > 0 ? '▲ เพิ่มขึ้น' : tr.sl < 0 ? '▼ ลดลง' : '■ คงที่'} ~${fmt(Math.abs(tr.sl))} ต่อ${d.np === 4 ? 'ไตรมาส' : 'เดือน'}</b> (เส้นประในกราฟ${d.np === 4 ? ' · คิดจาก 4 ไตรมาส เป็นทิศทางคร่าว ๆ' : ''})</span>` : '';
+    if(m == null){ gd.setAttribute('visibility', 'hidden'); rd.innerHTML = trTxt || twPh(d.sel); return; }
+    const gx = d.X(m); gd.setAttribute('x1', gx); gd.setAttribute('x2', gx); gd.setAttribute('visibility', 'visible');
+    rd.innerHTML = `<span class="mo">${PLR(m)}</span>` + d.ys.map(y => { const has = (d.pts[y] || []).some(q => q[2] === m); const fcv = !has && y === 0 && d.fc && d.fc.est[m] != null; return `<span class="v${y === yi ? ' f' : ''}${fcv ? ' fc' : ''}"><i style="background:${YC[y]}"></i>${yLabel(y)} : ${has ? fmt(d.vals[y * d.np + m]) : fcv ? '≈ ' + fmtR(d.fc.est[m]) + ' (คาดการณ์ ' + fmtR(d.fc.lo[m]) + ' – ' + fmtR(d.fc.hi[m]) + ')' : '–'}</span>`; }).join('') + trTxt;
+  }
+  let twActive = null;
+  function twMove(e){
+    const wrap = e.target.closest && e.target.closest('.tw');
+    if(!wrap){ if(twActive){ twFocus(twActive, null, null); twActive = null; } return; }
+    if(twActive && twActive !== wrap) twFocus(twActive, null, null);
+    twActive = wrap;
+    const d = trendStore[wrap.dataset.tw]; if(!d) return;
+    const rc = wrap.querySelector('svg').getBoundingClientRect(), sx = (e.clientX - rc.left) * d.W / rc.width, sy = (e.clientY - rc.top) * d.H / rc.height;
+    if(sx < d.l - 6 || sx > d.W - d.r + 6){ twFocus(wrap, null, null); return; }
+    const m = Math.max(0, Math.min(d.np - 1, Math.floor((sx - d.l) / ((d.W - d.l - d.r) / d.np))));
+    let best = null, bd = 1e9;
+    d.ys.forEach(yi => { const q = (d.pts[yi] || []).find(p => p[2] === m); if(q && Math.abs(q[1] - sy) < bd){ bd = Math.abs(q[1] - sy); best = yi; } });
+    twFocus(wrap, bd <= 24 ? best : null, m);
+  }
+  document.addEventListener('pointermove', twMove);
+  document.addEventListener('pointerdown', twMove);
+  // ชี้ชื่อปีที่ legend = เน้นเส้นปีนั้น + เส้นแนวโน้ม
+  document.addEventListener('pointerover', (e) => { const b = e.target.closest && e.target.closest('[data-hy]'); if(!b) return; const w = b.closest('.ir-box') && b.closest('.ir-box').querySelector('.tw'); if(w && !b.classList.contains('off')) twFocus(w, Number(b.dataset.hy), null); });
+  document.addEventListener('pointerout', (e) => { const b = e.target.closest && e.target.closest('[data-hy]'); if(!b) return; const w = b.closest('.ir-box') && b.closest('.ir-box').querySelector('.tw'); if(w) twFocus(w, null, null); });
+  function yearlySvg(S){
+    const W = 330, H = 270, cm = cutP(), partial = cm < NP();
+    const tot = [4, 3, 2, 1, 0].map(yi => S.t[yi]), lab = [4, 3, 2, 1, 0].map(yi => yLabel(yi));
+    const mx = Math.max(1, ...tot) * 1.18; let h = '';
+    const bx = (i) => 18 + i * 62, bh = (v) => 190 * v / mx;
+    tot.forEach((v, i) => {
+      const x = bx(i), hh = bh(v), last = i === 4;
+      h += `<rect x="${x}" y="${215 - hh}" width="44" height="${hh}" rx="4" fill="${last ? '#f2a91c' : '#31506f'}"${last && partial ? ' opacity=".8"' : ''}><title>${lab[i]}: ${fmt(v)}</title></rect><text x="${x + 22}" y="${210 - hh}" text-anchor="middle" style="fill:#e7e4da">${compact(v)}</text><text x="${x + 22}" y="232" text-anchor="middle">${lab[i]}</text>`;
+      if(i){
+        const a = last && partial ? sumP(S.m, 0, cm) : tot[i], bb = last && partial ? sumP(S.m, 1, cm) : tot[i - 1], p = pctTxt(a, bb);
+        h += `<text x="${x + 22}" y="249" text-anchor="middle" style="fill:${p == null ? '#9fb0c3' : p >= 0 ? '#3ecf8e' : '#ff8a75'}">${p == null ? '–' : (p >= 0 ? '▲' : '▼') + fmtPct(Math.abs(p), 0) + '%'}</text>`;
+      }
+    });
+    if(partial) h += `<text x="${bx(4) + 22}" y="263" text-anchor="middle" style="font-size:9.5px">ถึง ${PS()[cm - 1]}</text>`;
+    const full = tot.map((v, i) => [i, v]).filter(p => !(p[0] === 4 && partial));
+    let note = '';
+    if(full.length >= 3){
+      const n = full.length, sx = full.reduce((a, p) => a + p[0], 0), sy = full.reduce((a, p) => a + p[1], 0), sxy = full.reduce((a, p) => a + p[0] * p[1], 0), sxx = full.reduce((a, p) => a + p[0] * p[0], 0);
+      const den = n * sxx - sx * sx, sl = den ? (n * sxy - sx * sy) / den : 0, ic = (sy - sl * sx) / n;
+      const y1 = ic + sl * full[0][0], y2 = ic + sl * full[n - 1][0];
+      h += `<line x1="${bx(full[0][0]) + 22}" y1="${215 - bh(Math.max(0, y1))}" x2="${bx(full[n - 1][0]) + 22}" y2="${215 - bh(Math.max(0, y2))}" stroke="#3ecf8e" stroke-width="2.2" stroke-dasharray="6 4"/>`;
+      const first = full[0][1], lastv = full[n - 1][1];
+      note = first > 0 && lastv > 0 ? `เส้นประ = แนวโน้ม${sl > 0 ? 'เพิ่มขึ้น' : sl < 0 ? 'ลดลง' : 'คงที่'} · อัตราเติบโตเฉลี่ยต่อปี ${fmtPct(((lastv / first) ** (1 / (n - 1)) - 1) * 100, 1)}%` : 'เส้นประ = แนวโน้ม';
+    }
+    return { svg: `<svg class="ch" viewBox="0 0 ${W} ${H}">${h}</svg>`, note };
+  }
+  function donut(){
+    const list = (D.procs || []).filter(p => String(p.u) === String(st.unit) && (st.sel ? p.yo === st.sel.yi && (isQ() ? Math.floor(p.m / 3) : p.m) === st.sel.m : p.yo === 0));
+    const by = new Map(); list.forEach(p => by.set(p.p, (by.get(p.p) || 0) + p.amt));
+    const data = [...by.entries()].map(([p, a]) => ({ n: procName(p), a })).filter(x => x.a > 0).sort((a, b) => b.a - a.a);
+    const tot = data.reduce((s, x) => s + x.a, 0);
+    if(!tot) return `<p class="empty-msg">ไม่มีการเบิกใน${selLabel()}</p>`;
+    let a0 = -Math.PI / 2, cx = 80, cy = 80, R0 = 74, R1 = 46, h = '';
+    data.forEach((x, i) => {
+      const a1 = a0 + 2 * Math.PI * x.a / tot, pt = (r, t) => [cx + r * Math.cos(t), cy + r * Math.sin(t)];
+      if(data.length === 1){ h += `<circle cx="${cx}" cy="${cy}" r="${(R0 + R1) / 2}" fill="none" stroke="${PC[0]}" stroke-width="${R0 - R1}"/>`; return; }
+      const [x1, y1] = pt(R0, a0), [x2, y2] = pt(R0, a1), [x3, y3] = pt(R1, a1), [x4, y4] = pt(R1, a0), lg = a1 - a0 > Math.PI ? 1 : 0;
+      h += `<path d="M${x1},${y1} A${R0},${R0} 0 ${lg} 1 ${x2},${y2} L${x3},${y3} A${R1},${R1} 0 ${lg} 0 ${x4},${y4}Z" fill="${PC[i % PC.length]}"><title>${esc(x.n)}: ${fmt(x.a)}</title></path>`;
+      a0 = a1;
+    });
+    // การขอเบิก: แยกตามหัวข้อการเบิก (เบิกผ่านใบขอเบิก เมื่อไม่มี Process หลักรองรับ)
+    const rq = new Map(); list.filter(p => p.p === REQ_PROC).forEach(p => rq.set(p.r || 0, (rq.get(p.r || 0) || 0) + p.amt));
+    const rqList = [...rq.entries()].filter(([, a]) => a > 0).sort((a, b) => b[1] - a[1]), rqTot = rqList.reduce((s, x) => s + x[1], 0), rqMx = rqList.length ? rqList[0][1] : 1;
+    const rqHtml = rqList.length ? `<div class="ir-sub-h">การขอเบิก แยกตามหัวข้อการเบิก (${(rqTot / tot * 100).toFixed(0)}% ของยอดเบิก)</div>` +
+      rqList.map(([r, a]) => {
+        const open = st.openReq.has(r);
+        let h = `<div class="hb tg ${open ? 'open' : ''}" data-rq="${r}" title="กดเพื่อดูคำนิยาม"><span class="nm">${esc(reqName(r))}</span><span class="br"><i style="width:${(a / rqMx * 100).toFixed(1)}%"></i></span><span class="am">${fmt(a)}</span><span class="pc">${(a / rqTot * 100).toFixed(0)}%</span></div>`;
+        if(open){
+          const nm = new Map(); list.filter(p => p.p === REQ_PROC && (p.r || 0) === r).forEach(p => nm.set(p.n || 0, (nm.get(p.n || 0) || 0) + p.amt));
+          h += [...nm.entries()].filter(([, x]) => x > 0).sort((x, y) => y[1] - x[1]).map(([n, x]) => `<div class="hb nc nt"><span class="nm" title="${esc(noteName(n))}">${esc(noteName(n))}</span><span class="br"><i style="width:${(x / a * 100).toFixed(1)}%"></i></span><span class="am">${fmt(x)}</span><span class="pc">${(x / a * 100).toFixed(0)}%</span></div>`).join('');
+        }
+        return h;
+      }).join('') + '<div class="hint" style="margin:6px 0 0">กดหัวข้อการเบิกเพื่อดูคำนิยาม (% ของหัวข้อนั้น)</div>' : '';
+    const jm = new Map(); list.filter(p => p.p === meta.jobProc).forEach(p => jm.set(p.j || 0, (jm.get(p.j || 0) || 0) + p.amt));
+    const jList = [...jm.entries()].filter(([, a]) => a > 0).sort((a, b) => (a[0] === 0) - (b[0] === 0) || a[0] - b[0]), jTot = jList.reduce((s2, x) => s2 + x[1], 0), jMx = jList.length ? Math.max(...jList.map(x => x[1])) : 1;
+    const jbHtml = jList.some(([j]) => j > 0) ? `<div class="ir-sub-h">${esc(procName(meta.jobProc))} แยกตามรหัส Job ผลิต (${(jTot / tot * 100).toFixed(0)}% ของยอดเบิก)</div>`
+      + jList.map(([j, a]) => `<div class="hb nc"><span class="nm">${j ? 'Job ' + esc(jobCode(j)) : 'บริษัทอื่น (ไม่ใช้รหัส Job)'}</span><span class="br"><i style="width:${(a / jMx * 100).toFixed(1)}%"></i></span><span class="am">${fmt(a)}</span><span class="pc">${(a / jTot * 100).toFixed(0)}%</span></div>`).join('') : '';
+    return `<div class="dn-row"><svg viewBox="0 0 160 160" style="width:150px;height:150px;flex-shrink:0">${h}</svg><div class="dn-leg">${data.map((x, i) => `<div><i style="background:${PC[i % PC.length]}"></i><span title="${esc(x.n)}">${esc(x.n)}</span><b>${(x.a / tot * 100).toFixed(0)}%</b></div>`).join('')}</div></div>${jbHtml}${rqHtml}`;
+  }
+  const fcNoteHtml = (fc, un) => !fc ? '' : fc.na ? `<div class="fc-note na">คาดการณ์ทั้งปี ${yLabel(0)}: ${esc(fc.na)}</div>`
+    : `<div class="fc-note"><span>คาดการณ์ยอดเบิกทั้งปี ${yLabel(0)} ≈ <b>${fmtR(fc.est)}</b> ${un}</span><span>ช่วง ${fmtR(fc.lo)} – ${fmtR(fc.hi)}</span><span>เบิกแล้ว ${fmt(fc.ytd0)} (${perText(fc.cm)}) · คาดว่าจะเบิกอีก ≈ ${fmtR(Math.max(0, fc.est - fc.ytd0))}</span><small>ค่าประมาณจากรูปแบบการเบิก ${fc.n} ปีก่อนหน้า (ถึง${PU()}เดียวกันใช้ไปกี่ % ของทั้งปี) ไม่ใช่แผนจริง · เส้นประในกราฟ</small></div>`;
+  function chartView(list){
+    if(!single()) return '<p class="ir-warn">กราฟและการวิเคราะห์ต้องดูทีละหน่วย — เลือกหน่วยจากช่อง "หน่วย" ด้านบน (ในมุมมองนี้มีหลายหน่วยที่บวกรวมกันไม่ได้)</p>';
+    if(!list.length) return '<p class="empty-msg">ไม่พบรายการ</p>';
+    const S = sums(list), Y = yearlySvg(S), top = list.filter(i => selVal(i) > 0).sort((a, b) => selVal(b) - selVal(a)).slice(0, 10), mx = top.length ? selVal(top[0]) : 1;
+    const lg = [0, 1, 2, 3, 4].map(yi => `<button type="button" data-hy="${yi}" class="${st.hideYear.has(yi) ? 'off' : ''}"><i style="background:${YC[yi]}"></i>${yLabel(yi)}</button>`).join('');
+    const mode = st.trendMode === 'c' ? 'c' : 'm', fc = forecast(S.m), fcs = fcSeries(fc, mode), un = esc(unitName());
+    const fcNote = fcNoteHtml(fc, un);
+    const trendBox = `<div class="ir-box full"><div class="ch-head"><h3>${mode === 'c' ? 'ยอดเบิกสะสมตั้งแต่ต้นปี (YTD)' : 'แนวโน้มการเบิกราย' + PU()} เปรียบเทียบ 5 ปี (หน่วย : ${un})</h3>
+        <div class="seg2" role="tablist"><button type="button" data-tmode="m" class="${mode === 'm' ? 'on' : ''}">ราย${PU()}</button><button type="button" data-tmode="c" class="${mode === 'c' ? 'on' : ''}">สะสม (YTD)</button></div></div>
+      <div class="hint">${mode === 'c' ? `ดูว่าปีนี้เบิกเร็วหรือช้ากว่าปีก่อน ๆ ณ ${PU()}เดียวกัน (เส้นสูงกว่า = ใช้มากกว่า)` : `ดูช่วง${PU()}ที่เบิกมาก–น้อย และทิศทางโดยรวม`} · กดชื่อปีเพื่อเปิด/ปิดเส้น · ชี้เมาส์ที่กราฟเพื่อดูยอดแต่ละ${PU()}และเส้นแนวโน้ม${isQ() && st.year === CUR_Y && cutP() <= curP() ? ` · ไตรมาส ${curP() + 1} ยังไม่ครบไตรมาส จึงยังไม่วาดเส้น (ดูยอดถึงวันนี้ในตาราง / Heatmap)` : ''}<br>รวมเฉพาะ ${fmtInt(list.length)} รายการที่ใช้หน่วย${un}</div>
+      ${fcNote}<div class="lg">${lg}</div>${trendSvg(mode === 'c' ? cumOf(S.m) : S.m, { ...twSize(), fc: fcs, mode, sel: true })}</div>`;
+    return `<div class="ir-grid">${trendBox}</div>
+      <div class="ir-grid">${heatmapBox(S)}</div>
+      <div class="ir-grid"><div class="ir-box"><h3>Top 10 ที่เบิกสูงสุด ${selLabel()} (หน่วย : ${esc(unitName())})</h3><div class="hint">กดแถวเพื่อวิเคราะห์รายสินค้า · คลิก${PU()}ในกราฟหรือ Heatmap เพื่อดูเฉพาะ${PU()}</div>${selChip()}
+        ${top.map((it, i) => `<div class="hb" data-drill="${it.id}"><span class="rk">${i + 1}</span><span class="nm" title="${esc(it.name)}">${esc(it.name)}</span><span class="br"><i style="width:${(selVal(it) / mx * 100).toFixed(1)}%"></i></span><span class="am">${fmt(selVal(it))}</span></div>`).join('') || `<p class="empty-msg">ไม่มีการเบิกใน${selLabel()}</p>`}</div>
+        <div class="ir-box"><h3>ยอดเบิกรายปี + แนวโน้ม (หน่วย : ${esc(unitName())})</h3><div class="hint">% = เปลี่ยนแปลงจากปีก่อน</div>${Y.svg}<div class="hint" style="margin:6px 0 0">${esc(Y.note)}</div></div></div>
+      <div class="ir-grid"><div class="ir-box full"><h3>สัดส่วนการเบิกตาม Process ${selLabel()}</h3><div class="hint">แยกตาม Process หัวข้อการเบิก และรหัส Job ผลิต · กดหัวข้อการเบิกเพื่อดูคำนิยาม · หน่วย : ${esc(unitName())}</div>${selChip()}${donut()}</div></div>`;
+  }
+
+  // ---------- Heatmap เดือน × ปี ----------
+  //   เทียบในปีเดียวกัน (ค่าเริ่มต้น) = แต่ละปีไล่สีตามเดือนสูงสุดของปีนั้น → เห็นเดือนพีคซ้ำทุกปีแม้ยอดแต่ละปีต่างกัน
+  //   เทียบทั้งตาราง = ไล่สีเทียบเดือนสูงสุดของทั้ง 5 ปี → เห็นปีที่เบิกมาก/น้อยด้วย
+  //   แถวล่าง = สัดส่วนเฉลี่ยของแต่ละเดือน (% ของทั้งปี) จากปีที่ครบปี — ใช้วางแผนว่าเดือนไหนต้องเตรียมของ
+  function heatmapBox(S){
+    const mode = st.hmMode === 'all' ? 'all' : 'row', un = esc(unitName());
+    const avail = pAvail, partial = pPartial, np = NP(), pu = PU();
+    const rowMax = [0, 1, 2, 3, 4].map(yi => Math.max(0, ...Array.from({ length: np }, (_, m) => avail(yi, m) && !partial(yi, m) ? S.m[yi * np + m] : 0)));
+    const allMax = Math.max(1, ...rowMax);
+    const cellBg = (t) => `color-mix(in srgb, #f59e0b ${Math.round(8 + t * 86)}%, #142235)`;
+    const rows = [0, 1, 2, 3, 4].filter(yi => !st.hideYear.has(yi)).map(yi => {
+      const mx = mode === 'row' ? rowMax[yi] || 1 : allMax, tot = S.t[yi];
+      let pkM = -1, pkV = 0; for(let m = 0; m < np; m++) if(avail(yi, m) && !partial(yi, m) && S.m[yi * np + m] > pkV){ pkV = S.m[yi * np + m]; pkM = m; }
+      const tds = Array.from({ length: np }, (_, m) => {
+        if(!avail(yi, m)) return '<td class="na">–</td>';
+        const v = S.m[yi * np + m], tt = Math.min(1, v / mx), pct = tot ? (v / tot * 100).toFixed(1) : '0.0';
+        const tip = `${PLR(m)} ${yLabel(yi)}: ${fmt(v)} ${unitName()} (${pct}% ของทั้งปี)${partial(yi, m) ? ` — ${pu}นี้ยังไม่ครบ${pu}` : ''}`;
+        return `<td data-sel="${yi},${m}" class="${m === pkM ? 'pk' : ''}${partial(yi, m) ? ' pt' : ''}${st.sel && st.sel.yi === yi && st.sel.m === m ? ' sel' : ''}" style="background:${cellBg(tt)};color:${tt > .55 ? '#1b1404' : '#e7e4da'}" title="${esc(tip)}">${v ? compact(v) : '–'}</td>`;
+      }).join('');
+      return `<tr><th class="yr${yi === 0 ? ' y0' : ''}">${yLabel(yi)}</th>${tds}<td class="tt" title="รวมทั้งปี ${yLabel(yi)}">${compact(tot)}</td></tr>`;
+    }).join('');
+    // สัดส่วนเฉลี่ยรายเดือน จากปีที่ครบปี (ไม่นับปีปัจจุบันที่ยังไม่ครบ)
+    const full = [0, 1, 2, 3, 4].filter(yi => S.t[yi] > 0 && !(yi === 0 && st.year === CUR_Y));
+    let avgRow = '';
+    if(full.length){
+      const sh = Array.from({ length: np }, (_, m) => full.reduce((a, yi) => a + S.m[yi * np + m] / S.t[yi], 0) / full.length), smx = Math.max(...sh) || 1;
+      avgRow = `<tr class="avg"><th class="yr">เฉลี่ย</th>${sh.map((v, m) => `<td style="background:${cellBg(v / smx)};color:${v / smx > .55 ? '#1b1404' : '#e7e4da'}" title="${esc(PLR(m) + ' โดยเฉลี่ยคิดเป็น ' + (v * 100).toFixed(1) + '% ของยอดทั้งปี (' + full.length + ' ปีที่ครบปี)')}">${(v * 100).toFixed(1)}%</td>`).join('')}<td class="tt">100%</td></tr>`;
+    }
+    return `<div class="ir-box full"><div class="ch-head"><h3>Heatmap ยอดเบิก ${pu} × ปี (หน่วย : ${un})</h3>
+        <div class="seg2" role="tablist"><button type="button" data-hm="row" class="${mode === 'row' ? 'on' : ''}">เทียบในปีเดียวกัน</button><button type="button" data-hm="all" class="${mode === 'all' ? 'on' : ''}">เทียบทั้ง 5 ปี</button></div></div>
+      <div class="hint">สีเข้ม = เบิกมาก · กรอบขาว = ${pu}ที่เบิกสูงสุดของปีนั้น · ${mode === 'row' ? `ไล่สีแยกแต่ละปี เพื่อดูว่า${pu}ไหนพีคซ้ำทุกปี` : 'ไล่สีเทียบทั้ง 5 ปี เพื่อดูปีที่เบิกมาก/น้อย'} · แถวเฉลี่ย = ${pu}นั้นปกติคิดเป็นกี่ % ของทั้งปี · ชี้ที่ช่องเพื่อดูยอดเต็ม · คลิกช่องเพื่อดู Top 10 / สัดส่วนตาม Process ของ${pu}นั้น</div>
+      <div class="hm-wrap"><table class="hm${np === 4 ? ' q4' : ''}"><thead><tr><th class="yr">ปี</th>${PS().map((m, i) => `<th data-selm="${i}" title="คลิกเพื่อดู${PLR(i)} ${yLabel(0)}">${m}</th>`).join('')}<th class="tot">รวม</th></tr></thead><tbody>${rows}${avgRow}</tbody></table></div>
+      <div class="hm-leg"><span>น้อย</span><span class="bar"></span><span>มาก</span><span style="margin-left:10px"><span class="pkd"></span> ${pu}สูงสุดของปี</span>${st.year === CUR_Y ? `<span style="margin-left:10px">ช่องลายขีด = ยังไม่ถึง${pu} · กรอบประ = ${pu}นี้ยังไม่ครบ${pu}</span>` : ''}</div></div>`;
+  }
+
+  // ---------- กราฟแท่งการเบิกรายเดือน/ไตรมาสของสินค้า (popup) ----------
+  //   แถบพื้นสลับเป็นช่วงปี + ยอดรวมปีบนหัวแถบ · เส้นค่าเฉลี่ย · จุดสูงสุด / ต่ำสุด · ชี้ (หรือแตะ) ที่แท่ง = แถบอ่านค่าด้านบน (ยอด · เทียบปีก่อน · เทียบ เดือน/ไตรมาสก่อน · เทียบค่าเฉลี่ย)
+  //   ขนาดวาดตามความกว้างจริงของ popup (1 หน่วย ≈ 1px) ตัวอักษรจึงอ่านได้บนมือถือ
+  const bwStore = {}; let bwSeq = 0, bwActive = null;
+  function barsChart(bars, np, avg, maW, W, un){
+    const id = 'bw' + (++bwSeq), narrow = W < 600, H = narrow ? 250 : 270, l = narrow ? 40 : 46, t = 26, bt = 30, r = 8;
+    const n = bars.length, pw = (W - l - r) / n, ph = H - t - bt;
+    const mx = Math.max(1, ...bars.map(x => x.x), avg) * 1.12, Y = (v) => t + ph * (1 - v / mx);
+    let h = '';
+    // ช่วงปี: พื้นสลับ + ยอดรวม (บน) + ปี (ล่าง)
+    const ys = []; bars.forEach((bb, i) => { const c = ys[ys.length - 1]; if(c && c.yi === bb.yi){ c.i1 = i; c.sum += bb.x; } else ys.push({ yi: bb.yi, i0: i, i1: i, sum: bb.x }); });
+    ys.forEach((y, k) => { const x0 = l + y.i0 * pw, w = (y.i1 - y.i0 + 1) * pw;
+      if(k % 2 === 0) h += `<rect class="yb" x="${x0.toFixed(1)}" y="${t}" width="${w.toFixed(1)}" height="${ph}"/>`;
+      h += `<text class="yt" x="${(x0 + w / 2).toFixed(1)}" y="${t - 9}" text-anchor="middle" style="fill:${YC[y.yi]}">${compact(y.sum)}</text><text x="${(x0 + w / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle" style="font-weight:700">${yLabel(y.yi)}</text>`; });
+    for(let i = 0; i <= 3; i++){ const y = t + ph * i / 3; h += `<line x1="${l}" x2="${W - r}" y1="${y}" y2="${y}" stroke="rgba(255,255,255,.1)"/><text x="${l - 6}" y="${y + 4}" text-anchor="end">${compact(mx * (1 - i / 3))}</text>`; }
+    bars.forEach((b, i) => { const hh = ph * b.x / mx; h += `<rect x="${(l + i * pw + (pw > 4 ? 1 : .4)).toFixed(1)}" y="${(t + ph - hh).toFixed(1)}" width="${Math.max(1.6, pw - (pw > 4 ? 2 : .8)).toFixed(1)}" height="${Math.max(hh, b.x > 0 ? 1 : 0).toFixed(1)}" fill="${YC[b.yi]}" opacity=".9" rx="${pw > 6 ? 1.5 : 0}"/>`; });
+    // ค่าเฉลี่ยทั้งช่วง + ค่าเฉลี่ยเคลื่อนที่
+    if(avg > 0) h += `<line x1="${l}" x2="${W - r}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" stroke="rgba(255,255,255,.75)" stroke-width="1.4" stroke-dasharray="6 4"/><text class="mk" x="${W - r - 2}" y="${(Y(avg) - 5).toFixed(1)}" text-anchor="end">เฉลี่ย ${compact(avg)}</text>`;
+    const ma = bars.map((_, i) => { const s = bars.slice(Math.max(0, i - maW + 1), i + 1); return s.reduce((a, b) => a + b.x, 0) / s.length; });
+    h += `<polyline fill="none" stroke="#ff8a75" stroke-width="2.2" points="${ma.map((x, i) => `${(l + i * pw + pw / 2).toFixed(1)},${Y(x).toFixed(1)}`).join(' ')}"/>`;
+    // สูงสุด / ต่ำสุด (ต่ำสุดนับเฉพาะ เดือน/ไตรมาส ที่มีการเบิก)
+    const pos = bars.filter(b => b.x > 0);
+    if(pos.length){
+      const pk = pos.reduce((a, b) => b.x > a.x ? b : a), lo = pos.reduce((a, b) => b.x < a.x ? b : a);
+      const mark = (b, txt) => { const i = bars.indexOf(b), cx = l + (i + .5) * pw, anc = cx < l + 60 ? 'start' : cx > W - r - 60 ? 'end' : 'middle'; return `<circle cx="${cx.toFixed(1)}" cy="${Y(b.x).toFixed(1)}" r="3.6" fill="#fff" stroke="#0f1a29" stroke-width="1.2"/><text class="mk" x="${cx.toFixed(1)}" y="${(Y(b.x) - 8).toFixed(1)}" text-anchor="${anc}">${txt} ${compact(b.x)}</text>`; };
+      h += mark(pk, 'สูงสุด'); if(lo !== pk && pos.length > 2) h += mark(lo, 'ต่ำสุด');
+    }
+    h += `<rect class="hl" x="0" y="${t}" width="${pw.toFixed(1)}" height="${ph}" visibility="hidden"/>`;
+    const ph0 = '<span class="ph">ชี้เมาส์ (หรือแตะ) ที่แท่งเพื่อดูยอด และเทียบกับปีก่อน / ' + PU() + 'ก่อน / ค่าเฉลี่ย</span>';
+    bwStore[id] = { bars, np, avg, W, l, r, pw, n, un, ph: ph0 };
+    return `<div class="bw" data-bw="${id}"><div class="tw-read">${ph0}</div><svg class="ch" viewBox="0 0 ${W} ${H}">${h}</svg></div>`;
+  }
+  function bwFocus(wrap, i){
+    const d = bwStore[wrap.dataset.bw]; if(!d) return;
+    const rd = wrap.querySelector('.tw-read'), hl = wrap.querySelector('.hl');
+    if(i == null){ hl.setAttribute('visibility', 'hidden'); rd.innerHTML = d.ph; return; }
+    const b = d.bars[i]; hl.setAttribute('x', (d.l + i * d.pw).toFixed(1)); hl.setAttribute('visibility', 'visible');
+    const cmp = (label, base) => !base ? '' : `<span class="v">${label} ${base.x > 0 ? pctHtml(pctTxt(b.x, base.x)) : (b.x > 0 ? '<span class="up">ใหม่</span>' : '<span class="flat">–</span>')}</span>`;
+    rd.innerHTML = `<span class="mo">${PLR(b.m)} ${yLabel(b.yi)}</span><span class="v f"><i style="background:${YC[b.yi]}"></i>${fmt(b.x)} ${d.un}</span>`
+      + cmp('เทียบปีก่อน', i - d.np >= 0 ? d.bars[i - d.np] : null) + cmp('เทียบ' + PU() + 'ก่อน', i > 0 ? d.bars[i - 1] : null)
+      + (d.avg > 0 ? `<span class="v">เทียบค่าเฉลี่ย ${pctHtml(pctTxt(b.x, d.avg))}</span>` : '');
+  }
+  function bwMove(e){
+    const wrap = e.target.closest && e.target.closest('.bw');
+    if(!wrap){ if(bwActive){ bwFocus(bwActive, null); bwActive = null; } return; }
+    if(bwActive && bwActive !== wrap) bwFocus(bwActive, null);
+    bwActive = wrap;
+    const d = bwStore[wrap.dataset.bw]; if(!d) return;
+    const rc = wrap.querySelector('svg').getBoundingClientRect(), sx = (e.clientX - rc.left) * d.W / rc.width;
+    if(sx < d.l || sx > d.W - d.r){ bwFocus(wrap, null); return; }
+    bwFocus(wrap, Math.max(0, Math.min(d.n - 1, Math.floor((sx - d.l) / d.pw))));
+  }
+  document.addEventListener('pointermove', bwMove);
+  document.addEventListener('pointerdown', bwMove);
+
+  // ---------- วิเคราะห์รายสินค้า (popup) ----------
+  //   สถานะของ popup แยกจากหน้าหลัก: โหมดรายเดือน/สะสม · ปีที่ซ่อนในกราฟ · หัวข้อที่ขยายใน "สัดส่วนการเบิกตาม Process" (เปิดครั้งใหม่เริ่มต้นใหม่ — หุบรายละเอียดไว้)
+  const drs = { id: null, mode: 'm', hide: new Set(), open: new Set(), kids: [] };
+  function drill(id){
+    if(!D.items.find(x => x.id === id)) return;
+    drs.id = id; drs.mode = st.trendMode; drs.hide = new Set(); drs.open = new Set(); drs.kids = [];
+    $('drOverlay').classList.add('show');   // แสดงก่อน วาดทีหลัง — กราฟต้องรู้ความกว้างจริงของ popup
+    renderDrill(true);
+  }
+  function renderDrill(toTop){
+    const it = D.items.find(x => x.id === drs.id); if(!it) return;
+    const body = $('drBody'), keepY = body.scrollTop;
+    const np = NP(), pu = PU(), cm = cutP(), v = it.pv, tot = it.yt;
+    const mAvg = new Array(np).fill(0); for(let m = 0; m < np; m++){ let s = 0, c = 0; for(let yi = 0; yi < 5; yi++){ if(yi === 0 && m >= cm) continue; s += v[yi * np + m]; c++; } mAvg[m] = c ? s / c : 0; }
+    const pkM = mAvg.indexOf(Math.max(...mAvg)), full = [4, 3, 2, 1, 0].filter(yi => !(yi === 0 && cm < np)).map(yi => tot[yi]);
+    const fi = full.findIndex(x => x > 0), n = full.length - 1 - fi;
+    const cagr = fi >= 0 && n >= 1 && full[full.length - 1] > 0 ? ((full[full.length - 1] / full[fi]) ** (1 / n) - 1) * 100 : null;
+    const bars = []; for(let yi = 4; yi >= 0; yi--) for(let m = 0; m < np; m++){ if(yi === 0 && m >= cm) continue; bars.push({ yi, m, x: v[yi * np + m] }); }
+    const avgM = bars.reduce((a, b) => a + b.x, 0) / Math.max(1, bars.length), nz = bars.filter(b => b.x > 0).length, maW = np === 4 ? 4 : 6;
+    const un = esc(it.unit || ''), innerW = Math.max(260, Math.min(1180, body.clientWidth - 78));
+    const barsHtml = barsChart(bars, np, avgM, maW, innerW, un);
+
+    // --- สัดส่วนการเบิกตาม Process: แถวหลักเห็นเสมอ / แถวย่อย (หัวข้อการเบิก + คำนิยาม · รหัส Job ผลิต) หุบไว้ กดแถวหลักเพื่อดู ---
+    const pb = Object.entries(it.pb || {}).filter(([, a]) => a > 0).sort((a, b) => b[1] - a[1]), pbTot = pb.reduce((s, x) => s + x[1], 0), pbMx = pb.length ? pb[0][1] : 1;
+    // ลำดับชั้นเหมือนหน้าหลัก: ชั้น 1 = Process (การขอเบิกรวมเป็นแถวเดียว) → ชั้น 2 = หัวข้อการเบิก / รหัส Job ผลิต → ชั้น 3 = คำนิยาม · % ของชั้นล่างคิดจากแถวแม่
+    drs.kids = [];
+    const line = (o) => {
+      const has = !!o.kids, open = has && drs.open.has(o.key); if(has) drs.kids.push(o.key);
+      return `<div class="hb ${has ? 'tg' + (open ? ' open' : '') : 'nc'} ${o.cls || ''}" ${has ? `data-dru="${esc(o.key)}" title="กดเพื่อ${open ? 'ย่อ' : 'ดูรายละเอียด'}"` : ''}><span class="nm" title="${esc(o.title || o.label)}">${o.labelHtml || esc(o.label)}</span><span class="br"><i style="width:${(o.amt / o.barBase * 100).toFixed(1)}%"></i></span><span class="am">${fmt(o.amt)}</span><span class="pc">${(o.amt / o.pcBase * 100).toFixed(0)}%</span></div>` + (open ? o.kids : '');
+    };
+    const lvl1 = []; let reqSum = 0; const reqRows = [];
+    pb.forEach(([k, a]) => {
+      if(k[0] === 'r'){ reqSum += a; reqRows.push([k, a]); return; }
+      let kids = '';
+      if(k === 'p' + meta.jobProc && Object.keys(it.jb || {}).some(x => Number(x) > 0))
+        kids = Object.entries(it.jb).filter(([, x]) => x > 0).sort((x, y) => (x[0] === '0') - (y[0] === '0') || x[0] - y[0]).map(([jk, x]) => line({ key: 'j' + jk, cls: 'nt', label: Number(jk) ? 'Job ' + jobCode(Number(jk)) : 'บริษัทอื่น (ไม่ใช้รหัส Job)', amt: x, barBase: a, pcBase: a })).join('');
+      lvl1.push({ key: k, label: keyLabel(k), amt: a, kids });
+    });
+    if(reqRows.length){
+      const kids = reqRows.map(([k, ra]) => {
+        const notes = Object.entries(it.nb || {}).filter(([nk, x]) => nk.split('.')[0] === k.slice(1) && x > 0).sort((x, y) => y[1] - x[1])
+          .map(([nk, x]) => line({ key: 'n' + nk, cls: 'nt nt2', label: noteName(Number(nk.split('.')[1])), amt: x, barBase: ra, pcBase: ra })).join('');
+        return line({ key: k, cls: 'nt', label: reqName(Number(k.slice(1))), amt: ra, barBase: reqSum, pcBase: reqSum, kids: notes });
+      }).join('');
+      lvl1.push({ key: 'p' + REQ_PROC, label: ((meta.processes || []).find(x => x.id === REQ_PROC) || {}).name || 'การขอเบิก', amt: reqSum, kids });
+    }
+    lvl1.sort((a, b) => b.amt - a.amt);
+    const lvlMx = lvl1.length ? lvl1[0].amt : 1;
+    const useRows = lvl1.map(o => line({ key: o.key, label: o.label, amt: o.amt, barBase: lvlMx, pcBase: pbTot, kids: o.kids })).join('');
+    const useHtml = pb.length ? `<div class="ir-box" style="margin-bottom:12px"><div class="ch-head"><div><h3>สัดส่วนการเบิกตาม Process (${yLabel(4)}–${yLabel(0)})</h3><div class="hint">หน่วย : ${un}${drs.kids.length ? ' · กดแถวที่มี ▸ เพื่อดูรายละเอียด (หัวข้อการเบิก / รหัส Job ผลิต / คำนิยาม) · % ของแถวย่อยคิดจากแถวแม่' : ''}</div></div>
+        ${drs.kids.length ? (drs.kids.every(k => drs.open.has(k)) ? '<button type="button" class="dr-tg" data-druall="close"><b>−</b> ย่อทั้งหมด</button>' : '<button type="button" class="dr-tg" data-druall="open"><b>+</b> ขยายทั้งหมด</button>') : ''}</div>
+      ${useRows}</div>` : '';
+
+    // --- เปรียบเทียบรายปี: ลูกเล่นเหมือนกราฟรวม (รายเดือน/สะสม · คาดการณ์ · เปิด/ปิดปี · ชี้ดูยอดและเส้นแนวโน้ม) ---
+    const fcD = forecast(v), fcsD = fcSeries(fcD, drs.mode);
+    const lgD = [0, 1, 2, 3, 4].map(yi => `<button type="button" data-hy="${yi}" class="${drs.hide.has(yi) ? 'off' : ''}"><i style="background:${YC[yi]}"></i>${yLabel(yi)}</button>`).join('');
+    const trendD = `<div class="ir-box" style="margin-bottom:12px"><div class="ch-head"><h3>${drs.mode === 'c' ? 'ยอดเบิกสะสมตั้งแต่ต้นปี (YTD)' : 'เปรียบเทียบราย' + pu + 'ข้ามปี'}</h3>
+        <div class="seg2" role="tablist"><button type="button" data-tmode="m" class="${drs.mode === 'm' ? 'on' : ''}">ราย${pu}</button><button type="button" data-tmode="c" class="${drs.mode === 'c' ? 'on' : ''}">สะสม (YTD)</button></div></div>
+      <div class="hint">${drs.mode === 'c' ? `ดูว่าปีนี้เบิกเร็วหรือช้ากว่าปีก่อน ๆ ณ ${pu}เดียวกัน` : `ดูช่วง${pu}ที่เบิกมาก–น้อย และทิศทางโดยรวม`} · กดชื่อปีเพื่อเปิด/ปิดเส้น · ชี้เมาส์ที่กราฟเพื่อดูยอดและเส้นแนวโน้ม</div>
+      ${fcNoteHtml(fcD, un)}<div class="lg">${lgD}</div>${trendSvg(drs.mode === 'c' ? cumOf(v) : v, { w: innerW, h: innerW < 600 ? 250 : 300, fc: fcsD, mode: drs.mode, hide: drs.hide })}</div>`;
+
+    // --- ตาราง: คอลัมน์ปีตรึงซ้าย พื้นสีเดียว สีตัวอักษรตามสีของปี (ตรงกับสีเส้นในกราฟ) ---
+    const rowsT = [0, 1, 2, 3, 4].map(yi => `<tr><td class="ycol" style="color:${YC[yi]}">${yLabel(yi)}</td>${Array.from({ length: np }, (_, m) => `<td class="${v[yi * np + m] === 0 ? 'z' : ''}${np === 12 && m % 3 === 1 ? ' mb' : ''}">${v[yi * np + m] === 0 ? '–' : fmtQ(v[yi * np + m], it.dp)}</td>`).join('')}<td class="tt">${fmtQ(tot[yi], it.dp)}</td></tr>`).join('');
+
+    // --- การ์ดสรุป (สีพื้นตามความหมาย แบบเดียวกับการ์ดหน้าหลัก) ---
+    const card = (k, label, val, ic) => `<div class="kpi" style="--k:${k}"><div class="l">${label}</div><div class="v">${val}</div>${ic.replace('<svg', '<svg class="bg"')}</div>`;
+    const cg = cagr == null ? '–' : `<span class="${cagr >= 0 ? 'up' : 'dn'}">${(cagr >= 0 ? '+' : '') + fmtPct(cagr, 1)}%</span>`;
+    $('drTitle').textContent = it.name;
+    body.innerHTML = `<div class="dr-sub"><b>${esc(it.code)}</b> · หน่วย <b>${un}</b>${it.groupName ? ' · <span class="g">ประเภท : ' + esc(it.groupName) + '</span>' : ''}${it.crop ? ' · ประเภทพืช : ' + esc(it.crop) : ''}</div>
+      <div class="dr-kpis">${card('242,169,28', `เฉลี่ยต่อ${pu} (5 ปี)`, `${fmt(avgM)}<small>${un}</small>`, IC.cal)}${card('62,207,142', `${pu}ที่เบิกสูงเป็นประจำ`, mAvg[pkM] > 0 ? PL(pkM) : '-', IC.up)}${card('167,139,250', 'อัตราเติบโตเฉลี่ยต่อปี', cg, IC.star)}${card('78,167,224', `ปี ${yLabel(0)} เทียบปีก่อน (ช่วงเดียวกัน)`, pctHtml(pctTxt(sumRange(it.v, 0, cutM()), sumRange(it.v, 1, cutM()))), IC.avg)}${card('231,228,218', `${pu}ที่ไม่มีการเบิก`, `${bars.length - nz} / ${bars.length}`, IC.box)}</div>
+      ${useHtml}
+      <div class="ir-box" style="margin-bottom:12px"><h3>การเบิกราย${pu} ${bars.length > 0 ? bars.length : ''} ${pu}ล่าสุด</h3><div class="hint">แท่งสีตามปี · ตัวเลขบนหัวแถบ = ยอดรวมของปีนั้น (ปีล่าสุด = ถึง${pu}ที่ครบ) · เส้นแดง = ค่าเฉลี่ยเคลื่อนที่ ${maW} ${pu} · เส้นประขาว = ค่าเฉลี่ยทั้งช่วง</div>${barsHtml}</div>
+      ${trendD}
+      <div class="irt-wrap" style="max-height:none"><table class="irt"><thead><tr><th class="ix ycol">ปี</th>${PH().map((m, i) => `<th class="mh ${pqc(i)}">${m}</th>`).join('')}<th class="mh qt">รวม</th></tr></thead><tbody>${rowsT}</tbody></table></div>`;
+    body.scrollTop = toTop ? 0 : keepY;
+  }
+
+  // ---------- จัดแท็บตามประเภทวัสดุ ----------
+  let setupTypes = [];
+  async function openSetup(){
+    $('stOverlay').classList.add('show'); $('stList').innerHTML = '<p class="empty-msg">กำลังโหลด…</p>';
+    try{
+      const r = await api('/api/cut-stock-report/setup'); setupTypes = r.types.map(t => ({ ...t, orig: t.tab }));
+      // แสดงเฉพาะประเภทที่มีวัสดุอยู่ในกลุ่มวัสดุโรงงาน (ประเภทว่างไม่ต้องจัด)
+      const shown = setupTypes.filter(t => t.n > 0);
+      $('stList').innerHTML = `<p class="st-hint st-count">แสดง ${fmtInt(shown.length)} ประเภทที่มีวัสดุ (ซ่อน ${fmtInt(setupTypes.length - shown.length)} ประเภทที่ยังไม่มีวัสดุ)</p>` + shown.map(t => `<div class="stp-row"><div class="n">${esc(t.name)}<span class="c">${fmtInt(t.n)} รายการในวัสดุโรงงาน</span></div>
+        <select data-type="${t.id}"><option value="">ไม่จัดแท็บ (ดูใน ทั้งหมด)</option><option value="PACK" ${t.tab === 'PACK' ? 'selected' : ''}>บรรจุภัณฑ์</option><option value="COAT" ${t.tab === 'COAT' ? 'selected' : ''}>สารเคมีเคลือบเมล็ด</option></select></div>`).join('');
+    } catch(err){ $('stList').innerHTML = `<p class="ir-err">${esc(err.message)}</p>`; }
+  }
+  async function saveSetup(){
+    const changed = setupTypes.filter(t => t.tab !== t.orig);
+    if(!changed.length){ $('stOverlay').classList.remove('show'); return; }
+    const btn = $('stSave'); btn.disabled = true;
+    try{
+      await api('/api/cut-stock-report/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ types: changed.map(t => ({ id: t.id, tab: t.tab })) }) });
+      $('stOverlay').classList.remove('show'); toast('บันทึกการจัดแท็บแล้ว'); load();
+    } catch(err){ alert(err.message); } finally { btn.disabled = false; }
+  }
+
+  // ---------- Export Excel ----------
+  const periodText = () => `ปี ${yLabel(0)} (เปรียบเทียบ ${yLabel(4)} – ${yLabel(0)})`;
+  const compNames = () => meta.companies.filter(c => applied.comps.includes(c.id)).map(c => c.name);
+  const procNames = () => {
+    const out = meta.processes.filter(p => applied.procs.includes(p.id) && p.id !== REQ_PROC).map(p => p.id === meta.jobProc && applied.jobs ? `${p.name} (รหัส Job ผลิต: ${applied.jobs.map(jobCode).join(', ')})` : p.name);
+    if(applied.procs.includes(REQ_PROC)){
+      const rt = meta.reqTypes || [], on = rt.filter(r => applied.reqs.includes(r.id));
+      out.push(!rt.length || on.length === rt.length ? 'การขอเบิก (ทุกหัวข้อการเบิก)' : 'การขอเบิก: ' + on.map(reqLabel).join(', '));
+    }
+    return out;
+  };
+  async function exportExcel(btn){
+    if(!D) return; const list = rows(); if(!list.length){ alert('ไม่มีข้อมูลให้ Export'); return; }
+    const old = btn.innerHTML; btn.disabled = true; btn.textContent = 'กำลังสร้างไฟล์…';
+    try{
+      if(!window.ExcelJS) await loadScript(EXCELJS_URL);
+      const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('รายสินค้า', { views: [{ state: 'frozen', xSplit: 3, ySplit: 6 }] });
+      const FONT = { name: 'Tahoma', size: 10 }, thin = { style: 'thin', color: { argb: 'FFBBBBBB' } }, bd = { top: thin, left: thin, bottom: thin, right: thin };
+      const argb = (hex) => 'FF' + hex.replace('#', '').toUpperCase();
+      // ----- ส่วนหัว: แถบชื่อรายงาน (แถว 1-2) + กรอบเงื่อนไขหลัก (แถว 3-4) · รายละเอียดเต็มอยู่ชีต "เงื่อนไขรายงาน" · หัวตารางเริ่มแถว 5 -----
+      const npX = NP(), LAST = 7 + 5 + 5 * npX, NAVY = 'FF14233A', NAVY2 = 'FF1D2F4A', AMBER = 'FFF2A91C', LBL = 'FFE8EEF6';
+      const solid = (c) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb: c } });
+      const stampX = new Date().toLocaleString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const userX = (() => { try { const u = JSON.parse(sessionStorage.getItem('wim_user') || '{}'); return u.PsName || u.Username || '-'; } catch(e){ return '-'; } })();
+      const band = (row, ht, fill, text, font, border) => { ws.getRow(row).height = ht; for(let c = 1; c <= LAST; c++){ const cell = ws.getCell(row, c); cell.fill = solid(fill); if(border) cell.border = { bottom: border }; } const t = ws.getCell(row, 1); t.value = text; t.font = font; t.alignment = { vertical: 'middle', horizontal: 'left' }; };
+      band(1, 32, NAVY, 'รายงานสถิติการเบิกสินค้า/วัสดุ', { name: 'Tahoma', size: 16, bold: true, color: { argb: 'FFFFFFFF' } });
+      band(2, 19, NAVY2, 'STOCK ISSUE STATISTICS REPORT     ·     Export Date ' + stampX + '     ·     Export By ' + userX, { name: 'Tahoma', size: 9.5, color: { argb: 'FFCBD5E1' } }, { style: 'medium', color: { argb: AMBER } });
+      const lab = (r, c1, c2, text) => { if(c2 > c1) ws.mergeCells(r, c1, r, c2); for(let c = c1; c <= c2; c++){ const cell = ws.getCell(r, c); cell.fill = solid(LBL); cell.border = bd; } const t = ws.getCell(r, c1); t.value = text; t.font = { ...FONT, bold: true, color: { argb: 'FF223355' } }; t.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 }; };
+      const val = (r, c1, c2, text) => { if(c2 > c1) ws.mergeCells(r, c1, r, c2); for(let c = c1; c <= c2; c++){ const cell = ws.getCell(r, c); cell.border = bd; } const t = ws.getCell(r, c1); t.value = text; t.font = FONT; t.alignment = { vertical: 'middle', horizontal: 'left', indent: 1, shrinkToFit: false }; };
+      ws.getRow(3).height = 21; ws.getRow(4).height = 21;
+      const cn = compNames(), pn = procNames(), vf = viewFilterInfo();
+      const compShort = cn.length <= 2 ? cn.join(', ') : cn.length + ' บริษัท (รายชื่อดูชีต เงื่อนไขรายงาน)';
+      const procShort = pn.length <= 3 ? pn.join(', ') : pn.length + ' Process (รายการดูชีต เงื่อนไขรายงาน)';
+      const filtTxt = vf.map(([a, b]) => a + ': ' + b).concat(st.q ? ['ค้นหา: ' + st.q] : []).join(' · ');
+      lab(3, 1, 2, 'ประเภท'); val(3, 3, 3, TAB_NAME[applied.tab]); lab(3, 4, 4, 'มุมมอง'); val(3, 5, 5, 'ราย' + PU()); lab(3, 6, 6, 'ปี'); val(3, 7, 7, yLabel(0) + ' (' + yLabel(4) + '–' + yLabel(0) + ')'); lab(3, 8, 8, 'หน่วย'); val(3, 9, 10, single() ? unitName() : 'ทุกหน่วย');
+      lab(4, 1, 2, 'บริษัท'); val(4, 3, 3, compShort); lab(4, 4, 4, 'Process'); val(4, 5, 7, procShort); lab(4, 8, 8, 'ตัวกรอง'); val(4, 9, 15, filtTxt || 'ไม่มี');
+      const hdr = (cell, bg, color) => { cell.font = { ...FONT, bold: true, color: { argb: color || 'FF111111' } }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } }; cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; cell.border = bd; };
+      const heads = ['ลำดับ', 'รหัส', 'ชื่อสินค้า/วัสดุ', 'หน่วย', 'กลุ่มสินค้า', 'ประเภท (พืช / วัสดุ)', 'หมวด (แท็บ)'], NC = heads.length;
+      const nf = (dp) => '#,##0.00' + '#'.repeat(Math.max(0, (dp || 2) - 2));
+      heads.forEach((h, i) => { ws.mergeCells(5, i + 1, 6, i + 1); const c = ws.getCell(5, i + 1); c.value = h; hdr(c, 'FFD5DEEA'); });
+      const np = NP(), groups = [['รวมทั้งปี', '#f5b041'], ...PH().map((m, i) => [isQ() ? `${m} (${TH_MON[i * 3]}–${TH_MON[i * 3 + 2]})` : m, isQ() ? QXC[i] : MC[i]])];
+      groups.forEach(([n, bg], gi) => { const c0 = NC + 1 + gi * 5; ws.mergeCells(5, c0, 5, c0 + 4); const c = ws.getCell(5, c0); c.value = n; hdr(c, argb(bg)); for(let yi = 0; yi < 5; yi++){ const y = ws.getCell(6, c0 + yi); y.value = Number(yLabel(yi)); hdr(y, argb(bg)); } });
+      [7, 14, 46, 9, 22, 14, 20].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+      for(let c = NC + 1; c <= NC + 5 + 5 * np; c++) ws.getColumn(c).width = isQ() ? 13 : 11;
+      list.forEach((it, i) => {
+        const r = ws.getRow(7 + i), vals = [i + 1, it.code, it.name, it.unit, it.groupName || '', it.crop || it.type || '', TAB_NAME[it.tab] || '', ...it.yt];
+        for(let m = 0; m < np; m++) for(let yi = 0; yi < 5; yi++) vals.push(it.pv[yi * np + m]);
+        vals.forEach((v, c) => { const cell = r.getCell(c + 1); cell.value = v; cell.font = FONT; cell.border = bd; if(c >= NC){ cell.numFmt = nf(it.dp); if(c < NC + 5) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2D9' } }; } });
+      });
+      if(single()){
+        const S = sums(list), r = ws.getRow(7 + list.length), vals = ['', '', `รวม ${list.length} รายการ`, unitName(), '', '', '', ...S.t], fdp = 2;
+        for(let m = 0; m < np; m++) for(let yi = 0; yi < 5; yi++) vals.push(S.m[yi * np + m]);
+        vals.forEach((v, c) => { const cell = r.getCell(c + 1); cell.value = v; cell.font = { ...FONT, bold: true }; cell.border = bd; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF6' } }; if(c >= NC) cell.numFmt = nf(fdp); if(c === 2) cell.alignment = { horizontal: 'right' }; });
+      }
+      // ชีตสรุปรายเดือน (แยกตามหน่วย)
+      const ws2 = wb.addWorksheet('สรุปราย' + PU());
+      for(let c = 1; c <= 15; c++){ ws2.getCell(1, c).fill = solid(NAVY); ws2.getCell(1, c).border = { bottom: { style: 'medium', color: { argb: AMBER } } }; }
+      ws2.getRow(1).height = 28; ws2.getCell('A1').value = 'สรุปยอดเบิกราย' + PU() + ' — ' + periodText(); ws2.getCell('A1').font = { name: 'Tahoma', size: 14, bold: true, color: { argb: 'FFFFFFFF' } }; ws2.getCell('A1').alignment = { vertical: 'middle' };
+      let rr = 3; ws2.getColumn(1).width = 16; ws2.getColumn(2).width = 12; for(let c = 3; c <= 15; c++) ws2.getColumn(c).width = 12;
+      const byUnit = new Map(); list.forEach(it => { const k = it.unit || '(ไม่ระบุหน่วย)'; (byUnit.get(k) || byUnit.set(k, []).get(k)).push(it); });
+      byUnit.forEach((arr, un) => {
+        const S = sums(arr);
+        ws2.getCell(rr, 1).value = `หน่วย: ${un} (${arr.length} รายการ)`; ws2.getCell(rr, 1).font = { ...FONT, bold: true }; rr++;
+        ['ปี', ...PH(), 'รวม'].forEach((h, c) => { const cell = ws2.getCell(rr, c + 1); cell.value = h; hdr(cell, c === 0 || c === np + 1 ? 'FFD5DEEA' : argb(isQ() ? QXC[c - 1] : MC[c - 1])); }); rr++;
+        for(let yi = 0; yi < 5; yi++){ const cells = [Number(yLabel(yi)), ...Array.from({ length: np }, (_, m) => S.m[yi * np + m]), S.t[yi]]; cells.forEach((v, c) => { const cell = ws2.getCell(rr, c + 1); cell.value = v; cell.font = FONT; cell.border = bd; if(c) cell.numFmt = '#,##0.00'; }); rr++; }
+        rr++;
+      });
+      // ชีต "เงื่อนไขรายงาน": เงื่อนไขทั้งหมดแบบเต็ม (รายชื่อบริษัท / Process ครบ) + ผู้ส่งออก + หมายเหตุ
+      const ws3 = wb.addWorksheet('เงื่อนไขรายงาน', { views: [{ showGridLines: false }] });
+      ws3.getColumn(1).width = 26; ws3.getColumn(2).width = 100;
+      for(let c = 1; c <= 2; c++){ ws3.getCell(1, c).fill = solid(NAVY); ws3.getCell(2, c).fill = solid(NAVY2); ws3.getCell(2, c).border = { bottom: { style: 'medium', color: { argb: AMBER } } }; }
+      ws3.getRow(1).height = 32; ws3.getCell('A1').value = 'เงื่อนไขรายงาน'; ws3.getCell('A1').font = { name: 'Tahoma', size: 16, bold: true, color: { argb: 'FFFFFFFF' } }; ws3.getCell('A1').alignment = { vertical: 'middle' };
+      ws3.getRow(2).height = 19; ws3.getCell('A2').value = 'รายงานสถิติการเบิกสินค้า/วัสดุ  ·  STOCK ISSUE STATISTICS REPORT'; ws3.getCell('A2').font = { name: 'Tahoma', size: 9.5, color: { argb: 'FFCBD5E1' } };
+      const kv = [['ประเภท', TAB_NAME[applied.tab]], ['มุมมอง', 'ราย' + PU() + ' (' + (isQ() ? 'Quarter 1–4 ตามปีปฏิทิน' : 'มกราคม – ธันวาคม') + ')'], ['ปี', 'ปี ' + yLabel(0) + ' (เปรียบเทียบย้อนหลัง 5 ปี ' + yLabel(4) + ' – ' + yLabel(0) + ')'],
+        ['หน่วย', single() ? unitName() : 'ทุกหน่วย (ยอดรวมข้ามหน่วยไม่ได้ จึงไม่มีแถวรวม)'], ['บริษัท (' + cn.length + ')', cn.join('\n')], ['Process การเบิก (' + pn.length + ')', pn.join('\n')],
+        ...vf.map(([a, b]) => [a, b]), ['ค้นหาชื่อสินค้า/วัสดุ', st.q || '-'], ['จำนวนรายการ', fmtInt(list.length) + ' รายการ'],
+        ['Export Date', stampX], ['Export By', userX]];
+      kv.forEach(([k, v], i) => { const r = 4 + i, a = ws3.getCell(r, 1), b = ws3.getCell(r, 2); a.value = k; a.fill = solid(LBL); a.font = { ...FONT, bold: true, color: { argb: 'FF223355' } }; a.border = bd; a.alignment = { vertical: 'top', horizontal: 'left', indent: 1 };
+        b.value = v; b.font = FONT; b.border = bd; b.alignment = { vertical: 'top', horizontal: 'left', wrapText: true, indent: 1 }; ws3.getRow(r).height = Math.max(20, 15 * (String(v).split('\n').length) + 5); });
+      const nr = 4 + kv.length + 1;
+      ws3.getCell(nr, 1).value = 'หมายเหตุ'; ws3.getCell(nr, 1).font = { ...FONT, bold: true, color: { argb: 'FF223355' } };
+      [ 'จำนวนที่แสดงเป็นจำนวนในหน่วยหลักของสินค้า', st.year === CUR_Y ? PU() + 'ปัจจุบันเป็นยอดถึงวันที่ Export (ยังไม่ครบ' + PU() + ') — กราฟ การ์ดสรุป และ % เทียบในหน้าเว็บนับถึง' + PU() + 'ที่ครบแล้ว' : null,
+        applied.jobs ? 'การเบิกเพื่อผลิตสินค้าของบริษัท AV กรองตามรหัส Job ผลิต: ' + applied.jobs.map(jobCode).join(', ') : null, 'ไม่รวมเอกสารที่ปฏิเสธและรายการที่ยกเลิก' ].filter(Boolean).forEach((t, i) => { const c = ws3.getCell(nr + 1 + i, 1); c.value = '•  ' + t; c.font = { ...FONT, color: { argb: 'FF444444' } }; });
+      const buf = await wb.xlsx.writeBuffer();
+      const a = document.createElement('a'), url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      a.href = url; a.download = `รายงานสถิติการเบิก_${TAB_NAME[applied.tab]}_${yLabel(0)}${isQ() ? '_รายไตรมาส' : ''}.xlsx`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch(err){ alert('สร้างไฟล์ Excel ไม่สำเร็จ: ' + err.message); } finally { btn.disabled = false; btn.innerHTML = old; }
+  }
+
+  // ตัวกรองในหน้า (ประเภท / ประเภทพืช) ที่เลือกบางส่วน — ใส่ในใบพิมพ์ / Excel
+  function viewFilterInfo(){
+    const out = [], part = (id, label) => { const m = ms[id]; if(m && !$(id === 'msGrp' ? 'fgGrp' : 'fgCrop').hidden && m.selected.size < m.items.length) out.push([label, m.items.filter(x => m.selected.has(x.id)).map(x => x.name).join(', ')]); };
+    part('msGrp', 'ประเภทสินค้า/วัสดุ'); part('msCrop', subLabel());
+    return out;
+  }
+  // ---------- พิมพ์ (A4 แนวนอน: 12 เดือนของปีที่เลือก + รวมปีนี้ / ปีก่อน) ----------
+  const PRINT_MAX = 600;
+  function printReport(){
+    if(!D) return; const list = rows(); if(!list.length){ alert('ไม่มีข้อมูลให้พิมพ์'); return; }
+    const big = list.length > PRINT_MAX;
+    if(store.get('noprint') === '1' && !big){ doPrint(list); return; }   // เคยเลือก "ไม่ต้องแสดงอีก" (รายการเยอะเกินยังเตือนเสมอ)
+    $('prMsg').innerHTML = `<p class="pr-msg">ใบพิมพ์แสดงยอดราย${PU()}ของ <b>ปี ${yLabel(0)}</b> เท่านั้น พร้อมยอดรวมปีก่อน${single() ? ' และตารางสรุปเปรียบเทียบ 5 ปีท้ายรายงาน (รวมทุกสินค้า)' : ''}</p><p class="pr-msg">ถ้าต้องการข้อมูลย้อนหลัง 5 ปีรายสินค้า ให้ใช้ <b>Export Excel</b></p>${big ? `<div class="pr-warn">รายงานนี้มี ${fmtInt(list.length)} รายการ (ประมาณ ${fmtInt(Math.ceil(list.length / 24))} หน้า) — แนะนำใช้ Export Excel หรือพิมพ์ทีละแท็บ</div>` : ''}`;
+    $('prNever').checked = false; $('prOverlay').classList.add('show');
+  }
+  function doPrint(list){
+    const R = WIMReport, e = R.esc, cm = cutM();
+    const co = meta.companies.find(c => applied.comps.includes(c.id)) || {}, cn = compNames();
+    // ใบพิมพ์: 12 เดือน + ตัวเลข 2 ทศนิยมต้องพอดีความกว้างกระดาษ — ตัวอักษรเล็กลง / ยอด >= 10,000 ลดทศนิยม / >= 100,000 ไม่มีทศนิยม (ไม่ให้ตัวเลขล้นช่อง)
+    const pf = (v, dp) => { const a = Math.abs(v); return a >= 100000 ? Math.round(v).toLocaleString('en-US') : a >= 10000 ? fmtQ(v, 2) : fmtQ(v, dp); };
+    const np = NP(), head = ['#', 'สินค้า / วัสดุ', 'หน่วย', ...PH(), `รวม ${yLabel(0)}`, `รวม ${yLabel(1)}`, '% เปลี่ยน'];
+    const body = list.map((it, i) => { const p = pctTxt(sumRange(it.v, 0, cm), sumRange(it.v, 1, cm));
+      return [String(i + 1), e(it.name), e(it.unit || ''), ...Array.from({ length: np }, (_, m) => !pAvail(0, m) ? '' : (it.pv[m] === 0 ? '-' : pf(it.pv[m], it.dp))), `<b>${pf(it.yt[0], it.dp)}</b>`, pf(it.yt[1], it.dp), p == null ? '-' : `<span class="${p < 0 ? 'out' : 'in'}">${p > 999 ? '>999' : fmtPct(p, 1)}%</span>`]; });
+    let foot = [];
+    if(single()){ const S = sums(list), p = pctTxt(sumRange(S.m, 0, cm), sumRange(S.m, 1, cm)); foot = [[{ h: `รวม ${fmtInt(list.length)} รายการ (${e(unitName())})`, span: 3 }, ...Array.from({ length: np }, (_, m) => !pAvail(0, m) ? '' : pf(S.m[m], 2)), pf(S.t[0], 2), pf(S.t[1], 2), p == null ? '-' : (p > 999 ? '>999' : fmtPct(p, 1)) + '%']]; }
+    const dense = (h) => np === 12 ? h.replace('<table class="rpt-t">', '<table class="rpt-t dense">') : h;
+    const tbl = dense(R.table({ cols: np === 4 ? [4.5, 17.5, 7, 11.3, 11.3, 11.3, 11.3, 9, 9, 7.8] : [3.4, 14.2, 3.9, ...Array(12).fill(5.1), 6.2, 6.2, 4.9], head, align: ['c', 'l', 'c', ...Array(np).fill('r'), 'r', 'r', 'r'], rows: body, foot }));
+    let sumTbl = '';
+    if(single()){ const S = sums(list);
+      sumTbl = `<div class="rpt-blk" style="margin-top:6mm"><div class="rpt-grp"><b>สรุปยอดเบิกราย${PU()} เปรียบเทียบ 5 ปี</b> <span class="rsub">หน่วย ${e(unitName())}</span></div>` + dense(R.table({ cols: [8, ...Array(np).fill(np === 4 ? 20 : 6.7), 11.6], head: ['ปี', ...PH(), 'รวม'], align: ['c', ...Array(np).fill('r'), 'r'],
+        rows: [0, 1, 2, 3, 4].map(yi => [`<b>${yLabel(yi)}</b>`, ...Array.from({ length: np }, (_, m) => !pAvail(yi, m) ? '' : pf(S.m[yi * np + m], 2)), `<b>${pf(S.t[yi], 2)}</b>`]) })) + '</div>'; }
+    R.print({ orient: 'landscape', title: 'รายงานสถิติการเบิกสินค้า/วัสดุ', titleEn: 'Stock Issue Statistics Report', company: { id: co.id, name: cn.length > 1 ? `${co.name} และอีก ${cn.length - 1} บริษัท` : (co.name || '') },
+      info: [['ประเภท', e(TAB_NAME[applied.tab])], ['มุมมอง', 'ราย' + PU()], ['ปี', e(periodText())], ['หน่วย', single() ? e(unitName()) : 'ทุกหน่วย'], ...viewFilterInfo().map(([a, b]) => [a, e(b), 'full']), ['บริษัท', e(cn.join(', ')), 'full'], ['Process', e(procNames().join(', ')), 'full'], ...(st.q ? [['ค้นหา', e(st.q), 'full']] : [])],
+      body: tbl + sumTbl });
+  }
+
+  // ---------- วาด ----------
+  function renderTabs(){
+    $('tabs').innerHTML = TABS.map(([k, n]) => `<button type="button" data-tab="${k}" class="${st.tab === k ? 'on' : ''}${k === 'all' ? ' all' : ''}">${n}</button>`).join('');
+  }
+  function renderViews(){
+    $('views').innerHTML = `<button type="button" data-view="table" class="${st.view === 'table' ? 'on' : ''}">${IC.table} ตารางรายสินค้า</button><button type="button" data-view="chart" class="${st.view === 'chart' ? 'on' : ''}">${IC.chart} กราฟและวิเคราะห์</button>`
+      + `<div class="per"><span class="pl">แสดงเป็น</span><div class="seg2" role="tablist"><button type="button" data-per="m" class="${st.per === 'm' ? 'on' : ''}">รายเดือน</button><button type="button" data-per="q" class="${st.per === 'q' ? 'on' : ''}">รายไตรมาส</button></div></div>`;
+  }
+  function render(){
+    renderTabs(); renderViews();
+    const list = rows();
+    $('kpis').innerHTML = D ? kpis(list) : '';
+    $('irBody').innerHTML = !D ? '' : (!list.length ? '<p class="empty-msg">ไม่พบรายการเบิกตามเงื่อนไขที่เลือก</p>' : st.view === 'chart' ? chartView(list) : tableView(list));
+  }
+  const rerender = () => { if(!D) return; const sc = document.scrollingElement.scrollTop; render(); document.scrollingElement.scrollTop = sc; };
+
+  // ---------- เหตุการณ์ ----------
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    const tab = t.closest('[data-tab]'); if(tab){ if(tab.dataset.tab !== st.tab) switchTab(tab.dataset.tab); return; }
+    if(t.closest('[data-selclr]')){ st.sel = null; rerender(); return; }
+    const hc = t.closest('[data-sel]'); if(hc){ const [yi, m] = hc.dataset.sel.split(',').map(Number); setSel(yi, m); return; }
+    const hm2 = t.closest('[data-selm]'); if(hm2){ setSel(0, Number(hm2.dataset.selm)); return; }
+    const twc = t.closest('#irBody .tw'); if(twc){
+      const d = trendStore[twc.dataset.tw], rc = twc.querySelector('svg').getBoundingClientRect();
+      if(d){ const sx = (e.clientX - rc.left) * d.W / rc.width;
+        if(sx >= d.l - 6 && sx <= d.W - d.r + 6){ const m = Math.max(0, Math.min(d.np - 1, Math.floor((sx - d.l) / ((d.W - d.l - d.r) / d.np)))), on = twc.querySelector('.ln.on'); setSel(on ? Number(on.dataset.yi) : (st.hideYear.has(0) ? d.ys[0] : 0), m); return; } }
+    }
+    const hmB = t.closest('[data-hm]'); if(hmB){ st.hmMode = hmB.dataset.hm; store.set('hm', st.hmMode); rerender(); return; }
+    const tm = t.closest('[data-tmode]'); if(tm && tm.closest('#drBody')){ drs.mode = tm.dataset.tmode; renderDrill(); return; }
+    if(tm){ st.trendMode = tm.dataset.tmode; store.set('tmode', st.trendMode); rerender(); return; }
+    const pr = t.closest('[data-per]'); if(pr){ if(pr.dataset.per !== st.per){ st.per = pr.dataset.per; store.set('per', st.per); st.sel = null; if(st.sort.key[0] === 'm') st.sort = { key: 't0', dir: -1 }; applyPer(); rerender(); } return; }
+    const vw = t.closest('[data-view]'); if(vw){ st.view = vw.dataset.view; store.set('view', st.view); rerender(); return; }
+    const sr = t.closest('[data-sort]'); if(sr){ const k = sr.dataset.sort; st.sort = st.sort.key === k ? { key: k, dir: -st.sort.dir } : { key: k, dir: k === 'name' ? 1 : -1 }; st.page = 1; rerender(); return; }
+    const pg = t.closest('[data-page]'); if(pg && !pg.disabled){ st.page = Number(pg.dataset.page); render(); $('irBody').scrollIntoView({ block: 'start' }); return; }
+    const dr = t.closest('[data-drill]'); if(dr){ drill(Number(dr.dataset.drill)); return; }
+    const hy = t.closest('[data-hy]'); if(hy){ const y = Number(hy.dataset.hy), inDr = !!hy.closest('#drBody'), HS = inDr ? drs.hide : st.hideYear; HS.has(y) ? HS.delete(y) : HS.add(y); if(HS.size >= 5) HS.clear(); inDr ? renderDrill() : rerender(); return; }
+    const dru = t.closest('[data-dru]'); if(dru){ const k = dru.dataset.dru; drs.open.has(k) ? drs.open.delete(k) : drs.open.add(k); renderDrill(); return; }
+    const druA = t.closest('[data-druall]'); if(druA){ drs.open = druA.dataset.druall === 'open' ? new Set(drs.kids) : new Set(); renderDrill(); return; }
+    const cl = t.closest('[data-close]'); if(cl){ $(cl.dataset.close).classList.remove('show'); return; }
+    if(t.classList && t.classList.contains('modal-overlay')){ t.classList.remove('show'); return; }
+    const rqT = t.closest('[data-rq]'); if(rqT){ const r = Number(rqT.dataset.rq); st.openReq.has(r) ? st.openReq.delete(r) : st.openReq.add(r); rerender(); return; }
+    if(t.closest('#btnRetry') || t.closest('#btnShow')){ load(true); return; }
+    if(t.closest('#btnXls')){ exportExcel($('btnXls')); return; }
+    if(t.closest('#btnPrint')){ printReport(); return; }
+    if(t.closest('#prGo')){ if($('prNever').checked) store.set('noprint', '1'); $('prOverlay').classList.remove('show'); if(D) doPrint(rows()); return; }
+    if(t.closest('#prXls')){ $('prOverlay').classList.remove('show'); exportExcel($('btnXls')); return; }
+    if(t.closest('#btnSetup')){ openSetup(); return; }
+    if(t.closest('#stSave')){ saveSetup(); return; }
+  });
+  document.addEventListener('keydown', (e) => { if(e.key === 'Escape') document.querySelectorAll('.modal-overlay.show').forEach(m => m.classList.remove('show')); });
+  document.addEventListener('change', (e) => {
+    if(e.target.id === 'fYear'){ st.year = Number(e.target.value); st.sel = null; load(); }
+    else if(e.target.id === 'fUnit'){ st.unit = e.target.value; st.page = 1; rerender(); }
+    else if(e.target.dataset && e.target.dataset.type){ const t = setupTypes.find(x => x.id === Number(e.target.dataset.type)); if(t) t.tab = e.target.value; }
+  });
+  $('fQ').addEventListener('input', () => { clearTimeout($('fQ')._t); $('fQ')._t = setTimeout(() => { st.q = $('fQ').value; st.page = 1; if(D) pickUnit(); rerender(); }, 200); });
+
+  async function init(){
+    $('btnShow').innerHTML = `${IC.refresh} Refresh`; $('btnShow').title = 'ดึงข้อมูลล่าสุด (ข้อมูลโหลดใหม่เองทุกครั้งที่เปลี่ยนเงื่อนไข)';
+    $('btnXls').innerHTML = `${IC.xls} <span class="lt"><span class="lx">Export&nbsp;</span>Excel</span>`; $('btnPrint').innerHTML = `${IC.print} <span class="lt">พิมพ์<span class="lx">รายงาน</span></span>`; $('btnXls').title = 'Export Excel'; $('btnPrint').title = 'พิมพ์เฉพาะปีที่เลือก · ข้อมูลย้อนหลัง 5 ปีให้ใช้ Export Excel'; $('prIcon').innerHTML = IC.print; $('prXls').innerHTML = IC.xls + ' Export Excel'; $('btnSetup').innerHTML = `${IC.gear} จัดแท็บตามประเภทวัสดุ`; $('stIcon').innerHTML = IC.gear; $('drIcon').innerHTML = IC.ana;
+    $('fYear').innerHTML = Array.from({ length: CUR_Y - 2018 }, (_, i) => CUR_Y - i).map(y => `<option value="${y}">${y + 543} (${y + 539}–${y + 543})</option>`).join('');
+    renderTabs(); renderViews();
+    try{
+      await WIMLoading.wrap('irLoad', 'กำลังโหลดข้อมูลการเบิกย้อนหลัง 5 ปี', async () => {
+        applyMeta(await loadMeta(st.tab));
+        await load();
+      });
+    } catch(err){ $('irErr').innerHTML = `<div class="ir-err">${esc(err.message)}</div>`; $('irBody').innerHTML = ''; }
+  }
+  init();
+})();
+</script>
+</body>
+</html>
