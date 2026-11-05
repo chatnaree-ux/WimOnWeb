@@ -362,7 +362,7 @@
 
   .ir-bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 18px;}
   .ir-tabs{display:flex; gap:8px; flex-wrap:wrap;}
-  .ir-tabs button{font:inherit; text-align:left; padding:9px 16px; border-radius:10px; cursor:pointer; line-height:1.3;
+  .ir-tabs button{font:inherit; text-align:center; padding:9px 16px; border-radius:10px; cursor:pointer; line-height:1.3;
     background:rgba(78,167,224,.08); border:1px solid rgba(78,167,224,.35); color:#a9d8f5; font-size:15px; font-weight:700;}
   .ir-tabs button:hover{background:rgba(78,167,224,.16);}
   .ir-tabs button.on{background:rgba(242,169,28,.18); border-color:rgba(242,169,28,.8); color:#ffcf66;}
@@ -378,14 +378,17 @@
     background:rgba(78,167,224,.08); border:1px solid rgba(78,167,224,.35); color:#a9d8f5;}
   .ir-views button svg{width:16px; height:16px;}
   .ir-views button.on{background:rgba(242,169,28,.18); border-color:rgba(242,169,28,.8); color:#ffcf66;}
+  .rot-hint{display:none; align-items:center; gap:10px; margin:0 0 10px; padding:6px 6px 6px 12px; border-radius:8px; font-size:13px; line-height:1.4; color:#a9d8f5; background:rgba(78,167,224,.08); border:1px solid rgba(78,167,224,.3);}
+  .rot-hint span{flex:1;} .rot-hint button{font:inherit; width:32px; height:32px; flex-shrink:0; border-radius:6px; cursor:pointer; color:#a9d8f5; background:transparent; border:0;}
+  @media (max-width:560px) and (orientation:portrait){ .rot-hint{display:flex;} }
   .ir-warn{margin:0 0 12px; padding:10px 14px; border-radius:8px; font-size:14px; color:#ffcf66; background:rgba(242,169,28,.1); border:1px solid rgba(242,169,28,.45);}
   .ir-err{margin:0 0 12px; padding:12px 14px; border-radius:8px; font-size:14px; color:#ff9d8c; background:rgba(229,83,61,.1); border:1px solid rgba(229,83,61,.5);}
 
   .kpis{display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; margin-bottom:16px;}
   .kpi{position:relative; border-radius:12px; padding:14px 16px; background:linear-gradient(160deg, rgba(var(--k),.16), rgba(var(--k),.04)); border:1px solid rgba(var(--k),.4); overflow:hidden; min-width:0;}
   .kpi .l{font-size:14.5px; font-weight:600; color:#d5dde8;}
-  .kpi .v{font-family:'Oswald',sans-serif; font-size:32px; font-weight:600; color:rgb(var(--k)); line-height:1.15; margin-top:4px; overflow-wrap:anywhere;}
-  .kpi .v.t{font-family:'Inter','Noto Sans Thai',sans-serif; font-size:18px; font-weight:700; line-height:1.35;}
+  .kpi .v{font-family:'Oswald',sans-serif; font-size:32px; font-weight:600; color:rgb(var(--k)); line-height:1.15; margin-top:4px; white-space:nowrap;}   /* ตัวเลขใหญ่ไม่ตัดบรรทัด: fitKpiNums() ลดขนาดเฉพาะการ์ดที่ล้น */
+  .kpi .v.t{white-space:normal; font-family:'Inter','Noto Sans Thai',sans-serif; font-size:18px; font-weight:700; line-height:1.35;}
   .kpi .v small{display:block; font-family:'Inter','Noto Sans Thai',sans-serif; font-size:13.5px; color:#b8c3d1; font-weight:500; margin:0;}
   .kpi .d{font-size:12.5px; color:#b8c3d1; margin-top:2px; line-height:1.4;}
   .kpi svg.bg{position:absolute; right:-6px; bottom:-8px; width:62px; height:62px; color:rgb(var(--k)); opacity:.13;}
@@ -609,9 +612,17 @@
     .ir-row2 .fg.wide, .ir-row2 .fg.ms-fg{flex:1 1 100%;}
     .ir-acts{margin-left:0; width:100%;} .ir-acts .btn{flex:1 1 0; padding:0 8px; font-size:13px;}
     .ir-acts .btn svg{display:none;}
-    .ir-tabs button{flex:1 1 calc(50% - 8px); font-size:14px; padding:8px 10px;}
-    .kpis{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;} .kpi{padding:12px;} .kpi .v{font-size:26px;} .kpi .v.t{font-size:15px;} .kpi .l{font-size:13.5px;}
+    /* จอเล็ก: แท็บ 2 คอลัมน์ — แถวสุดท้าย "ทั้งหมด" + ปุ่มตั้งค่าเป็นไอคอนเฟือง 44px (ถ้าไม่มีสิทธิ์ตั้งค่า "ทั้งหมด" ยืดเต็มแถว) */
+    .ir-bar{gap:8px;} .ir-tabs{display:contents;}
+    .ir-tabs button{flex:1 1 calc(50% - 4px); font-size:14px; padding:8px 10px;}
+    .ir-tabs button.all{flex:1 1 calc(100% - 52px);}
+    .ir-setup{margin-left:0; flex:0 0 44px; width:44px; height:auto; align-self:stretch; padding:0; justify-content:center;} .ir-setup .tx{display:none;} .ir-setup svg{width:20px; height:20px; margin:0;}
+    .kpis{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;} .kpis .kpi:last-child:nth-child(odd){grid-column:1 / -1;} .kpi{padding:12px;} .kpi .v{font-size:26px;} .kpi .v.t{font-size:15px;} .kpi .l{font-size:13.5px;}
     .ir-views{display:flex;} .ir-views button{flex:1 1 0; justify-content:center;}
+    /* จอเล็ก: ปุ่มมุมมอง 2 บรรทัดตามวรรคคำ (ตาราง / รายสินค้า , กราฟ / และวิเคราะห์) ไม่ใช้ไอคอน */
+    .ir-views button[data-view]{gap:8px; text-align:center; line-height:1.3; padding:8px 6px;}
+    .ir-views button[data-view] svg{display:block; flex-shrink:0;} .ir-views button[data-view] .tx b{display:block; font-weight:inherit;}
+    .ir-tabs button{display:flex; align-items:center; justify-content:center;}
     .ir-views .per{margin-left:0; width:100%;} .ir-views .per .seg2{flex:1 1 auto; display:flex;}
     .stp-row{flex-wrap:wrap;} .stp-row select{width:100%;}
     .hb .nm{flex-basis:40%;}
@@ -633,6 +644,10 @@
   html #wimRptArea table.rpt-t.dense td.r{white-space:nowrap;}
   html #wimRptArea table.rpt-t.dense td:nth-child(3), html #wimRptArea table.rpt-t.dense th:nth-child(3){padding-left:.3mm; padding-right:.3mm;}   /* หน่วย: ขอบในแคบ */
   html #wimRptArea table.rpt-t.dense td:first-child{white-space:nowrap; padding-left:.3mm; padding-right:.3mm;}   /* ลำดับ: ไม่ตัดบรรทัด */
+  /* iPhone: กระดาษแนวตั้งกว้าง ~794px → ตัวอักษรเล็กลงอีก ช่องเดือนไม่ล้น */
+  html #wimRptArea.ios table.rpt-t.dense, html #wimRptArea.ios table.rpt-t.dense th, html #wimRptArea.ios table.rpt-t.dense td{font-size:5.3pt;}
+  html #wimRptArea.ios table.rpt-t.dense th{padding:1mm .3mm;} html #wimRptArea.ios table.rpt-t.dense td{padding:.9mm .2mm;}
+  html #wimRptArea.ios table.rpt-t.dense td:nth-child(3){white-space:nowrap;}
 </style>
 <script src="/js/session-guard.js"></script>
 <script src="/js/sidebar.js"></script>
@@ -1302,6 +1317,8 @@ ${tds}</tr>`;
   }
   const fcNoteHtml = (fc, un) => !fc ? '' : fc.na ? `<div class="fc-note na">คาดการณ์ทั้งปี ${yLabel(0)}: ${esc(fc.na)}</div>`
     : `<div class="fc-note"><span>คาดการณ์ยอดเบิกทั้งปี ${yLabel(0)} ≈ <b>${fmtR(fc.est)}</b> ${un}</span><span>ช่วง ${fmtR(fc.lo)} – ${fmtR(fc.hi)}</span><span>เบิกแล้ว ${fmt(fc.ytd0)} (${perText(fc.cm)}) · คาดว่าจะเบิกอีก ≈ ${fmtR(Math.max(0, fc.est - fc.ytd0))}</span><small>ค่าประมาณจากรูปแบบการเบิก ${fc.n} ปีก่อนหน้า (ถึง${PU()}เดียวกันใช้ไปกี่ % ของทั้งปี) ไม่ใช่แผนจริง · เส้นประในกราฟ</small></div>`;
+  // แถบแนะนำหมุนจอ: เฉพาะกราฟ 12 เดือนที่ละเอียดมาก (แนวโน้ม / Heatmap) บนมือถือแนวตั้ง — ปิดได้และจำค่าไว้
+  const rotHint = () => (store.get('rothint') !== '1') ? '<div class="rot-hint"><span>↻ หมุนจอเป็นแนวนอนเพื่อดูกราฟได้ชัดขึ้น</span><button type="button" data-rothide aria-label="ปิด">✕</button></div>' : '';
   function chartView(list){
     if(!single()) return '<p class="ir-warn">กราฟและการวิเคราะห์ต้องดูทีละหน่วย — เลือกหน่วยจากช่อง "หน่วย" ด้านบน (ในมุมมองนี้มีหลายหน่วยที่บวกรวมกันไม่ได้)</p>';
     if(!list.length) return '<p class="empty-msg">ไม่พบรายการ</p>';
@@ -1313,7 +1330,7 @@ ${tds}</tr>`;
         <div class="seg2" role="tablist"><button type="button" data-tmode="m" class="${mode === 'm' ? 'on' : ''}">ราย${PU()}</button><button type="button" data-tmode="c" class="${mode === 'c' ? 'on' : ''}">สะสม (YTD)</button></div></div>
       <div class="hint">${mode === 'c' ? `ดูว่าปีนี้เบิกเร็วหรือช้ากว่าปีก่อน ๆ ณ ${PU()}เดียวกัน (เส้นสูงกว่า = ใช้มากกว่า)` : `ดูช่วง${PU()}ที่เบิกมาก–น้อย และทิศทางโดยรวม`} · กดชื่อปีเพื่อเปิด/ปิดเส้น · ชี้เมาส์ที่กราฟเพื่อดูยอดแต่ละ${PU()}และเส้นแนวโน้ม${isQ() && st.year === CUR_Y && cutP() <= curP() ? ` · ไตรมาส ${curP() + 1} ยังไม่ครบไตรมาส จึงยังไม่วาดเส้น (ดูยอดถึงวันนี้ในตาราง / Heatmap)` : ''}<br>รวมเฉพาะ ${fmtInt(list.length)} รายการที่ใช้หน่วย${un}</div>
       ${fcNote}<div class="lg">${lg}</div>${trendSvg(mode === 'c' ? cumOf(S.m) : S.m, { ...twSize(), fc: fcs, mode, sel: true })}</div>`;
-    return `<div class="ir-grid">${trendBox}</div>
+    return `${rotHint()}<div class="ir-grid">${trendBox}</div>
       <div class="ir-grid">${heatmapBox(S)}</div>
       <div class="ir-grid"><div class="ir-box"><h3>Top 10 ที่เบิกสูงสุด ${selLabel()} (หน่วย : ${esc(unitName())})</h3><div class="hint">กดแถวเพื่อวิเคราะห์รายสินค้า · คลิก${PU()}ในกราฟหรือ Heatmap เพื่อดูเฉพาะ${PU()}</div>${selChip()}
         ${top.map((it, i) => `<div class="hb" data-drill="${it.id}"><span class="rk">${i + 1}</span><span class="nm" title="${esc(it.name)}">${esc(it.name)}</span><span class="br"><i style="width:${(selVal(it) / mx * 100).toFixed(1)}%"></i></span><span class="am">${fmt(selVal(it))}</span></div>`).join('') || `<p class="empty-msg">ไม่มีการเบิกใน${selLabel()}</p>`}</div>
@@ -1618,14 +1635,14 @@ ${tds}</tr>`;
     const R = WIMReport, e = R.esc, cm = cutM();
     const co = meta.companies.find(c => applied.comps.includes(c.id)) || {}, cn = compNames();
     // ใบพิมพ์: 12 เดือน + ตัวเลข 2 ทศนิยมต้องพอดีความกว้างกระดาษ — ตัวอักษรเล็กลง / ยอด >= 10,000 ลดทศนิยม / >= 100,000 ไม่มีทศนิยม (ไม่ให้ตัวเลขล้นช่อง)
-    const pf = (v, dp) => { const a = Math.abs(v); return a >= 100000 ? Math.round(v).toLocaleString('en-US') : a >= 10000 ? fmtQ(v, 2) : fmtQ(v, dp); };
+    const pf = (v, dp) => { const a = Math.abs(v); return a >= 100000 ?Math.round(v).toLocaleString('en-US') : a >= 10000 ? fmtQ(v, 2) : fmtQ(v, dp); };
     const np = NP(), head = ['#', 'สินค้า / วัสดุ', 'หน่วย', ...PH(), `รวม ${yLabel(0)}`, `รวม ${yLabel(1)}`, '% เปลี่ยน'];
     const body = list.map((it, i) => { const p = pctTxt(sumRange(it.v, 0, cm), sumRange(it.v, 1, cm));
       return [String(i + 1), e(it.name), e(it.unit || ''), ...Array.from({ length: np }, (_, m) => !pAvail(0, m) ? '' : (it.pv[m] === 0 ? '-' : pf(it.pv[m], it.dp))), `<b>${pf(it.yt[0], it.dp)}</b>`, pf(it.yt[1], it.dp), p == null ? '-' : `<span class="${p < 0 ? 'out' : 'in'}">${p > 999 ? '>999' : fmtPct(p, 1)}%</span>`]; });
     let foot = [];
     if(single()){ const S = sums(list), p = pctTxt(sumRange(S.m, 0, cm), sumRange(S.m, 1, cm)); foot = [[{ h: `รวม ${fmtInt(list.length)} รายการ (${e(unitName())})`, span: 3 }, ...Array.from({ length: np }, (_, m) => !pAvail(0, m) ? '' : pf(S.m[m], 2)), pf(S.t[0], 2), pf(S.t[1], 2), p == null ? '-' : (p > 999 ? '>999' : fmtPct(p, 1)) + '%']]; }
     const dense = (h) => np === 12 ? h.replace('<table class="rpt-t">', '<table class="rpt-t dense">') : h;
-    const tbl = dense(R.table({ cols: np === 4 ? [4.5, 17.5, 7, 11.3, 11.3, 11.3, 11.3, 9, 9, 7.8] : [3.4, 14.2, 3.9, ...Array(12).fill(5.1), 6.2, 6.2, 4.9], head, align: ['c', 'l', 'c', ...Array(np).fill('r'), 'r', 'r', 'r'], rows: body, foot }));
+    const tbl = dense(R.table({ cols: np === 4 ? [4.5, 17.5, 7, 11.3, 11.3, 11.3, 11.3, 9, 9, 7.8] : (R.IS_IOS ? [3, 10.4, 5, ...Array(12).fill(5.3), 6.4, 6.4, 4.9] : [3.4, 14.2, 3.9, ...Array(12).fill(5.1), 6.2, 6.2, 4.9]), head, align: ['c', 'l', 'c', ...Array(np).fill('r'), 'r', 'r', 'r'], rows: body, foot }));
     let sumTbl = '';
     if(single()){ const S = sums(list);
       sumTbl = `<div class="rpt-blk" style="margin-top:6mm"><div class="rpt-grp"><b>สรุปยอดเบิกราย${PU()} เปรียบเทียบ 5 ปี</b> <span class="rsub">หน่วย ${e(unitName())}</span></div>` + dense(R.table({ cols: [8, ...Array(np).fill(np === 4 ? 20 : 6.7), 11.6], head: ['ปี', ...PH(), 'รวม'], align: ['c', ...Array(np).fill('r'), 'r'],
@@ -1640,7 +1657,7 @@ ${tds}</tr>`;
     $('tabs').innerHTML = TABS.map(([k, n]) => `<button type="button" data-tab="${k}" class="${st.tab === k ? 'on' : ''}${k === 'all' ? ' all' : ''}">${n}</button>`).join('');
   }
   function renderViews(){
-    $('views').innerHTML = `<button type="button" data-view="table" class="${st.view === 'table' ? 'on' : ''}">${IC.table} ตารางรายสินค้า</button><button type="button" data-view="chart" class="${st.view === 'chart' ? 'on' : ''}">${IC.chart} กราฟและวิเคราะห์</button>`
+    $('views').innerHTML = `<button type="button" data-view="table" class="${st.view === 'table' ? 'on' : ''}">${IC.table} <span class="tx"><b>ตาราง</b> <b>รายสินค้า</b></span></button><button type="button" data-view="chart" class="${st.view === 'chart' ? 'on' : ''}">${IC.chart} <span class="tx"><b>กราฟ</b><b>และวิเคราะห์</b></span></button>`
       + `<div class="per"><span class="pl">แสดงเป็น</span><div class="seg2" role="tablist"><button type="button" data-per="m" class="${st.per === 'm' ? 'on' : ''}">รายเดือน</button><button type="button" data-per="q" class="${st.per === 'q' ? 'on' : ''}">รายไตรมาส</button></div></div>`;
   }
   function render(){
@@ -1651,9 +1668,23 @@ ${tds}</tr>`;
   }
   const rerender = () => { if(!D) return; const sc = document.scrollingElement.scrollTop; render(); document.scrollingElement.scrollTop = sc; };
 
+  // ---------- ตัวเลขใหญ่ในการ์ด: ลดขนาดเฉพาะอันที่ล้น (ไม่ตัดบรรทัด) ----------
+  function fitKpiNums(){
+    document.querySelectorAll('.kpi .v:not(.t)').forEach(v => {
+      v.style.fontSize = ''; if(!v.clientWidth) return;
+      let fs = parseFloat(getComputedStyle(v).fontSize);
+      while(v.scrollWidth > v.clientWidth + 0.5 && fs > 14){ fs -= 1; v.style.fontSize = fs + 'px'; }
+    });
+  }
+  { let raf = 0; const go = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fitKpiNums); };
+    const mo = new MutationObserver(go);
+    ['kpis', 'drBody'].forEach(id => { const el = $(id); if(el) mo.observe(el, { childList: true }); });
+    window.addEventListener('resize', go); if(document.fonts && document.fonts.ready) document.fonts.ready.then(go); }
+
   // ---------- เหตุการณ์ ----------
   document.addEventListener('click', (e) => {
     const t = e.target;
+    if(t.closest('[data-rothide]')){ store.set('rothint', '1'); document.querySelectorAll('.rot-hint').forEach(x => x.remove()); return; }
     const tab = t.closest('[data-tab]'); if(tab){ if(tab.dataset.tab !== st.tab) switchTab(tab.dataset.tab); return; }
     if(t.closest('[data-selclr]')){ st.sel = null; rerender(); return; }
     const hc = t.closest('[data-sel]'); if(hc){ const [yi, m] = hc.dataset.sel.split(',').map(Number); setSel(yi, m); return; }
@@ -1695,7 +1726,7 @@ ${tds}</tr>`;
 
   async function init(){
     $('btnShow').innerHTML = `${IC.refresh} Refresh`; $('btnShow').title = 'ดึงข้อมูลล่าสุด (ข้อมูลโหลดใหม่เองทุกครั้งที่เปลี่ยนเงื่อนไข)';
-    $('btnXls').innerHTML = `${IC.xls} <span class="lt"><span class="lx">Export&nbsp;</span>Excel</span>`; $('btnPrint').innerHTML = `${IC.print} <span class="lt">พิมพ์<span class="lx">รายงาน</span></span>`; $('btnXls').title = 'Export Excel'; $('btnPrint').title = 'พิมพ์เฉพาะปีที่เลือก · ข้อมูลย้อนหลัง 5 ปีให้ใช้ Export Excel'; $('prIcon').innerHTML = IC.print; $('prXls').innerHTML = IC.xls + ' Export Excel'; $('btnSetup').innerHTML = `${IC.gear} จัดแท็บตามประเภทวัสดุ`; $('stIcon').innerHTML = IC.gear; $('drIcon').innerHTML = IC.ana;
+    $('btnXls').innerHTML = `${IC.xls} <span class="lt"><span class="lx">Export&nbsp;</span>Excel</span>`; $('btnPrint').innerHTML = `${IC.print} <span class="lt">พิมพ์<span class="lx">รายงาน</span></span>`; $('btnXls').title = 'Export Excel'; $('btnPrint').title = 'พิมพ์เฉพาะปีที่เลือก · ข้อมูลย้อนหลัง 5 ปีให้ใช้ Export Excel'; $('prIcon').innerHTML = IC.print; $('prXls').innerHTML = IC.xls + ' Export Excel'; $('btnSetup').innerHTML = `${IC.gear}<span class="tx">จัดแท็บตามประเภทวัสดุ</span>`; $('btnSetup').title = $('btnSetup').ariaLabel = 'จัดแท็บตามประเภทวัสดุ'; $('stIcon').innerHTML = IC.gear; $('drIcon').innerHTML = IC.ana;
     $('fYear').innerHTML = Array.from({ length: CUR_Y - 2018 }, (_, i) => CUR_Y - i).map(y => `<option value="${y}">${y + 543} (${y + 539}–${y + 543})</option>`).join('');
     renderTabs(); renderViews();
     try{
