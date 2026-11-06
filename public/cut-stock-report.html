@@ -438,7 +438,7 @@
   .fc-note b{color:#ffcf66; font-size:15px;}
   .fc-note small{color:#b8c3d1; font-size:12.5px;}
   .fc-note.na{background:rgba(255,255,255,.03); border-color:rgba(255,255,255,.15); color:#b8c3d1;}
-  .tw svg .fcl{stroke-dasharray:7 5; stroke-width:2.6; opacity:.85;}
+  .tw svg .fcl{stroke-dasharray:0.1 7; stroke-linecap:round; stroke-width:3.4; opacity:.95;}   /* เส้นคาดการณ์ = เส้นจุด (แนวโน้ม = เส้นประขีดยาว) แยกกันด้วยสายตา */
   .tw svg .fcb{opacity:.16;}
   .tw-read .v.fc{color:#ffcf66;}
   /* Heatmap เดือน × ปี: ช่องสีเข้ม = เบิกมาก */
@@ -1370,7 +1370,7 @@ ${tds}</tr>`;
       const y1 = ic + sl * full[0][0], y2 = ic + sl * full[n - 1][0];
       h += `<line x1="${bx(full[0][0]) + 22}" y1="${215 - bh(Math.max(0, y1))}" x2="${bx(full[n - 1][0]) + 22}" y2="${215 - bh(Math.max(0, y2))}" stroke="#3ecf8e" stroke-width="2.2" stroke-dasharray="6 4"/>`;
       const first = full[0][1], lastv = full[n - 1][1];
-      note = first > 0 && lastv > 0 ? `เส้นประ = แนวโน้ม${sl > 0 ? 'เพิ่มขึ้น' : sl < 0 ? 'ลดลง' : 'คงที่'} · อัตราเติบโตเฉลี่ยต่อปี ${fmtPct(((lastv / first) ** (1 / (n - 1)) - 1) * 100, 1)}%` : 'เส้นประ = แนวโน้ม';
+      note = first > 0 && lastv > 0 ? `เส้นประแนวโน้ม = แนวโน้ม${sl > 0 ? 'เพิ่มขึ้น' : sl < 0 ? 'ลดลง' : 'คงที่'} · อัตราเติบโตเฉลี่ยต่อปี ${fmtPct(((lastv / first) ** (1 / (n - 1)) - 1) * 100, 1)}%` : 'เส้นประแนวโน้ม';
     }
     return { svg: `<svg class="ch" viewBox="0 0 ${W} ${H}">${h}</svg>`, note };
   }
@@ -1408,7 +1408,7 @@ ${tds}</tr>`;
     return `<div class="dn-row"><svg viewBox="0 0 160 160" style="width:150px;height:150px;flex-shrink:0">${h}</svg><div class="dn-leg">${data.map((x, i) => `<div><i style="background:${PC[i % PC.length]}"></i><span title="${esc(x.n)}">${esc(x.n)}</span><b>${(x.a / tot * 100).toFixed(0)}%</b></div>`).join('')}</div></div>${jbHtml}${rqHtml}`;
   }
   const fcNoteHtml = (fc, un) => !fc ? '' : fc.na ? `<div class="fc-note na">คาดการณ์ทั้งปี ${yLabel(0)}: ${esc(fc.na)}</div>`
-    : `<div class="fc-note"><span>คาดการณ์ยอดเบิกทั้งปี ${yLabel(0)} ≈ <b>${fmtR(fc.est)}</b> ${un}</span><span>ช่วง ${fmtR(fc.lo)} – ${fmtR(fc.hi)}</span><span>เบิกแล้ว ${fmt(fc.ytd0)} (${perText(fc.cm)}) · คาดว่าจะเบิกอีก ≈ ${fmtR(Math.max(0, fc.est - fc.ytd0))}</span><small>ค่าประมาณจากรูปแบบการเบิก ${fc.n} ปีก่อนหน้า (ถึง${PU()}เดียวกันใช้ไปกี่ % ของทั้งปี) ไม่ใช่แผนจริง · เส้นประในกราฟ</small></div>`;
+    : `<div class="fc-note"><span>คาดการณ์ยอดเบิกทั้งปี ${yLabel(0)} ≈ <b>${fmtR(fc.est)}</b> ${un}</span><span>ช่วง ${fmtR(fc.lo)} – ${fmtR(fc.hi)}</span><span>เบิกแล้ว ${fmt(fc.ytd0)} (${perText(fc.cm)}) · คาดว่าจะเบิกอีก ≈ ${fmtR(Math.max(0, fc.est - fc.ytd0))}</span><small>เส้นจุดคาดการณ์ในกราฟ · ค่าประมาณจากรูปแบบการเบิก ${fc.n} ปีก่อนหน้า (ถึง${PU()}เดียวกันใช้ไปกี่ % ของทั้งปี) ไม่ใช่แผนจริง</small></div>`;
   // แถบแนะนำหมุนจอ: เฉพาะกราฟ 12 เดือนที่ละเอียดมาก (แนวโน้ม / Heatmap) บนมือถือแนวตั้ง — ปิดได้และจำค่าไว้
   const rotHint = () => (store.get('rothint') !== '1') ? '<div class="rot-hint"><span>↻ หมุนจอเป็นแนวนอนเพื่อดูกราฟได้ชัดขึ้น</span><button type="button" data-rothide aria-label="ปิด">✕</button></div>' : '';
   function chartView(list){
