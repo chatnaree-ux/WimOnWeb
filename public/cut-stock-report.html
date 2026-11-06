@@ -535,8 +535,14 @@
   table.irt td.z{color:#41566d;}
   table.irt td.tt{background:rgba(245,176,65,.08); font-weight:700; color:#fff;}
   table.irt td.y0{font-weight:600; color:#fff;}
-  table.irt tbody tr:hover td{background:#1a2c44;}
-  table.irt tbody tr:hover td.tt{background:#2b3a45;}
+  table.irt tbody tr:hover td{background:#223a5a;}
+  table.irt tbody tr:hover td.tt{background:#34495a;}
+  table.irt tbody tr[data-rid]{cursor:pointer;}
+  /* แถวที่คลิกไฮไลต์ไว้ (focus row): พื้นเหลืองอำพันเข้ม + แถบซ้าย — ยังเห็นเมื่อเลื่อนไปเดือนไกลๆ เพราะคอลัมน์ชื่อ/ไอคอนตรึงอยู่ */
+  table.irt tbody tr.fx td, table.irt tbody tr.fx:hover td, table.irt tbody tr.fx td.tt, table.irt tbody tr.fx td.mb{background:#55563f; color:#fff; border-bottom-color:rgba(255,226,102,.45);}   /* = เหลืองใส rgba(255,226,102,.28) ทับพื้นตาราง (ต้องทึบจริงเพราะคอลัมน์ตรึงต้องบังข้อมูลที่เลื่อนผ่าน) */
+  table.irt tbody tr.fx td.z{color:#b0b7a6;}
+  table.irt tbody tr.fx td.nm .ty{color:#d3dbe6;} table.irt tbody tr.fx td.nm .u{color:#e4dcff;} table.irt tbody tr.fx td.nm .u::before{color:#cfc6ee;} table.irt tbody tr.fx td.cx.grp{color:#ffe08a;} table.irt tbody tr.fx td.cx.crop{color:#fff;}
+  table.irt tbody tr.fx td.act{box-shadow:inset 4px 0 0 #f2a91c;}
   table.irt tfoot td{position:sticky; bottom:0; z-index:2; background:#1e2c40; font-weight:700; color:#ffcf66; border-top:2px solid #f2a91c;}
   table.irt tfoot td.nm, table.irt tfoot td.act{z-index:4; background:#1e2c40;}
   table.irt tfoot td.nm.ft{text-align:right;}
@@ -811,7 +817,7 @@
 
   const NOW = new Date(), CUR_Y = NOW.getFullYear(), CUR_M = NOW.getMonth() + 1;
   const st = { year: CUR_Y, tab: TABS.some(t => t[0] === store.get('tab')) ? store.get('tab') : 'seed', view: store.get('view') === 'chart' ? 'chart' : 'table', trendMode: store.get('tmode') === 'c' ? 'c' : 'm', hmMode: store.get('hm') === 'all' ? 'all' : 'row', sel: null, per: store.get('per') === 'q' ? 'q' : 'm',
-    comps: new Set(), procs: new Set(), openReq: new Set(), grpSel: new Set(), cropSel: new Set(), grpOn: false, cropOn: false, unit: '', q: '', sort: { key: 't0', dir: -1 }, page: 1, hideYear: new Set(), jobsKeep: null };
+    comps: new Set(), procs: new Set(), openReq: new Set(), grpSel: new Set(), cropSel: new Set(), focus: null, grpOn: false, cropOn: false, unit: '', q: '', sort: { key: 't0', dir: -1 }, page: 1, hideYear: new Set(), jobsKeep: null };
   let meta = { companies: [], processes: [], reqTypes: [], jobs: [], canSetup: false }, D = null, applied = null, seq = 0;
   const REQ_PROC = 8;   // การขอเบิก: แยกย่อยตามหัวข้อการเบิก (ใบขอเบิก WimRequestCutMt)
   const procName = (id) => ((meta.processes.find(x => x.id === id) || {}).name || 'Process ' + id).replace(/^การ/, '');
@@ -881,7 +887,7 @@
   }
   function rebuildProc(){ normProc(); msInit('msProc', 'Process', procItems(), st.procs, () => { st.procTouched = true; schedule(); }, procChips); }
   async function switchTab(tab){
-    st.tab = tab; store.set('tab', tab); st.sel = null; st.sort = { key: 't0', dir: -1 }; st.unit = ''; st.grpTouched = false; st.cropTouched = false; st.q = ''; $('fQ').value = ''; renderTabs();
+    st.tab = tab; store.set('tab', tab); st.sel = null; st.focus = null; st.sort = { key: 't0', dir: -1 }; st.unit = ''; st.grpTouched = false; st.cropTouched = false; st.q = ''; $('fQ').value = ''; renderTabs();
     await WIMLoading.wrap('irLoad', 'กำลังโหลดข้อมูลการเบิกย้อนหลัง 5 ปี', async () => {
       try{ applyMeta(await loadMeta(tab)); } catch(err){ $('irErr').innerHTML = `<div class="ir-err">${esc(err.message)}</div>`; return; }
       await load();
@@ -1186,7 +1192,7 @@
       let tds = it.yt.map((v, yi) => `<td class="tt${yi === 0 ? ' y0 gs' : ''}${v === 0 ? ' z' : ''}">${fmtQ(v, dp)}</td>`).join('');
       for(let m = 0; m < NP(); m++) for(let yi = 0; yi < 5; yi++){ const v = it.pv[yi * NP() + m]; tds += `<td class="${yi === 0 ? 'y0 gs' : ''}${!isQ() && m % 3 === 1 ? ' mb' : ''}${v === 0 ? ' z' : ''}">${v === 0 ? '–' : fmtQ(v, dp)}</td>`; }
       const cxs = sc ? `<td class="cx crop">${esc(subOf(it) || '-')}</td>` : '';
-      return `<tr><td class="act"><button type="button" class="ib" data-drill="${it.id}" title="วิเคราะห์สินค้านี้ (กราฟ)" aria-label="วิเคราะห์สินค้านี้">${IC.ana}</button></td><td class="nm">${start + i + 1}. ${esc(it.name)}<span class="ty"><span class="u">${esc(it.unit || '-')}</span>${multi && it.groupName ? `<span class="lt">ประเภท : ${esc(it.groupName)}</span>` : ''}</span></td>${cxs}${yoyCell(it)}
+      return `<tr data-rid="${it.id}"${st.focus === it.id ? ' class="fx"' : ''}><td class="act"><button type="button" class="ib" data-drill="${it.id}" title="วิเคราะห์สินค้านี้ (กราฟ)" aria-label="วิเคราะห์สินค้านี้">${IC.ana}</button></td><td class="nm">${start + i + 1}. ${esc(it.name)}<span class="ty"><span class="u">${esc(it.unit || '-')}</span>${multi && it.groupName ? `<span class="lt">ประเภท : ${esc(it.groupName)}</span>` : ''}</span></td>${cxs}${yoyCell(it)}
 ${tds}</tr>`;
     }).join('');
     let foot = '';
@@ -1207,7 +1213,7 @@ ${tds}</tr>`;
     const pages = Math.ceil(list.length / PAGE);
     const pager = pages > 1 ? `<div class="ir-pager"><button data-page="${st.page - 1}" ${st.page <= 1 ? 'disabled' : ''}>‹</button>${pageNums(pages).map(n => n === '…' ? '<span>…</span>' : `<button data-page="${n}" class="${n === st.page ? 'on' : ''}">${n}</button>`).join('')}<button data-page="${st.page + 1}" ${st.page >= pages ? 'disabled' : ''}>›</button><span>แสดง ${fmtInt(start + 1)}–${fmtInt(Math.min(start + PAGE, list.length))} จาก ${fmtInt(list.length)}</span></div>` : '';
     const partTxt = st.year !== CUR_Y ? '' : isQ() ? ` · ไตรมาส ${curP() + 1} ยังไม่ครบไตรมาส (การ์ด / กราฟนับถึงไตรมาส ${cutP()} · คอลัมน์เทียบปีก่อนนับถึงเดือน${TH_MONTH[cutM() - 1]})` : ` · เดือน${TH_MONTH[CUR_M - 1]}ยังไม่ครบเดือน (การ์ด / กราฟ / % เทียบนับถึงเดือน${TH_MONTH[cutM() - 1]})`;
-    return `<p class="tbl-hint">กดหัวคอลัมน์เพื่อเรียงลำดับ · กดไอคอนกราฟเพื่อวิเคราะห์รายสินค้า${partTxt}</p>
+    return `<p class="tbl-hint">กดหัวคอลัมน์เพื่อเรียงลำดับ · กดไอคอนกราฟเพื่อวิเคราะห์รายสินค้า · คลิกที่แถวเพื่อไฮไลต์ (คลิกซ้ำเพื่อยกเลิก)${partTxt}</p>
       <div class="ir-area"><div class="irt-wrap"><table class="irt${sc ? ' has-sub' : ''}">${thead()}<tbody>${body}</tbody>${foot}</table></div><div class="ir-cards">${cards}</div></div>${pager}`;
   }
   function pageNums(pages){
@@ -1761,6 +1767,8 @@ ${tds}</tr>`;
   document.addEventListener('click', (e) => {
     const t = e.target;
     if(t.closest('[data-rothide]')){ store.set('rothint', '1'); document.querySelectorAll('.rot-hint').forEach(x => x.remove()); return; }
+    const frow = t.closest('table.irt tbody tr[data-rid]');
+    if(frow && !t.closest('button, a, [data-drill]') && !frow.closest('#drBody')){ const id = Number(frow.dataset.rid); st.focus = st.focus === id ? null : id; document.querySelectorAll('table.irt tbody tr[data-rid]').forEach(r => r.classList.toggle('fx', st.focus !== null && Number(r.dataset.rid) === st.focus)); return; }
     const tab = t.closest('[data-tab]'); if(tab){ if(tab.dataset.tab !== st.tab) switchTab(tab.dataset.tab); return; }
     if(t.closest('[data-selclr]')){ st.sel = null; rerender(); return; }
     const hc = t.closest('[data-sel]'); if(hc){ const [yi, m] = hc.dataset.sel.split(',').map(Number); setSel(yi, m); return; }
