@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="/js/wim-excel.js?v=20261105a"></script>
 <style>
   :root{
     --navy-950:#0c1420; --navy-900:#111d2e; --navy-800:#182a40; --navy-850:#0f1a29;
@@ -1828,8 +1829,7 @@
       <div class="pg"><button type="button" data-lpage="${listPage - 1}" ${listPage === 1 ? 'disabled' : ''}>‹</button>${btns.map(b => b === '…' ? '<span>…</span>' : b).join('')}<button type="button" data-lpage="${listPage + 1}" ${listPage === pages ? 'disabled' : ''}>›</button></div></div>`;
   }
   // Export รายการตามแท็บ / ตัวกรอง / การเรียงที่เห็นอยู่
-  function exportList(){
-    if(!window.XLSX){ alert('โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ'); return; }
+  async function exportList(){
     const base = (listTab === 'mine' ? openDocs.filter(isMine) : docs).filter(passFilters);
     const all = sorted(listTab === 'list' ? base.filter(d => inGroup(d, listFilter || 'ALL')) : base);
     if(!all.length){ alert('ไม่มีรายการให้ Export'); return; }
@@ -1840,12 +1840,19 @@
         ['DRAFT', 'COUNT'].includes(d.status) ? '' : s.match, ['DRAFT', 'COUNT'].includes(d.status) ? '' : s.short, ['DRAFT', 'COUNT'].includes(d.status) ? '' : s.over,
         d.counter.name, d.reviewer.name, d.rqCode || ''];
     });
-    const ws = XLSX.utils.aoa_to_sheet([['รายการเอกสารตรวจนับสต๊อก'], [],
-      ['บริษัท', 'เลขที่เอกสาร', 'สถานะ', 'วันที่ตรวจนับ', 'ครั้งที่', 'คลัง', 'พื้นที่', 'ประเภท', 'วิธีนับ', 'นับแล้ว', 'รายการทั้งหมด', 'ตรงกัน', 'ขาด', 'เกิน', 'ผู้ตรวจนับ', 'ผู้ตรวจสอบ', 'ใบขอปรับยอดสต๊อก'], ...rows]);
-    ws['!cols'] = [28, 14, 14, 12, 7, 22, 28, 14, 20, 9, 12, 8, 8, 8, 24, 24, 14].map(w => ({ wch: w }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'เอกสารตรวจนับ');
-    XLSX.writeFile(wb, `เอกสารตรวจนับสต๊อก_${todayISO()}.xlsx`);
+    const selText = (id) => { const el = $(id); return el && el.value && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : 'ทั้งหมด'; };
+    const q = $('fSearch').value.trim();
+    const btn = $('btnExport'), old = btn.innerHTML; btn.disabled = true; btn.textContent = 'กำลังสร้างไฟล์…';
+    try {
+      // ไฟล์ Excel มาตรฐานของระบบ (WIMExcel): แถบชื่อ + Export Date/By + กรอบเงื่อนไข + หัวตาราง
+      await WIMExcel.download({
+        filename: `เอกสารตรวจนับสต๊อก_${todayISO()}.xlsx`,
+        title: 'รายการเอกสารตรวจนับสต๊อก', titleEn: 'STOCK COUNT DOCUMENTS',
+        info: [['คลัง', selText('fWh')], ['ประเภท', selText('fType')], ['วิธีนับ', selText('fMode')], ['ค้นหา', q || '-'], ['จำนวนเอกสาร', fmtInt(all.length) + ' เอกสาร']],
+        sheets: [{ name: 'เอกสารตรวจนับ', head: ['บริษัท', 'เลขที่เอกสาร', 'สถานะ', 'วันที่ตรวจนับ', 'ครั้งที่', 'คลัง', 'พื้นที่', 'ประเภท', 'วิธีนับ', 'นับแล้ว', 'รายการทั้งหมด', 'ตรงกัน', 'ขาด', 'เกิน', 'ผู้ตรวจนับ', 'ผู้ตรวจสอบ', 'ใบขอปรับยอดสต๊อก'], body: rows, widths: [28, 14, 14, 12, 7, 22, 28, 14, 20, 9, 12, 8, 8, 8, 24, 24, 14], freezeCols: 2 }]
+      });
+    } catch(err){ alert('สร้างไฟล์ Excel ไม่สำเร็จ: ' + err.message); }
+    finally { btn.disabled = false; btn.innerHTML = old; }
   }
 
   /* ---------- แท็บภาพรวม: ตัวเลข 30 วัน + ความครอบคลุมการนับรายคลังหลัก ---------- */
@@ -2673,6 +2680,19 @@
   // ใบนับเปล่า (Excel): แบบฟอร์มว่าง ไม่มีรายการ / ยอด ERP / ID — ตำแหน่งมี dropdown (พิมพ์ค่าอื่นได้) สถานะคุณภาพเลือกจากรายการ
   const BLANK_ROWS = 300;
   const BLANK_COLS = ['ลำดับ', 'Lot No.', 'ตำแหน่งจัดเก็บ', 'ยอดนับจริง', 'สถานะคุณภาพ', 'หมายเหตุ', 'ชื่อสินค้า / ลักษณะ (กรณีไม่มี Lot No. / ไม่พบในระบบ)', 'หน่วย (กรณีไม่พบในระบบ)'];
+  // หัวใบนับ (แถว 1-7) ตามมาตรฐาน Excel ของระบบ: แถบชื่อ + Export Date/By + กรอบข้อมูลเอกสาร + แถบคำแนะนำ
+  //   แถว 8 = หัวตาราง / แถว 9 = ข้อมูล ตายตัวเหมือนเดิม — การนำเข้าหาแถวหัวตารางจากข้อความ (ID / ยอดนับจริง / Lot No.) ไม่ใช่จากตำแหน่งแถวบน
+  function xlsCountHeader(ws, n, titleTh, titleEn, cells, note){
+    const W = WIMExcel, C = W.colors;
+    W.band(ws, 1, n, C.NAVY, titleTh, { name: 'Tahoma', size: 16, bold: true, color: { argb: 'FFFFFFFF' } }, 30);
+    W.band(ws, 2, n, C.NAVY2, titleEn + '     ·     Export Date ' + W.stamp() + '     ·     Export By ' + W.userName(), { name: 'Tahoma', size: 9.5, color: { argb: 'FFCBD5E1' } }, 18, { style: 'medium', color: { argb: C.AMBER } });
+    cells.forEach(([r, l1, l2, label, v1, v2, value]) => { ws.getRow(r).height = 22; W.lab(ws, r, l1, l2, label); W.val(ws, r, v1, v2, value == null || value === '' ? '-' : String(value)); });
+    if(!cells.some(c => c[0] === 5)) ws.getRow(5).height = 6;
+    ws.mergeCells(6, 1, 6, n);
+    const c = ws.getCell(6, 1); c.value = note; c.font = { name: 'Tahoma', size: 10, bold: true, color: { argb: 'FF9A6700' } };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF4D6' } }; c.alignment = { vertical: 'middle', wrapText: true, indent: 1 }; ws.getRow(6).height = 24;
+    ws.getRow(7).height = 6;
+  }
   async function exportBlankXlsx(btn){
     const d = doc;
     await busy(btn, async () => {
@@ -2681,16 +2701,14 @@
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('ใบนับเปล่า', { views: [{ state: 'frozen', ySplit: 8 }] });
       ws.columns = [7, 20, 20, 13, 20, 30, 36, 14].map(w => ({ width: w }));
-      ws.addRow(['แบบฟอร์มตรวจนับสินค้าคงคลัง (ใบนับเปล่า) | BLANK COUNT SHEET']).font = { bold: true, size: 14 };
-      ws.addRow([]);
-      ws.addRow(['บริษัท/หน่วยงาน', d.compName, '', 'เลขที่เอกสาร', d.docCode, '', 'วันที่ตรวจนับ', thDate(d.dateCount)]);
-      ws.addRow(['คลัง/พื้นที่จัดเก็บ', d.idWhScope === d.idParent0 ? d.whName : d.scopePath, '', 'ครั้งที่นับ', d.round, '', 'ผู้ตรวจนับ', d.counter.name]);
-      ws.addRow([]);
-      ws.addRow(['จด 1 แถว ต่อ 1 Lot ต่อ 1 ตำแหน่งที่พบ: Lot No. + ตำแหน่ง + ยอดนับจริง (ตัวเลขตั้งแต่ 0) — ไม่มี Lot No. ให้กรอกชื่อสินค้า/ลักษณะแทน แล้วนำเข้าไฟล์นี้ที่หน้าเอกสาร']).font = { color: { argb: 'FF9A6700' }, bold: true };
-      ws.addRow([]);
-      const hr = ws.addRow(BLANK_COLS);
+      xlsCountHeader(ws, BLANK_COLS.length, 'แบบฟอร์มตรวจนับสินค้าคงคลัง (ใบนับเปล่า)', 'BLANK COUNT SHEET', [
+        [3, 1, 2, 'บริษัท/หน่วยงาน', 3, 4, d.compName], [3, 5, 5, 'เลขที่เอกสาร', 6, 8, d.docCode],
+        [4, 1, 2, 'คลัง/พื้นที่จัดเก็บ', 3, 4, d.idWhScope === d.idParent0 ? d.whName : d.scopePath], [4, 5, 5, 'ครั้งที่นับ', 6, 8, d.round],
+        [5, 1, 2, 'วันที่ตรวจนับ', 3, 4, thDate(d.dateCount)], [5, 5, 5, 'ผู้ตรวจนับ', 6, 8, d.counter.name]
+      ], 'จด 1 แถว ต่อ 1 Lot ต่อ 1 ตำแหน่งที่พบ: Lot No. + ตำแหน่ง + ยอดนับจริง (ตัวเลขตั้งแต่ 0) — ไม่มี Lot No. ให้กรอกชื่อสินค้า/ลักษณะแทน แล้วนำเข้าไฟล์นี้ที่หน้าเอกสาร');
+      const hr = ws.getRow(8); hr.values = BLANK_COLS;
       hr.height = 32;
-      hr.eachCell(c => { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE9B3' } }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }; });
+      hr.eachCell(c => { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD5DEEA' } }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }; });
       for(let i = 1; i <= BLANK_ROWS; i++){
         const row = ws.addRow([i, '', '', null, '', '', '', '']);
         row.eachCell({ includeEmpty: true }, c => { c.border = { top: { style: 'hair' }, left: { style: 'hair' }, bottom: { style: 'hair' }, right: { style: 'hair' } }; });
@@ -2730,15 +2748,13 @@
       const cols = ['ลำดับ', 'รหัสสินค้า', 'ชื่อสินค้า', 'Lot No.', 'ตำแหน่งจัดเก็บ', 'หน่วยนับ', ...(blind ? [] : ['ยอดตาม ERP']), 'ยอดนับจริง', 'สถานะคุณภาพ', 'วันหมดอายุ', 'สาเหตุ/หมายเหตุ', 'ID'];
       const widths = [7, 14, 40, 18, 18, 9, ...(blind ? [] : [12]), 13, 20, 12, 30, 8];
       ws.columns = widths.map(w => ({ width: w }));
-      ws.addRow(['แบบฟอร์มตรวจนับสินค้าคงคลัง | STOCK COUNT SHEET']).font = { bold: true, size: 14 };
-      ws.addRow([]);
-      ws.addRow(['บริษัท/หน่วยงาน', d.compName, '', 'เลขที่เอกสาร', d.docCode, '', 'วันที่ตรวจนับ', thDate(d.dateCount), '', 'ครั้งที่นับ', d.round]);
-      ws.addRow(['คลัง/พื้นที่จัดเก็บ', d.idWhScope === d.idParent0 ? d.whName : d.scopePath, '', 'ประเภทการตรวจนับ', d.typeName, '', 'ผู้ตรวจนับ', d.counter.name, '', 'ผู้ตรวจสอบ', d.reviewer.name]);
-      ws.addRow([]);
-      ws.addRow(['กรอก "ยอดนับจริง" (ตัวเลขตั้งแต่ 0) และเลือก "สถานะคุณภาพ" จากรายการ แล้วนำเข้าไฟล์นี้ที่หน้าเอกสาร — ห้ามแก้คอลัมน์ ID']).font = { color: { argb: 'FF9A6700' }, bold: true };
-      ws.addRow([]);
-      const hr = ws.addRow(cols);
-      hr.eachCell(c => { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE9B3' } }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }; });
+      const pc = blind ? { v1: 8, v2: 8, dl: 9, dv: 10 } : { v1: 8, v2: 9, dl: 10, dv: 11 };   // ใบนับแบบซ่อนยอด ERP มีคอลัมน์น้อยกว่า 1 คอลัมน์
+      xlsCountHeader(ws, cols.length, 'แบบฟอร์มตรวจนับสินค้าคงคลัง', 'STOCK COUNT SHEET', [
+        [3, 1, 2, 'บริษัท/หน่วยงาน', 3, 3, d.compName], [3, 4, 4, 'เลขที่เอกสาร', 5, 5, d.docCode], [3, 6, 7, 'วันที่ตรวจนับ', pc.v1, pc.v2, thDate(d.dateCount)], [3, pc.dl, pc.dl, 'ครั้งที่นับ', pc.dv, pc.dv, d.round],
+        [4, 1, 2, 'คลัง/พื้นที่จัดเก็บ', 3, 3, d.idWhScope === d.idParent0 ? d.whName : d.scopePath], [4, 4, 4, 'ประเภทการตรวจนับ', 5, 5, d.typeName], [4, 6, 7, 'ผู้ตรวจนับ', pc.v1, pc.v2, d.counter.name], [4, pc.dl, pc.dl, 'ผู้ตรวจสอบ', pc.dv, pc.dv, d.reviewer.name]
+      ], 'กรอก "ยอดนับจริง" (ตัวเลขตั้งแต่ 0) และเลือก "สถานะคุณภาพ" จากรายการ แล้วนำเข้าไฟล์นี้ที่หน้าเอกสาร — ห้ามแก้คอลัมน์ ID');
+      const hr = ws.getRow(8); hr.values = cols;
+      hr.eachCell(c => { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD5DEEA' } }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }; });
       const iQty = cols.indexOf('ยอดนับจริง') + 1, iQual = cols.indexOf('สถานะคุณภาพ') + 1, iId = cols.length;
       const qualList = '"' + Object.values(QUALITY).join(',') + '"';
       doc.lines.filter(l => l.src !== 'U' && !l.exclude).forEach(l => {
@@ -3267,8 +3283,7 @@
       if(lines.some(p => 'adjust' in p)) refreshAdjustCount();
     } catch(err){ alert('บันทึกไม่สำเร็จ: ' + err.message); reload(); }
   }
-  function exportResult(){
-    if(!window.XLSX){ alert('โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ'); return; }
+  async function exportResult(){
     const rev = doc.reviewer.name || '';
     const rows = doc.lines.map(l => {
       const x = diffOf(l);
@@ -3277,14 +3292,15 @@
         : [l.seq, l.invCode, l.invName, l.lotNo, l.loc, l.unit, l.erp, l.count, x.diff == null ? '' : x.diff, DIFF[x.st], QUALITY[l.quality] || '', l.exp ? thDate(l.exp) : '',
            causeNote(l), l.countBy || '', rev, ACTION[l.action] || '', l.adjust ? 'Y' : ''];
     });
-    const ws = XLSX.utils.aoa_to_sheet([[`ผลการตรวจนับ ${doc.docCode} · ${doc.compName} · ${thDate(doc.dateCount)} ครั้งที่ ${doc.round}`], [],
-      ['ลำดับ', 'รหัสสินค้า', 'ชื่อสินค้า', 'Lot No.', 'ตำแหน่งจัดเก็บ', 'หน่วยนับ', 'ยอดตาม ERP', 'ยอดนับจริง', 'ผลต่าง', 'สถานะผลต่าง', 'สถานะคุณภาพ', 'วันหมดอายุ',
-       'สาเหตุ/หมายเหตุ', 'ผู้ตรวจนับ', 'ผู้ตรวจสอบ', 'สถานะดำเนินการ', 'ส่งปรับยอด'], ...rows]);
-    ws['!cols'] = [6, 14, 40, 18, 18, 9, 12, 12, 10, 12, 16, 12, 30, 24, 24, 18, 9].map(w => ({ wch: w }));
-    xlsFmtCols(ws, [6, 7, 8], 3);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'ผลการตรวจนับ');
-    XLSX.writeFile(wb, `${doc.docCode.replace('/', '-')}_ผลการนับ.xlsx`);
+    try {
+      // ไฟล์ Excel มาตรฐานของระบบ (WIMExcel): แถบชื่อ + Export Date/By + กรอบเงื่อนไข + หัวตาราง
+      await WIMExcel.download({
+        filename: `${doc.docCode.replace('/', '-')}_ผลการนับ.xlsx`,
+        title: 'ผลการตรวจนับสต๊อก', titleEn: 'STOCK COUNT RESULT',
+        info: [['เลขที่เอกสาร', doc.docCode], ['บริษัท', doc.compName], ['วันที่ตรวจนับ', thDate(doc.dateCount)], ['ครั้งที่', String(doc.round)], ['คลัง', doc.whName || ''], ['ประเภท', doc.typeName || ''], ['ผู้ตรวจนับ', (doc.counter && doc.counter.name) || ''], ['ผู้ตรวจสอบ', rev || ''], ['จำนวนรายการ', fmtInt(rows.length) + ' รายการ']],
+        sheets: [{ name: 'ผลการตรวจนับ', head: ['ลำดับ', 'รหัสสินค้า', 'ชื่อสินค้า', 'Lot No.', 'ตำแหน่งจัดเก็บ', 'หน่วยนับ', 'ยอดตาม ERP', 'ยอดนับจริง', 'ผลต่าง', 'สถานะผลต่าง', 'สถานะคุณภาพ', 'วันหมดอายุ', 'สาเหตุ/หมายเหตุ', 'ผู้ตรวจนับ', 'ผู้ตรวจสอบ', 'สถานะดำเนินการ', 'ส่งปรับยอด'], body: rows, widths: [6, 14, 40, 18, 18, 9, 12, 12, 10, 12, 16, 12, 30, 24, 24, 18, 9], fmts: { 6: xlsQtyFmt, 7: xlsQtyFmt, 8: xlsQtyFmt }, freezeCols: 3 }]
+      });
+    } catch(err){ alert('สร้างไฟล์ Excel ไม่สำเร็จ: ' + err.message); }
   }
 
   /* ---------- รายการทั้งหมด (อ่านอย่างเดียว): 16 คอลัมน์ตามแบบฟอร์ม ---------- */

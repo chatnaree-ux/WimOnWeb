@@ -292,6 +292,43 @@
   .perm-subhead{font-size:12px; font-weight:600; color:var(--amber-500); letter-spacing:.02em; padding:8px 6px 4px; border-top:1px dashed rgba(255,255,255,.08); margin-top:4px;}
   .perm-children > .perm-subhead:first-child{border-top:0; margin-top:0;}
 
+  /* --- tree สิทธิ์บริษัท: Seeds Group > กลุ่มบริษัท > บริษัท --- */
+  .comp-head{display:flex; align-items:center; gap:4px; border-radius:7px;}
+  .comp-head .perm-item{flex:1; min-width:0; color:#fff; font-weight:600;}
+  .comp-tree .perm-item > span:first-of-type{flex:1; min-width:0; overflow-wrap:anywhere;}
+  .comp-toggle{
+    flex-shrink:0; width:26px; height:26px; display:flex; align-items:center; justify-content:center; padding:0;
+    color:var(--amber-500); background:rgba(242,169,28,.08); border:1px solid rgba(242,169,28,.45); border-radius:6px; cursor:pointer;
+  }
+  .comp-toggle svg{transition:transform .15s;}
+  .comp-node.is-collapsed > .comp-head .comp-toggle svg{transform:rotate(-90deg);}
+  .comp-node.is-collapsed > .comp-kids{display:none;}
+  /* Seeds Group: เหลืองโปร่ง เข้มกว่าหัวการ์ดกลุ่มเล็กน้อย */
+  .comp-root > .comp-head{background:rgba(242,169,28,.32); border:1px solid rgba(242,169,28,.75); border-radius:8px; padding:4px 8px;}
+  .comp-root > .comp-head .perm-item{font-size:15px;}
+  .comp-root > .comp-kids{display:flex; flex-direction:column; gap:10px; margin-top:8px;}
+  /* การ์ดกลุ่มบริษัท: สีตามบริษัท (กลุ่มอื่น / ยังไม่จัดกลุ่ม = เทา) */
+  .comp-card{--g:#94a3b8; --g-rgb:148,163,184; border:1px solid rgba(var(--g-rgb),.55); border-radius:10px; overflow:hidden; background:rgba(255,255,255,.02);}
+  .comp-c-av{--g:#f472b6; --g-rgb:244,114,182;}
+  .comp-c-fl{--g:#60a5fa; --g-rgb:96,165,250;}
+  .comp-c-gr{--g:#4ade80; --g-rgb:74,222,128;}
+  .comp-card > .comp-head{background:rgba(var(--g-rgb),.18); border-bottom:1px solid rgba(var(--g-rgb),.35); border-radius:0; padding:4px 8px;}
+  .comp-card.is-collapsed > .comp-head{border-bottom:0;}
+  .comp-card > .comp-kids{padding:6px 8px 8px 12px;}
+  .comp-card .perm-checkbox{accent-color:var(--g);}
+  .comp-card .comp-toggle{color:var(--g); background:rgba(var(--g-rgb),.1); border-color:rgba(var(--g-rgb),.55);}
+  .comp-count{
+    flex-shrink:0; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--navy-950);
+    background:var(--steel-500); border-radius:999px; padding:1px 8px;
+  }
+  .comp-count.has-selected{background:var(--amber-500);}
+  .comp-card .comp-count.has-selected{background:var(--g);}
+  @media (max-width:900px){
+    .comp-tree .perm-item{min-height:44px;}
+    .comp-toggle{width:36px; height:36px;}
+    .comp-card > .comp-kids{padding:4px 6px 6px 8px;}
+  }
+
   .state-box{padding:30px 20px; text-align:center; color:var(--concrete-400); font-size:13px;}
   .state-box.error{color:#ff8a75;}
   .spinner{width:16px; height:16px; border:2px solid rgba(12,20,32,.3); border-top-color:var(--navy-950); border-radius:50%; animation:spin .7s linear infinite;}
@@ -957,8 +994,37 @@
   }
 
   function updateCompanySelectedCount(){
-    const n = companyPermList.querySelectorAll('.perm-checkbox:checked').length;
+    const n = companyPermList.querySelectorAll('.perm-checkbox[data-idcomp]:checked').length;
     companyPermSelectedCount.textContent = `${n} บริษัทที่เลือก`;
+    // checkbox ระดับกลุ่ม: ครบ = ติ๊ก / บางส่วน = ขีด (indeterminate) + ตัวนับ เลือก/ทั้งหมด
+    companyPermList.querySelectorAll('.comp-node').forEach(node => {
+      const total = node.querySelectorAll('.perm-checkbox[data-idcomp]').length;
+      const checked = node.querySelectorAll('.perm-checkbox[data-idcomp]:checked').length;
+      const groupCb = node.querySelector(':scope > .comp-head .perm-checkbox');
+      groupCb.checked = total > 0 && checked === total;
+      groupCb.indeterminate = checked > 0 && checked < total;
+      const count = node.querySelector(':scope > .comp-head .comp-count');
+      count.textContent = `${checked}/${total}`;
+      count.classList.toggle('has-selected', checked > 0);
+    });
+  }
+
+  // แถวกลุ่ม: checkbox เป็นทางลัดติ๊กบริษัทข้างใต้ (ไม่ถูกบันทึก — บันทึกเฉพาะ idComp)
+  function compGroupHtml(name, bodyHtml, nodeClass){
+    return `
+      <div class="comp-node ${nodeClass}">
+        <div class="comp-head">
+          <button type="button" class="comp-toggle" aria-label="พับ/กาง ${esc(name)}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <label class="perm-item">
+            <input type="checkbox" class="perm-checkbox" data-compgroup="1">
+            <span>${esc(name)}</span>
+            <span class="comp-count">0/0</span>
+          </label>
+        </div>
+        <div class="comp-kids">${bodyHtml}</div>
+      </div>`;
   }
 
   function renderCompanyList(){
@@ -966,15 +1032,33 @@
       companyPermList.innerHTML = '<div class="state-box">ไม่พบข้อมูลบริษัท</div>';
       return;
     }
-    companyPermList.innerHTML = allCompanies.map(c => `
+    const compHtml = (list) => list.map(c => `
       <label class="perm-item">
         <input type="checkbox" class="perm-checkbox" data-idcomp="${c.idComp}">
         <span>${esc(c.CompName)}</span>
       </label>
     `).join('');
+    // กลุ่มเรียงตามชื่อ (AV, FL, GR) / บริษัทที่ยังไม่จัดกลุ่มใน dGroupCompMap ไว้ท้ายสุด เพื่อไม่ให้สิทธิ์เดิมหายตอนบันทึก
+    const groupNames = [...new Set(allCompanies.filter(c => c.CompGroupName).map(c => c.CompGroupName))]
+      .sort((a, b) => a.localeCompare(b));
+    const ungrouped = allCompanies.filter(c => !c.CompGroupName);
+    const groupColors = { 'AV Group': 'comp-c-av', 'FL Group': 'comp-c-fl', 'GR Group': 'comp-c-gr' };
+    const groupsHtml = groupNames
+      .map(name => compGroupHtml(name, compHtml(allCompanies.filter(c => c.CompGroupName === name)), `comp-card ${groupColors[name] || ''}`))
+      .join('') + (ungrouped.length ? compGroupHtml('ยังไม่จัดกลุ่ม', compHtml(ungrouped), 'comp-card') : '');
+    companyPermList.innerHTML = `<div class="comp-tree">${compGroupHtml('Seeds Group', groupsHtml, 'comp-root')}</div>`;
 
-    companyPermList.querySelectorAll('.perm-checkbox').forEach(cb => {
+    companyPermList.querySelectorAll('.perm-checkbox[data-idcomp]').forEach(cb => {
       cb.addEventListener('change', updateCompanySelectedCount);
+    });
+    companyPermList.querySelectorAll('.perm-checkbox[data-compgroup]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        cb.closest('.comp-node').querySelectorAll('.perm-checkbox[data-idcomp]').forEach(c => { c.checked = cb.checked; });
+        updateCompanySelectedCount();
+      });
+    });
+    companyPermList.querySelectorAll('.comp-toggle').forEach(btn => {
+      btn.addEventListener('click', () => btn.closest('.comp-node').classList.toggle('is-collapsed'));
     });
     updateCompanySelectedCount();
   }
@@ -1008,7 +1092,7 @@
   saveCompanyPermBtn.addEventListener('click', async () => {
     if (!currentGroupId || currentGroupIsSystem) return;
 
-    const compIds = Array.from(companyPermList.querySelectorAll('.perm-checkbox:checked'))
+    const compIds = Array.from(companyPermList.querySelectorAll('.perm-checkbox[data-idcomp]:checked'))
       .map(cb => Number(cb.dataset.idcomp));
 
     let idPsCreate = null;

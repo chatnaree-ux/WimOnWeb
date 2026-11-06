@@ -1,0 +1,11 @@
+/* ==================================================================
+   หัว popup มาตรฐานของระบบ — ไอคอนในกรอบอำพัน + ชื่อสีอำพันตัวหนา (ให้เด่นเป็นชื่อเมนู ไม่ใช่ข้อความขาวทั่วไป)
+   ใช้: <div class="modal-header"><h3 class="wim-mtitle"><span class="ic">{svg ไอคอน}</span>ชื่อ popup</h3> … </div>
+   ทุก popup ใหม่ใช้แบบนี้ / หน้าเดิมเปลี่ยนตอนที่แก้หน้านั้นอยู่แล้ว
+================================================================== */
+.modal-header h3.wim-mtitle{display:flex; align-items:center; gap:10px; margin:0; min-width:0;
+  font-family:'Inter','Noto Sans Thai',sans-serif; font-size:17px; font-weight:700; letter-spacing:0; text-transform:none; line-height:1.3; color:#ffcf66;}
+.modal-header h3.wim-mtitle .ic{width:34px; height:34px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+  background:rgba(242,169,28,.14); border:1px solid rgba(242,169,28,.55); color:#f2a91c;}
+.modal-header h3.wim-mtitle .ic svg{width:18px; height:18px;}
+@media (max-width:560px){ .modal-header h3.wim-mtitle{font-size:16px;} .modal-header h3.wim-mtitle .ic{width:30px; height:30px;} }

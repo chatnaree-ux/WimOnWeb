@@ -1,0 +1,18 @@
+/* ==================================================================
+   Loading กลางของระบบ (คู่กับ /js/wim-loading.js) — โลโก้นิ่ง + วงแหวนสีส้มหมุนรอบ + "Loading . . ." + ข้อความรอง
+   คลุมกล่องที่สั่ง (เช่น การ์ดรายการ / พื้นที่ผลลัพธ์) ด้วยพื้นมืดโปร่ง ไม่คลุมทั้งหน้า
+   หน้าใหม่ทุกหน้าใช้ตัวนี้ (หน้าเก่ามีสไตล์ .ld-* ฝังในตัวเอง หน้าตาเดียวกัน — ย้ายมาใช้ตัวกลางเมื่อแก้หน้านั้น)
+================================================================== */
+.wim-loading-host{position:relative;}
+.wim-loading{position:absolute; inset:0; z-index:20; display:flex; align-items:flex-start; justify-content:center;
+  padding-top:min(160px, 18vh); border-radius:inherit; background:rgba(16,20,26,.72); backdrop-filter:blur(2px);}
+.wim-loading .ld-box{display:flex; flex-direction:column; align-items:center; gap:8px; position:sticky; top:120px;}
+.wim-loading .ld-ring{position:relative; width:66px; height:66px; display:flex; align-items:center; justify-content:center;}
+.wim-loading .ld-ring::before{content:""; position:absolute; inset:0; border-radius:50%;
+  border:2.5px solid rgba(242,169,28,.15); border-top-color:#f2a91c; border-right-color:#f2a91c;
+  animation:wimLdSpin .9s linear infinite;}
+.wim-loading .ld-logo{width:48px; height:48px; filter:drop-shadow(0 4px 10px rgba(242,120,28,.3));}
+.wim-loading .ld-text{font-family:'Inter',sans-serif; font-size:14px; font-weight:500; letter-spacing:.32em; padding-left:.32em; color:#f5c66b;}
+.wim-loading .ld-sub{font-size:12.5px; color:#b9b4a5; text-align:center; padding:0 12px;}
+@keyframes wimLdSpin{to{transform:rotate(360deg);}}
+@media (prefers-reduced-motion: reduce){ .wim-loading .ld-ring::before{animation-duration:2.5s;} }

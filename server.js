@@ -256,6 +256,28 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
+// ---------- ติดตั้งเป็นแอป (PWA): ไฟล์ manifest ----------
+// ส่งจาก Node ไม่วางเป็นไฟล์ใน public — IIS บางรุ่นไม่รู้จักชนิดไฟล์ .json/.webmanifest (ไม่ต้องแก้ web.config)
+const APP_MANIFEST = JSON.stringify({
+  name: 'WIM · Warehouse & Inventory Management',
+  short_name: 'WIM',
+  description: 'WIM (Warehouse & Inventory Management) ระบบบริหารสินค้าคงคลัง — ขอเบิก ตรวจนับสต๊อก ปรับยอด รับ/ส่งคืนสินค้า และรายงานสต๊อกของบริษัทในกลุ่ม',
+  lang: 'th',
+  start_url: '/main-menu',
+  scope: '/',
+  display: 'standalone',
+  background_color: '#0c1420',
+  theme_color: '#0c1420',
+  icons: [
+    { src: '/images/app/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: '/images/app/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: '/images/app/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+  ]
+});
+app.get('/manifest.webmanifest', (req, res) => {
+  res.type('application/manifest+json').set('Cache-Control', 'no-cache').send(APP_MANIFEST);
+});
+
 // ---------- การตั้งค่าเชื่อมต่อ SQL Server ----------
 const dbConfig = {
   server: process.env.DB_SERVER,
@@ -421,8 +443,10 @@ const PORT = process.env.PORT || 3001;
 // ==================================================================
 // กติกา:
 //   ไม่มีกลุ่ม = ไม่มีสิทธิ์เมนูและบริษัทใดเลย / กลุ่มระบบ (stSystem) = ทุกเมนู + ทุกบริษัท
-//   กลุ่มทั่วไป = เฉพาะเมนูใน WIMWebMenuPermission + บริษัทใน WIMWebGroupCompPer
+//   กลุ่มทั่วไป = เฉพาะเมนูใน CoreCenter.MenuUserSet + บริษัทใน CoreCenter.MenuUserPsComp (ระบบ WEB_WIM)
 // idPs อ่านจาก session เท่านั้น (ไม่เชื่อค่าที่หน้าเว็บส่งมา) / cache สั้นๆ กันยิง DB ทุก request
+// สิทธิ์เก็บที่ CoreCenter ระบบ WEB_WIM — ทุก query/แก้ไขตารางกลางต้องจำกัดเฉพาะระบบนี้ ห้ามแตะแถวของระบบอื่น
+const PERM_SYS = 'WEB_WIM';
 const ACCESS_CACHE_MS = 30 * 1000;
 const accessCache = new Map();
 
@@ -435,11 +459,13 @@ async function getUserAccess(idPs) {
   const pool = await poolPromise;
   const groupResult = await pool.request()
     .input('idPs', sql.Int, idPs)
+    .input('sys', sql.VarChar(255), PERM_SYS)
     .query(
-      `SELECT g.idGroup, g.stSystem
-       FROM WIMWebUserGroupMember m
-       JOIN WIMWebUserGroup g ON m.idGroup = g.idGroup
-       WHERE m.idPs = @idPs AND m.stDel IS NULL AND g.stDel IS NULL`
+      `SELECT p.idUser, ISNULL(CAST(s.stSystem AS int), 0) AS stSystem
+       FROM CoreCenter.dbo.MenuUserPs p
+       JOIN CoreCenter.dbo.MenuUser u ON u.idUser = p.idUser AND u.MenuSys = @sys
+       LEFT JOIN WIMWebGroupSet s ON s.idUser = p.idUser
+       WHERE p.idPs = @idPs`
     );
 
   let access;
@@ -447,36 +473,39 @@ async function getUserAccess(idPs) {
     // ไม่มีกลุ่ม = login ได้ เข้าหน้า Home ได้ แต่ปิดทุกเมนู (ให้แจ้งผู้ดูแลระบบเปิดสิทธิ์)
     // ยกเว้นหน้าตอบกลับคำร้อง URS (/api/urs/reply) ที่เช็คแค่ login — มีลิงก์ก็ตอบกลับได้
     access = { unrestricted: false, allComps: false, menus: new Set(), comps: new Set() };
+  } else if (groupResult.recordset.some(g => g.stSystem === 1)) {
+    access = { unrestricted: true, allComps: true, menus: new Set(), comps: new Set() };
   } else {
-    const { idGroup, stSystem } = groupResult.recordset[0];
-    if (stSystem === true || stSystem === 1) {
-      access = { unrestricted: true, allComps: true, menus: new Set(), comps: new Set() };
-    } else {
-      const menuResult = await pool.request()
-        .input('idGroup', sql.Int, idGroup)
-        .query(
-          `SELECT m.MenuCode
-           FROM WIMWebMenuPermission p
-           JOIN WIMWebMenu m ON p.idMenu = m.idMenu
-           WHERE p.idGroup = @idGroup AND p.stAllow = 1 AND p.stDel IS NULL AND m.stDel IS NULL
-             AND ISNULL(m.stWip, 0) = 0` // เมนู On process ไม่นับ แม้มีแถวสิทธิ์ค้างอยู่
-        );
-      const compResult = await pool.request()
-        .input('idGroup', sql.Int, idGroup)
-        .query(
-          `SELECT p.idComp
-           FROM WIMWebGroupCompPer p
-           JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = p.idComp
-           WHERE p.idGroup = @idGroup AND p.stAllow = 1 AND p.stDel IS NULL
-             AND c.stDel IS NULL AND c.CompName IS NOT NULL`
-        );
-      access = {
-        unrestricted: false,
-        allComps: false,
-        menus: new Set(menuResult.recordset.map(r => r.MenuCode)),
-        comps: new Set(compResult.recordset.map(r => String(r.idComp)))
-      };
-    }
+    // หน้าเว็บเราให้อยู่กลุ่มเดียว แต่ระบบกลางเพิ่มหลายกลุ่มได้ — รวมสิทธิ์จากทุกกลุ่มของ WEB_WIM
+    const menuResult = await pool.request()
+      .input('idPs', sql.Int, idPs)
+      .input('sys', sql.VarChar(255), PERM_SYS)
+      .query(
+        `SELECT DISTINCT w.MenuCode
+         FROM CoreCenter.dbo.MenuUserPs p
+         JOIN CoreCenter.dbo.MenuUser u ON u.idUser = p.idUser AND u.MenuSys = @sys
+         JOIN CoreCenter.dbo.MenuUserSet ms ON ms.idUser = p.idUser
+         JOIN WIMWebMenu w ON w.CoreMenuCode = ms.MenuCode
+         WHERE p.idPs = @idPs AND w.stDel IS NULL
+           AND ISNULL(w.stWip, 0) = 0` // เมนู On process ไม่นับ แม้มีแถวสิทธิ์ค้างอยู่
+      );
+    const compResult = await pool.request()
+      .input('idPs', sql.Int, idPs)
+      .input('sys', sql.VarChar(255), PERM_SYS)
+      .query(
+        `SELECT DISTINCT pc.idComp
+         FROM CoreCenter.dbo.MenuUserPs p
+         JOIN CoreCenter.dbo.MenuUser u ON u.idUser = p.idUser AND u.MenuSys = @sys
+         JOIN CoreCenter.dbo.MenuUserPsComp pc ON pc.idUser = p.idUser AND pc.idPs = p.idPs
+         JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = pc.idComp
+         WHERE p.idPs = @idPs AND c.stDel IS NULL AND c.CompName IS NOT NULL`
+      );
+    access = {
+      unrestricted: false,
+      allComps: false,
+      menus: new Set(menuResult.recordset.map(r => r.MenuCode)),
+      comps: new Set(compResult.recordset.map(r => String(r.idComp)))
+    };
   }
   accessCache.set(idPs, { access, exp: Date.now() + ACCESS_CACHE_MS });
   return access;
@@ -539,46 +568,21 @@ const LOT_TABLE = 'GR_Group.devsk.dInvLotMain';
 const SP_STOCKCARD = 'devsk.sp_StockCardInv';
 const SP_PARAM_LOT = 'idLot';
 
-// ---------- บริษัทใน combobox: แสดงเฉพาะบริษัทที่กลุ่มของผู้ใช้ได้รับสิทธิ์ใน WIMWebGroupCompPer ----------
+// ---------- บริษัทใน combobox: แสดงเฉพาะบริษัทที่ผู้ใช้มีสิทธิ์ (CoreCenter.MenuUserPsComp) ----------
 // กลุ่มระบบ = เห็นทุกบริษัท / ไม่มีกลุ่ม หรือกลุ่มที่ไม่ได้กำหนดสิทธิ์บริษัท = ไม่เห็นบริษัทเลย
 app.get('/api/companies', requireLogin, async (req, res) => {
   const idPs = req.idPs;
 
   try {
+    const access = await getUserAccess(idPs);
     const pool = await poolPromise;
-    const systemResult = await pool.request()
-      .input('idPs', sql.Int, idPs)
-      .query(
-        `SELECT TOP 1 1 AS isSystem
-         FROM WIMWebUserGroupMember m
-         JOIN WIMWebUserGroup g ON g.idGroup = m.idGroup
-         WHERE m.idPs = @idPs AND m.stDel IS NULL AND g.stDel IS NULL AND g.stSystem = 1`
-      );
-
-    if (systemResult.recordset.length > 0) {
-      const all = await pool.request().query(
-        `SELECT CompName AS name, idComp AS id
-         FROM PchInvAndProject.dbo.dCompany
-         WHERE stDel IS NULL AND CompName IS NOT NULL
-         ORDER BY CompName`
-      );
-      return res.json({ success: true, data: all.recordset });
-    }
-
-    const result = await pool.request()
-      .input('idPs', sql.Int, idPs)
-      .query(
-        `SELECT DISTINCT c.CompName AS name, c.idComp AS id
-         FROM WIMWebUserGroupMember m
-         JOIN WIMWebUserGroup g ON g.idGroup = m.idGroup
-         JOIN WIMWebGroupCompPer p ON p.idGroup = g.idGroup
-         JOIN PchInvAndProject.dbo.dCompany c ON c.idComp = p.idComp
-         WHERE m.idPs = @idPs AND m.stDel IS NULL
-           AND g.stDel IS NULL AND ISNULL(g.stSystem, 0) = 0
-           AND p.stAllow = 1 AND p.stDel IS NULL
-           AND c.stDel IS NULL AND c.CompName IS NOT NULL
-         ORDER BY c.CompName`
-      );
+    const request = pool.request();
+    const result = await request.query(
+      `SELECT CompName AS name, idComp AS id
+       FROM PchInvAndProject.dbo.dCompany
+       WHERE stDel IS NULL AND CompName IS NOT NULL ${compFilter(access, request, 'idComp')}
+       ORDER BY CompName`
+    );
     res.json({ success: true, data: result.recordset });
   } catch (err) {
     console.error('Companies error:', err);
@@ -1873,10 +1877,12 @@ app.get('/api/permissions/menus', requireMenu(MENU_ADMIN), async (req, res) => {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(
-      `SELECT idMenu, MenuCode, MenuName, MenuUrl, idParentMenu, SortOrder, CAST(ISNULL(stWip, 0) AS bit) AS stWip
-       FROM WIMWebMenu
-       WHERE stDel IS NULL
-       ORDER BY SortOrder, idMenu`
+      // ชื่อเมนูอ่านจากกลาง (แถวหัวข้อไม่มีรหัสกลาง ใช้ชื่อฝั่งเรา)
+      `SELECT w.idMenu, w.MenuCode, ISNULL(d.MenuName, w.MenuName) AS MenuName, w.MenuUrl, w.idParentMenu, w.SortOrder, CAST(ISNULL(w.stWip, 0) AS bit) AS stWip
+       FROM WIMWebMenu w
+       LEFT JOIN CoreCenter.dbo.MenuData d ON d.MenuCode = w.CoreMenuCode AND d.MenuSys = '${PERM_SYS}'
+       WHERE w.stDel IS NULL
+       ORDER BY w.SortOrder, w.idMenu`
     );
     res.json({ success: true, data: result.recordset });
   } catch (err) {
@@ -1889,11 +1895,13 @@ app.get('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(
-      `SELECT g.idGroup, g.GroupName, g.stSystem,
-              (SELECT COUNT(*) FROM WIMWebUserGroupMember m WHERE m.idGroup = g.idGroup AND m.stDel IS NULL) AS memberCount
-       FROM WIMWebUserGroup g
-       WHERE g.stDel IS NULL
-       ORDER BY g.stSystem DESC, g.GroupName`
+      // idGroup ใน API นี้ = CoreCenter.MenuUser.idUser (หน้าเว็บใช้ชื่อเดิม)
+      `SELECT u.idUser AS idGroup, u.UserName AS GroupName, CAST(ISNULL(s.stSystem, 0) AS bit) AS stSystem,
+              (SELECT COUNT(DISTINCT p.idPs) FROM CoreCenter.dbo.MenuUserPs p WHERE p.idUser = u.idUser) AS memberCount
+       FROM CoreCenter.dbo.MenuUser u
+       LEFT JOIN WIMWebGroupSet s ON s.idUser = u.idUser
+       WHERE u.MenuSys = '${PERM_SYS}'
+       ORDER BY stSystem DESC, u.UserName`
     );
     res.json({ success: true, data: result.recordset });
   } catch (err) {
@@ -1904,19 +1912,30 @@ app.get('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
 
 // ---------- บันทึกประวัติการเปลี่ยนสิทธิ์ (WIMWebPermLog) — ใคร/เมื่อไร/ย้ายจากกลุ่มไหน/เมนู-บริษัทที่เพิ่ม-เอาออก ----------
 // conn = pool หรือ transaction (ส่ง transaction มาเพื่อให้ log บันทึกพร้อมกับการแก้สิทธิ์)
-async function writePermLog(conn, req, { actionType, idGroup = null, idGroupOld = null, idPsTarget = null, added = null, removed = null }) {
+// idUser / idUserOld = CoreCenter.MenuUser.idUser (แถวเก่าก่อนย้ายไปกลางใช้ idGroup / idGroupOld)
+async function writePermLog(conn, req, { actionType, idUser = null, idUserOld = null, idPsTarget = null, added = null, removed = null }) {
   await new sql.Request(conn)
     .input('actionType', sql.NVarChar(30), actionType)
-    .input('idGroup', sql.Int, idGroup)
-    .input('idGroupOld', sql.Int, idGroupOld)
+    .input('idUser', sql.Int, idUser)
+    .input('idUserOld', sql.Int, idUserOld)
     .input('idPsTarget', sql.Int, idPsTarget)
     .input('added', sql.NVarChar(sql.MAX), added && added.length ? added.join(',') : null)
     .input('removed', sql.NVarChar(sql.MAX), removed && removed.length ? removed.join(',') : null)
     .input('idPsAction', sql.Int, req.idPs || null)
     .input('ip', sql.VarChar(45), (req.ip || '').slice(0, 45) || null)
-    .query(`INSERT INTO WIMWebPermLog (ActionType, idGroup, idGroupOld, idPsTarget, Added, Removed, idPsAction, IpAddress)
-            VALUES (@actionType, @idGroup, @idGroupOld, @idPsTarget, @added, @removed, @idPsAction, @ip)`);
+    .query(`INSERT INTO WIMWebPermLog (ActionType, idUser, idUserOld, idPsTarget, Added, Removed, idPsAction, IpAddress)
+            VALUES (@actionType, @idUser, @idUserOld, @idPsTarget, @added, @removed, @idPsAction, @ip)`);
 }
+
+// กลุ่มต้องเป็นของ WEB_WIM เท่านั้น — กันส่ง idUser ของระบบอื่นมาแก้ตารางกลาง
+async function isPermGroup(conn, idUser) {
+  const r = await new sql.Request(conn)
+    .input('idUser', sql.Int, idUser)
+    .input('sys', sql.VarChar(255), PERM_SYS)
+    .query('SELECT 1 AS ok FROM CoreCenter.dbo.MenuUser WHERE idUser = @idUser AND MenuSys = @sys');
+  return r.recordset.length > 0;
+}
+const GROUP_NOT_FOUND = { success: false, message: 'ไม่พบกลุ่มผู้ใช้งานในระบบนี้' };
 
 // เทียบชุด id เดิมกับชุดใหม่ → { added, removed } (เรียงตามเลข)
 function diffIds(oldIds, newIds) {
@@ -1936,11 +1955,12 @@ app.post('/api/usergroups', requireMenu(MENU_ADMIN), async (req, res) => {
     const pool = await poolPromise;
     const result = await pool.request()
       .input('groupName', sql.NVarChar, groupName.trim())
-      .query(`INSERT INTO WIMWebUserGroup (GroupName) OUTPUT INSERTED.idGroup VALUES (@groupName)`);
-    const newIdGroup = result.recordset[0].idGroup;
-    try { await writePermLog(pool, req, { actionType: 'GROUP_CREATE', idGroup: newIdGroup }); }
+      .input('sys', sql.VarChar(255), PERM_SYS)
+      .query('INSERT INTO CoreCenter.dbo.MenuUser (UserName, MenuSys) OUTPUT INSERTED.idUser VALUES (@groupName, @sys)');
+    const idUser = result.recordset[0].idUser;
+    try { await writePermLog(pool, req, { actionType: 'GROUP_CREATE', idUser }); }
     catch (e) { console.error('Perm log (GROUP_CREATE) error:', e); }
-    res.json({ success: true, idGroup: newIdGroup });
+    res.json({ success: true, idGroup: idUser });
   } catch (err) {
     console.error('Usergroups create error:', err);
     res.status(500).json({ success: false, message: 'สร้างกลุ่มไม่สำเร็จ', detail: err.message });
@@ -1956,10 +1976,11 @@ app.get('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req,
     const result = await pool.request()
       .input('idGroup', sql.Int, idGroup)
       .query(
-        `SELECT m.idPs,v.PsName, v.PositionName, v.CompName, v.CompCode
-         FROM WIMWebUserGroupMember m
+        `SELECT DISTINCT m.idPs, v.PsName, v.PositionName, v.CompName, v.CompCode
+         FROM CoreCenter.dbo.MenuUserPs m
+         JOIN CoreCenter.dbo.MenuUser u ON u.idUser = m.idUser AND u.MenuSys = '${PERM_SYS}'
          JOIN devsk.vPersonxSelect v ON m.idPs = v.idPs
-         WHERE m.idGroup = @idGroup AND m.stDel IS NULL
+         WHERE m.idUser = @idGroup
          ORDER BY v.PsName`
       );
     res.json({ success: true, data: result.recordset });
@@ -1992,7 +2013,7 @@ app.get('/api/usergroups/available-users', requireMenu([MENU_ADMIN, 'urs_request
 
 app.post('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req, res) => {
   const idGroup = parseInt(req.params.idGroup, 10);
-  const { idPs } = req.body;
+  const idPs = parseInt(req.body.idPs, 10);
   if (!idGroup || !idPs) return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน' });
 
   let transaction;
@@ -2001,25 +2022,52 @@ app.post('/api/usergroups/:idGroup/members', requireMenu(MENU_ADMIN), async (req
     transaction = new sql.Transaction(pool);
     await transaction.begin();
 
-    // กลุ่มเดิมของผู้ใช้ (ไว้บันทึกว่าย้ายมาจากกลุ่มไหน)
+    if (!await isPermGroup(transaction, idGroup)) {
+      await transaction.rollback();
+      return res.status(404).json(GROUP_NOT_FOUND);
+    }
+
+    // กลุ่มเดิมของผู้ใช้ เฉพาะ WEB_WIM (ระบบอื่นต้องไม่โดน)
     const oldRs = await new sql.Request(transaction)
       .input('idPs', sql.Int, idPs)
-      .query('SELECT TOP 1 idGroup FROM WIMWebUserGroupMember WHERE idPs = @idPs AND stDel IS NULL ORDER BY idMember DESC');
-    const idGroupOld = oldRs.recordset.length ? oldRs.recordset[0].idGroup : null;
+      .input('sys', sql.VarChar(255), PERM_SYS)
+      .query(`SELECT DISTINCT p.idUser FROM CoreCenter.dbo.MenuUserPs p
+              JOIN CoreCenter.dbo.MenuUser u ON u.idUser = p.idUser AND u.MenuSys = @sys
+              WHERE p.idPs = @idPs`);
+    const oldGroups = oldRs.recordset.map(r => r.idUser);
+    const others = oldGroups.filter(g => g !== idGroup);
+    const alreadyIn = oldGroups.includes(idGroup);
 
-    await new sql.Request(transaction)
-      .input('idPs', sql.Int, idPs)
-      .query('DELETE FROM WIMWebUserGroupMember WHERE idPs = @idPs');
+    // 1 คน 1 กลุ่ม: ออกจากกลุ่มอื่นของ WEB_WIM พร้อมสิทธิ์บริษัทของกลุ่มนั้น
+    for (const other of others) {
+      for (const table of ['MenuUserPsComp', 'MenuUserPs']) {
+        await new sql.Request(transaction)
+          .input('idPs', sql.Int, idPs)
+          .input('idUser', sql.Int, other)
+          .query(`DELETE FROM CoreCenter.dbo.${table} WHERE idPs = @idPs AND idUser = @idUser`);
+      }
+    }
 
-    await new sql.Request(transaction)
-      .input('idPs', sql.Int, idPs)
-      .input('idGroup', sql.Int, idGroup)
-      .query('INSERT INTO WIMWebUserGroupMember (idPs, idGroup) VALUES (@idPs, @idGroup)');
+    if (!alreadyIn) {
+      await new sql.Request(transaction)
+        .input('idPs', sql.Int, idPs)
+        .input('idUser', sql.Int, idGroup)
+        .query('INSERT INTO CoreCenter.dbo.MenuUserPs (idUser, idPs) VALUES (@idUser, @idPs)');
+      // สมาชิกใหม่ได้ชุดบริษัทของกลุ่ม
+      await new sql.Request(transaction)
+        .input('idPs', sql.Int, idPs)
+        .input('idUser', sql.Int, idGroup)
+        .query(`INSERT INTO CoreCenter.dbo.MenuUserPsComp (idUser, idPs, idComp)
+                SELECT DISTINCT @idUser, @idPs, c.idComp FROM WIMWebGroupCompPer c
+                WHERE c.idUser = @idUser AND c.stAllow = 1 AND c.stDel IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM CoreCenter.dbo.MenuUserPsComp x
+                                  WHERE x.idUser = @idUser AND x.idPs = @idPs AND x.idComp = c.idComp)`);
+    }
 
-    if (idGroupOld !== idGroup) {
+    if (others.length || !alreadyIn) {
       await writePermLog(transaction, req, {
-        actionType: idGroupOld ? 'MEMBER_MOVE' : 'MEMBER_ADD',
-        idGroup, idGroupOld, idPsTarget: parseInt(idPs, 10)
+        actionType: others.length ? 'MEMBER_MOVE' : 'MEMBER_ADD',
+        idUser: idGroup, idUserOld: others.length ? others[0] : null, idPsTarget: idPs
       });
     }
 
@@ -2043,12 +2091,20 @@ app.delete('/api/usergroups/:idGroup/members/:idPs', requireMenu(MENU_ADMIN), as
     const pool = await poolPromise;
     transaction = new sql.Transaction(pool);
     await transaction.begin();
+    if (!await isPermGroup(transaction, idGroup)) {
+      await transaction.rollback();
+      return res.status(404).json(GROUP_NOT_FOUND);
+    }
+    await new sql.Request(transaction)
+      .input('idPs', sql.Int, idPs)
+      .input('idUser', sql.Int, idGroup)
+      .query('DELETE FROM CoreCenter.dbo.MenuUserPsComp WHERE idPs = @idPs AND idUser = @idUser');
     const del = await new sql.Request(transaction)
       .input('idPs', sql.Int, idPs)
-      .input('idGroup', sql.Int, idGroup)
-      .query('DELETE FROM WIMWebUserGroupMember WHERE idPs = @idPs AND idGroup = @idGroup');
+      .input('idUser', sql.Int, idGroup)
+      .query('DELETE FROM CoreCenter.dbo.MenuUserPs WHERE idPs = @idPs AND idUser = @idUser');
     if (del.rowsAffected[0] > 0) {
-      await writePermLog(transaction, req, { actionType: 'MEMBER_REMOVE', idGroup, idPsTarget: idPs });
+      await writePermLog(transaction, req, { actionType: 'MEMBER_REMOVE', idUser: idGroup, idPsTarget: idPs });
     }
     await transaction.commit();
     clearAccessCache();
@@ -2068,7 +2124,11 @@ app.get('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async (
     const pool = await poolPromise;
     const result = await pool.request()
       .input('idGroup', sql.Int, idGroup)
-      .query(`SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL`);
+      .query(`SELECT DISTINCT w.idMenu
+              FROM CoreCenter.dbo.MenuUserSet s
+              JOIN CoreCenter.dbo.MenuUser u ON u.idUser = s.idUser AND u.MenuSys = '${PERM_SYS}'
+              JOIN WIMWebMenu w ON w.CoreMenuCode = s.MenuCode AND w.stDel IS NULL
+              WHERE s.idUser = @idGroup`);
     res.json({ success: true, data: result.recordset.map(r => r.idMenu) });
   } catch (err) {
     console.error('Get group permissions error:', err);
@@ -2079,7 +2139,6 @@ app.get('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async (
 app.post('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async (req, res) => {
   const idGroup = parseInt(req.params.idGroup, 10);
   const { menuIds } = req.body;
-  const idPsCreate = req.idPs;
   if (!idGroup) return res.status(400).json({ success: false, message: 'idGroup ไม่ถูกต้อง' });
   if (!Array.isArray(menuIds)) return res.status(400).json({ success: false, message: 'รูปแบบข้อมูลไม่ถูกต้อง' });
 
@@ -2089,36 +2148,42 @@ app.post('/api/usergroups/:idGroup/permissions', requireMenu(MENU_ADMIN), async 
     transaction = new sql.Transaction(pool);
     await transaction.begin();
 
-    const oldMenus = (await new sql.Request(transaction)
-      .input('idGroup', sql.Int, idGroup)
-      .query('SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL'))
-      .recordset.map(r => r.idMenu);
-
-    await new sql.Request(transaction)
-      .input('idGroup', sql.Int, idGroup)
-      .query('DELETE FROM WIMWebMenuPermission WHERE idGroup = @idGroup');
-
-    for (const idMenu of menuIds) {
-      const req2 = new sql.Request(transaction)
-        .input('idGroup', sql.Int, idGroup)
-        .input('idMenu', sql.Int, idMenu);
-      if (idPsCreate) req2.input('idPsCreate', sql.Int, idPsCreate);
-      // เมนู On process (stWip = 1) ให้สิทธิ์ไม่ได้ — ข้ามไป (กันกรณีส่งมาตรงๆ ไม่ผ่านหน้ากำหนดสิทธิ์)
-      await req2.query(
-        `INSERT INTO WIMWebMenuPermission (idGroup, idMenu, stAllow${idPsCreate ? ', idPsCreate' : ''})
-         SELECT @idGroup, idMenu, 1${idPsCreate ? ', @idPsCreate' : ''}
-         FROM WIMWebMenu WHERE idMenu = @idMenu AND ISNULL(stWip, 0) = 0`
-      );
+    if (!await isPermGroup(transaction, idGroup)) {
+      await transaction.rollback();
+      return res.status(404).json(GROUP_NOT_FOUND);
     }
 
-    // เทียบกับที่บันทึกจริง (เมนู On process ถูกข้ามไป) — บันทึก log เฉพาะเมื่อมีการเปลี่ยน
-    const newMenus = (await new sql.Request(transaction)
-      .input('idGroup', sql.Int, idGroup)
-      .query('SELECT idMenu FROM WIMWebMenuPermission WHERE idGroup = @idGroup AND stAllow = 1'))
-      .recordset.map(r => r.idMenu);
+    // แก้เฉพาะเมนูที่รู้จัก (มีรหัสกลางใน WIMWebMenu) และเฉพาะส่วนที่เปลี่ยน — แถวอื่นในกลางไม่ถูกแตะ
+    const menus = (await new sql.Request(transaction)
+      .query('SELECT idMenu, CoreMenuCode, CAST(ISNULL(stWip, 0) AS int) AS stWip FROM WIMWebMenu WHERE stDel IS NULL AND CoreMenuCode IS NOT NULL'))
+      .recordset;
+    const oldCodes = new Set((await new sql.Request(transaction)
+      .input('idUser', sql.Int, idGroup)
+      .query('SELECT MenuCode FROM CoreCenter.dbo.MenuUserSet WHERE idUser = @idUser'))
+      .recordset.map(r => r.MenuCode));
+    const oldMenus = menus.filter(m => oldCodes.has(m.CoreMenuCode)).map(m => m.idMenu);
+    // เมนู On process (stWip = 1) ให้สิทธิ์ไม่ได้ — ข้ามไป (กันกรณีส่งมาตรงๆ ไม่ผ่านหน้ากำหนดสิทธิ์)
+    const wanted = new Set(menuIds.map(Number));
+    const newMenus = menus.filter(m => wanted.has(m.idMenu) && !m.stWip).map(m => m.idMenu);
     const menuDiff = diffIds(oldMenus, newMenus);
+    const codeOf = id => menus.find(m => m.idMenu === id).CoreMenuCode;
+
+    for (const id of menuDiff.removed) {
+      await new sql.Request(transaction)
+        .input('idUser', sql.Int, idGroup)
+        .input('code', sql.VarChar(255), codeOf(id))
+        .query('DELETE FROM CoreCenter.dbo.MenuUserSet WHERE idUser = @idUser AND MenuCode = @code');
+    }
+    for (const id of menuDiff.added) {
+      await new sql.Request(transaction)
+        .input('idUser', sql.Int, idGroup)
+        .input('code', sql.VarChar(255), codeOf(id))
+        .query('INSERT INTO CoreCenter.dbo.MenuUserSet (idUser, MenuCode) VALUES (@idUser, @code)');
+    }
+
+    // บันทึก log เฉพาะเมื่อมีการเปลี่ยน
     if (menuDiff.added.length || menuDiff.removed.length) {
-      await writePermLog(transaction, req, { actionType: 'MENU_SET', idGroup, ...menuDiff });
+      await writePermLog(transaction, req, { actionType: 'MENU_SET', idUser: idGroup, ...menuDiff });
     }
 
     await transaction.commit();
@@ -2147,7 +2212,7 @@ app.get('/api/permissions/my', requireLogin, async (req, res) => {
 // ==================================================================
 
 // ---------- บริษัทในระบบคำร้องขอเมล็ดพันธุ์เร่งด่วน (idComp 2, 3, 4) ----------
-// ส่งครบทุกบริษัท พร้อม allowed = user มีสิทธิ์บริษัทนั้น (WIMWebGroupCompPer / กลุ่มระบบเห็นทุกบริษัท)
+// ส่งครบทุกบริษัท พร้อม allowed = user มีสิทธิ์บริษัทนั้น (CoreCenter.MenuUserPsComp / กลุ่มระบบเห็นทุกบริษัท)
 //   หน้าเว็บ: "บริษัทที่ส่งคำร้องขอ" + รายการคำร้อง = เฉพาะ allowed / "บริษัทต้นทาง" = เลือกได้ทุกบริษัท
 const URS_COMPANY_IDS = [2, 3, 4];
 
@@ -3275,10 +3340,18 @@ app.get('/api/permissions/companies', requireMenu(MENU_ADMIN), async (req, res) 
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(
-      `SELECT idComp, CompName
-       FROM PchInvAndProject.dbo.dCompany
-       WHERE stDel IS NULL
-       ORDER BY CompName`
+      // idCompGroup / CompGroupName = กลุ่มบริษัทจาก dGroupCompMap (NULL = ยังไม่จัดกลุ่ม แต่ยังต้องแสดงให้เลือกได้)
+      `SELECT c.idComp, c.CompName, g.idCompGroup, g.CompGroupName
+       FROM PchInvAndProject.dbo.dCompany c
+       OUTER APPLY (
+         SELECT TOP 1 p.id AS idCompGroup, p.groupName AS CompGroupName
+         FROM PchInvAndProject.devsk.dGroupCompMap m
+         JOIN PchInvAndProject.devsk.dGroupCompMap p ON p.id = m.parentid AND p.parentid = 0 AND p.stActive = 1
+         WHERE m.idcomp = c.idComp AND m.stActive = 1
+         ORDER BY m.id
+       ) g
+       WHERE c.stDel IS NULL
+       ORDER BY c.CompName`
     );
     res.json({ success: true, data: result.recordset });
   } catch (err) {
@@ -3296,7 +3369,11 @@ app.get('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN),
     const pool = await poolPromise;
     const result = await pool.request()
       .input('idGroup', sql.Int, idGroup)
-      .query(`SELECT idComp FROM WIMWebGroupCompPer WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL`);
+      // ชุดบริษัทระดับกลุ่มเก็บฝั่งเรา (ระบบกลางเก็บรายคน)
+      .query(`SELECT c.idComp
+              FROM WIMWebGroupCompPer c
+              JOIN CoreCenter.dbo.MenuUser u ON u.idUser = c.idUser AND u.MenuSys = '${PERM_SYS}'
+              WHERE c.idUser = @idGroup AND c.stAllow = 1 AND c.stDel IS NULL`);
     res.json({ success: true, data: result.recordset.map(r => r.idComp) });
   } catch (err) {
     console.error('Get group company permissions error:', err);
@@ -3304,7 +3381,7 @@ app.get('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN),
   }
 });
 
-// ---------- บันทึกสิทธิ์บริษัทของกลุ่ม (แทนที่ชุดสิทธิ์เดิมทั้งหมดด้วยชุดใหม่ที่ส่งมา) ----------
+// ---------- บันทึกสิทธิ์บริษัทของกลุ่ม: แก้ชุดของกลุ่ม แล้วกระจายเฉพาะส่วนที่เปลี่ยนให้สมาชิก (บริษัทที่เพิ่มให้รายคนจากระบบกลางไม่หาย) ----------
 app.post('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN), async (req, res) => {
   const idGroup = parseInt(req.params.idGroup, 10);
   const { compIds } = req.body; // compIds = array ของ idComp ที่อนุญาต
@@ -3318,29 +3395,68 @@ app.post('/api/usergroups/:idGroup/company-permissions', requireMenu(MENU_ADMIN)
     transaction = new sql.Transaction(pool);
     await transaction.begin();
 
+    const groupRs = await new sql.Request(transaction)
+      .input('idUser', sql.Int, idGroup)
+      .input('sys', sql.VarChar(255), PERM_SYS)
+      .query('SELECT UserName FROM CoreCenter.dbo.MenuUser WHERE idUser = @idUser AND MenuSys = @sys');
+    if (!groupRs.recordset.length) {
+      await transaction.rollback();
+      return res.status(404).json(GROUP_NOT_FOUND);
+    }
+
+    // WIMWebGroupCompPer ผูก FK กับ WIMWebUserGroup — กลุ่มที่เกิดหลังย้ายไปกลางยังไม่มีแถวคู่ ให้สร้างตอนนี้
+    let localRs = await new sql.Request(transaction)
+      .input('idUser', sql.Int, idGroup)
+      .query('SELECT TOP 1 idGroup FROM WIMWebUserGroup WHERE idUser = @idUser');
+    if (!localRs.recordset.length) {
+      localRs = await new sql.Request(transaction)
+        .input('idUser', sql.Int, idGroup)
+        .input('name', sql.NVarChar(200), groupRs.recordset[0].UserName)
+        .query('INSERT INTO WIMWebUserGroup (GroupName, idUser) OUTPUT INSERTED.idGroup VALUES (@name, @idUser)');
+    }
+    const idLocal = localRs.recordset[0].idGroup;
+
     const oldComps = (await new sql.Request(transaction)
-      .input('idGroup', sql.Int, idGroup)
-      .query('SELECT idComp FROM WIMWebGroupCompPer WHERE idGroup = @idGroup AND stAllow = 1 AND stDel IS NULL'))
+      .input('idUser', sql.Int, idGroup)
+      .query('SELECT idComp FROM WIMWebGroupCompPer WHERE idUser = @idUser AND stAllow = 1 AND stDel IS NULL'))
       .recordset.map(r => r.idComp);
 
     await new sql.Request(transaction)
-      .input('idGroup', sql.Int, idGroup)
-      .query('DELETE FROM WIMWebGroupCompPer WHERE idGroup = @idGroup');
+      .input('idLocal', sql.Int, idLocal)
+      .query('DELETE FROM WIMWebGroupCompPer WHERE idGroup = @idLocal');
 
-    for (const idComp of compIds) {
+    for (const idComp of new Set(compIds.map(Number))) {
       const req2 = new sql.Request(transaction)
-        .input('idGroup', sql.Int, idGroup)
+        .input('idLocal', sql.Int, idLocal)
+        .input('idUser', sql.Int, idGroup)
         .input('idComp', sql.Int, idComp);
       if (idPsCreate) req2.input('idPsCreate', sql.Int, idPsCreate);
       await req2.query(
-        `INSERT INTO WIMWebGroupCompPer (idGroup, idComp, stAllow${idPsCreate ? ', idPsCreate' : ''})
-         VALUES (@idGroup, @idComp, 1${idPsCreate ? ', @idPsCreate' : ''})`
+        `INSERT INTO WIMWebGroupCompPer (idGroup, idUser, idComp, stAllow${idPsCreate ? ', idPsCreate' : ''})
+         VALUES (@idLocal, @idUser, @idComp, 1${idPsCreate ? ', @idPsCreate' : ''})`
       );
     }
 
     const compDiff = diffIds(oldComps, compIds);
+    for (const idComp of compDiff.removed) {
+      await new sql.Request(transaction)
+        .input('idUser', sql.Int, idGroup)
+        .input('idComp', sql.Int, idComp)
+        .query('DELETE FROM CoreCenter.dbo.MenuUserPsComp WHERE idUser = @idUser AND idComp = @idComp');
+    }
+    for (const idComp of compDiff.added) {
+      await new sql.Request(transaction)
+        .input('idUser', sql.Int, idGroup)
+        .input('idComp', sql.Int, idComp)
+        .query(`INSERT INTO CoreCenter.dbo.MenuUserPsComp (idUser, idPs, idComp)
+                SELECT DISTINCT p.idUser, p.idPs, @idComp FROM CoreCenter.dbo.MenuUserPs p
+                WHERE p.idUser = @idUser
+                  AND NOT EXISTS (SELECT 1 FROM CoreCenter.dbo.MenuUserPsComp x
+                                  WHERE x.idUser = p.idUser AND x.idPs = p.idPs AND x.idComp = @idComp)`);
+    }
+
     if (compDiff.added.length || compDiff.removed.length) {
-      await writePermLog(transaction, req, { actionType: 'COMP_SET', idGroup, ...compDiff });
+      await writePermLog(transaction, req, { actionType: 'COMP_SET', idUser: idGroup, ...compDiff });
     }
 
     await transaction.commit();
@@ -6563,6 +6679,264 @@ app.get('/api/stock-adjust-report/trend', requireMenu(MENU_ADJ_REPORT, { company
   }
 });
 
+// ==================================================================
+// รายงานสถิติการเบิกสินค้า/วัสดุ (/cut-stock-report) — ยอดเบิกรายเดือน ย้อนหลัง 5 ปี (จำนวนอย่างเดียว ยังไม่มีมูลค่า)
+//   แหล่งข้อมูล: WimCutStockDtSub.AmountCutChange (หน่วยหลักของสินค้า dInventoryMain.idUnit) — ไม่รวมเอกสารที่ปฏิเสธ / รายการที่ยกเลิก
+//   Process: devsk.WimProcessRec SystemId = 2 (ประเภทการเบิก) — ค่าเริ่มต้นไม่นับ "การโอนย้ายคลังออก" (9) เพราะของไม่ได้ลดลงจริง
+//   แท็บ: seed = กลุ่ม 1/42/44/45/63 · fg = กลุ่ม 2 · pack / coat = สินค้ากลุ่ม 4 ที่ประเภทวัสดุโรงงาน (dFactoryInvType) ถูกจัดแท็บใน WimCutStockRptTab
+//   สินค้า → ประเภท: dInventoryMain.idInvPOP = dFactoryInv.idInv_POP (เลือก idFInvType น้อยสุดต่อสินค้า กันยอดซ้ำ)
+// ==================================================================
+// ส่ง JSON แบบบีบอัด gzip (zlib ของ Node — ไม่ต้องติดตั้งแพ็กเกจเพิ่ม): ข้อมูลรายงานแท็บ "ทั้งหมด" ~5 MB → ~0.8 MB
+//   เดิมส่งไม่บีบอัดออกจากเซิร์ฟเวอร์ (Cloudflare บีบให้ทีหลัง) ทำให้ช่วงเซิร์ฟเวอร์ → Cloudflare ช้า (ดาวน์โหลด ~23 วินาที ทั้งที่เน็ตผู้ใช้ 29 Mbps)
+//   เฉพาะเมื่อเบราว์เซอร์ / Cloudflare บอกว่ารับ gzip และข้อมูลใหญ่กว่า 8 KB · เนื้อข้อมูลเหมือนเดิมทุกประการ · ผิดพลาดตอนบีบ → ส่งแบบไม่บีบอัดตามเดิม
+const zlib = require('zlib');
+function issueSendJson(req, res, obj) {
+  const body = Buffer.from(JSON.stringify(obj), 'utf8');
+  const plain = () => res.type('application/json; charset=utf-8').send(body);
+  if (body.length < 8192 || !/\bgzip\b/i.test(String(req.headers['accept-encoding'] || ''))) return plain();
+  zlib.gzip(body, { level: 5 }, (err, gz) => {
+    if (err) return plain();
+    res.set({ 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' });
+    res.type('application/json; charset=utf-8').send(gz);
+  });
+}
+const MENU_ISSUE_RPT = 'cut_stock_report';
+const MENU_ISSUE_SETUP = 'cut_stock_report_setup';
+const ISSUE_SEED_GROUPS = [1, 42, 44, 45, 63];
+const ISSUE_FG_GROUP = 2;
+const ISSUE_PACK_GROUP = 4;
+const ISSUE_DEFAULT_OFF_PROC = [9];
+// การขอเบิก (8): เบิกผ่านใบขอเบิก WimRequestCutMt เมื่อไม่มี Process หลักรองรับ — แยกย่อยตามหัวข้อการเบิก WimProcessRequest (QA / RD / PT / SP / SU / SA / TT / EM)
+//   ใบเก่าที่ไม่ได้ระบุหัวข้อ → ใช้หัวข้อของคำนิยาม (WimProcessNote.idProReq) / ยังไม่มีอีก = 0 "ไม่ระบุหัวข้อการเบิก"
+const ISSUE_REQ_PROC = 8;
+// การเบิกเพื่อผลิตสินค้า (5) ของบริษัท AV (idComp 4): แยกตามรหัส Job ผลิต = WimWaitCutMt.JBNo (= PkJobMt.stTypeJ) 1 = T · 2 = E · 3 = V (ตัวอักษรหน้าเลขที่ Job)
+//   ใบที่ไม่มีรหัส Job (JBNo 0 — เอกสารเก่าก่อนกลางปี 2565) ไม่นับ เหมือนเงื่อนไข "รหัส Job ผลิต" ใน WIM ERP · บริษัทอื่นยังไม่ใช้รหัสนี้ → นับตามเดิม ไม่กรอง
+const ISSUE_PROD_PROC = 5;
+const ISSUE_JOB_COMP = 4;
+const ISSUE_JOBS = [{ id: 1, code: 'T' }, { id: 2, code: 'E' }, { id: 3, code: 'V' }];
+const ISSUE_TABS = ['seed', 'pack', 'fg', 'coat', 'all'];
+const issueIntList = (v) => [...new Set(String(v || '').split(',').map(s => parseInt(s, 10)).filter(Number.isInteger))].slice(0, 200);
+
+app.get(['/cut-stock-report', '/cut-stock-report.html'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'cut-stock-report.html')));
+
+// ---------- แคชข้อมูลเบิกสรุปในหน่วยความจำ ----------
+// ตารางเบิก (WimCutStock*) ~6 แสนแถว แต่การอ่านครั้งแรกตอนข้อมูลยังไม่อยู่ในหน่วยความจำของ SQL ช้ามาก (13–80 วินาที เกินเวลาตัดสาย 30 วินาที → "โหลดไม่สำเร็จ")
+// จึงอ่าน "ยอดเบิกสรุปต่อ สินค้า × บริษัท × Process × เดือน" (~1.3 แสนแถว ~10MB) ครั้งเดียว เก็บไว้ในหน่วยความจำ แล้วให้ทุกแท็บ / ตัวกรอง / รายการบริษัท / Process คำนวณจากแคชนี้
+//   - เริ่มโหลดล่วงหน้าตอนเปิดเซิร์ฟเวอร์ / อายุแคช ISSUE_CACHE_TTL เกินแล้วคำขอถัดไปได้ข้อมูลเดิมทันที และโหลดใหม่เบื้องหลัง
+//   - ปุ่ม Refresh ในหน้า = fresh=1 บังคับโหลดใหม่ (รอจนเสร็จ) / จัดแท็บใหม่ (setup) → โหลดตารางจัดแท็บใหม่เท่านั้น ไม่ต้องอ่านตารางเบิกซ้ำ
+const ISSUE_USAGE_FROM = '2019-01-01';
+const ISSUE_CACHE_TTL = 10 * 60 * 1000;
+const issueFact = { rows: null, items: null, typeTab: null, at: 0, loading: null };
+let issueLongPool = null;   // pool แยก requestTimeout ยาว (โหลดแคชตอนข้อมูลยังเย็น) — ไม่กระทบ pool หลักที่ตัดสาย 30 วินาที
+const issueGetLongPool = () => issueLongPool || (issueLongPool = new sql.ConnectionPool({ ...dbConfig, requestTimeout: 180000, pool: { max: 2, min: 0, idleTimeoutMillis: 30000 } }).connect());
+async function issueLoadTypeTab(pool) {
+  const r = await pool.request().query('SELECT idFInvType, TabCode FROM devsk.WimCutStockRptTab WITH (NOLOCK)');
+  return new Map(r.recordset.map(x => [x.idFInvType, x.TabCode]));
+}
+function issueLoadFact() {
+  if (issueFact.loading) return issueFact.loading;
+  issueFact.loading = (async () => {
+    const t0 = Date.now();
+    const pool = await issueGetLongPool();
+    const r = await pool.request().input('d', sql.Date, ISSUE_USAGE_FROM).query(
+      // สแกนตารางเบิกครั้งเดียว (แถวของการขอเบิกแยกตาม idWaitCutDt) แล้วค่อยเชื่อมใบขอเบิก — เร็วกว่า JOIN ใบขอเบิกตอนสแกน ~4 เท่า
+      `IF OBJECT_ID('tempdb..#f') IS NOT NULL DROP TABLE #f;
+       SELECT dt.idInvMain AS i, mt.idComp AS c, dt.idProcess AS p, YEAR(mt.DateTs) AS y, MONTH(mt.DateTs) AS m,
+              CASE WHEN dt.idProcess = ${ISSUE_REQ_PROC} OR (dt.idProcess = ${ISSUE_PROD_PROC} AND mt.idComp = ${ISSUE_JOB_COMP}) THEN dt.idWaitCutDt END AS wdt, SUM(sub.AmountCutChange) AS amt
+       INTO #f
+       FROM devsk.WimCutStockDtSub sub WITH (NOLOCK)
+       JOIN devsk.WimCutStockDtMain dt WITH (NOLOCK) ON sub.idCutDtMain = dt.idCutDt
+       JOIN devsk.WimCutStockMt mt WITH (NOLOCK) ON dt.idCutMt = mt.idCutMt
+       WHERE mt.DateTs >= @d AND mt.idPsReject IS NULL AND dt.idPsCancel IS NULL AND dt.idProcess IS NOT NULL
+       GROUP BY dt.idInvMain, mt.idComp, dt.idProcess, YEAR(mt.DateTs), MONTH(mt.DateTs), CASE WHEN dt.idProcess = ${ISSUE_REQ_PROC} OR (dt.idProcess = ${ISSUE_PROD_PROC} AND mt.idComp = ${ISSUE_JOB_COMP}) THEN dt.idWaitCutDt END;
+       SELECT f.i, f.c, f.p, CASE WHEN f.p = ${ISSUE_REQ_PROC} THEN ISNULL(ISNULL(rq.idProReq, TRY_CAST(pn.idProReq AS int)), 0) END AS r,
+              CASE WHEN f.p = ${ISSUE_REQ_PROC} THEN ISNULL(ISNULL(rq.idProcessNote, w.idProcessNote), 0) END AS n,
+              CASE WHEN f.p = ${ISSUE_PROD_PROC} AND f.c = ${ISSUE_JOB_COMP} THEN ISNULL(w.JBNo, 0) END AS j, f.y, f.m, SUM(f.amt) AS amt
+       FROM #f f
+       LEFT JOIN devsk.WimWaitCutDt wd WITH (NOLOCK) ON wd.idWaitCutDt = f.wdt
+       LEFT JOIN devsk.WimWaitCutMt w WITH (NOLOCK) ON w.IdWaitCutMt = wd.idWaitCutMt
+       LEFT JOIN devsk.WimRequestCutMt rq WITH (NOLOCK) ON w.TbName = 'WimRequestCutMt' AND rq.idReq = w.IdMt
+       LEFT JOIN devsk.WimProcessNote pn WITH (NOLOCK) ON pn.idProcessNote = ISNULL(rq.idProcessNote, w.idProcessNote)
+       GROUP BY f.i, f.c, f.p, CASE WHEN f.p = ${ISSUE_REQ_PROC} THEN ISNULL(ISNULL(rq.idProReq, TRY_CAST(pn.idProReq AS int)), 0) END,
+                CASE WHEN f.p = ${ISSUE_REQ_PROC} THEN ISNULL(ISNULL(rq.idProcessNote, w.idProcessNote), 0) END,
+                CASE WHEN f.p = ${ISSUE_PROD_PROC} AND f.c = ${ISSUE_JOB_COMP} THEN ISNULL(w.JBNo, 0) END, f.y, f.m;
+       DROP TABLE #f;
+       -- ประเภทพืช: devsk.vInventorySeed (ครอบคลุมกลุ่ม 1 / 2 / 42) → dbo.dSeed
+       SELECT inv.idInvMain, inv.InvCode, inv.InvName, inv.idInvGroup, g.InvGroupName, inv.idUnit, u.UnitName, ft.idFInvType, ftn.FInvName, sd.SeedName AS CropName
+       FROM devsk.dInventoryMain inv WITH (NOLOCK)
+       LEFT JOIN devsk.dInvGroup g WITH (NOLOCK) ON g.idInvGroup = inv.idInvGroup
+       OUTER APPLY (SELECT TOP 1 vs.idSeed FROM devsk.vInventorySeed vs WITH (NOLOCK) WHERE vs.idInvMain = inv.idInvMain AND vs.idSeed IS NOT NULL) cr
+       LEFT JOIN dbo.dSeed sd WITH (NOLOCK) ON sd.idSeed = cr.idSeed
+       LEFT JOIN devsk.dInvUnit u WITH (NOLOCK) ON u.idUnit = inv.idUnit
+       OUTER APPLY (SELECT TOP 1 f.idFInvType FROM devsk.dFactoryInv f WITH (NOLOCK) WHERE f.idInv_POP = inv.idInvPOP ORDER BY f.idFInvType) ft
+       LEFT JOIN devsk.dFactoryInvType ftn WITH (NOLOCK) ON ftn.idFInvType = ft.idFInvType;
+       SELECT idProReq, LTRIM(RTRIM(ProReqCode)) AS ProReqCode, ProReqNameThai, ProReqNameEng FROM devsk.WimProcessRequest WITH (NOLOCK) ORDER BY idProReq;
+       SELECT idProcessNote, ProcessNoteName FROM devsk.WimProcessNote WITH (NOLOCK);`);
+    issueFact.typeTab = await issueLoadTypeTab(pool);
+    issueFact.notes = new Map(r.recordsets[3].map(x => [x.idProcessNote, String(x.ProcessNoteName || '').replace(/\s+/g, ' ').trim()]));
+    issueFact.reqTypes = r.recordsets[2].map(x => ({ id: x.idProReq, code: x.ProReqCode || '', name: String(x.ProReqNameThai || '').trim(), nameEn: String(x.ProReqNameEng || '').trim() }));
+    issueFact.rows = r.recordsets[0];
+    issueFact.items = new Map(r.recordsets[1].map(x => [x.idInvMain, x]));
+    issueFact.at = Date.now();
+    console.log(`Issue report cache loaded: ${issueFact.rows.length} rows, ${issueFact.items.size} items, ${Date.now() - t0} ms`);
+    return issueFact;
+  })().finally(() => { issueFact.loading = null; });
+  return issueFact.loading;
+}
+async function issueEnsureFact(fresh) {
+  if (!issueFact.rows || fresh) return issueLoadFact();
+  if (Date.now() - issueFact.at > ISSUE_CACHE_TTL) issueLoadFact().catch(err => console.error('Issue report cache refresh error:', err.message));
+  return issueFact;
+}
+// แท็บของสินค้า: กลุ่ม 1/42/44/45/63 = seed · กลุ่ม 2 = fg · กลุ่ม 4 + ประเภทวัสดุที่จัดไว้ PACK / COAT · ที่เหลือ = oth (เห็นเฉพาะแท็บ ทั้งหมด)
+function issueTabOf(inf, typeTab) {
+  const g = inf.idInvGroup;
+  if (ISSUE_SEED_GROUPS.includes(g)) return 'seed';
+  if (g === ISSUE_FG_GROUP) return 'fg';
+  if (g === ISSUE_PACK_GROUP) { const t = typeTab.get(inf.idFInvType); if (t === 'PACK') return 'pack'; if (t === 'COAT') return 'coat'; }
+  return 'oth';
+}
+setTimeout(() => issueLoadFact().catch(err => console.error('Issue report cache preload error:', err.message)), 8000);
+
+app.get('/api/cut-stock-report/meta', requireMenu(MENU_ISSUE_RPT), async (req, res) => {
+  try {
+    const tab = ISSUE_TABS.includes(String(req.query.tab)) ? String(req.query.tab) : 'all';
+    const pool = await poolPromise;
+    const request = pool.request();
+    const compSql = compFilter(req.access, request, 'c.idComp');
+    const [r, f] = await Promise.all([request.query(
+      `SELECT c.idComp, LTRIM(RTRIM(c.CompCode)) AS CompCode, c.CompName FROM PchInvAndProject.dbo.dCompany c WITH (NOLOCK)
+       WHERE c.stDel IS NULL AND c.CompName IS NOT NULL ${compSql} ORDER BY c.CompCode, c.CompName;
+       SELECT Id, ProcessName FROM devsk.WimProcessRec WITH (NOLOCK) WHERE SystemId = 2 ORDER BY Id;`), issueEnsureFact(false)]);
+    // บริษัท / Process ที่มีการเบิกจริงในแท็บนี้ — เฉพาะบริษัทที่ผู้ใช้มีสิทธิ์
+    const allowed = new Set(r.recordsets[0].map(c => c.idComp));
+    const usedComp = new Set(), usedProc = new Set(), usedReq = new Set(), usedJob = new Set();
+    for (const x of f.rows) {
+      if (!allowed.has(x.c)) continue;
+      if (x.p === ISSUE_PROD_PROC && x.c === ISSUE_JOB_COMP && !x.j) continue;   // ไม่มีรหัส Job = ไม่นับ
+      const inf = f.items.get(x.i);
+      if (!inf || (tab !== 'all' && issueTabOf(inf, f.typeTab) !== tab)) continue;
+      usedComp.add(x.c); usedProc.add(x.p);
+      if (x.j) usedJob.add(x.j);
+      if (x.p === ISSUE_REQ_PROC) usedReq.add(x.r || 0);
+    }
+    res.json({ success: true, tab,
+      companies: r.recordsets[0].filter(c => usedComp.has(c.idComp)).map(c => ({ id: c.idComp, code: c.CompCode || c.CompName, name: c.CompName })),
+      processes: r.recordsets[1].filter(p => usedProc.has(p.Id)).map(p => ({ id: p.Id, name: String(p.ProcessName || '').trim(), defaultOn: !ISSUE_DEFAULT_OFF_PROC.includes(p.Id) })),
+      reqTypes: [...f.reqTypes.filter(t => usedReq.has(t.id)), ...(usedReq.has(0) ? [{ id: 0, code: '', name: 'ไม่ระบุหัวข้อการเบิก', nameEn: 'ใบขอเบิกเก่า' }] : [])],
+      jobs: ISSUE_JOBS.filter(j => usedJob.has(j.id)), jobProc: ISSUE_PROD_PROC, jobComp: ISSUE_JOB_COMP,
+      canSetup: hasMenu(req.access, MENU_ISSUE_SETUP) });
+  } catch (err) {
+    console.error('Issue report meta error:', err);
+    res.status(500).json({ success: false, message: 'โหลดข้อมูลตั้งต้นไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// year = ปี ค.ศ. ที่เลือก (ย้อนหลังไปอีก 4 ปี) · comps / procs = รหัสคั่นจุลภาค · reqs = หัวข้อการเบิก · jobs = รหัส Job ผลิต (1 T / 2 E / 3 V) · tab · q (ชื่อ/รหัส) · fresh=1 = โหลดแคชใหม่
+app.get('/api/cut-stock-report/data', requireMenu(MENU_ISSUE_RPT), async (req, res) => {
+  try {
+    const year = scInt(req.query.year), tab = String(req.query.tab || 'seed');
+    if (!year || year < 2000 || year > new Date().getFullYear() + 1) return scFail(res, 400, 'ปีไม่ถูกต้อง');
+    if (!ISSUE_TABS.includes(tab)) return scFail(res, 400, 'แท็บไม่ถูกต้อง');
+    const comps = issueIntList(req.query.comps), procs = issueIntList(req.query.procs);
+    if (!comps.length) return scFail(res, 400, 'กรุณาเลือกบริษัทอย่างน้อย 1 บริษัท');
+    if (!procs.length) return scFail(res, 400, 'กรุณาเลือก Process การเบิกอย่างน้อย 1 รายการ');
+    if (!comps.every(c => hasComp(req.access, c))) return scFail(res, 403, 'ไม่มีสิทธิ์เข้าถึงข้อมูลของบริษัทที่เลือก');
+    const f = await issueEnsureFact(req.query.fresh === '1');
+    const reqSet = req.query.reqs !== undefined ? new Set(issueIntList(req.query.reqs)) : null;
+    const jobSet = req.query.jobs !== undefined ? new Set(issueIntList(req.query.jobs)) : null;   // ไม่ส่ง = ทุกรหัส Job (T / E / V)
+    const compSet = new Set(comps), procSet = new Set(procs), q = String(req.query.q || '').trim().slice(0, 100).toLowerCase();
+    const items = new Map(), procAmt = new Map(), tabCache = new Map(), usedNote = new Set();
+    for (const x of f.rows) {
+      if (x.y > year || x.y < year - 4 || !compSet.has(x.c) || !procSet.has(x.p)) continue;
+      if (x.p === ISSUE_REQ_PROC && reqSet && !reqSet.has(x.r || 0)) continue;
+      if (x.p === ISSUE_PROD_PROC && x.c === ISSUE_JOB_COMP && (!x.j || (jobSet && !jobSet.has(x.j)))) continue;
+      let it = items.get(x.i);
+      if (!it) {
+        if (tabCache.get(x.i) === false) continue;
+        const inf = f.items.get(x.i);
+        const t = inf ? issueTabOf(inf, f.typeTab) : null;
+        if (!inf || (tab !== 'all' && t !== tab) || (q && !(String(inf.InvName || '') + ' ' + String(inf.InvCode || '')).toLowerCase().includes(q))) { tabCache.set(x.i, false); continue; }
+        it = { id: x.i, code: String(inf.InvCode || '').trim(), name: String(inf.InvName || '').trim(), unit: String(inf.UnitName || '').trim(), unitId: inf.idUnit, group: inf.idInvGroup, groupName: String(inf.InvGroupName || '').trim(), crop: inf.CropName ? String(inf.CropName).trim() : '',
+          type: inf.FInvName ? String(inf.FInvName).trim() : '', tab: t, v: new Array(60).fill(0), pb: {}, nb: {}, jb: {} };
+        items.set(x.i, it);
+      }
+      const idx = (year - x.y) * 12 + (x.m - 1);
+      if (idx >= 0 && idx < 60) it.v[idx] += Number(x.amt);
+      const rk = x.p === ISSUE_REQ_PROC ? (x.r || 0) : '';
+      const pk = x.p === ISSUE_REQ_PROC ? 'r' + rk : 'p' + x.p;
+      it.pb[pk] = (it.pb[pk] || 0) + Number(x.amt);
+      const nk = x.p === ISSUE_REQ_PROC ? (x.n || 0) : '';
+      if (x.p === ISSUE_REQ_PROC) { const kk = rk + '.' + nk; it.nb[kk] = (it.nb[kk] || 0) + Number(x.amt); usedNote.add(nk); }
+      // เบิกเพื่อผลิต: แยกตามรหัส Job (AV) / 0 = บริษัทอื่นที่ไม่ใช้รหัส Job
+      const jk = x.p === ISSUE_PROD_PROC ? (x.j || 0) : '';
+      if (x.p === ISSUE_PROD_PROC) it.jb[jk] = (it.jb[jk] || 0) + Number(x.amt);
+      { const k = (year - x.y) + '|' + (x.m - 1) + '|' + x.p + '|' + rk + '|' + nk + '|' + it.unitId + '|' + jk; procAmt.set(k, (procAmt.get(k) || 0) + Number(x.amt)); }
+    }
+    const rd = (n) => Math.round(n * 10000) / 10000;
+    items.forEach(it => { it.v = it.v.map(rd); for (const k in it.pb) it.pb[k] = rd(it.pb[k]); for (const k in it.nb) it.nb[k] = rd(it.nb[k]); for (const k in it.jb) it.jb[k] = rd(it.jb[k]); });
+    const notes = {}; usedNote.forEach(id => { notes[id] = id ? (f.notes.get(id) || 'คำนิยาม ' + id) : 'ไม่ระบุคำนิยาม'; });
+    issueSendJson(req, res, { success: true, year, tab, asOf: new Date(f.at).toISOString(), notes, items: [...items.values()],
+      procs: [...procAmt.entries()].map(([k, amt]) => { const [yo, m, p, r, n, u, j] = k.split('|'); return { yo: Number(yo), m: Number(m), p: Number(p), r: r === '' ? null : Number(r), n: n === '' ? null : Number(n), u: u === 'null' || u === 'undefined' ? null : Number(u), j: j === '' ? null : Number(j), amt: rd(amt) }; }) });
+  } catch (err) {
+    console.error('Issue report data error:', err);
+    res.status(500).json({ success: false, message: 'โหลดรายงานไม่สำเร็จ', detail: err.message });
+  }
+});
+
+// จัดแท็บตามประเภทวัสดุ (dFactoryInvType → PACK / COAT) — สิทธิ์ cut_stock_report_setup
+app.get('/api/cut-stock-report/setup', requireMenu(MENU_ISSUE_SETUP), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().query(
+      `SELECT t.idFInvType, LTRIM(RTRIM(t.FInvName)) AS FInvName, tt.TabCode, ISNULL(c.n, 0) AS n
+       FROM devsk.dFactoryInvType t WITH (NOLOCK)
+       LEFT JOIN devsk.WimCutStockRptTab tt WITH (NOLOCK) ON tt.idFInvType = t.idFInvType
+       LEFT JOIN (SELECT x.idFInvType, COUNT(*) AS n FROM (
+           SELECT (SELECT MIN(f.idFInvType) FROM devsk.dFactoryInv f WITH (NOLOCK) WHERE f.idInv_POP = i.idInvPOP) AS idFInvType
+           FROM devsk.dInventoryMain i WITH (NOLOCK) WHERE i.idInvGroup = ${ISSUE_PACK_GROUP}) x
+         GROUP BY x.idFInvType) c ON c.idFInvType = t.idFInvType
+       WHERE t.stDel IS NULL OR tt.idFInvType IS NOT NULL
+       ORDER BY CASE WHEN tt.TabCode IS NULL THEN 1 ELSE 0 END, tt.TabCode, t.FInvName`);
+    res.json({ success: true, types: r.recordset.map(x => ({ id: x.idFInvType, name: x.FInvName, tab: x.TabCode || '', n: x.n })) });
+  } catch (err) {
+    console.error('Issue report setup load error:', err);
+    res.status(500).json({ success: false, message: 'โหลดการจัดแท็บไม่สำเร็จ', detail: err.message });
+  }
+});
+
+app.post('/api/cut-stock-report/setup', requireMenu(MENU_ISSUE_SETUP), async (req, res) => {
+  const list = Array.isArray(req.body && req.body.types) ? req.body.types.slice(0, 500) : null;
+  if (!list) return scFail(res, 400, 'ข้อมูลไม่ถูกต้อง');
+  const clean = [];
+  for (const x of list) {
+    const id = scInt(x && x.id), tabCode = String((x && x.tab) || '');
+    if (!id || !['', 'PACK', 'COAT'].includes(tabCode)) return scFail(res, 400, 'ข้อมูลไม่ถูกต้อง');
+    clean.push({ id, tab: tabCode });
+  }
+  const pool = await poolPromise;
+  const tx = new sql.Transaction(pool);
+  try {
+    await tx.begin();
+    for (const x of clean) {
+      const rq = new sql.Request(tx).input('id', sql.Int, x.id).input('tab', sql.VarChar(10), x.tab || null).input('ps', sql.Int, req.idPs);
+      await rq.query(
+        `IF NOT EXISTS (SELECT 1 FROM devsk.dFactoryInvType WHERE idFInvType = @id) RETURN;
+         IF @tab IS NULL DELETE FROM devsk.WimCutStockRptTab WHERE idFInvType = @id;
+         ELSE IF EXISTS (SELECT 1 FROM devsk.WimCutStockRptTab WHERE idFInvType = @id)
+           UPDATE devsk.WimCutStockRptTab SET TabCode = @tab, idPsTs = @ps, DateTs = GETDATE() WHERE idFInvType = @id AND TabCode <> @tab;
+         ELSE INSERT INTO devsk.WimCutStockRptTab (idFInvType, TabCode, idPsTs, DateTs) VALUES (@id, @tab, @ps, GETDATE());`);
+    }
+    await tx.commit();
+    if (issueFact.rows) { try { issueFact.typeTab = await issueLoadTypeTab(pool); } catch (e) { issueFact.at = 0; } }
+    res.json({ success: true });
+  } catch (err) {
+    try { await tx.rollback(); } catch (e) {}
+    console.error('Issue report setup save error:', err);
+    res.status(500).json({ success: false, message: 'บันทึกการจัดแท็บไม่สำเร็จ', detail: err.message });
+  }
+});
+
 const scInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
 // ข้อความที่เขียนลงคอลัมน์ varchar ของ ERP (code page 874): เก็บได้แค่ ASCII + ไทย → ตัวอื่นแปลงเป็นตัวใกล้เคียง / ช่องว่าง (ไม่ให้กลายเป็น "?")
 const erpText = (s) => String(s == null ? '' : s)
@@ -8329,6 +8703,23 @@ async function adjRevCreate(t, idUpdate, ids, note, req) {
 // ==================================================================
 const APV_INBOX_MAX = 300;   // ต่อเรื่อง (เก่าสุดตัดทิ้ง — หน้าแจ้งให้ไปที่หน้าอนุมัติของเรื่องนั้น)
 const APV_RTS_STEPS = [['ack', 'รับทราบ'], ['check1', 'ตรวจสอบ 1'], ['check2', 'ตรวจสอบ 2'], ['approve', 'อนุมัติ']];
+// กรรมการผู้จัดการ (ตำแหน่งมีคำว่า "กรรมการผู้จัดการ") = นับตัวเลขบนเมนู / หน้า Home เฉพาะงานที่ระบุชื่อ — กลุ่มระบบคนอื่น (ผู้ดูแลระบบ) นับงานตามสิทธิ์ด้วย
+const MD_POSITION_LIKE = '%กรรมการผู้จัดการ%';
+const mdCache = new Map();
+async function isManagingDirector(idPs) {
+  const c = mdCache.get(idPs);
+  if (c && Date.now() - c.at < 10 * 60 * 1000) return c.v;
+  let v = false;
+  try {
+    const pool = await poolPromise;
+    const r = await pool.request().input('ps', sql.Int, idPs).input('pos', sql.NVarChar(100), MD_POSITION_LIKE)
+      .query('SELECT TOP 1 1 AS x FROM devsk.vPersonxSelect WITH (NOLOCK) WHERE idPs = @ps AND PositionName LIKE @pos');
+    v = r.recordset.length > 0;
+  } catch (e) { console.error('isManagingDirector error:', e); }
+  mdCache.set(idPs, { at: Date.now(), v });
+  if (mdCache.size > 2000) mdCache.clear();
+  return v;
+}
 async function approvalInbox(idPs, access) {
   const pool = await poolPromise;
   const out = [], more = {};
@@ -8354,7 +8745,7 @@ async function approvalInbox(idPs, access) {
       const mine = rqSteps.filter(k => !done[k]);
       if (!mine.length) return;
       const src = x.SrcType === 'SC' ? `ตรวจนับ ${x.ScCode || ''}` : x.SrcType === 'REV' ? `กลับรายการ ${x.RevDocCode || ''}` : 'WIM Desktop';
-      out.push({ mod: 'rq', id: x.idRqUpdate, docNo: x.DocCode, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
+      out.push({ mod: 'rq', id: x.idRqUpdate, docNo: x.DocCode, idComp: x.idComp, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
         title: x.NoteReq || '-', src, srcType: x.SrcType === 'SC' || x.SrcType === 'REV' ? x.SrcType : 'PC', nLine: x.nLine || 0, by: x.CommandName || '',
         my: mine.map(k => ({ code: k, name: ADJ_STEPS[k].name })),
         progress: [['ack', 'รับทราบ'], ['check', 'ตรวจสอบ'], ['approve', 'อนุมัติ']].map(([k, n]) => ({ name: n, done: done[k] })),
@@ -8385,7 +8776,7 @@ async function approvalInbox(idPs, access) {
         : x.DateCheck2 && !x.DateApv);
       if (!mine.length) return;
       const doneAt = { ack: x.DateAccept, check1: x.DateCheck, check2: x.DateCheck2, approve: x.DateApv };
-      out.push({ mod: 'rts', id: x.idBuyRT, docNo: x.DocCode, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
+      out.push({ mod: 'rts', id: x.idBuyRT, docNo: x.DocCode, idComp: x.idComp, comp: x.CompName || '', compCode: x.CompCode || '', date: x.DateTs,
         title: x.Note || '-', src: x.SupName ? `Supplier ${x.SupName}` : '', nLine: x.nLine || 0, by: x.CreatorName || '',
         sup: x.SupName || '', typeName: x.TypeName || '', value: x.TotalValue, credit: x.stCredit === '1' ? x.TotalDiff : null,
         flags: { returnGoods: x.stReturnGoods === '1', replace: x.stReplace === '1', credit: x.stCredit === '1', noCostAdj: x.stNoCostAdj === '1' },
@@ -8396,24 +8787,27 @@ async function approvalInbox(idPs, access) {
   }
   // 3) Over PO: ใบขออนุมัติรับซื้อ (OPA) ที่ระบุผู้ใช้คนนี้เป็นผู้อนุมัติ และยังไม่กดขั้นของตัวเอง
   const ops = await opsApvPendingData(idPs);
-  ops.forEach(x => out.push({ mod: 'ops', id: x.id, docNo: x.buyDocNo || x.docNo, comp: x.reqName || '', compCode: '', date: x.buyAt ? String(x.buyAt).replace(' ', 'T') + ':00.000Z' : null,
+  ops.forEach(x => out.push({ mod: 'ops', id: x.id, docNo: x.buyDocNo || x.docNo, idComp: x.req, comp: x.reqName || '', compCode: '', date: x.buyAt ? String(x.buyAt).replace(' ', 'T') + ':00.000Z' : null,
     title: x.items.map(it => it.invName).filter(Boolean).join(', ') || '-', src: `คำร้อง ${x.docNo}`, nLine: x.items.length, by: x.buyBy || '',
     amount: x.total,
     my: x.steps.map(k => ({ code: k, name: opsStepAct(k) })),
     progress: OPS_APV_STEPS.map((st, i) => ({ name: opsStepAct(st.code), done: i < x.done })), progressCount: { done: x.done, count: x.count },
     href: `/over-po-sale-opa?id=${x.id}&from=inbox` }));
+  // กรรมการผู้จัดการ: ไม่แสดงงานของบริษัททดสอบ (HOME_EXCLUDE_COMP_IDS) ทั้งในรายการและตัวเลข
+  const namedOnly = !!access.unrestricted && await isManagingDirector(idPs);
+  if(namedOnly){ for(let i = out.length - 1; i >= 0; i--) if(HOME_EXCLUDE_COMP_IDS.includes(Number(out[i].idComp))) out.splice(i, 1); }
   // วันที่ทุกเรื่องเป็นเวลาท้องถิ่นแบบเดียวกับหน้าอื่น (ค่าจากฐานข้อมูลติด Z) → เรียงด้วยค่าเวลาได้ตรง ๆ
   const ts = (v) => { const t = new Date(v).getTime(); return Number.isFinite(t) ? t : 0; };
   out.sort((a, b) => ts(b.date) - ts(a.date));
   // ระบุชื่อฉัน (named) = ผู้อนุมัติถูกระบุตัวในเอกสาร (Over PO) / ตามสิทธิ์ของฉัน (role) = ตามสิทธิ์ขั้นตอน (ปรับยอดสต๊อก / ส่งคืนสินค้า)
-  //   ตัวเลขบนเมนู / หน้า Home (badge): กลุ่มระบบ (เห็นทุกเมนูอัตโนมัติ เช่น ผู้บริหาร / ผู้ดูแลระบบ) นับเฉพาะงานที่ระบุชื่อ — งานตามสิทธิ์ของระดับผู้จัดการไม่นับ
+  //   ตัวเลขบนเมนู / หน้า Home (badge): กรรมการผู้จัดการในกลุ่มระบบ นับเฉพาะงานที่ระบุชื่อ — ผู้ดูแลระบบคนอื่นนับงานตามสิทธิ์ด้วย
   out.forEach(x => { x.scope = x.mod === 'ops' ? 'named' : 'role'; });
   const counts = { rq: 0, rts: 0, ops: 0 }, badgeCounts = { rq: 0, rts: 0, ops: 0 };
-  const inBadge = (x) => !access.unrestricted || x.scope === 'named';
+  const inBadge = (x) => !namedOnly || x.scope === 'named';
   out.forEach(x => { counts[x.mod]++; if (inBadge(x)) badgeCounts[x.mod]++; });
   const named = out.filter(x => x.scope === 'named').length;
   return { data: out, counts, total: out.length, named, role: out.length - named, more,
-    badge: out.filter(inBadge).length, badgeCounts, unrestricted: !!access.unrestricted,
+    badge: out.filter(inBadge).length, badgeCounts, unrestricted: !!access.unrestricted, namedOnly,
     mods: { rq: rqSteps.length > 0, rts: rtsSteps.length > 0, ops: ops.length > 0 } };   // ขอรับซื้อเมล็ด Over PO: การ์ดแสดงเฉพาะคนที่มีงานที่ระบุชื่อ
 }
 app.get(['/approvals', '/approvals.html'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'approvals.html')));
@@ -8448,7 +8842,7 @@ async function approvalCount(idPs) {
   const access = await getUserAccess(idPs);
   const eligible = await approvalEligible(idPs, access);
   const x = eligible ? await approvalInbox(idPs, access) : { badgeCounts: { rq: 0, rts: 0, ops: 0 }, badge: 0 };
-  const v = { at: Date.now(), counts: x.badgeCounts, total: x.badge, eligible };   // ตัวเลขบนเมนู (กลุ่มระบบ = เฉพาะงานที่ระบุชื่อ)
+  const v = { at: Date.now(), counts: x.badgeCounts, total: x.badge, eligible };   // ตัวเลขบนเมนู (กรรมการผู้จัดการ = เฉพาะงานที่ระบุชื่อ)
   apvCountCache.set(idPs, v);
   if (apvCountCache.size > 2000) apvCountCache.clear();
   return v;
