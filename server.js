@@ -6686,6 +6686,20 @@ app.get('/api/stock-adjust-report/trend', requireMenu(MENU_ADJ_REPORT, { company
 //   แท็บ: seed = กลุ่ม 1/42/44/45/63 · fg = กลุ่ม 2 · pack / coat = สินค้ากลุ่ม 4 ที่ประเภทวัสดุโรงงาน (dFactoryInvType) ถูกจัดแท็บใน WimCutStockRptTab
 //   สินค้า → ประเภท: dInventoryMain.idInvPOP = dFactoryInv.idInv_POP (เลือก idFInvType น้อยสุดต่อสินค้า กันยอดซ้ำ)
 // ==================================================================
+// ส่ง JSON แบบบีบอัด gzip (zlib ของ Node — ไม่ต้องติดตั้งแพ็กเกจเพิ่ม): ข้อมูลรายงานแท็บ "ทั้งหมด" ~5 MB → ~0.8 MB
+//   เดิมส่งไม่บีบอัดออกจากเซิร์ฟเวอร์ (Cloudflare บีบให้ทีหลัง) ทำให้ช่วงเซิร์ฟเวอร์ → Cloudflare ช้า (ดาวน์โหลด ~23 วินาที ทั้งที่เน็ตผู้ใช้ 29 Mbps)
+//   เฉพาะเมื่อเบราว์เซอร์ / Cloudflare บอกว่ารับ gzip และข้อมูลใหญ่กว่า 8 KB · เนื้อข้อมูลเหมือนเดิมทุกประการ · ผิดพลาดตอนบีบ → ส่งแบบไม่บีบอัดตามเดิม
+const zlib = require('zlib');
+function issueSendJson(req, res, obj) {
+  const body = Buffer.from(JSON.stringify(obj), 'utf8');
+  const plain = () => res.type('application/json; charset=utf-8').send(body);
+  if (body.length < 8192 || !/\bgzip\b/i.test(String(req.headers['accept-encoding'] || ''))) return plain();
+  zlib.gzip(body, { level: 5 }, (err, gz) => {
+    if (err) return plain();
+    res.set({ 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' });
+    res.type('application/json; charset=utf-8').send(gz);
+  });
+}
 const MENU_ISSUE_RPT = 'cut_stock_report';
 const MENU_ISSUE_SETUP = 'cut_stock_report_setup';
 const ISSUE_SEED_GROUPS = [1, 42, 44, 45, 63];
@@ -6862,7 +6876,7 @@ app.get('/api/cut-stock-report/data', requireMenu(MENU_ISSUE_RPT), async (req, r
     const rd = (n) => Math.round(n * 10000) / 10000;
     items.forEach(it => { it.v = it.v.map(rd); for (const k in it.pb) it.pb[k] = rd(it.pb[k]); for (const k in it.nb) it.nb[k] = rd(it.nb[k]); for (const k in it.jb) it.jb[k] = rd(it.jb[k]); });
     const notes = {}; usedNote.forEach(id => { notes[id] = id ? (f.notes.get(id) || 'คำนิยาม ' + id) : 'ไม่ระบุคำนิยาม'; });
-    res.json({ success: true, year, tab, asOf: new Date(f.at).toISOString(), notes, items: [...items.values()],
+    issueSendJson(req, res, { success: true, year, tab, asOf: new Date(f.at).toISOString(), notes, items: [...items.values()],
       procs: [...procAmt.entries()].map(([k, amt]) => { const [yo, m, p, r, n, u, j] = k.split('|'); return { yo: Number(yo), m: Number(m), p: Number(p), r: r === '' ? null : Number(r), n: n === '' ? null : Number(n), u: u === 'null' || u === 'undefined' ? null : Number(u), j: j === '' ? null : Number(j), amt: rd(amt) }; }) });
   } catch (err) {
     console.error('Issue report data error:', err);

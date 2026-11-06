@@ -834,16 +834,16 @@
   // แคชข้อมูลรายงานในหน้า (คีย์ = URL ที่ขอ = ปี / แท็บ / บริษัท / Process / หัวข้อ / รหัส Job): สลับกลับแท็บที่เคยเปิดหรือโหลดเตรียมไว้แล้วขึ้นทันที
   //   ข้อมูลเหมือนที่ server ส่งทุกประการ (ไม่ดัดแปลง) · อายุ DATA_TTL แล้วขอใหม่ · Refresh / บันทึกจัดแท็บ = ล้างทั้งหมด · เก็บสูงสุด DATA_MAX ชุด
   const dataCache = new Map(), DATA_TTL = 3 * 60 * 1000, DATA_MAX = 6;
-  function fetchData(url, fresh){
+  function fetchData(url, fresh, signal){
     const hit = dataCache.get(url);
     if(!fresh && hit && Date.now() - hit.at < DATA_TTL){ dataCache.delete(url); dataCache.set(url, hit); return hit.p; }
-    const p = api(url + (fresh ? '&fresh=1' : '')), ent = { at: Date.now(), p };
+    const p = api(url + (fresh ? '&fresh=1' : ''), signal ? { signal } : undefined), ent = { at: Date.now(), p };
     dataCache.delete(url); dataCache.set(url, ent);
     p.catch(() => { if(dataCache.get(url) === ent) dataCache.delete(url); });
     while(dataCache.size > DATA_MAX) dataCache.delete(dataCache.keys().next().value);
     return p;
   }
-  function clearCaches(){ dataCache.clear(); for(const k in metaCache) delete metaCache[k]; }
+  function clearCaches(){ dataCache.clear(); pfDone.clear(); for(const k in metaCache) delete metaCache[k]; }
   // ใช้รายการของแท็บ: คงตัวเลือกที่ผู้ใช้เลือกเองไว้เท่าที่ยังมีในแท็บนี้ / ไม่เคยเลือกเอง หรือไม่เหลือเลย → ค่าเริ่มต้น (ทุกบริษัท + Process ทั้งหมดยกเว้นที่ไม่นับปกติ)
   function pickSel(m){
     meta = m;
@@ -1104,16 +1104,24 @@
       st.comps.clear(); sv.comps.forEach(x => st.comps.add(x)); st.procs.clear(); sv.procs.forEach(x => st.procs.add(x));
     }
   }
+  //   ไม่แย่งช่องทางกับสิ่งที่ผู้ใช้รออยู่: เริ่มหลังโหลดเสร็จ ~4 วินาที · ผู้ใช้เริ่มโหลดอะไรที่ยังไม่มีในแคช → ยกเลิกที่กำลังโหลดเตรียมไว้ทันที · ไม่เริ่มขณะมีการโหลดของผู้ใช้
+  const pfDone = new Set(); let pfCtl = null, pfRun = false, pfT = 0, busy = 0;
+  const abortPrefetch = () => { if(pfCtl){ pfCtl.abort(); pfCtl = null; } };
+  const schedulePrefetch = () => { clearTimeout(pfT); pfT = setTimeout(prefetchTabs, 4000); };
   async function prefetchTabs(){
-    if(navigator.connection && navigator.connection.saveData) return;
-    TABS.forEach(t => { loadMeta(t[0]).catch(() => {}); });   // รายการบริษัท / Process ทุกแท็บ (ข้อมูลเล็ก) — สลับแท็บไม่ต้องรอ
-    for(const [t] of TABS){
-      if(t === st.tab || t === 'all') continue;
-      try{
-        const m = await loadMeta(t); if(!m.companies.length) continue;
-        const url = urlForTab(t, m); if(url) await fetchData(url, false);
-      } catch(e){ /* โหลดเตรียมไว้ไม่สำเร็จ — ไม่เป็นไร ตอนสลับแท็บจะโหลดตามปกติ */ }
-    }
+    if(pfRun || busy || (navigator.connection && navigator.connection.saveData)) return;
+    pfRun = true; const ctl = pfCtl = new AbortController();
+    try{
+      TABS.forEach(t => { loadMeta(t[0]).catch(() => {}); });   // รายการบริษัท / Process ทุกแท็บ (ข้อมูลเล็ก) — สลับแท็บไม่ต้องรอ
+      for(const [t] of TABS){
+        if(ctl.signal.aborted || busy) break;
+        if(t === st.tab || t === 'all' || pfDone.has(t)) continue;
+        try{
+          const m = await loadMeta(t); if(ctl.signal.aborted || busy) break; if(!m.companies.length){ pfDone.add(t); continue; }
+          const url = urlForTab(t, m); if(url){ await fetchData(url, false, ctl.signal); pfDone.add(t); }
+        } catch(e){ /* ยกเลิก / โหลดเตรียมไว้ไม่สำเร็จ — ไม่เป็นไร ตอนสลับแท็บจะโหลดตามปกติ */ }
+      }
+    } finally { pfRun = false; if(pfCtl === ctl) pfCtl = null; }
   }
   let timer = null;
   const schedule = () => { clearTimeout(timer); timer = setTimeout(load, 250); };
@@ -1121,21 +1129,22 @@
     const my = ++seq;
     if(!meta.companies.length){ D = null; $('irErr').innerHTML = '<div class="ir-warn">ไม่พบข้อมูลการเบิกในแท็บนี้ (ตามสิทธิ์บริษัทของคุณ)</div>'; $('kpis').innerHTML = ''; $('views').innerHTML = ''; $('irBody').innerHTML = ''; return; }
     if(!st.comps.size || !st.procs.size){ D = null; $('irErr').innerHTML = `<div class="ir-warn">เลือก${!st.comps.size ? 'บริษัท' : 'Process การเบิก'}อย่างน้อย 1 รายการ</div>`; $('kpis').innerHTML = ''; $('views').innerHTML = ''; $('irBody').innerHTML = ''; return; }
-    WIMLoading.show('irLoad', 'กำลังโหลดข้อมูลการเบิกย้อนหลัง 5 ปี'); $('irErr').innerHTML = '';
+    WIMLoading.show('irLoad', st.tab === 'all' ? 'กำลังโหลดข้อมูลทั้งหมดย้อนหลัง 5 ปี (ข้อมูลมาก อาจใช้เวลาสักครู่)' : 'กำลังโหลดข้อมูลการเบิกย้อนหลัง 5 ปี'); $('irErr').innerHTML = '';
     const { f, url } = dataReq();
+    busy++;
     try{
+      if(fresh || !dataCache.has(url)) abortPrefetch();   // ผู้ใช้ต้องการข้อมูลที่ยังไม่มี → หยุดโหลดเตรียมไว้ที่ค้างอยู่
       if(fresh) clearCaches();   // ข้อมูล / รายการบริษัท / Process ของทุกแท็บอ่านใหม่
       const r = await fetchData(url, !!fresh);
       if(my !== seq) return;
       D = r; applied = f; st.page = 1; prep(); viewFilters(); render();
-      if(fresh) setTimeout(prefetchTabs, 1500);
       const hm = r.asOf ? new Date(r.asOf).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
       $('btnShow').title = hm ? `ข้อมูล ณ ${hm} น. — กดเพื่อโหลดข้อมูลล่าสุดจากฐานข้อมูล` : 'กดเพื่อโหลดข้อมูลล่าสุดจากฐานข้อมูล';
     } catch(err){
       if(my !== seq) return;
       D = null; $('kpis').innerHTML = ''; $('views').innerHTML = ''; $('irBody').innerHTML = '';
       $('irErr').innerHTML = `<div class="ir-err">${esc(err.message)} <button type="button" class="btn btn-secondary btn-sm" id="btnRetry" style="margin-left:8px">ลองใหม่</button></div>`;
-    } finally { WIMLoading.hide('irLoad'); }
+    } finally { busy--; WIMLoading.hide('irLoad'); if(!busy) schedulePrefetch(); }
   }
 
   // ---------- การ์ดสรุป ----------
@@ -1818,7 +1827,6 @@ ${tds}</tr>`;
         applyMeta(await loadMeta(st.tab));
         await load();
       });
-      setTimeout(prefetchTabs, 1500);
     } catch(err){ $('irErr').innerHTML = `<div class="ir-err">${esc(err.message)}</div>`; $('irBody').innerHTML = ''; }
   }
   init();
