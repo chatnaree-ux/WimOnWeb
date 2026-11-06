@@ -354,6 +354,12 @@
   .ms-pop label.grp{font-weight:700; color:#e3e8ef; border-top:1px solid rgba(255,255,255,.1); margin-top:4px; padding-top:11px;}
   .ms-pop label.sub{padding-left:36px; font-size:13.5px;}
   .ms-pop label.grp + label.sub{margin-top:-2px;}
+  .ms-pop .ms-s{position:sticky; top:-8px; z-index:2; margin:-8px -8px 6px; padding:8px; background:var(--navy-800); border-bottom:1px solid rgba(255,255,255,.1);}
+  .ms-pop .ms-q{width:100%; height:40px; box-sizing:border-box; padding:0 10px; font:inherit; font-size:14px; color:#e7edf5; background:#0b1522; border:1px solid rgba(255,255,255,.2); border-radius:8px;}
+  .ms-pop .ms-none{margin:10px; font-size:13.5px; color:var(--concrete-400);}
+  .ms-pop .ms-s{display:flex; gap:6px;} .ms-pop .ms-s .ms-q{flex:1; min-width:0;}
+  .ms-pop .ms-qc{font:inherit; font-size:13.5px; font-weight:700; flex-shrink:0; padding:0 12px; border-radius:8px; cursor:pointer; color:#e6f5ff; background:rgba(78,167,224,.28); border:1.5px solid #4ea7e0;}
+  .ms-pop .ms-qc:hover{background:#4ea7e0; color:#08203a;}
   .hb.nc{cursor:default;} .hb.nc:hover{background:transparent;}
   .hb.tg{cursor:pointer;} .hb.tg .nm::before{content:"▸"; display:inline-block; width:14px; color:var(--amber-500);} .hb.tg.open .nm::before{content:"▾";}
   .hb.nt .nm{padding-left:22px; font-size:12.5px; color:#c9d2dc;} .hb.nt .br i{background:linear-gradient(90deg, #3d7fb0, #4ea7e0);} .hb.nt .am{font-weight:500; color:#d5dde8;}
@@ -815,12 +821,25 @@
   const noteName = (n) => (D && D.notes && D.notes[n]) || (n ? 'คำนิยาม ' + n : 'ไม่ระบุคำนิยาม');
   const keyLabel = (k) => k[0] === 'r' ? 'ขอเบิก · ' + reqName(Number(k.slice(1))) : procName(Number(k.slice(1)));
   const metaCache = {};   // แท็บ → รายการบริษัท / Process ที่มีข้อมูลในแท็บนั้น (server แคชไว้ด้วย)
-  async function loadMeta(tab){
-    if(!metaCache[tab]) metaCache[tab] = await api('/api/cut-stock-report/meta?tab=' + tab);
+  function loadMeta(tab){
+    if(!metaCache[tab]){ const p = api('/api/cut-stock-report/meta?tab=' + tab); metaCache[tab] = p; p.catch(() => { if(metaCache[tab] === p) delete metaCache[tab]; }); }
     return metaCache[tab];
   }
+  // แคชข้อมูลรายงานในหน้า (คีย์ = URL ที่ขอ = ปี / แท็บ / บริษัท / Process / หัวข้อ / รหัส Job): สลับกลับแท็บที่เคยเปิดหรือโหลดเตรียมไว้แล้วขึ้นทันที
+  //   ข้อมูลเหมือนที่ server ส่งทุกประการ (ไม่ดัดแปลง) · อายุ DATA_TTL แล้วขอใหม่ · Refresh / บันทึกจัดแท็บ = ล้างทั้งหมด · เก็บสูงสุด DATA_MAX ชุด
+  const dataCache = new Map(), DATA_TTL = 3 * 60 * 1000, DATA_MAX = 6;
+  function fetchData(url, fresh){
+    const hit = dataCache.get(url);
+    if(!fresh && hit && Date.now() - hit.at < DATA_TTL){ dataCache.delete(url); dataCache.set(url, hit); return hit.p; }
+    const p = api(url + (fresh ? '&fresh=1' : '')), ent = { at: Date.now(), p };
+    dataCache.delete(url); dataCache.set(url, ent);
+    p.catch(() => { if(dataCache.get(url) === ent) dataCache.delete(url); });
+    while(dataCache.size > DATA_MAX) dataCache.delete(dataCache.keys().next().value);
+    return p;
+  }
+  function clearCaches(){ dataCache.clear(); for(const k in metaCache) delete metaCache[k]; }
   // ใช้รายการของแท็บ: คงตัวเลือกที่ผู้ใช้เลือกเองไว้เท่าที่ยังมีในแท็บนี้ / ไม่เคยเลือกเอง หรือไม่เหลือเลย → ค่าเริ่มต้น (ทุกบริษัท + Process ทั้งหมดยกเว้นที่ไม่นับปกติ)
-  function applyMeta(m){
+  function pickSel(m){
     meta = m;
     const cAv = new Set(m.companies.map(c => c.id));
     let cs = st.compTouched ? [...st.comps].filter(id => cAv.has(id)) : [];
@@ -831,6 +850,10 @@
     let ps = st.procTouched ? [...st.procs].filter(id => pAv.has(id)) : [];
     if(!ps.length) ps = pItems.filter(p => p.defaultOn).map(p => p.id);
     st.procs.clear(); ps.forEach(id => st.procs.add(id));
+    return pItems;
+  }
+  function applyMeta(m){
+    const pItems = pickSel(m);
     msInit('msComp', 'บริษัท', m.companies.map(c => ({ id: c.id, name: c.name, short: c.code })), st.comps, () => { st.compTouched = true; rebuildProc(); schedule(); }, compChips);
     msInit('msProc', 'Process', pItems, st.procs, () => { st.procTouched = true; schedule(); }, procChips);
     $('btnSetup').hidden = !m.canSetup;
@@ -873,33 +896,52 @@
     box.className = 'ms';
     box.innerHTML = `<button type="button" class="ms-btn"><span class="ms-val"></span>${IC.chev}</button><div class="ms-pop" hidden></div>`;
     msRender(id);
-    box.querySelector('.ms-btn').addEventListener('click', (e) => { e.stopPropagation(); const pop = box.querySelector('.ms-pop'), open = pop.hidden; closeMs(); pop.hidden = !open; box.classList.toggle('open', open); });
-    box.querySelector('.ms-pop').addEventListener('click', (e) => e.stopPropagation());
+    box.querySelector('.ms-btn').addEventListener('click', (e) => { e.stopPropagation(); const pop = box.querySelector('.ms-pop'), open = pop.hidden; closeMs(); pop.hidden = !open; box.classList.toggle('open', open); const q = pop.querySelector('.ms-q'); if(open && q && !('ontouchstart' in window)) q.focus(); });
+    box.querySelector('.ms-pop').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(e.target.closest('[data-qclr]')){ const m = ms[id], q = box.querySelector('.ms-q'); m.q = ''; q.value = ''; msList(id); q.focus(); }   // ล้างคำค้นหา (ไม่แตะรายการที่เลือกไว้)
+    });
+    box.querySelector('.ms-pop').addEventListener('input', (e) => { if(e.target.classList.contains('ms-q')){ ms[id].q = e.target.value; msList(id); } });
     box.querySelector('.ms-pop').addEventListener('change', (e) => {
       const m = ms[id], t = e.target;
-      if(t.dataset.all){ m.selected.clear(); if(t.checked) m.items.forEach(x => m.selected.add(x.id)); }
+      if(t.classList.contains('ms-q')) return;   // ช่องค้นหา (เสียโฟกัสแล้วยิง change) — ไม่ใช่การเลือกรายการ ห้ามวาดรายการใหม่ระหว่างกดปุ่ม
+      if(t.dataset.all){ msVisible(m).forEach(x => t.checked ? m.selected.add(x.id) : m.selected.delete(x.id)); }
       else if(t.dataset.grp){ m.items.filter(k => k.grp === t.dataset.grp).forEach(k => t.checked ? m.selected.add(k.id) : m.selected.delete(k.id)); }
       else { const it = m.items.find(x => String(x.id) === t.value); if(it) t.checked ? m.selected.add(it.id) : m.selected.delete(it.id); }
-      msRender(id, true); m.onChange();
+      msRender(id, true);
+      clearTimeout(m._t); m._t = setTimeout(() => m.onChange(), 250);   // วาดตาราง / กราฟใหม่หลังหยุดติ๊ก 0.25 วิ (ติ๊กหลายอันติดกันไม่วาดซ้ำทุกครั้ง)
     });
+  }
+  // กล่องที่มีรายการเยอะ (ประเภทพืช / ประเภทสินค้า-วัสดุ) มีช่องค้นหา + ปุ่ม "เฉพาะ" · กล่องอื่นเหมือนเดิม
+  const msBig = (m) => (m.id === 'msGrp' || m.id === 'msCrop') && m.items.length > 8;
+  const msVisible = (m) => { const q = (m.q || '').trim().toLowerCase(); return q ? m.items.filter(x => String(x.name).toLowerCase().includes(q)) : m.items; };
+  function msList(id){
+    const m = ms[id], pop = $(id).querySelector('.ms-pop'), lst = pop.querySelector('.ms-lst'); if(!lst) return;
+    const vis = msVisible(m), q = (m.q || '').trim(), nSel = vis.filter(x => m.selected.has(x.id)).length;
+    const all = pop.querySelector('.all input'); all.checked = !!vis.length && nSel === vis.length; all.indeterminate = nSel > 0 && nSel < vis.length;
+    pop.querySelector('.all span').textContent = q ? 'เลือกทั้งหมดที่ค้นหา' : 'เลือกทั้งหมด';
+    let last = null;
+    lst.innerHTML = vis.map(x => {
+      let h = '';
+      if(x.grp && x.grp !== last){
+        const kids = m.items.filter(k => k.grp === x.grp), n = kids.filter(k => m.selected.has(k.id)).length;
+        h = '<label class="grp"><input type="checkbox" data-grp="' + esc(x.grp) + '" ' + (n === kids.length ? 'checked' : '') + ' ' + (n && n < kids.length ? 'data-ind="1"' : '') + '> <span>' + esc(x.grpName) + '</span><small>' + (x.grpNote || '') + '</small></label>';
+      }
+      last = x.grp || null;
+      return h + '<label class="' + (x.grp ? 'sub' : '') + '"><input type="checkbox" value="' + esc(String(x.id)) + '" ' + (m.selected.has(x.id) ? 'checked' : '') + '> <span>' + esc(x.name) + '</span>' + (x.note ? '<small>' + esc(x.note) + '</small>' : '') + '</label>';
+    }).join('') || '<p class="ms-none">ไม่พบรายการ</p>';
+    pop.querySelectorAll('[data-ind]').forEach(i => { i.indeterminate = true; });
   }
   function msRender(id, keepOpen){
     const m = ms[id], box = $(id), pop = box.querySelector('.ms-pop');
     const n = m.selected.size, all = n === m.items.length;
     box.querySelector('.ms-val').innerHTML = m.chips(m.items, m.selected, all);
     box.title = m.items.filter(x => m.selected.has(x.id)).map(x => x.name).join('\n');
-    let last = null;
-    pop.innerHTML = `<label class="all"><input type="checkbox" data-all="1" ${all ? 'checked' : ''}> เลือกทั้งหมด</label>` +
-      m.items.map(x => {
-        let h = '';
-        if(x.grp && x.grp !== last){
-          const kids = m.items.filter(k => k.grp === x.grp), n = kids.filter(k => m.selected.has(k.id)).length;
-          h = `<label class="grp"><input type="checkbox" data-grp="${esc(x.grp)}" ${n === kids.length ? 'checked' : ''} ${n && n < kids.length ? 'data-ind="1"' : ''}> <span>${esc(x.grpName)}</span><small>${x.grpNote || ''}</small></label>`;
-        }
-        last = x.grp || null;
-        return h + `<label class="${x.grp ? 'sub' : ''}"><input type="checkbox" value="${esc(String(x.id))}" ${m.selected.has(x.id) ? 'checked' : ''}> <span>${esc(x.name)}</span>${x.note ? `<small>${esc(x.note)}</small>` : ''}</label>`;
-      }).join('');
-    pop.querySelectorAll('[data-ind]').forEach(i => { i.indeterminate = true; });
+    if(!pop.querySelector('.ms-lst')){
+      m.id = id; m.q = '';
+      pop.innerHTML = (msBig(m) ? '<div class="ms-s"><input type="text" class="ms-q" placeholder="ค้นหา' + esc(m.label) + '" autocomplete="off"><button type="button" class="ms-qc" data-qclr>ล้าง</button></div>' : '') + '<label class="all"><input type="checkbox" data-all="1"> <span>เลือกทั้งหมด</span></label><div class="ms-lst"></div>';
+    }
+    msList(id);
     if(!keepOpen) pop.hidden = true;
   }
   const chip = (t, cls, title) => `<span class="ms-chip ${cls || ''}" ${title ? `title="${esc(title)}"` : ''}>${esc(t)}</span>`;
@@ -960,10 +1002,16 @@
     D.units = [...cnt.values()].sort((a, b) => b.n - a.n);
   }
   // ประเภท (InvGroup): แท็บที่รวมหลายประเภท (เมล็ดพันธุ์วัตถุดิบ / ทั้งหมด) · ประเภทพืช: แท็บเมล็ดพันธุ์วัตถุดิบ / สินค้าสำเร็จรูป
-  const showGrp = () => !!D && (st.tab === 'seed' || st.tab === 'all') && new Set(D.items.map(it => it.group)).size > 1;
+  // showGrp / showCrop ถูกเรียกต่อรายการ (passGrp / passCrop) → ต้องไม่สแกนรายการทั้งหมดทุกครั้ง (9,000+ รายการ = หน้าค้างหลายวินาที) — คำนวณครั้งเดียวต่อชุดข้อมูล
+  const showGrp = () => { if(!D || !(st.tab === 'seed' || st.tab === 'all')) return false; if(D._sg === undefined) D._sg = new Set(D.items.map(it => it.group)).size > 1; return D._sg; };
   const subOf = (it) => (st.tab === 'pack' ? it.type : it.crop) || '';
   const subLabel = () => st.tab === 'pack' ? 'ประเภทบรรจุภัณฑ์' : 'ประเภทพืช';
-  const showCrop = () => !!D && (((st.tab === 'seed' || st.tab === 'fg') && D.items.some(it => it.crop)) || (st.tab === 'pack' && D.items.some(it => it.type)));
+  const showCrop = () => {
+    if(!D) return false;
+    if(st.tab === 'seed' || st.tab === 'fg'){ if(D._sc === undefined) D._sc = D.items.some(it => it.crop); return D._sc; }
+    if(st.tab === 'pack'){ if(D._sy === undefined) D._sy = D.items.some(it => it.type); return D._sy; }
+    return false;
+  };
   const listChips = (allLabel, noneLabel) => (items, sel, all) => {
     if(!sel.size) return chip(noneLabel, 'none');
     if(all) return chip(`${allLabel} (${items.length})`, '', items.map(x => x.name).join(', '));
@@ -1030,6 +1078,37 @@
   const pctHtml = (p) => p == null ? '<span class="flat">–</span>' : `<span class="${p > 0.05 ? 'up' : p < -0.05 ? 'dn' : 'flat'}">${p > 0.05 ? '▲' : p < -0.05 ? '▼' : '■'} ${fmtPct(Math.abs(p), 1)}%</span>`;
 
   // ---------- โหลด ----------
+  // คำขอข้อมูลจากสถานะตัวกรองตอนนี้ (ใช้ทั้งตอนโหลดจริง และตอนโหลดแท็บอื่นเตรียมไว้ — URL ต้องเหมือนกันเป๊ะ)
+  function dataReq(){
+    const keys = [...st.procs], reqs = keys.filter(k => k[0] === 'r').map(k => Number(k.slice(1)));
+    const jk = keys.filter(k => k[0] === 'j').map(k => Number(k.slice(1))).sort((a, b) => a - b);
+    const procs = keys.filter(k => k[0] === 'p').map(k => Number(k.slice(1))).concat(reqs.length ? [REQ_PROC] : []).concat(jk.length ? [meta.jobProc] : []);
+    const f = { year: st.year, comps: [...st.comps], procs, reqs, tab: st.tab, jobs: jk.length ? jk : null };
+    const url = `/api/cut-stock-report/data?year=${f.year}&tab=${f.tab}&comps=${f.comps.join(',')}&procs=${f.procs.join(',')}${f.reqs.length ? '&reqs=' + f.reqs.join(',') : ''}${f.jobs ? '&jobs=' + f.jobs.join(',') : ''}`;
+    return { f, url };
+  }
+  // โหลดแท็บอื่นเตรียมไว้เบื้องหลัง (ทีละแท็บ) ด้วยตัวเลือกที่ผู้ใช้จะได้เมื่อสลับไปแท็บนั้นจริง — ข้ามแท็บ "ทั้งหมด" (ข้อมูลใหญ่สุด) และเมื่อเปิดโหมดประหยัดข้อมูล
+  function urlForTab(t, m){
+    const sv = { tab: st.tab, meta, comps: new Set(st.comps), procs: new Set(st.procs), jk: st.jobsKeep };
+    try{
+      st.tab = t; pickSel(m);
+      return st.comps.size && st.procs.size ? dataReq().url : null;
+    } finally {
+      st.tab = sv.tab; meta = sv.meta; st.jobsKeep = sv.jk;
+      st.comps.clear(); sv.comps.forEach(x => st.comps.add(x)); st.procs.clear(); sv.procs.forEach(x => st.procs.add(x));
+    }
+  }
+  async function prefetchTabs(){
+    if(navigator.connection && navigator.connection.saveData) return;
+    TABS.forEach(t => { loadMeta(t[0]).catch(() => {}); });   // รายการบริษัท / Process ทุกแท็บ (ข้อมูลเล็ก) — สลับแท็บไม่ต้องรอ
+    for(const [t] of TABS){
+      if(t === st.tab || t === 'all') continue;
+      try{
+        const m = await loadMeta(t); if(!m.companies.length) continue;
+        const url = urlForTab(t, m); if(url) await fetchData(url, false);
+      } catch(e){ /* โหลดเตรียมไว้ไม่สำเร็จ — ไม่เป็นไร ตอนสลับแท็บจะโหลดตามปกติ */ }
+    }
+  }
   let timer = null;
   const schedule = () => { clearTimeout(timer); timer = setTimeout(load, 250); };
   async function load(fresh){
@@ -1037,16 +1116,13 @@
     if(!meta.companies.length){ D = null; $('irErr').innerHTML = '<div class="ir-warn">ไม่พบข้อมูลการเบิกในแท็บนี้ (ตามสิทธิ์บริษัทของคุณ)</div>'; $('kpis').innerHTML = ''; $('views').innerHTML = ''; $('irBody').innerHTML = ''; return; }
     if(!st.comps.size || !st.procs.size){ D = null; $('irErr').innerHTML = `<div class="ir-warn">เลือก${!st.comps.size ? 'บริษัท' : 'Process การเบิก'}อย่างน้อย 1 รายการ</div>`; $('kpis').innerHTML = ''; $('views').innerHTML = ''; $('irBody').innerHTML = ''; return; }
     WIMLoading.show('irLoad', 'กำลังโหลดข้อมูลการเบิกย้อนหลัง 5 ปี'); $('irErr').innerHTML = '';
-    const keys = [...st.procs], reqs = keys.filter(k => k[0] === 'r').map(k => Number(k.slice(1)));
-    const jk = keys.filter(k => k[0] === 'j').map(k => Number(k.slice(1))).sort((a, b) => a - b);
-    const procs = keys.filter(k => k[0] === 'p').map(k => Number(k.slice(1))).concat(reqs.length ? [REQ_PROC] : []).concat(jk.length ? [meta.jobProc] : []);
-    const f = { year: st.year, comps: [...st.comps], procs, reqs, tab: st.tab, jobs: jk.length ? jk : null };
+    const { f, url } = dataReq();
     try{
-      const url = `/api/cut-stock-report/data?year=${f.year}&tab=${f.tab}&comps=${f.comps.join(',')}&procs=${f.procs.join(',')}${f.reqs.length ? '&reqs=' + f.reqs.join(',') : ''}${f.jobs ? '&jobs=' + f.jobs.join(',') : ''}${fresh ? '&fresh=1' : ''}`;
-      const r = await api(url);
+      if(fresh) clearCaches();   // ข้อมูล / รายการบริษัท / Process ของทุกแท็บอ่านใหม่
+      const r = await fetchData(url, !!fresh);
       if(my !== seq) return;
       D = r; applied = f; st.page = 1; prep(); viewFilters(); render();
-      if(fresh) for(const k in metaCache) delete metaCache[k];   // รายการบริษัท / Process ของแท็บอื่นอ่านใหม่ตอนสลับแท็บ
+      if(fresh) setTimeout(prefetchTabs, 1500);
       const hm = r.asOf ? new Date(r.asOf).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
       $('btnShow').title = hm ? `ข้อมูล ณ ${hm} น. — กดเพื่อโหลดข้อมูลล่าสุดจากฐานข้อมูล` : 'กดเพื่อโหลดข้อมูลล่าสุดจากฐานข้อมูล';
     } catch(err){
@@ -1523,7 +1599,7 @@ ${tds}</tr>`;
     const btn = $('stSave'); btn.disabled = true;
     try{
       await api('/api/cut-stock-report/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ types: changed.map(t => ({ id: t.id, tab: t.tab })) }) });
-      $('stOverlay').classList.remove('show'); toast('บันทึกการจัดแท็บแล้ว'); load();
+      $('stOverlay').classList.remove('show'); toast('บันทึกการจัดแท็บแล้ว'); clearCaches(); load();
     } catch(err){ alert(err.message); } finally { btn.disabled = false; }
   }
 
@@ -1734,6 +1810,7 @@ ${tds}</tr>`;
         applyMeta(await loadMeta(st.tab));
         await load();
       });
+      setTimeout(prefetchTabs, 1500);
     } catch(err){ $('irErr').innerHTML = `<div class="ir-err">${esc(err.message)}</div>`; $('irBody').innerHTML = ''; }
   }
   init();
