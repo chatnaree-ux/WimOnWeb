@@ -539,10 +539,11 @@
   table.irt tbody tr:hover td.tt{background:#34495a;}
   table.irt tbody tr[data-rid]{cursor:pointer;}
   /* แถวที่คลิกไฮไลต์ไว้ (focus row): พื้นเหลืองอำพันเข้ม + แถบซ้าย — ยังเห็นเมื่อเลื่อนไปเดือนไกลๆ เพราะคอลัมน์ชื่อ/ไอคอนตรึงอยู่ */
-  table.irt tbody tr.fx td, table.irt tbody tr.fx:hover td, table.irt tbody tr.fx td.tt, table.irt tbody tr.fx td.mb{background:#55563f; color:#fff; border-bottom-color:rgba(255,226,102,.45);}   /* = เหลืองใส rgba(255,226,102,.28) ทับพื้นตาราง (ต้องทึบจริงเพราะคอลัมน์ตรึงต้องบังข้อมูลที่เลื่อนผ่าน) */
-  table.irt tbody tr.fx td.z{color:#b0b7a6;}
-  table.irt tbody tr.fx td.nm .ty{color:#d3dbe6;} table.irt tbody tr.fx td.nm .u{color:#e4dcff;} table.irt tbody tr.fx td.nm .u::before{color:#cfc6ee;} table.irt tbody tr.fx td.cx.grp{color:#ffe08a;} table.irt tbody tr.fx td.cx.crop{color:#fff;}
-  table.irt tbody tr.fx td.act{box-shadow:inset 4px 0 0 #f2a91c;}
+  /* แถวที่คลิกไว้ (focus row): สีน้ำเงินตระกูลเดียวกับตอนชี้เมาส์ (#223a5a) แต่เข้ม / สดขึ้นอีกขั้น + แถบฟ้าขอบซ้าย — ไม่คลิก = สีเดิม · พื้นต้องทึบเพราะคอลัมน์ตรึงบังข้อมูลที่เลื่อนผ่าน */
+  table.irt tbody tr.fx td, table.irt tbody tr.fx:hover td, table.irt tbody tr.fx td.tt, table.irt tbody tr.fx td.mb{background:#2b5a8f; color:#fff; border-bottom-color:rgba(124,196,245,.5);}
+  table.irt tbody tr.fx td.z{color:#8fb0d0;}
+  table.irt tbody tr.fx td.nm .ty{color:#d3e2f2;} table.irt tbody tr.fx td.nm .u{color:#e4dcff;} table.irt tbody tr.fx td.nm .u::before{color:#cfc6ee;} table.irt tbody tr.fx td.cx.grp{color:#ffe08a;} table.irt tbody tr.fx td.cx.crop{color:#fff;}
+  table.irt tbody tr.fx td.act{box-shadow:inset 4px 0 0 #4ea7e0;}
   table.irt tfoot td{position:sticky; bottom:0; z-index:2; background:#1e2c40; font-weight:700; color:#ffcf66; border-top:2px solid #f2a91c;}
   table.irt tfoot td.nm, table.irt tfoot td.act{z-index:4; background:#1e2c40;}
   table.irt tfoot td.nm.ft{text-align:right;}
